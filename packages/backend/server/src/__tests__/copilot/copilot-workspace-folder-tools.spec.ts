@@ -74,7 +74,7 @@ function createOrganization(input?: {
     writer as never,
     {
       copilotContext: {
-        withDocumentSourcesShared: async (
+        withWorkspaceWriteAudit: async (
           sourceCheck: Record<string, unknown>,
           operation: () => Promise<unknown>
         ) => {
@@ -140,15 +140,13 @@ function createPermissions(input?: {
 function tools(
   organization: WorkspaceOrganizationService,
   permissions = createPermissions(),
-  options: Record<string, unknown> = { legacyWorkspaceFolderDelete: true },
-  canPlaceDelegatedCreatedDocument?: (documentId: string) => Promise<boolean>
+  options: Record<string, unknown> = { legacyWorkspaceFolderDelete: true }
 ) {
   return createWorkspaceOrganizationTools(
     permissions.ac as never,
     permissions.permission as never,
     organization,
-    { user: 'user-1', workspace: 'workspace-1', ...options },
-    canPlaceDelegatedCreatedDocument
+    { user: 'user-1', workspace: 'workspace-1', ...options }
   );
 }
 
@@ -319,14 +317,13 @@ test('workspace folder tools manage folder trees and document placements safely'
   t.deepEqual(afterDelete.documents, []);
 });
 
-test('delegated placement records a source waiver only for a document attested by the host', async t => {
+test('new and existing documents use the same ACL and provenance for placement', async t => {
   const sourceChecks: Array<Record<string, unknown>> = [];
   const organization = createOrganization({ sourceChecks });
   const toolSet = tools(
     organization,
     createPermissions({ readableDocumentIds: ['doc-1', 'doc-2'] }),
-    {},
-    async documentId => documentId === 'doc-1'
+    {}
   );
   const folder = await run(toolSet, 'workspace_folder_create', {
     name: 'Delegated',
@@ -339,7 +336,7 @@ test('delegated placement records a source waiver only for a document attested b
     document_id: 'doc-1',
   });
   t.true(createdByTask.success);
-  t.is(sourceChecks[0].policy, 'record');
+  t.false('policy' in sourceChecks[0]);
 
   sourceChecks.length = 0;
   const existingDocument = await run(toolSet, 'workspace_folder_add_document', {
@@ -347,7 +344,7 @@ test('delegated placement records a source waiver only for a document attested b
     document_id: 'doc-2',
   });
   t.true(existingDocument.success);
-  t.is(sourceChecks[0].policy, 'enforce');
+  t.false('policy' in sourceChecks[0]);
 });
 
 test('workspace folder tools enforce organization ACLs', async t => {
@@ -509,22 +506,22 @@ test('current document and folder deletion tools use Trash before permanent dele
     (afterRestore.documents as Array<{ trash?: boolean }>)[0].trash === true
   );
 
-  const docTrashed = await run(toolSet, 'doc_trash', {
+  const docTrashed = await run(toolSet, 'workspace_doc_trash', {
     doc_id: 'doc-1',
     expected_title: 'Readable',
   });
   t.true(docTrashed.changed);
-  const docTrashReplay = await run(toolSet, 'doc_trash', {
+  const docTrashReplay = await run(toolSet, 'workspace_doc_trash', {
     doc_id: 'doc-1',
     expected_title: 'Readable',
   });
   t.true(docTrashReplay.idempotentReplay);
-  const docRestored = await run(toolSet, 'doc_restore', {
+  const docRestored = await run(toolSet, 'workspace_doc_restore', {
     doc_id: 'doc-1',
     expected_title: 'Readable',
   });
   t.true(docRestored.changed);
-  const docRestoreReplay = await run(toolSet, 'doc_restore', {
+  const docRestoreReplay = await run(toolSet, 'workspace_doc_restore', {
     doc_id: 'doc-1',
     expected_title: 'Readable',
   });
@@ -539,7 +536,7 @@ test('current document and folder deletion tools use Trash before permanent dele
   });
   const deniedBeforeTrash = await run(
     permanentToolSet,
-    'doc_delete_permanently',
+    'workspace_doc_delete_permanently',
     {
       doc_id: 'doc-1',
       expected_title: 'Readable',
@@ -549,20 +546,24 @@ test('current document and folder deletion tools use Trash before permanent dele
   t.is(deniedBeforeTrash.type, 'error');
   t.regex(deniedBeforeTrash.message, /already be in Trash/);
 
-  await run(toolSet, 'doc_trash', {
+  await run(toolSet, 'workspace_doc_trash', {
     doc_id: 'doc-1',
     expected_title: 'Readable',
   });
-  const deniedPermanent = await run(toolSet, 'doc_delete_permanently', {
-    doc_id: 'doc-1',
-    expected_title: 'Readable',
-    confirm_permanent_deletion: true,
-  });
+  const deniedPermanent = await run(
+    toolSet,
+    'workspace_doc_delete_permanently',
+    {
+      doc_id: 'doc-1',
+      expected_title: 'Readable',
+      confirm_permanent_deletion: true,
+    }
+  );
   t.is(deniedPermanent.type, 'error');
   t.regex(deniedPermanent.message, /explicit permanent-delete request/);
   const permanentlyDeleted = await run(
     permanentToolSet,
-    'doc_delete_permanently',
+    'workspace_doc_delete_permanently',
     {
       doc_id: 'doc-1',
       expected_title: 'Readable',
@@ -587,7 +588,7 @@ test('folder restore leaves documents that were already in Trash untouched', asy
     folder_id: folder.folderId,
     document_id: 'doc-1',
   });
-  await run(toolSet, 'doc_trash', {
+  await run(toolSet, 'workspace_doc_trash', {
     doc_id: 'doc-1',
     expected_title: 'Readable',
   });
@@ -811,7 +812,7 @@ test('permanent document deletion refuses an orphan without Trash metadata', asy
     }
   );
 
-  const result = await run(toolSet, 'doc_delete_permanently', {
+  const result = await run(toolSet, 'workspace_doc_delete_permanently', {
     doc_id: 'orphan-doc',
     expected_title: 'Orphan',
     confirm_permanent_deletion: true,

@@ -26,7 +26,7 @@ export const buildDocContentGetter = (
     if (!options?.user || !options?.workspace || !docId) {
       return toolError(
         'Doc Read Failed',
-        'Missing workspace, user, or document id for doc_read.'
+        'Missing workspace, user, or document id for workspace_doc_read.'
       );
     }
 

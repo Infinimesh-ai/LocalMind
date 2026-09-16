@@ -102,7 +102,7 @@ export class WorkspaceMcpProvider {
         'For every other request directed to LocalMind that asks for an answer or action, including follow-ups that request additional work, revisions, continuations, and retries, submit the complete request through delegate_to_localmind.',
         'When a delegated request includes local files, include them directly in delegate_to_localmind.attachments so the request and its files are submitted in one tool call. Use attachmentIds only to reuse attachments returned by an earlier delegation in the same credential family.',
         'LocalMind work can include answering questions, reading or searching documents, creating or editing documents, web research, and multi-step workspace tasks.',
-        'Do not call or search for internal AI tools such as doc_create or doc_read; they are not public MCP tools, and LocalMind selects them after delegation.',
+        'Do not call or search for internal AI tools such as workspace_doc_create or workspace_doc_read; they are not public MCP tools, and LocalMind selects them after delegation.',
         'After a queued or running result, poll get_localmind_task using pollAfterMs until terminal is true, unless a terminal callback is configured.',
         'LocalMind applies the credential capability ceiling and the delegated user real-time ACL.',
         'Permission failures are terminal and never request elevated access.',

@@ -71,12 +71,15 @@ function pickAttachmentFootnote(value: unknown): AttachmentFootnote | null {
 function collectAttachmentFootnotes(
   event: EnrichedToolResultEvent
 ): AttachmentFootnote[] {
-  if (event.name === 'blob_read') {
+  if (event.name === 'workspace_blob_read') {
     const item = pickAttachmentFootnote(event.output);
     return item ? [item] : [];
   }
 
-  if (event.name === 'doc_semantic_search' && Array.isArray(event.output)) {
+  if (
+    event.name === 'workspace_doc_semantic_search' &&
+    Array.isArray(event.output)
+  ) {
     return event.output
       .map(item => pickAttachmentFootnote(item))
       .filter((item): item is AttachmentFootnote => item !== null);

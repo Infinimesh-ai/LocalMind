@@ -9,41 +9,29 @@ system with runs, steps, approvals, resumability, tools, evidence, and audit.
 
 ## Current Problem
 
-The [stage-two acceptance](project-ai-boundaries.md#stage-two-progress-on-2026-09-06)
-adds immutable source checks to Project document workers, approval preparation,
-creation/copy confirmation, retries and no-op paths. Checks retain original
-document-grant identity and survive a rejected write transaction. Destination
-audience evidence rejects broader sharing. External `waiting_for_location`,
-session/operation bindings, immutable tool checkpoints and periodic recovery
-are implemented with Linux lifecycle and queue-outage tests. `doc_create` now
-resolves its destination on the server for the authenticated session actor: it
-defaults to the session workspace root, accepts an explicit `folder_id` only
-when the user named one, rechecks live workspace/directory authority through the
-same destination service, and records the resulting evidence with
-`autoConfirmed: true`. `waiting_for_location` remains the degraded state when
-that resolution fails. Confirmation stores the selected revision, actor,
-permission evidence and expiry; MCP clients still cannot select or submit a
-destination. Automatic recovery skips cancelled runs and isolates per-request
-conflicts; manual resume updates the external request in the run transaction
-and rejects withdrawn operations or inactive credentials. Office and directory
-AI writes now check cumulative sources through persistence, with document
-broadcasts deferred until successful transaction commit. The business runtime
-has been backed up and synchronized to 335 migrations. Encrypted-BYOK task
-`fc65e3e2-005e-499d-bd05-340add3cf842` retained waiting/zero creation over a
-backend restart and completed after explicit browser Workspace/root selection.
-Revision advanced once, only one document was created, and MCP returned its
-actual destination Workspace. Recovered tool receipts use structured nonempty
-message content so native prompt projection retains prior execution results.
-The real Redis and browser notification fault matrix also passed.
+The 2026-09-16 [Workspace/Project AI 写入授权与工具作用域重构方案](../workspace-project-ai-write-authorization-remediation.zh-CN.md) defines the current write and tool contracts.
+Workspace resource tools use `workspace_*`; Project resource tools use
+`project_*`. The runtime validates the conversation scope both at registration
+and execution. There are no executable aliases for old `doc_*` or `office_*`
+names. Stateless tools retain their names.
 
-Delegated document placement now keeps the same source boundary when a tool
-agent does not use the preferred atomic `doc_create(folder_id)` path. The
-workspace-folder tool may record the server-resolved destination waiver only
-when the current leased MCP task has a completed, persisted `doc_create`
-receipt for that exact document, actor and Workspace. Existing documents,
-other tasks and stale leases continue through the enforcing source check. The
-fallback therefore completes the named-folder request without another user
-confirmation while retaining a `waived_server_resolved_destination` audit row.
+Workspace body/title, directory, creation and Office writes use live domain ACL.
+Creation receipts remain idempotency evidence; they do not give new documents
+extra placement authority. Existing documents and documents from earlier tasks
+can be placed using the same current ACL. Ordinary user-requested Workspace
+Office/document updates queue after preview without an additional human approval;
+workers still validate credentials, ACL, versions, leases and cancellation.
+Project source/import/publication boundaries and required approvals are unchanged.
+
+New delegated requests use v6, completion contracts v4, tool fingerprints and
+capability snapshots v2; native Project command snapshots use version 2. The
+maintenance script `packages/backend/server/scripts/retire-tool-contracts.ts`
+defaults to dry-run and requires `LOCALMIND_WORKERS_PAUSED=1` for `--apply`.
+It transactionally fails nonterminal old-contract runs and linked MCP requests,
+releases leases, appends timeline evidence and cancels pending callbacks. Original
+checkpoints and execution results remain intact; unconfirmed calls stay explicitly
+unconfirmed. New workers reject old contracts with `tool_contract_retired`.
+Historical terminal receipts remain readable with their original names.
 
 The [Project AI Boundaries](project-ai-boundaries.md) contract adds
 durable document creation/copy operations with explicit storage destinations,

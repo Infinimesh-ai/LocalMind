@@ -1,5 +1,6 @@
 import type { AiMcpDelegationToolCall } from '@prisma/client';
 
+import { isRetiredResourceTool } from '../../../models/common/copilot-tool-contract';
 import { mcpDelegationFingerprint } from '../../../models/copilot-mcp-delegation';
 import type { StreamObject } from '../providers/types';
 import {
@@ -8,9 +9,9 @@ import {
 } from '../tools/workspace-organization';
 
 const WRITE_TOOL_NAMES = new Set([
-  'doc_create',
-  'doc_update',
-  'doc_update_meta',
+  'workspace_doc_create',
+  'workspace_doc_update',
+  'workspace_doc_update_meta',
   'workspace_folder_create',
   'workspace_folder_rename',
   'workspace_folder_move',
@@ -21,11 +22,11 @@ const WRITE_TOOL_NAMES = new Set([
   'workspace_folder_add_document',
   'workspace_folder_move_document',
   'workspace_folder_move_item',
-  'office_command_request',
-  'office_command_batch_request',
-  'doc_trash',
-  'doc_restore',
-  'doc_delete_permanently',
+  'workspace_office_command_request',
+  'workspace_office_command_batch_request',
+  'workspace_doc_trash',
+  'workspace_doc_restore',
+  'workspace_doc_delete_permanently',
 ]);
 
 export type ToolExecutionSummary = {
@@ -35,6 +36,7 @@ export type ToolExecutionSummary = {
   completedAt?: string;
   durationMs?: number;
   toolName: string;
+  legacy?: true;
   status: 'completed' | 'failed';
   argsFingerprint: string;
   sideEffectApplied?: boolean;
@@ -107,8 +109,11 @@ function referencedDocumentIds(
 }
 
 export function toolExecutionSummary(
-  event: Extract<StreamObject, { type: 'tool-result' }>
+  event: Extract<StreamObject, { type: 'tool-result' }>,
+  historical = false
 ) {
+  const legacy = historical && isRetiredResourceTool(event.toolName);
+  const evidenceName = legacy ? `workspace_${event.toolName}` : event.toolName;
   const result = objectValue(event.result);
   const failed =
     event.isError === true ||
@@ -123,11 +128,11 @@ export function toolExecutionSummary(
     (result.documentCreated === true ||
       (result.documentCreated === undefined && result.success === true));
   const relation =
-    creationConfirmed && event.toolName === 'doc_create'
+    creationConfirmed && evidenceName === 'workspace_doc_create'
       ? ('created' as const)
       : !failed &&
-          (event.toolName === 'doc_update' ||
-            event.toolName === 'doc_update_meta')
+          (evidenceName === 'workspace_doc_update' ||
+            evidenceName === 'workspace_doc_update_meta')
         ? ('updated' as const)
         : undefined;
   const versionFingerprint = mcpDelegationFingerprint({
@@ -181,8 +186,8 @@ export function toolExecutionSummary(
         }
       : undefined;
   const localSideEffectApplied =
-    !failed && WRITE_TOOL_NAMES.has(event.toolName)
-      ? (event.toolName !== 'doc_create' || creationConfirmed) &&
+    !failed && WRITE_TOOL_NAMES.has(evidenceName)
+      ? (evidenceName !== 'workspace_doc_create' || creationConfirmed) &&
         result.idempotentReplay !== true &&
         result.changed !== false
       : undefined;
@@ -216,6 +221,7 @@ export function toolExecutionSummary(
   return {
     toolCallId: event.toolCallId,
     toolName: event.toolName,
+    ...(legacy ? { legacy: true as const } : {}),
     status: failed ? ('failed' as const) : ('completed' as const),
     argsFingerprint: versionFingerprint,
     ...(documentId ? { documentId } : {}),
@@ -271,7 +277,7 @@ export function toolAgentCheckpointReceipts(
       args: objectValue(call.args),
       result,
     };
-    const summary = toolExecutionSummary(event);
+    const summary = toolExecutionSummary(event, true);
     if (!call.completedAt) {
       pendingToolCalls.push({
         toolCallId: call.callId,

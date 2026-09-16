@@ -180,8 +180,7 @@ export function createWorkspaceOrganizationTools(
   ac: PermissionAccess,
   permission: PermissionService,
   organization: WorkspaceOrganizationService,
-  options: NonNullable<CopilotChatOptions>,
-  canPlaceDelegatedCreatedDocument?: (documentId: string) => Promise<boolean>
+  options: NonNullable<CopilotChatOptions>
 ): CopilotToolSet {
   const context = () => {
     if (!options?.user || !options.workspace) {
@@ -276,20 +275,15 @@ export function createWorkspaceOrganizationTools(
     );
   };
 
-  const execute = async <T>(
-    name: string,
-    operation: () => Promise<T>,
-    sourcePolicy?: () => Promise<'enforce' | 'record'>
-  ) => {
+  const execute = async <T>(name: string, operation: () => Promise<T>) => {
     try {
       return name === 'list'
         ? await operation()
-        : await organization.withAiSourceCheck(
+        : await organization.withAiWriteAudit(
             {
               workspaceId: context().workspaceId,
               actorId: context().userId,
               sessionId: options.session,
-              policy: sourcePolicy ? await sourcePolicy() : 'enforce',
             },
             operation
           );
@@ -301,7 +295,7 @@ export function createWorkspaceOrganizationTools(
   };
 
   const tools: CopilotToolSet = {
-    doc_trash: defineTool({
+    workspace_doc_trash: defineTool({
       description:
         'Move one document to Trash. Ordinary user requests to delete a document must use this tool, never permanent deletion.',
       inputSchema: z
@@ -328,7 +322,7 @@ export function createWorkspaceOrganizationTools(
         }),
     }),
 
-    doc_restore: defineTool({
+    workspace_doc_restore: defineTool({
       description: 'Restore one document from Trash.',
       inputSchema: z
         .object({
@@ -354,7 +348,7 @@ export function createWorkspaceOrganizationTools(
         }),
     }),
 
-    doc_delete_permanently: defineTool({
+    workspace_doc_delete_permanently: defineTool({
       description:
         'Permanently delete one document that is already in Trash. Use only when the original user request explicitly says permanently delete or delete from Trash.',
       inputSchema: z
@@ -927,57 +921,49 @@ export function createWorkspaceOrganizationTools(
         })
         .strict(),
       execute: async ({ folder_id, document_id }) =>
-        execute(
-          'add document',
-          async () => {
-            await assertWrite();
-            await assertReadableDocument(document_id);
-            const { nodes } = await readOrganization();
-            requireFolder(nodes, folder_id);
-            const existing = nodes.find(
-              node =>
-                node.type === 'doc' &&
-                node.parentId === folder_id &&
-                node.data === document_id
-            );
-            if (existing) {
-              return {
-                success: true,
-                placementId: existing.id,
-                documentId: document_id,
-                folderId: folder_id,
-                idempotentReplay: true,
-                workspaceEffect: workspaceEffect('add_document', folder_id),
-              };
-            }
-            const placementId = nanoid();
-            await apply([
-              {
-                op: 'upsert',
-                key: placementId,
-                values: {
-                  parentId: folder_id,
-                  type: 'doc',
-                  data: document_id,
-                  index: nextIndex(nodes, folder_id),
-                },
-              },
-            ]);
+        execute('add document', async () => {
+          await assertWrite();
+          await assertReadableDocument(document_id);
+          const { nodes } = await readOrganization();
+          requireFolder(nodes, folder_id);
+          const existing = nodes.find(
+            node =>
+              node.type === 'doc' &&
+              node.parentId === folder_id &&
+              node.data === document_id
+          );
+          if (existing) {
             return {
               success: true,
-              placementId,
+              placementId: existing.id,
               documentId: document_id,
               folderId: folder_id,
-              idempotentReplay: false,
+              idempotentReplay: true,
               workspaceEffect: workspaceEffect('add_document', folder_id),
             };
-          },
-          async () =>
-            canPlaceDelegatedCreatedDocument &&
-            (await canPlaceDelegatedCreatedDocument(document_id))
-              ? 'record'
-              : 'enforce'
-        ),
+          }
+          const placementId = nanoid();
+          await apply([
+            {
+              op: 'upsert',
+              key: placementId,
+              values: {
+                parentId: folder_id,
+                type: 'doc',
+                data: document_id,
+                index: nextIndex(nodes, folder_id),
+              },
+            },
+          ]);
+          return {
+            success: true,
+            placementId,
+            documentId: document_id,
+            folderId: folder_id,
+            idempotentReplay: false,
+            workspaceEffect: workspaceEffect('add_document', folder_id),
+          };
+        }),
     }),
 
     workspace_folder_move_document: defineTool({
@@ -1070,9 +1056,9 @@ export function createWorkspaceOrganizationTools(
   };
   if (options.legacyWorkspaceFolderDelete) {
     for (const name of [
-      'doc_trash',
-      'doc_restore',
-      'doc_delete_permanently',
+      'workspace_doc_trash',
+      'workspace_doc_restore',
+      'workspace_doc_delete_permanently',
       'workspace_folder_trash',
       'workspace_folder_restore',
       'workspace_folder_delete_permanently',
@@ -1083,7 +1069,7 @@ export function createWorkspaceOrganizationTools(
   }
   delete tools.workspace_folder_delete;
   if (options.taskId && !options.destructiveIntent?.permanentDocumentDelete) {
-    delete tools.doc_delete_permanently;
+    delete tools.workspace_doc_delete_permanently;
   }
   if (options.taskId && !options.destructiveIntent?.permanentFolderDelete) {
     delete tools.workspace_folder_delete_permanently;

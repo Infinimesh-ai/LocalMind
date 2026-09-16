@@ -69,7 +69,7 @@ function fixture(options?: {
     }));
   const models = {
     copilotContext: {
-      withDocumentSourcesShared: Sinon.stub().callsFake(
+      withWorkspaceWriteAudit: Sinon.stub().callsFake(
         async (_input, execute) => await execute()
       ),
     },
@@ -149,12 +149,9 @@ test('previews an atomic batch without persistence and commits exactly one AI re
   t.is(revisionInput.operationSummary.source, 'ai');
 });
 
-test('source rejection prevents both Office blobs and revision creation on every attempt', async t => {
-  const f = fixture();
-  const check = f.models.copilotContext
-    .withDocumentSourcesShared as Sinon.SinonStub;
-  check.rejects(new Error('unshared_source'));
-  for (let attempt = 0; attempt < 2; attempt++) {
+test('live ACL rejection prevents both Office blobs and revisions on every attempt', async t => {
+  const f = fixture({ permissionError: new Error('Workspace.Sync denied') });
+  for (let attempt = 0; attempt < 2; attempt++)
     await t.throwsAsync(
       f.service.executeBatch({
         workspaceId: 'workspace-1',
@@ -162,14 +159,8 @@ test('source rejection prevents both Office blobs and revision creation on every
         sourceSessionId: 'session-1',
         batch,
       }),
-      { message: 'unshared_source' }
+      { message: 'Workspace.Sync denied' }
     );
-  }
-  t.is(check.callCount, 2);
-  t.like(check.firstCall.args[0], {
-    sessionId: 'session-1',
-    sink: { type: 'tool_write', id: 'artifact-1', workspaceId: 'workspace-1' },
-  });
   t.false((f.storage.put as Sinon.SinonStub).called);
   t.false(f.appendRevision.called);
 });

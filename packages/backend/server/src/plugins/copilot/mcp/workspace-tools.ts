@@ -344,7 +344,7 @@ export function createWorkspaceMcpTools(
         try {
           await assertRootOperations(operations as WorkspaceRootOperation[]);
           return toolResult(
-            await organization.withAiSourceCheck(
+            await organization.withAiWriteAudit(
               { workspaceId, actorId: userId },
               () =>
                 organization.applyRootOperations(
@@ -398,7 +398,7 @@ export function createWorkspaceMcpTools(
           return toolResult(
             await (table === 'favorites' || table === 'user_settings'
               ? apply()
-              : organization.withAiSourceCheck(
+              : organization.withAiWriteAudit(
                   { workspaceId, actorId: userId },
                   apply
                 ))

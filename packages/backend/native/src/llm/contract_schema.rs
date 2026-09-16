@@ -267,7 +267,7 @@ mod tests {
         "toolCallbackRequest".to_string(),
         json!({
           "callId": "call_1",
-          "name": "doc_read",
+          "name": "workspace_doc_read",
           "args": { "docId": "doc-1" },
           "rawArgumentsText": "{\"docId\":\"doc-1\"}"
         }),
@@ -279,7 +279,7 @@ mod tests {
       "toolCallbackResponse".to_string(),
       json!({
         "callId": "call_1",
-        "name": "doc_read",
+        "name": "workspace_doc_read",
         "args": {},
         "output": {},
         "extra": true

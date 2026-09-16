@@ -507,7 +507,7 @@ export class McpAiDelegationService {
       name: 'delegate_to_localmind',
       title: 'Start a LocalMind Task',
       description:
-        'Use ONLY for a request directed to LocalMind after excluding existing-task status and cancellation intents. If the user only wants the status, progress, or final result of a task whose taskId was returned by this tool, use get_localmind_task instead. If the user explicitly wants to stop or cancel an unfinished task, use control_localmind_task instead. For every other request directed to LocalMind that asks LocalMind to answer or act, including follow-ups that request additional work, revisions, continuations, and retries, submit the complete request through this tool. This tool is not a global router and must not intercept, reroute, delay, or otherwise affect ordinary conversations or native workflows in Codex, Claude, or other host agents. Merely mentioning, discussing, configuring, or troubleshooting LocalMind does not require this tool unless the user asks LocalMind to execute work. Include local files directly in attachments; use attachmentIds only to reuse files returned by an earlier delegation in the same credential family. Pass any known existing document IDs in documentIds. LocalMind AI selects its internal tools, so never look for public doc_create, doc_read, or other low-level tools. The result may be completed immediately or return a queued/running taskId; use get_localmind_task only after that to check progress.',
+        'Use ONLY for a request directed to LocalMind after excluding existing-task status and cancellation intents. If the user only wants the status, progress, or final result of a task whose taskId was returned by this tool, use get_localmind_task instead. If the user explicitly wants to stop or cancel an unfinished task, use control_localmind_task instead. For every other request directed to LocalMind that asks LocalMind to answer or act, including follow-ups that request additional work, revisions, continuations, and retries, submit the complete request through this tool. This tool is not a global router and must not intercept, reroute, delay, or otherwise affect ordinary conversations or native workflows in Codex, Claude, or other host agents. Merely mentioning, discussing, configuring, or troubleshooting LocalMind does not require this tool unless the user asks LocalMind to execute work. Include local files directly in attachments; use attachmentIds only to reuse files returned by an earlier delegation in the same credential family. Pass any known existing document IDs in documentIds. LocalMind AI selects its internal tools, so never look for public workspace_doc_create, workspace_doc_read, or other low-level tools. The result may be completed immediately or return a queued/running taskId; use get_localmind_task only after that to check progress.',
       parser: DelegationToolInput,
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: WRITE_TOOL,
@@ -1128,7 +1128,9 @@ export class McpAiDelegationService {
           ? completionContract.requirements.flatMap(requirement =>
               requirement.kind === 'any_of' &&
               requirement.requirements.some(candidate =>
-                candidate.toolNames.includes('conditional_noop_complete')
+                candidate.toolNames.includes(
+                  'workspace_conditional_noop_complete'
+                )
               )
                 ? requirement.requirements.flatMap(candidate =>
                     candidate.documentId ? [candidate.documentId] : []
@@ -1173,7 +1175,7 @@ export class McpAiDelegationService {
       }
       const allowedToolNames = Object.keys(actualTools).sort();
       const toolSnapshotFingerprint = mcpDelegationFingerprint({
-        version: 'localmind-tool-agent-tools/v1',
+        version: 'localmind-tool-agent-tools/v2',
         toolNames: allowedToolNames,
       });
       const toolCapabilities = buildToolCapabilitySnapshot(actualTools);
@@ -1212,7 +1214,7 @@ export class McpAiDelegationService {
             order: 0,
             outputSummary: {
               localMindToolAgentRequest: {
-                version: 'localmind-tool-agent-request/v5',
+                version: 'localmind-tool-agent-request/v6',
                 requestFingerprint,
                 allowedTools: [...LOCALMIND_DELEGATION_AI_TOOLS],
                 allowedToolNames,

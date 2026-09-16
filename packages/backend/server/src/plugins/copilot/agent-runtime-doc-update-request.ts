@@ -276,17 +276,6 @@ export async function createAgentRuntimeDocUpdateRequest(input: {
       .doc({ workspaceId: sourceWorkspaceId, docId })
       .allowLocal()
       .assert('Doc.Update');
-    await input.models.copilotContext.assertDocumentSourcesShared({
-      actorId: input.actorId,
-      sessionId,
-      sink: {
-        type: 'document_update',
-        id: docId,
-        documentId: docId,
-        workspaceId: sourceWorkspaceId,
-        phase: 'prepare',
-      },
-    });
   }
 
   const documentTimestamps = await input.models.doc.findTimestampsByDocIds(
@@ -328,7 +317,7 @@ export async function createAgentRuntimeDocUpdateRequest(input: {
     workflow: AGENT_RUNTIME_DOC_UPDATE_WORKFLOW,
     sourceType: 'agent_runtime_office_task',
     sourceId,
-    status: 'waiting_approval',
+    status: 'queued',
     title: input.request.title ?? `Update document ${docId}`,
     target: {
       version: 'agent-runtime-doc-update-target/v1',
@@ -356,10 +345,15 @@ export async function createAgentRuntimeDocUpdateRequest(input: {
       {
         stepKey: 'approve_doc_update',
         stepType: 'approval',
-        status: 'waiting_approval',
-        title: 'Approve document update',
+        status: 'completed',
+        title: 'Document update authorized by user request',
         order: 0,
         outputSummary: {
+          authorization: {
+            policyVersion: 'workspace-live-acl/v1',
+            actorId: input.actorId,
+            source: 'user_request',
+          },
           approvalRequest: {
             version: 'agent-runtime-doc-update-approval/v1',
             hostWorkspaceId,
@@ -376,7 +370,7 @@ export async function createAgentRuntimeDocUpdateRequest(input: {
       {
         stepKey: 'update_doc',
         stepType: 'tool',
-        status: 'waiting_approval',
+        status: 'pending',
         title: 'Update document',
         order: 1,
         outputSummary: { docUpdateRequest },

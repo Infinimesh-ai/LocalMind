@@ -678,18 +678,11 @@ export class OfficeAgentCommandService {
     input: Omit<RequestOfficeAgentCommandInput, 'command'>,
     payload: OfficeAgentCommandPayload
   ) {
-    const value = payload.kind === 'command' ? payload.command : payload.batch;
-    await this.models.copilotContext.assertDocumentSourcesShared({
-      sessionId: input.sessionId,
+    await this.models.copilotContext.assertWorkspaceWriteSession({
       actorId: input.actorId,
-      sink: {
-        type: 'tool_write',
-        id: value.artifactId,
-        documentId: value.artifactId,
-        workspaceId: input.workspaceId,
-        phase: 'prepare',
-      },
+      sessionId: input.sessionId,
     });
+    const value = payload.kind === 'command' ? payload.command : payload.batch;
     const preview =
       payload.kind === 'command'
         ? await this.commands.preview({
@@ -760,10 +753,10 @@ export class OfficeAgentCommandService {
       workflow: AGENT_RUNTIME_OFFICE_COMMAND_WORKFLOW,
       sourceType: 'office_command_request',
       sourceId: persisted.request.id,
-      status: 'waiting_approval',
+      status: 'queued',
       title:
         input.title ??
-        `Approve ${
+        `Apply ${
           payload.kind === 'command'
             ? payload.command.operation
             : `${payload.batch.commands.length} Office changes`
@@ -795,10 +788,15 @@ export class OfficeAgentCommandService {
         {
           stepKey: 'approve_office_command',
           stepType: 'approval',
-          status: 'waiting_approval',
-          title: 'Approve Office command',
+          status: 'completed',
+          title: 'Office edit authorized by user request',
           order: 0,
           outputSummary: {
+            authorization: {
+              policyVersion: 'workspace-live-acl/v1',
+              actorId: input.actorId,
+              source: 'user_request',
+            },
             approvalRequest: {
               version: 'agent-runtime-office-command-approval/v1',
               requestId: persisted.request.id,
@@ -827,7 +825,7 @@ export class OfficeAgentCommandService {
         {
           stepKey: 'execute_office_command',
           stepType: 'tool',
-          status: 'waiting_approval',
+          status: 'pending',
           title: 'Execute Office command',
           order: 1,
           outputSummary: {

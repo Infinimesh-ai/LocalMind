@@ -12,7 +12,7 @@ import { AppModule } from '../../app.module';
 import { JobQueue } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
-import { DocReader } from '../../core/doc';
+import { DocReader, DocWriter } from '../../core/doc';
 import { QuotaService } from '../../core/quota';
 import {
   ContextCategories,
@@ -21,6 +21,7 @@ import {
   EMBEDDING_DIMENSIONS,
   WorkspaceRole,
 } from '../../models';
+import { ByokService } from '../../plugins/copilot/byok/service';
 import { CompatSubmissionStore } from '../../plugins/copilot/compat/submission-store';
 import { CopilotContextService } from '../../plugins/copilot/context';
 import {
@@ -980,13 +981,21 @@ test('should be able to list history', async t => {
 
 test('should preserve persisted assistant render trace on history reload', async t => {
   const { app } = t.context;
+  Sinon.stub(app.get(ByokService), 'getProfiles').resolves([
+    {
+      id: 'render-trace-fixture',
+      type: CopilotProviderType.OpenAI,
+      config: { apiKey: 'test-render-trace-key' },
+      enabled: true,
+    },
+  ]);
   const chatRuntime = app.get(CapabilityRuntime);
   Sinon.stub(chatRuntime, 'streamObject').callsFake(async function* () {
     yield { type: 'reasoning', textDelta: 'Inspecting context' } as const;
     yield {
       type: 'tool-result',
       toolCallId: 'call_1',
-      toolName: 'doc_read',
+      toolName: 'workspace_doc_read',
       args: { docId: 'doc-1' },
       result: { markdown: '# AFFiNE' },
     } as const;
@@ -995,7 +1004,14 @@ test('should preserve persisted assistant render trace on history reload', async
   });
 
   const { id: workspaceId } = await createWorkspace(app);
-  const docId = randomUUID();
+  const { docId } = await app
+    .get(DocWriter)
+    .createDoc(
+      workspaceId,
+      'Render trace fixture',
+      'Original body',
+      t.context.u1.id
+    );
   const sessionId = await createCopilotSession(
     app,
     workspaceId,
@@ -1004,7 +1020,8 @@ test('should preserve persisted assistant render trace on history reload', async
   );
 
   const messageToken = await createCopilotMessage(app, sessionId, 'hello');
-  await chatWithStreamObject(app, sessionId, messageToken);
+  const stream = await chatWithStreamObject(app, sessionId, messageToken);
+  t.false(stream.includes('event: error'), stream);
 
   const histories = await app.gql(
     `
@@ -1059,7 +1076,7 @@ test('should preserve persisted assistant render trace on history reload', async
     {
       type: 'tool-result',
       toolCallId: 'call_1',
-      toolName: 'doc_read',
+      toolName: 'workspace_doc_read',
       args: { docId: 'doc-1' },
       result: { markdown: '# AFFiNE' },
       textDelta: null,

@@ -26,6 +26,12 @@ import type {
 } from '../ai-chat-messages';
 import { isToolError } from '../ai-tools/tool-result-utils';
 
+export function isLegacyResourceToolName(name: string) {
+  return /^(doc_(create|copy|creation_status|read|update|update_meta|keyword_search|semantic_search|trash|restore|delete_permanently)|office_(read|command_request|command_batch_request)|blob_read|conditional_noop_complete|project_doc_(update_request|add))$/.test(
+    name
+  );
+}
+
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -128,7 +134,7 @@ export function officeToolResultView(
   const failed = () => ({
     status: 'error' as const,
     name: t(
-      toolName === 'office_read'
+      toolName === 'workspace_office_read' || toolName === 'project_office_read'
         ? 'com.affine.localmind.office-tool.readFailed'
         : 'com.affine.localmind.office-tool.requestFailed'
     ),
@@ -140,7 +146,10 @@ export function officeToolResultView(
   if (!value) {
     return failed();
   }
-  if (toolName === 'office_read') {
+  if (
+    toolName === 'workspace_office_read' ||
+    toolName === 'project_office_read'
+  ) {
     if (
       typeof value.revisionId !== 'string' ||
       !value.revisionId ||
@@ -464,14 +473,19 @@ export class ChatContentStreamObjects extends WithDisposable(
   private renderOfficeToolCall(streamObject: StreamObject) {
     if (streamObject.type !== 'tool-call') return nothing;
     const name =
-      streamObject.toolName === 'office_read'
+      streamObject.toolName === 'workspace_office_read' ||
+      streamObject.toolName === 'project_office_read'
         ? 'Reading current Office revision'
-        : streamObject.toolName === 'office_command_batch_request'
+        : streamObject.toolName === 'workspace_office_command_batch_request' ||
+            streamObject.toolName === 'project_office_command_batch_request'
           ? 'Preparing an atomic Office change set'
           : 'Preparing an Office change';
     return html`<tool-call-card
       .name=${name}
-      .icon=${streamObject.toolName === 'office_read' ? ViewIcon() : PageIcon()}
+      .icon=${streamObject.toolName === 'workspace_office_read' ||
+      streamObject.toolName === 'project_office_read'
+        ? ViewIcon()
+        : PageIcon()}
       .width=${this.width}
     ></tool-call-card>`;
   }
@@ -505,6 +519,12 @@ export class ChatContentStreamObjects extends WithDisposable(
       return nothing;
     }
 
+    if (isLegacyResourceToolName(streamObject.toolName)) {
+      return html`<tool-call-card
+        .name=${`${streamObject.toolName} (legacy)`}
+        .width=${this.width}
+      ></tool-call-card>`;
+    }
     switch (streamObject.toolName) {
       case 'web_crawl_exa':
         return html`
@@ -547,29 +567,35 @@ export class ChatContentStreamObjects extends WithDisposable(
             .notificationService=${this.notificationService}
           ></doc-edit-tool>
         `;
-      case 'doc_semantic_search':
+      case 'project_doc_semantic_search':
+      case 'workspace_doc_semantic_search':
         return html`<doc-semantic-search-result
           .data=${streamObject}
           .width=${this.width}
           .peekViewService=${this.peekViewService}
         ></doc-semantic-search-result>`;
-      case 'doc_keyword_search':
+      case 'project_doc_keyword_search':
+      case 'workspace_doc_keyword_search':
         return html`<doc-keyword-search-result
           .data=${streamObject}
           .width=${this.width}
         ></doc-keyword-search-result>`;
-      case 'doc_read':
+      case 'project_doc_read':
+      case 'workspace_doc_read':
         return html`<doc-read-result
           .data=${streamObject}
           .width=${this.width}
         ></doc-read-result>`;
-      case 'office_read':
-      case 'office_command_request':
-      case 'office_command_batch_request':
+      case 'project_office_read':
+      case 'workspace_office_read':
+      case 'project_office_command_request':
+      case 'workspace_office_command_request':
+      case 'project_office_command_batch_request':
+      case 'workspace_office_command_batch_request':
         return this.renderOfficeToolCall(streamObject);
-      case 'doc_create':
-      case 'doc_update':
-      case 'doc_update_meta':
+      case 'workspace_doc_create':
+      case 'workspace_doc_update':
+      case 'workspace_doc_update_meta':
         return html`<doc-write-tool
           .data=${streamObject}
           .width=${this.width}
@@ -598,11 +624,33 @@ export class ChatContentStreamObjects extends WithDisposable(
     }
   }
 
+  private renderReadOnlyResourceResult(
+    streamObject: Extract<StreamObject, { type: 'tool-result' }>,
+    name: string
+  ) {
+    return html`<tool-result-card
+      .name=${name}
+      .width=${this.width}
+      .results=${[
+        {
+          title: streamObject.toolName,
+          content: JSON.stringify(streamObject.result, null, 2)?.slice(0, 8192),
+        },
+      ]}
+    ></tool-result-card>`;
+  }
+
   private renderToolResult(streamObject: StreamObject) {
     if (streamObject.type !== 'tool-result') {
       return nothing;
     }
 
+    if (isLegacyResourceToolName(streamObject.toolName)) {
+      return this.renderReadOnlyResourceResult(
+        streamObject,
+        `${streamObject.toolName} (legacy)`
+      );
+    }
     switch (streamObject.toolName) {
       case 'web_crawl_exa':
         return html`
@@ -647,7 +695,8 @@ export class ChatContentStreamObjects extends WithDisposable(
             .notificationService=${this.notificationService}
           ></doc-edit-tool>
         `;
-      case 'doc_semantic_search':
+      case 'project_doc_semantic_search':
+      case 'workspace_doc_semantic_search':
         return html`<doc-semantic-search-result
           .data=${streamObject}
           .width=${this.width}
@@ -655,23 +704,28 @@ export class ChatContentStreamObjects extends WithDisposable(
           .peekViewService=${this.peekViewService}
           .onOpenDoc=${this.onOpenDoc}
         ></doc-semantic-search-result>`;
-      case 'doc_keyword_search':
+      case 'project_doc_keyword_search':
+      case 'workspace_doc_keyword_search':
         return html`<doc-keyword-search-result
           .data=${streamObject}
           .width=${this.width}
           .peekViewService=${this.peekViewService}
           .onOpenDoc=${this.onOpenDoc}
         ></doc-keyword-search-result>`;
-      case 'doc_read':
+      case 'project_doc_read':
+      case 'workspace_doc_read':
         return html`<doc-read-result
           .data=${streamObject}
           .width=${this.width}
           .peekViewService=${this.peekViewService}
           .onOpenDoc=${this.onOpenDoc}
         ></doc-read-result>`;
-      case 'office_read':
-      case 'office_command_request':
-      case 'office_command_batch_request':
+      case 'project_office_read':
+      case 'workspace_office_read':
+      case 'project_office_command_request':
+      case 'workspace_office_command_request':
+      case 'project_office_command_batch_request':
+      case 'workspace_office_command_batch_request':
         return this.renderOfficeToolResult(streamObject);
       case 'blocker_suggest': {
         const suggestion = this.renderBlockerSuggestion(streamObject);
@@ -683,9 +737,16 @@ export class ChatContentStreamObjects extends WithDisposable(
           ></tool-result-card>
         `;
       }
-      case 'doc_create':
-      case 'doc_update':
-      case 'doc_update_meta':
+      case 'project_doc_create':
+      case 'project_doc_update':
+      case 'project_resource_update_meta':
+        return this.renderReadOnlyResourceResult(
+          streamObject,
+          streamObject.toolName
+        );
+      case 'workspace_doc_create':
+      case 'workspace_doc_update':
+      case 'workspace_doc_update_meta':
         return html`<doc-write-tool
           .data=${streamObject}
           .width=${this.width}

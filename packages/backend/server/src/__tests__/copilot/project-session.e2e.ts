@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import test from 'ava';
 
 import { ProjectBlobStorage, ProjectResourceService } from '../../core/project';
+import { retireToolContracts } from '../../models/common/copilot-tool-contract-retirement';
 import { PROJECT_AGENT_WORKFLOW } from '../../models/copilot-project-agent-runtime';
 import { ByokService } from '../../plugins/copilot/byok';
 import { ConversationInboxService } from '../../plugins/copilot/conversation/inbox';
@@ -188,8 +189,8 @@ test.serial(
       workflow: PROJECT_AGENT_WORKFLOW,
       title: 'Create a document after restart',
       command: {
-        version: 1,
-        toolName: 'doc_create',
+        version: 2,
+        toolName: 'project_doc_create',
         toolCallId: 'background-call',
         arguments: {
           title: 'Recovered document',
@@ -243,7 +244,7 @@ test.serial(
         title: 'Queued create',
         command: {
           version: 1,
-          toolName: 'doc_create',
+          toolName: 'project_doc_create',
           toolCallId: requestKey,
           arguments: { title: requestKey, content: 'Must not be written' },
           options: {
@@ -500,8 +501,8 @@ test.serial(
       { ...options, tools: [...options.tools] },
       'test'
     );
-    t.truthy(restrictedTools.doc_read);
-    t.falsy(restrictedTools.doc_create);
+    t.truthy(restrictedTools.project_doc_read);
+    t.falsy(restrictedTools.project_doc_create);
     t.falsy(restrictedTools.project_folder_create);
     Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
     const call = async (
@@ -523,7 +524,7 @@ test.serial(
     };
     t.is(
       buildToolCapabilitySnapshot(tools).find(
-        tool => tool.name === 'doc_create'
+        tool => tool.name === 'project_doc_create'
       )?.sideEffectType,
       'project_write'
     );
@@ -533,7 +534,7 @@ test.serial(
       'folder-call'
     );
     const created = await call(
-      'doc_create',
+      'project_doc_create',
       {
         title: 'Document A',
         content: 'Native tool body',
@@ -548,7 +549,7 @@ test.serial(
       ['test1', 'Document A']
     );
     const replay = await call(
-      'doc_create',
+      'project_doc_create',
       {
         title: 'Document A',
         content: 'Native tool body',
@@ -562,7 +563,7 @@ test.serial(
     t.is(await db.workspace.count(), 0);
     await t.throwsAsync(
       call(
-        'doc_create',
+        'project_doc_create',
         {
           title: 'Changed intent',
           content: 'Native tool body',
@@ -574,7 +575,7 @@ test.serial(
     );
     await t.throwsAsync(
       call(
-        'doc_update',
+        'project_doc_update',
         {
           doc_id: created.resourceId,
           expected_content_version: 1,
@@ -584,13 +585,13 @@ test.serial(
       )
     );
     const read = await call(
-      'doc_read',
+      'project_doc_read',
       { doc_id: created.resourceId },
       'read-call'
     );
     t.true(read.markdown.includes('Native tool body'));
     await call(
-      'doc_update',
+      'project_doc_update',
       {
         doc_id: created.resourceId,
         expected_content_version: 1,
@@ -602,7 +603,7 @@ test.serial(
       { ...options, tools: [...options.tools] },
       'test'
     );
-    await recoveredTools.doc_update.execute!(
+    await recoveredTools.project_doc_update.execute!(
       {
         doc_id: created.resourceId,
         expected_content_version: 1,
@@ -612,7 +613,7 @@ test.serial(
     );
     await t.throwsAsync(
       Promise.resolve(
-        recoveredTools.doc_update.execute!(
+        recoveredTools.project_doc_update.execute!(
           {
             doc_id: created.resourceId,
             expected_content_version: 1,
@@ -624,7 +625,7 @@ test.serial(
     );
     await t.throwsAsync(
       Promise.resolve(
-        recoveredTools.doc_update.execute!(
+        recoveredTools.project_doc_update.execute!(
           {
             doc_id: created.resourceId,
             expected_content_version: 2,
@@ -635,7 +636,7 @@ test.serial(
       )
     );
     await call(
-      'doc_update',
+      'project_doc_update',
       {
         doc_id: created.resourceId,
         expected_content_version: 1,
@@ -649,7 +650,11 @@ test.serial(
       }),
       2
     );
-    await call('doc_read', { doc_id: created.resourceId }, 'second-read');
+    await call(
+      'project_doc_read',
+      { doc_id: created.resourceId },
+      'second-read'
+    );
     const editor = {
       projectId: project.id,
       actorId: user.id,
@@ -674,7 +679,7 @@ test.serial(
       },
     });
     const waiting = await call(
-      'doc_update',
+      'project_doc_update',
       {
         doc_id: created.resourceId,
         expected_content_version: 2,
@@ -708,7 +713,7 @@ test.serial(
     t.is(resumed.leaseRetryCount, 1);
     await t.throwsAsync(
       call(
-        'doc_update',
+        'project_doc_update',
         {
           doc_id: created.resourceId,
           expected_content_version: 2,
@@ -731,7 +736,7 @@ test.serial(
       where: { projectId_userId: { projectId: project.id, userId: user.id } },
     });
     await t.throwsAsync(
-      call('doc_read', { doc_id: created.resourceId }, 'revoked-read')
+      call('project_doc_read', { doc_id: created.resourceId }, 'revoked-read')
     );
     t.is(
       await db.projectResourceRevision.count({
@@ -739,5 +744,82 @@ test.serial(
       }),
       3
     );
+  }
+);
+
+test.serial(
+  'Project workers reject retired command versions and names without side effects',
+  async t => {
+    const { db, user, project, createSession } = await fixture();
+    const session = await createSession(project.id);
+    for (const [version, toolName] of [
+      [1, 'project_doc_create'],
+      [2, 'doc_create'],
+    ] as const) {
+      const command = {
+        version,
+        toolName,
+        toolCallId: `retired-${version}`,
+        arguments: {
+          title: 'Must not be created',
+          content: 'Retired input',
+          kind: 'page',
+        },
+        options: {
+          user: user.id,
+          session: session.sessionId,
+          tools: ['docCreate'],
+        },
+      };
+      const run = await app.models.copilotProjectAgentRuntime.prepare({
+        projectId: project.id,
+        actorId: user.id,
+        sessionId: session.sessionId,
+        requestKey: `retired-${version}`,
+        sourceType: 'project_resource',
+        workflow: PROJECT_AGENT_WORKFLOW,
+        title: 'Retired contract fixture',
+        command,
+      });
+      if (version === 1) {
+        await t.throwsAsync(
+          db.aiAgentRun.update({
+            where: { id: run.id },
+            data: {
+              status: 'failed',
+              failureCode: 'tool_contract_retired',
+              failureMessage: 'Missing maintenance receipt',
+              completedAt: new Date(),
+            },
+          }),
+          { message: /terminal state requires an immutable execution receipt/ }
+        );
+        t.like(await retireToolContracts(db, true), {
+          affectedRuns: 1,
+          retiredRuns: 1,
+        });
+        t.is(
+          await db.aiAgentRuntimeExecutionResult.count({
+            where: { runId: run.id },
+          }),
+          0
+        );
+      }
+      await app
+        .get(CopilotProjectAgentRuntimeWorker)
+        .run({ projectId: project.id, runId: run.id });
+      const rejected = await app.models.copilotProjectAgentRuntime.get({
+        projectId: project.id,
+        actorId: user.id,
+        runId: run.id,
+      });
+      t.like(rejected, {
+        status: 'failed',
+        failureCode: 'tool_contract_retired',
+        workerLeaseId: null,
+      });
+      t.deepEqual(rejected.steps[0].input, command);
+    }
+    t.is(await db.projectResource.count(), 0);
   }
 );

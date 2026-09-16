@@ -173,7 +173,7 @@ mod tests {
         ],
         "tools": [
           {
-            "name": "doc_read",
+            "name": "workspace_doc_read",
             "parameters": { "type": "object" }
           }
         ],
@@ -212,7 +212,7 @@ mod tests {
         "stream": true,
         "tools": [
           {
-            "name": "doc_read",
+            "name": "workspace_doc_read",
             "parameters": { "type": "object" }
           }
         ],

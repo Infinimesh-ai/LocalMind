@@ -18,7 +18,7 @@ const logger = new Logger('DocComposeTool');
 export const createDocComposeTool = (prompt: RunPromptText) => {
   return defineTool({
     description:
-      'Generate a structured Markdown document preview without saving it to the workspace. Use doc_create to create a saved workspace document, and use doc_update to edit one.',
+      'Generate a structured Markdown document preview without saving it to the workspace. Use workspace_doc_create to create a saved workspace document, and use workspace_doc_update to edit one.',
     inputSchema: z.object({
       title: z.string().describe('The title of the document'),
       userPrompt: z

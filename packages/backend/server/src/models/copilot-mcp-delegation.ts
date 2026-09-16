@@ -9,6 +9,10 @@ import {
 } from '@prisma/client';
 
 import { BaseModel } from './base';
+import {
+  isRetiredResourceTool,
+  ToolContractRetiredError,
+} from './common/copilot-tool-contract';
 
 export type McpDelegationRequestStatus =
   | 'processing'
@@ -77,12 +81,6 @@ export type CreateMcpAttachmentInput = {
   contentFingerprint: string;
 };
 
-function objectValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 @Injectable()
 export class CopilotMcpDelegationModel extends BaseModel {
   listToolCalls(requestId: string) {
@@ -124,39 +122,6 @@ export class CopilotMcpDelegationModel extends BaseModel {
     return request;
   }
 
-  async canPlaceDocumentCreatedByCurrentToolLease(input: {
-    requestId: string;
-    sessionId: string;
-    runId: string;
-    workerLeaseId: string;
-    workerAttempt: number;
-    workspaceId: string;
-    actorId: string;
-    documentId: string;
-  }) {
-    const request = await this.assertToolLease(input);
-    if (
-      request.workspaceId !== input.workspaceId ||
-      request.actorId !== input.actorId
-    ) {
-      return false;
-    }
-    const calls = await this.listToolCalls(request.id);
-    return calls.some(call => {
-      if (call.toolName !== 'doc_create' || !call.completedAt) return false;
-      const result = objectValue(objectValue(call.result).value);
-      if (result.type === 'error' || result.documentCreated === false)
-        return false;
-      const documentId = result.documentId ?? result.docId;
-      const workspaceId = result.workspaceId;
-      return (
-        documentId === input.documentId &&
-        (result.documentCreated === true || result.success === true) &&
-        (workspaceId === undefined || workspaceId === input.workspaceId)
-      );
-    });
-  }
-
   @Transactional()
   async beginToolCall(input: {
     requestId: string;
@@ -171,6 +136,11 @@ export class CopilotMcpDelegationModel extends BaseModel {
     await this.db
       .$queryRaw`SELECT id FROM ai_mcp_delegation_requests WHERE id = ${input.requestId} FOR UPDATE`;
     const request = await this.assertToolLease(input);
+    if (
+      isRetiredResourceTool(input.toolName) ||
+      input.toolName.startsWith('project_')
+    )
+      throw new ToolContractRetiredError();
     if (!input.callId || input.callId.length > 256)
       throw new Error('Delegated tool call identity is missing');
     const pendingLocation = await this.db.copilotDocumentOperation.findFirst({
@@ -190,7 +160,7 @@ export class CopilotMcpDelegationModel extends BaseModel {
           mcpDelegationFingerprint(input.args)
       )
         throw new Error('Delegated tool call identity changed');
-      if (!existing.completedAt && input.toolName !== 'doc_create')
+      if (!existing.completedAt && input.toolName !== 'workspace_doc_create')
         throw new Error(
           'Uncertain delegated tool execution requires manual reconciliation'
         );

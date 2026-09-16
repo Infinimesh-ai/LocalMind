@@ -109,7 +109,7 @@ test('creates an approval-gated Agent Runtime run without applying the Office co
   }));
   const models = {
     officeCommandRequest: { createOrReuse },
-    copilotContext: { assertDocumentSourcesShared: Sinon.stub().resolves() },
+    copilotContext: { assertWorkspaceWriteSession: Sinon.stub().resolves() },
     copilotAgentRuntime: { createRun },
   } as unknown as Models;
   const storage = {
@@ -133,7 +133,7 @@ test('creates an approval-gated Agent Runtime run without applying the Office co
     reason: 'Apply approved formatting',
   });
 
-  t.is(result.run.status, 'waiting_approval');
+  t.is(result.run.status, 'queued');
   t.is(
     createRun.firstCall.args[0].workflow,
     AGENT_RUNTIME_OFFICE_COMMAND_WORKFLOW
@@ -142,7 +142,7 @@ test('creates an approval-gated Agent Runtime run without applying the Office co
     createRun.firstCall.args[0].steps.map(
       (step: { status: string }) => step.status
     ),
-    ['waiting_approval', 'waiting_approval']
+    ['completed', 'pending']
   );
   const approvalRequest =
     createRun.firstCall.args[0].steps[0].outputSummary.approvalRequest;
@@ -212,7 +212,7 @@ test('accepts approval-gated AI commands for every native Office engine', async 
   }));
   const models = {
     officeCommandRequest: { createOrReuse },
-    copilotContext: { assertDocumentSourcesShared: Sinon.stub().resolves() },
+    copilotContext: { assertWorkspaceWriteSession: Sinon.stub().resolves() },
     copilotAgentRuntime: { createRun },
   } as unknown as Models;
   const storage = {
@@ -240,7 +240,7 @@ test('accepts approval-gated AI commands for every native Office engine', async 
       actorId: 'user-1',
       command: candidate,
     });
-    t.is(result.run.status, 'waiting_approval');
+    t.is(result.run.status, 'queued');
   }
   t.is((officeCommands.preview as Sinon.SinonStub).callCount, commands.length);
   t.false((officeCommands.execute as Sinon.SinonStub).called);
@@ -670,11 +670,11 @@ test('revalidates current Office context and rejects stale stable selections', a
       actorId: 'user-1',
       context,
     }),
-    { message: /workspace does not match/ }
+    { message: /owner does not match/ }
   );
 });
 
-test('requires a matching office_read proof before single or batch writes', async t => {
+test('requires a matching workspace_office_read proof before single or batch writes', async t => {
   let proof: { artifactId: string; revisionId: string } | null = null;
   const request = Sinon.stub().resolves({
     run: { id: 'run-1', status: 'waiting_approval' },
@@ -731,7 +731,8 @@ test('requires a matching office_read proof before single or batch writes', asyn
   );
 
   await t.throwsAsync(write(options, command), {
-    message: /Call office_read successfully before requesting a write/,
+    message:
+      /Call workspace_office_read successfully before requesting a write/,
   });
   await t.throwsAsync(read(options, 'artifact-other', 'revision-1'), {
     message: /current Office artifact/,

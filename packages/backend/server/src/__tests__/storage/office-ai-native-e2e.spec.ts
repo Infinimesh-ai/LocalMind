@@ -77,8 +77,8 @@ async function executeNativeBatch(input: {
   }));
   const models = {
     copilotContext: {
-      withDocumentSourcesShared: Sinon.stub().callsFake(
-        async (_input, execute) => execute()
+      withWorkspaceWriteAudit: Sinon.stub().callsFake(async (_input, execute) =>
+        execute()
       ),
     },
     officeArtifact: {

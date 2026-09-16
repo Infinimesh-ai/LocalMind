@@ -12,6 +12,17 @@ A Simplified Chinese guide is available at
 and callback contract are in
 [LocalMind MCP Tool Reference](./localmind-mcp-tools.md).
 
+## Scoped resource tools and authorization
+
+Internal resource tools use mutually scoped `workspace_*` and `project_*` names;
+public delegation/query/cancellation names are unchanged. Ordinary Workspace
+writes use the credential capability ceiling and current UI-equivalent ACL,
+without an actor-only audience gate or an additional webpage approval. Project
+source/import/publication rules remain separate. New request/completion contracts
+are v6/v4. Historical names are read-only evidence; nonterminal old-contract tasks
+fail with `tool_contract_retired` and require a new request. A retired in-flight
+checkpoint remains unconfirmed unless a persisted result proves its outcome.
+
 ## Connection Contract
 
 | Setting        | Value                                                    |

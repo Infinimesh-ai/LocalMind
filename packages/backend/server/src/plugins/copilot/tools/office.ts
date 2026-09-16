@@ -85,7 +85,7 @@ const OfficeCommandBatchToolSchema = jsonStringOrValueSchema(
   }
 );
 
-const OFFICE_COMMAND_DESCRIPTION = `A strict localmind-office-command/v1 command. Always copy artifactId, expectedRevisionId, and stable target IDs from office_read; use source=ai and new commandId/idempotencyKey values.
+const OFFICE_COMMAND_DESCRIPTION = `A strict localmind-office-command/v1 command. Always copy artifactId, expectedRevisionId, and stable target IDs from workspace_office_read; use source=ai and new commandId/idempotencyKey values.
 Docs operations: text.format, text.replace, paragraph.format, break.insert, section.insert, table.insert, page.layout.set, header_footer.text.set, content_control.text.set, review.resolve, mail_merge.apply, object.insert.
 Sheets operations: cell.set, range.format, cells.merge.set, row.properties.set, column.properties.set, filter.set, validation.set, sheet.add, sheet.delete, sheet.rename, sheets.reorder, dimension.change, table.set, chart.add, chart.delete.
 Slides operations: shape.text.set, shape.geometry.set, shape.add, shape.delete, image.add, slide.add, slide.duplicate, slide.delete, slides.reorder, notes.text.set, theme.color.set.
@@ -110,17 +110,20 @@ function assertContextIdentity(
 
 function assertReadBeforeWrite(
   proof: OfficeReadProof | null,
-  identity: { artifactId: string; expectedRevisionId: string }
+  identity: { artifactId: string; expectedRevisionId: string },
+  scope: 'workspace' | 'project' = 'workspace'
 ) {
   if (!proof) {
-    throw new Error('Call office_read successfully before requesting a write');
+    throw new Error(
+      `Call ${scope}_office_read successfully before requesting a write`
+    );
   }
   if (
     proof.artifactId !== identity.artifactId ||
     proof.revisionId !== identity.expectedRevisionId
   ) {
     throw new Error(
-      'Office write target must match the artifact and revision returned by office_read'
+      `Office write target must match the artifact and revision returned by ${scope}_office_read`
     );
   }
 }
@@ -138,19 +141,23 @@ export const buildOfficeReadHandler = (
     if (!options.user || !options.workspace) {
       return toolError(
         'Office Read Failed',
-        'Missing workspace or user context for office_read.'
+        'Missing workspace or user context for workspace_office_read.'
       );
     }
     const context = options.officeContext;
     const resolvedArtifactId = context?.artifactId ?? artifactId;
     if (!resolvedArtifactId) {
-      throw new Error('office_read requires a bound Office artifact');
+      throw new Error('workspace_office_read requires a bound Office artifact');
     }
     if (context && artifactId && artifactId !== context.artifactId) {
-      throw new Error('office_read must target the current Office artifact');
+      throw new Error(
+        'workspace_office_read must target the current Office artifact'
+      );
     }
     if (context && revisionId && revisionId !== context.revisionId) {
-      throw new Error('office_read must target the validated current revision');
+      throw new Error(
+        'workspace_office_read must target the validated current revision'
+      );
     }
     const result = await service.readStateForAi({
       workspaceId: options.workspace,
@@ -177,7 +184,7 @@ export const buildOfficeCommandRequestHandler = (
     if (!options.user || !options.workspace) {
       return toolError(
         'Office Command Request Failed',
-        'Missing workspace or user context for office_command_request.'
+        'Missing workspace or user context for workspace_office_command_request.'
       );
     }
     const parsed = parseOfficeCommand(command);
@@ -220,7 +227,7 @@ export const buildOfficeCommandBatchRequestHandler = (
     if (!options.user || !options.workspace) {
       return toolError(
         'Office Command Batch Request Failed',
-        'Missing workspace or user context for office_command_batch_request.'
+        'Missing workspace or user context for workspace_office_command_batch_request.'
       );
     }
     const parsed = parseOfficeCommandBatch(batch);
@@ -278,11 +285,13 @@ export const createOfficeCommandRequestTool = (
     command: unknown,
     title?: string,
     reason?: string
-  ) => Promise<object>
+  ) => Promise<object>,
+  project = false
 ) =>
   defineTool({
-    description:
-      'Preview and persist one native LocalMind Office command for explicit user approval. It never edits immediately; execution rechecks live access, cancellation, the current revision, and preview evidence.',
+    description: project
+      ? 'Preview and persist a native Project Office command for explicit user approval. Execution rechecks Project membership, edit lease, revision and preview evidence.'
+      : 'Preview and queue the Workspace Office edit explicitly requested by the user. Execution rechecks live ACL, cancellation, revision and preview evidence. No additional manual approval is required.',
     inputSchema: z
       .object({
         command: OfficeCommandToolSchema.describe(OFFICE_COMMAND_DESCRIPTION),
@@ -302,11 +311,13 @@ export const createOfficeCommandRequestTool = (
   });
 
 export const createOfficeCommandBatchRequestTool = (
-  request: (batch: unknown, title?: string, reason?: string) => Promise<object>
+  request: (batch: unknown, title?: string, reason?: string) => Promise<object>,
+  project = false
 ) =>
   defineTool({
-    description:
-      'Preview and persist one atomic localmind-office-command-batch/v1 for explicit user approval. Use it only when every command must succeed together against one artifact and one revision. It creates no revision until approval and successful worker revalidation.',
+    description: project
+      ? 'Preview and persist an atomic Project Office batch for explicit user approval. All commands must succeed against one artifact and revision.'
+      : 'Preview and queue the atomic Workspace Office batch explicitly requested by the user. Every command must succeed against one artifact and revision. No additional manual approval is required.',
     inputSchema: z
       .object({
         batch: OfficeCommandBatchToolSchema.describe(
@@ -353,7 +364,7 @@ export function createProjectOfficeTools(
     throw new Error('Project Office tools require a matching Office context');
   let proof: OfficeReadProof | null = null;
   const tools: CopilotToolSet = {
-    office_read: createOfficeReadTool(async selector => {
+    project_office_read: createOfficeReadTool(async selector => {
       const result = await service.read({
         ...scope,
         artifactId: context.artifactId,
@@ -365,32 +376,45 @@ export function createProjectOfficeTools(
     }),
   };
   if (allowWrites) {
-    tools.office_command_request = createOfficeCommandRequestTool(
+    tools.project_office_command_request = createOfficeCommandRequestTool(
       async (command, title) => {
         const parsed = parseOfficeCommand(command);
         assertContextIdentity(context, parsed);
-        assertReadBeforeWrite(proof, parsed);
+        assertReadBeforeWrite(proof, parsed, 'project');
         return service.request({
           ...scope,
           command: parsed,
           title,
           readProof: proof,
         });
-      }
+      },
+      true
     );
-    tools.office_command_batch_request = createOfficeCommandBatchRequestTool(
-      async (batch, title) => {
+    tools.project_office_command_batch_request =
+      createOfficeCommandBatchRequestTool(async (batch, title) => {
         const parsed = parseOfficeCommandBatch(batch);
         assertContextIdentity(context, parsed);
-        assertReadBeforeWrite(proof, parsed);
+        assertReadBeforeWrite(proof, parsed, 'project');
         return service.request({
           ...scope,
           batch: parsed,
           title,
           readProof: proof,
         });
-      }
+      }, true);
+  }
+  for (const tool of Object.values(tools)) {
+    tool.description = tool.description?.replaceAll(
+      'workspace_office_',
+      'project_office_'
     );
+    if (tool.jsonSchema)
+      tool.jsonSchema = JSON.parse(
+        JSON.stringify(tool.jsonSchema).replaceAll(
+          'workspace_office_',
+          'project_office_'
+        )
+      );
   }
   return tools;
 }

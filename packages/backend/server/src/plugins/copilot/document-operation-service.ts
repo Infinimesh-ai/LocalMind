@@ -116,32 +116,6 @@ export class CopilotDocumentOperationService {
       .user(operation.actorId)
       .workspace(session.workspaceId)
       .assert('Workspace.Copilot');
-    if (operation.destinationWorkspaceId) {
-      await this.models.copilotContext.assertDocumentSourcesShared({
-        sessionId: operation.sessionId,
-        actorId: operation.actorId,
-        // A delegated task writes into its own execution workspace without the
-        // caller picking a destination, so its referenced sources are not
-        // required to be shared with that workspace. The waiver is recorded
-        // rather than skipped: every execute and retry still has to leave
-        // source evidence behind. Interactive conversations keep the check.
-        policy: auto && delegated ? 'record' : 'enforce',
-        sink: {
-          type: operation.kind === 'copy' ? 'document_copy' : 'document_create',
-          id: operation.id,
-          workspaceId: operation.destinationWorkspaceId,
-          documentId: operation.documentId,
-          phase:
-            phase === 'confirm'
-              ? phase
-              : operation.status === 'complete'
-                ? 'noop'
-                : operation.status === 'failed'
-                  ? 'retry'
-                  : phase,
-        },
-      });
-    }
     if (operation.projectId) {
       if (operation.status !== 'complete')
         throw new BadRequest(
@@ -359,18 +333,41 @@ export class CopilotDocumentOperationService {
         });
     }, 20_000);
     heartbeat.unref();
+    let failureCode:
+      | 'authorization_denied'
+      | 'storage_unavailable'
+      | 'location_changed' = 'storage_unavailable';
+    const revalidate = async () => {
+      try {
+        await this.revalidate(operation);
+      } catch (error) {
+        failureCode = 'authorization_denied';
+        throw error;
+      }
+    };
     const beforeWrite = async () => {
       if (leaseFailure) throw leaseFailure;
       await model.lockWriteAuthorization(lease);
-      await this.revalidate(operation);
+      await revalidate();
       await model.renew(lease);
       if (leaseFailure) throw leaseFailure;
     };
     const onCreated = async () => {
       operation = await model.recordCreated(lease);
+      await this.models.copilotContext.recordWorkspaceWriteAudit({
+        actorId: input.actorId,
+        sessionId: operation.sessionId,
+        sink: {
+          type: operation.kind === 'copy' ? 'document_copy' : 'document_create',
+          id: operation.id,
+          documentId: operation.documentId,
+          workspaceId,
+          phase: 'execute',
+        },
+      });
     };
     try {
-      await this.revalidate(operation);
+      await revalidate();
       if (!(await model.initializationCompleted(lease))) {
         await model.renew(lease);
         if (operation.kind === 'copy') {
@@ -378,7 +375,7 @@ export class CopilotDocumentOperationService {
             operation,
             beforeWrite
           );
-          await this.revalidate(operation);
+          await revalidate();
           await model.renew(lease);
           await this.writer.createDocFromSnapshot(
             workspaceId,
@@ -406,7 +403,7 @@ export class CopilotDocumentOperationService {
         await model.recordInitialized(lease);
       }
       if (!operation.placedDocumentAt) {
-        await this.revalidate(operation);
+        await revalidate();
         await model.renew(lease);
         const rows = await this.organization.readFolders(
           workspaceId,
@@ -426,17 +423,19 @@ export class CopilotDocumentOperationService {
             (existing.type !== 'doc' ||
               existing.data !== operation.documentId ||
               existing.parentId !== operation.destinationFolderId))
-        )
+        ) {
+          failureCode = 'location_changed';
           throw new BadRequest(
             'The created document placement changed outside this operation'
           );
+        }
         if (operation.destinationFolderId && !existing) {
           const indices = rows
             .filter(row => row.parentId === operation.destinationFolderId)
             .map(row => row.index)
             .filter((index): index is string => typeof index === 'string')
             .sort();
-          await this.revalidate(operation);
+          await revalidate();
           await this.organization.applyDataOperations(
             workspaceId,
             input.actorId,
@@ -458,14 +457,12 @@ export class CopilotDocumentOperationService {
         }
         operation = await model.recordPlaced(lease);
       }
-      await this.revalidate(operation);
+      await revalidate();
       if (operation.projectStatus === 'not_requested')
         return await model.finish({ ...lease, projectStatus: 'not_requested' });
       throw new BadRequest('Workspace reference creation has been retired');
     } catch (error) {
-      await model
-        .fail({ ...lease, failureCode: 'storage_unavailable' })
-        .catch(() => {});
+      await model.fail({ ...lease, failureCode }).catch(() => {});
       throw error;
     } finally {
       clearInterval(heartbeat);

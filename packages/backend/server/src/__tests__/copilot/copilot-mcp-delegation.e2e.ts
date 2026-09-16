@@ -16,6 +16,10 @@ import {
 } from '../../core/doc';
 import { PermissionAccess } from '../../core/permission';
 import { Models, WorkspaceMemberStatus, WorkspaceRole } from '../../models';
+import {
+  permissionDocumentLockKey,
+  permissionWorkspaceLockKey,
+} from '../../models/permission-write';
 import { LOCALMIND_DELEGATION_AI_TOOLS } from '../../plugins/copilot/agent-runtime-localmind-tool-agent-adapter';
 import { CopilotAgentRuntimeWorker } from '../../plugins/copilot/agent-runtime-worker';
 import { CopilotDocumentOperationService } from '../../plugins/copilot/document-operation-service';
@@ -233,6 +237,23 @@ test('credential-authorized document task runs without approval and sends a sign
     owner.id,
     'Original body.'
   );
+  const writer = t.context.app!.get(DocWriter);
+  const originalUpdate = writer.updateDocDeferred.bind(writer);
+  const lockedUpdate = Sinon.stub(writer, 'updateDocDeferred').callsFake(
+    async (...args) => {
+      // Use an independent connection to prove revocation cannot race the body commit.
+      for (const key of [
+        permissionWorkspaceLockKey(workspaceId),
+        permissionDocumentLockKey(workspaceId, docId),
+      ]) {
+        const rows = await db.$queryRaw<
+          Array<{ acquired: boolean }>
+        >`SELECT pg_try_advisory_xact_lock(hashtextextended(${key}, 0)) AS acquired`;
+        t.false(rows[0].acquired);
+      }
+      return originalUpdate(...args);
+    }
+  );
   const issued = await credentials.create({
     userId: owner.id,
     workspaceId,
@@ -444,6 +465,7 @@ test('credential-authorized document task runs without approval and sends a sign
       completionCallback.body
     )
   );
+  t.true(lockedUpdate.called);
 });
 
 test('task query fails closed when a delegation points at another task run', async t => {
@@ -581,10 +603,12 @@ test('delegated location waits without creation and resumes two distinct confirm
             add_to_project: false,
           };
           const toolCallId = `location-create-${turn}`;
-          const result = await tools.doc_create.execute!(args, { toolCallId });
+          const result = await tools.workspace_doc_create.execute!(args, {
+            toolCallId,
+          });
           yield {
             type: 'tool-result',
-            toolName: 'doc_create',
+            toolName: 'workspace_doc_create',
             toolCallId,
             args,
             result,
@@ -812,7 +836,7 @@ test('delegated document creation stores its document without a location confirm
           .join('\n');
         t.true(
           policy.includes(
-            'doc_create saves immediately to the delegated task Workspace root by default'
+            'workspace_doc_create saves immediately to the delegated task Workspace root by default'
           )
         );
         t.false(
@@ -833,11 +857,13 @@ test('delegated document creation stores its document without a location confirm
           add_to_project: false,
         };
         const toolCallId = 'automatic-location-create';
-        const result = await tools.doc_create.execute!(args, { toolCallId });
+        const result = await tools.workspace_doc_create.execute!(args, {
+          toolCallId,
+        });
         created = result as Record<string, unknown>;
         yield {
           type: 'tool-result',
-          toolName: 'doc_create',
+          toolName: 'workspace_doc_create',
           toolCallId,
           args,
           result,
@@ -875,7 +901,7 @@ test('delegated document creation stores its document without a location confirm
   });
   t.like(task, { status: 'completed', terminal: true });
   t.like(task.result.toolExecutions[0], {
-    toolName: 'doc_create',
+    toolName: 'workspace_doc_create',
     status: 'completed',
     documentId: created!.documentId,
     relation: 'created',
@@ -975,24 +1001,13 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       ) {
         throw new Error('Delegated execution fixture is incomplete');
       }
-      t.false(
-        await t.context.models.copilotMcpDelegation.canPlaceDocumentCreatedByCurrentToolLease(
-          {
-            requestId: options.taskId,
-            sessionId: options.session,
-            workspaceId: options.workspace,
-            actorId: options.user,
-            documentId: sourceDocId,
-            ...options.delegatedExecution,
-          }
-        )
-      );
+
       const createArgs = {
         title: '8.16日志',
         content: 'A concise summary created by the LocalMind tool agent.',
         add_to_project: false,
       };
-      const created = (await tools.doc_create.execute!(createArgs, {
+      const created = (await tools.workspace_doc_create.execute!(createArgs, {
         toolCallId: 'create-doc-call',
         signal: options.signal,
       })) as Record<string, unknown>;
@@ -1001,13 +1016,13 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       yield {
         type: 'tool-call',
         toolCallId: 'create-doc-call',
-        toolName: 'doc_create',
+        toolName: 'workspace_doc_create',
         args: createArgs,
       };
       yield {
         type: 'tool-result',
         toolCallId: 'create-doc-call',
-        toolName: 'doc_create',
+        toolName: 'workspace_doc_create',
         args: createArgs,
         result: created,
       };
@@ -1089,7 +1104,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     },
   });
   t.like(task.result.toolExecutions[0], {
-    toolName: 'doc_create',
+    toolName: 'workspace_doc_create',
     status: 'completed',
     documentId: createdDocumentId,
     relation: 'created',
@@ -1127,7 +1142,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
   t.true(completedRun?.executionResults[0]?.sideEffectsApplied ?? false);
   t.like(completedRun?.executionResults[0]?.resultPayload.sideEffectSummary, {
     toolExecutions: [
-      { toolName: 'doc_create' },
+      { toolName: 'workspace_doc_create' },
       {
         toolName: 'workspace_folder_add_document',
         documentId: createdDocumentId,
@@ -1165,8 +1180,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
   t.true(
     placementAudits.some(
       audit =>
-        audit.allowed === false &&
-        audit.reasonCode === 'waived_server_resolved_destination'
+        audit.allowed === true && audit.reasonCode === 'authorized_by_live_acl'
     )
   );
   t.is(await db.aiMcpDelegationCallbackDelivery.count(), 0);
@@ -1206,7 +1220,7 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
       yield {
         type: 'tool-result',
         toolCallId: 'read-daily-log',
-        toolName: 'doc_read',
+        toolName: 'workspace_doc_read',
         args: { doc_id: docId },
         result: {
           docId,
@@ -1227,7 +1241,7 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
       yield {
         type: 'tool-result',
         toolCallId: 'update-daily-log',
-        toolName: 'doc_update',
+        toolName: 'workspace_doc_update',
         args: {
           doc_id: docId,
           content: 'Original daily log body.\n\nMerged deployment entry.',
@@ -1252,14 +1266,14 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
     String(delegated.agentRunId)
   );
   t.like(run?.steps[0]?.outputSummary.localMindToolAgentRequest, {
-    version: 'localmind-tool-agent-request/v5',
+    version: 'localmind-tool-agent-request/v6',
     completionContract: {
-      version: 'localmind-tool-agent-completion-contract/v3',
+      version: 'localmind-tool-agent-completion-contract/v4',
       kind: 'requirements',
       requirements: [
         {
           kind: 'tool_success',
-          toolNames: ['doc_update'],
+          toolNames: ['workspace_doc_update'],
           minCount: 1,
           documentId: docId,
         },
@@ -1285,7 +1299,7 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
     },
   });
   t.like(task.result.toolExecutions[1], {
-    toolName: 'doc_update',
+    toolName: 'workspace_doc_update',
     status: 'completed',
     documentId: docId,
     relation: 'updated',
@@ -1332,7 +1346,7 @@ test('LocalMind tool agent fails when an explicit document update stops after re
       yield {
         type: 'tool-result',
         toolCallId: 'read-only-daily-log',
-        toolName: 'doc_read',
+        toolName: 'workspace_doc_read',
         args: { doc_id: docId },
         result: {
           docId,
@@ -1371,7 +1385,7 @@ test('LocalMind tool agent fails when an explicit document update stops after re
       retryable: true,
       details: {
         documentId: docId,
-        requiredToolNames: ['doc_update'],
+        requiredToolNames: ['workspace_doc_update'],
       },
     },
   });
@@ -1408,7 +1422,7 @@ for (const waitingLocation of [false, true]) {
           yield {
             type: 'tool-result',
             toolCallId: 'waiting-create',
-            toolName: 'doc_create',
+            toolName: 'workspace_doc_create',
             args: { title: 'Release Notes', content: 'Body' },
             result: {
               operationId: 'pending-operation',
@@ -1446,7 +1460,7 @@ for (const waitingLocation of [false, true]) {
         code: 'required_tool_evidence_missing',
         retryable: true,
         details: {
-          requiredToolNames: ['doc_create'],
+          requiredToolNames: ['workspace_doc_create'],
         },
       },
     });
@@ -1498,12 +1512,12 @@ test('LocalMind tool agent exposes missing conditional read evidence', async t =
   );
   t.like(run?.steps[0]?.outputSummary.localMindToolAgentRequest, {
     completionContract: {
-      version: 'localmind-tool-agent-completion-contract/v3',
+      version: 'localmind-tool-agent-completion-contract/v4',
       kind: 'requirements',
       requirements: [
         {
           kind: 'tool_success',
-          toolNames: ['doc_read'],
+          toolNames: ['workspace_doc_read'],
           minCount: 1,
           documentId: docId,
         },
@@ -1513,17 +1527,17 @@ test('LocalMind tool agent exposes missing conditional read evidence', async t =
           requirements: [
             {
               kind: 'tool_success',
-              toolNames: ['doc_update'],
+              toolNames: ['workspace_doc_update'],
               minCount: 1,
               documentId: docId,
-              afterToolName: 'doc_read',
+              afterToolName: 'workspace_doc_read',
             },
             {
               kind: 'tool_success',
-              toolNames: ['conditional_noop_complete'],
+              toolNames: ['workspace_conditional_noop_complete'],
               minCount: 1,
               documentId: docId,
-              afterToolName: 'doc_read',
+              afterToolName: 'workspace_doc_read',
             },
           ],
         },
@@ -1548,9 +1562,9 @@ test('LocalMind tool agent exposes missing conditional read evidence', async t =
       details: {
         documentId: docId,
         requiredToolNames: [
-          'doc_read',
-          'doc_update',
-          'conditional_noop_complete',
+          'workspace_doc_read',
+          'workspace_doc_update',
+          'workspace_conditional_noop_complete',
         ],
       },
     },
@@ -1609,7 +1623,7 @@ test('LocalMind tool agent rejects required tools removed after the task snapsho
       code: 'required_tool_unavailable',
       retryable: true,
       details: {
-        requiredToolNames: ['doc_update'],
+        requiredToolNames: ['workspace_doc_update'],
       },
     },
   });
@@ -1737,15 +1751,15 @@ for (const timeoutPhase of ['model', 'tool', 'lost_result'] as const) {
         yield {
           type: 'tool-call',
           toolCallId: 'durable-write',
-          toolName: 'doc_update',
+          toolName: 'workspace_doc_update',
           args,
         };
-        const result = await tools.doc_update.execute!(args, {
+        const result = await tools.workspace_doc_update.execute!(args, {
           toolCallId: 'durable-write',
           signal,
         });
         // A replay of the same call must reuse the checkpoint without writing again.
-        await tools.doc_update.execute!(args, {
+        await tools.workspace_doc_update.execute!(args, {
           toolCallId: 'durable-write',
           signal,
         });
@@ -1753,20 +1767,20 @@ for (const timeoutPhase of ['model', 'tool', 'lost_result'] as const) {
           yield {
             type: 'tool-result',
             toolCallId: 'durable-write',
-            toolName: 'doc_update',
+            toolName: 'workspace_doc_update',
             args,
             result,
           };
         if (timeoutPhase === 'tool') {
           await options.onToolExecution(
             'started',
-            'doc_update',
+            'workspace_doc_update',
             'uncertain-write'
           );
           yield {
             type: 'tool-call',
             toolCallId: 'uncertain-write',
-            toolName: 'doc_update',
+            toolName: 'workspace_doc_update',
             args,
           };
           await models.copilotMcpDelegation.beginToolCall({
@@ -1774,7 +1788,7 @@ for (const timeoutPhase of ['model', 'tool', 'lost_result'] as const) {
             sessionId: options.session,
             ...options.delegatedExecution,
             callId: 'uncertain-write',
-            toolName: 'doc_update',
+            toolName: 'workspace_doc_update',
             args,
           });
         }
@@ -1853,7 +1867,7 @@ for (const timeoutPhase of ['model', 'tool', 'lost_result'] as const) {
       reference: { documentId: docId },
     });
     t.like(task.result.toolExecutions[0], {
-      toolName: 'doc_update',
+      toolName: 'workspace_doc_update',
       status: 'completed',
       sideEffectApplied: true,
     });
@@ -1935,7 +1949,7 @@ test('inline delegated attachment is bound to one credential family and becomes 
       yield {
         type: 'tool-result',
         toolCallId: 'create-finance-note',
-        toolName: 'doc_create',
+        toolName: 'workspace_doc_create',
         args: {
           title: 'Finance note',
           content: 'Quarterly revenue: 42 million.',
@@ -2614,7 +2628,7 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
   );
   const toolRequest = run?.steps[0]?.outputSummary
     .localMindToolAgentRequest as Record<string, unknown>;
-  t.is(toolRequest.version, 'localmind-tool-agent-request/v5');
+  t.is(toolRequest.version, 'localmind-tool-agent-request/v6');
   t.true(Array.isArray(toolRequest.allowedToolNames));
   t.is(typeof toolRequest.toolSnapshotFingerprint, 'string');
   t.true(Array.isArray(toolRequest.toolCapabilities));
@@ -2624,7 +2638,7 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
   t.deepEqual(toolRequest.sparkClawToolCapabilities, []);
   t.is(typeof toolRequest.sparkClawToolCapabilitySnapshotFingerprint, 'string');
   t.deepEqual(toolRequest.completionContract, {
-    version: 'localmind-tool-agent-completion-contract/v3',
+    version: 'localmind-tool-agent-completion-contract/v4',
     kind: 'requirements',
     requirements: [
       {

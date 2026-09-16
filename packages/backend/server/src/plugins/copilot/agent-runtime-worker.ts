@@ -277,7 +277,10 @@ export class CopilotAgentRuntimeWorker {
       id: run.id,
       workerLeaseId: workerId,
       workerAttempt: run.workerAttempt,
-      code: 'agent_runtime_adapter_execution_failed',
+      code:
+        error instanceof Error && error.message === 'tool_contract_retired'
+          ? 'tool_contract_retired'
+          : 'agent_runtime_adapter_execution_failed',
       message:
         error instanceof Error
           ? error.message

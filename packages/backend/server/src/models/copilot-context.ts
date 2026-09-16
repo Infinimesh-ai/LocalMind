@@ -116,58 +116,31 @@ export class CopilotContextModel extends BaseModel {
     };
   }
 
-  @Transactional()
-  async withDocumentSourcesShared<T>(
-    input: Parameters<CopilotContextModel['assertDocumentSourcesShared']>[0],
-    execute: () => Promise<T>
-  ) {
-    await this.assertDocumentSourcesShared(input);
-    return await execute();
+  async assertWorkspaceWriteSession(input: {
+    sessionId?: string | null;
+    actorId: string;
+  }) {
+    if (!input.sessionId) return;
+    const session = await this.models.copilotSession.getMeta(input.sessionId);
+    if (
+      !session ||
+      session.userId !== input.actorId ||
+      session.selectedContextProjectId
+    )
+      throw new BadRequest(
+        'Workspace writes require an owned Workspace conversation'
+      );
   }
 
-  @Transactional()
-  async assertDocumentSourcesShared(input: {
+  /** Source evidence is provenance, never an additional Workspace permission. */
+  async recordWorkspaceWriteAudit(input: {
     sessionId?: string | null;
     actorId: string;
     sink: SharedWriteSourceSink & { workspaceId: string; documentId: string };
-    /**
-     * `enforce` rejects a write whose sources carry no authority over the
-     * destination readers. `record` keeps the same judgement and the same
-     * evidence but lets the write proceed; it is only for a destination the
-     * server resolved on the caller's behalf. A relaxation stays auditable:
-     * the row keeps `allowed: false` and carries a waiver reason.
-     */
-    policy?: 'enforce' | 'record';
   }) {
-    const policy = input.policy ?? 'enforce';
-    const session = input.sessionId
-      ? await this.models.copilotSession.getMeta(input.sessionId)
-      : null;
-    if (input.sessionId && (!session || session.userId !== input.actorId))
-      throw new BadRequest('Shared write conversation is unavailable');
-    if (session?.selectedContextProjectId) {
-      // A Project destination is never resolved by the server, so a waiver
-      // must not reach the Project authority rules.
-      if (policy === 'record')
-        throw new BadRequest(
-          'A Project conversation requires an explicit destination'
-        );
-      return await this.assertProjectSourcesShared({
-        ...input,
-        sessionId: session.id,
-        projectId: session.selectedContextProjectId,
-      });
-    }
-    const audienceEvidence = await this.lockDocumentAudience(
-      input.sink.workspaceId,
-      input.sink.documentId
-    );
-    if (input.sessionId)
-      await this.db
-        .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'context-source:' + input.sessionId}, 0))`;
-    const sources = session
+    const sources = input.sessionId
       ? await this.db.aiSessionContextSource.findMany({
-          where: { sessionId: session.id },
+          where: { sessionId: input.sessionId },
           select: {
             workspaceId: true,
             kind: true,
@@ -179,29 +152,19 @@ export class CopilotContextModel extends BaseModel {
             { kind: 'asc' },
             { sourceId: 'asc' },
           ],
-          take: 4098,
+          take: 4097,
         })
-      : [
-          {
-            workspaceId: input.sink.workspaceId,
-            kind: 'unknown',
-            sourceId: 'missing-conversation-lineage',
-            evidence: {},
-          },
-        ];
-    const overBudget =
-      sources.length > 4097 ||
-      sources.some(source => source.sourceId === 'source-budget-exceeded');
-    const privateAudience =
-      audienceEvidence.known &&
-      !audienceEvidence.public &&
-      !audienceEvidence.overBudget &&
-      audienceEvidence.userIds.every(id => id === input.actorId);
-    // Personal input has no authority for additional readers. Until a source
-    // carries a verified shared scope, a personal conversation stays private.
-    const allowed = privateAudience && !overBudget;
-    const evidence = sources.slice(0, 4097);
-    await this.sourceAuditDb.aiSharedWriteSourceCheck.create({
+      : [];
+    // Leave headroom for JSONB formatting under the immutable audit's 4 MiB
+    // database limit. Provenance overflow must never become a write gate.
+    const auditSources: typeof sources = [];
+    let sourceBytes = 2;
+    for (const source of sources) {
+      sourceBytes += Buffer.byteLength(JSON.stringify(source), 'utf8') + 1;
+      if (sourceBytes > 3 * 1024 * 1024) break;
+      auditSources.push(source);
+    }
+    await this.db.aiSharedWriteSourceCheck.create({
       data: {
         sessionId: input.sessionId ?? 'unbound',
         actorId: input.actorId,
@@ -209,25 +172,48 @@ export class CopilotContextModel extends BaseModel {
         sinkId: input.sink.id,
         sinkWorkspaceId: input.sink.workspaceId,
         phase: input.sink.phase,
-        allowed,
-        reasonCode: allowed
-          ? 'authorized'
-          : policy === 'record'
-            ? 'waived_server_resolved_destination'
-            : overBudget
-              ? 'source_budget_exceeded'
-              : 'unshared_source',
-        sources: evidence,
+        policyVersion: 'workspace-live-acl/v1',
+        allowed: true,
+        reasonCode: 'authorized_by_live_acl',
+        sources: auditSources,
         sourceFingerprint: createHash('sha256')
-          .update(JSON.stringify(evidence))
+          .update(JSON.stringify(sources))
           .digest('hex'),
-        audienceEvidence,
+        audienceEvidence: {
+          documentId: input.sink.documentId,
+          sourceCount: sources.length,
+          sourcesTruncated: auditSources.length < sources.length,
+        },
       },
     });
-    if (!allowed && policy === 'enforce')
-      throw new BadRequest(
-        'This conversation has no verified source authority for the destination readers. Use an authorized Project conversation before writing shared content.'
-      );
+  }
+
+  /** Caller holds the domain transaction; ACL mutations use the same locks. */
+  async lockWorkspaceWriteAuthorization(
+    workspaceId: string,
+    documentId: string
+  ) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, documentId)}, 0))`;
+  }
+
+  @Transactional()
+  async withWorkspaceWriteAudit<T>(
+    input: Parameters<CopilotContextModel['recordWorkspaceWriteAudit']>[0],
+    execute: () => Promise<T>
+  ) {
+    await this.assertWorkspaceWriteSession(input);
+    await this.lockWorkspaceWriteAuthorization(
+      input.sink.workspaceId,
+      input.sink.documentId
+    );
+    // The domain executor must check live ACL and commit its receipt before
+    // recording successful authorization. Failures roll back both records.
+    const result = await execute();
+    await this.recordWorkspaceWriteAudit(input);
+    return result;
   }
   // ================ contexts ================
 

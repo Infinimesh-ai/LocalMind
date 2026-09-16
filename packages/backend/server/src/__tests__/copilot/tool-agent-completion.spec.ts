@@ -17,12 +17,12 @@ test('requires a document update for explicit English and Chinese body mutations
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v3',
+        version: 'localmind-tool-agent-completion-contract/v4',
         kind: 'requirements',
         requirements: [
           {
             kind: 'tool_success',
-            toolNames: ['doc_update'],
+            toolNames: ['workspace_doc_update'],
             minCount: 1,
             documentId,
           },
@@ -43,7 +43,7 @@ test('does not require a body update for read-only or upload requests', t => {
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v3',
+        version: 'localmind-tool-agent-completion-contract/v4',
         kind: 'none',
       }
     );
@@ -58,12 +58,12 @@ test('requires a metadata tool for explicit document title changes', t => {
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v3',
+        version: 'localmind-tool-agent-completion-contract/v4',
         kind: 'requirements',
         requirements: [
           {
             kind: 'tool_success',
-            toolNames: ['doc_update_meta'],
+            toolNames: ['workspace_doc_update_meta'],
             minCount: 1,
             documentId,
           },
@@ -80,7 +80,7 @@ test('does not require one document update when the target is ambiguous', t => {
       documentIds: ['first-document', 'second-document'],
     }),
     {
-      version: 'localmind-tool-agent-completion-contract/v3',
+      version: 'localmind-tool-agent-completion-contract/v4',
       kind: 'none',
     }
   );
@@ -94,12 +94,12 @@ test('classifies guarded append requests as conditional document updates', t => 
       documentIds: [documentId],
     }),
     {
-      version: 'localmind-tool-agent-completion-contract/v3',
+      version: 'localmind-tool-agent-completion-contract/v4',
       kind: 'requirements',
       requirements: [
         {
           kind: 'tool_success',
-          toolNames: ['doc_read'],
+          toolNames: ['workspace_doc_read'],
           minCount: 1,
           documentId,
         },
@@ -109,17 +109,17 @@ test('classifies guarded append requests as conditional document updates', t => 
           requirements: [
             {
               kind: 'tool_success',
-              toolNames: ['doc_update'],
+              toolNames: ['workspace_doc_update'],
               minCount: 1,
               documentId,
-              afterToolName: 'doc_read',
+              afterToolName: 'workspace_doc_read',
             },
             {
               kind: 'tool_success',
-              toolNames: ['conditional_noop_complete'],
+              toolNames: ['workspace_conditional_noop_complete'],
               minCount: 1,
               documentId,
-              afterToolName: 'doc_read',
+              afterToolName: 'workspace_doc_read',
             },
           ],
         },
@@ -136,7 +136,7 @@ test('requires concrete successful tools for document, folder, and external work
     }),
     {
       kind: 'requirements',
-      requirements: [{ toolNames: ['doc_create'] }],
+      requirements: [{ toolNames: ['workspace_doc_create'] }],
     }
   );
   t.like(

@@ -6,11 +6,11 @@ import { createDocumentMcpSurface } from '../../plugins/copilot/mcp/documents';
 
 function fixture() {
   const applied = Sinon.stub();
-  const denied = Sinon.stub().rejects(new Error('unshared_source'));
+  const permission = Sinon.stub().resolves();
+  const audit = Sinon.stub().callsFake(async (_input, execute) => execute());
   const models = {
     copilotContext: {
-      assertDocumentSourcesShared: denied,
-      withDocumentSourcesShared: denied,
+      withWorkspaceWriteAudit: audit,
     },
   };
   const writer = {
@@ -40,7 +40,9 @@ function fixture() {
   };
   const ac = {
     user: () => ({
-      workspace: () => ({ doc: () => ({ can: async () => true }) }),
+      workspace: () => ({
+        doc: () => ({ can: async () => true, assert: permission }),
+      }),
     }),
   };
   const surface = createDocumentMcpSurface(
@@ -67,10 +69,10 @@ function fixture() {
     if (!tool) throw new Error(`Missing tool: ${name}`);
     return await tool.execute(args, { signal: new AbortController().signal });
   };
-  return { applied, denied, execute };
+  return { applied, permission, audit, execute };
 }
 
-test('direct MCP creation cannot bypass human location confirmation', async t => {
+test('direct MCP creation uses the supported delegation entrypoint', async t => {
   const f = fixture();
   const result = await f.execute('create_document', {
     title: 'Synthetic',
@@ -80,7 +82,7 @@ test('direct MCP creation cannot bypass human location confirmation', async t =>
   t.false(f.applied.called);
 });
 
-test('direct Markdown, title and structured writes cannot bypass source denial on retry', async t => {
+test('direct Markdown, title and structured writes use live ACL on every attempt', async t => {
   const f = fixture();
   const operations: Array<[string, Record<string, unknown>]> = [
     ['update_document', { docId: 'doc', content: 'Private content' }],
@@ -123,15 +125,12 @@ test('direct Markdown, title and structured writes cannot bypass source denial o
     ],
   ];
   for (let attempt = 0; attempt < 2; attempt++) {
-    for (const [name, args] of operations) {
-      t.true((await f.execute(name, args)).isError);
-    }
+    for (const [name, args] of operations)
+      t.falsy((await f.execute(name, args)).isError);
   }
-  t.is(f.denied.callCount, 10);
-  t.false(f.applied.called);
-  for (const call of f.denied.getCalls())
-    t.like(call.args[0], {
-      actorId: 'actor',
-      sink: { workspaceId: 'workspace', documentId: 'doc' },
-    });
+  t.is(f.applied.callCount, 10);
+  f.permission.rejects(new Error('Doc.Update denied'));
+  for (const [name, args] of operations)
+    t.true((await f.execute(name, args)).isError);
+  t.is(f.applied.callCount, 10);
 });

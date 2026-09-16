@@ -2,6 +2,12 @@
 
 ## Authority
 
+The 2026-09-16 [Workspace/Project AI 写入授权与工具作用域重构方案](../workspace-project-ai-write-authorization-remediation.zh-CN.md) removes the historical actor-only audience gate for ordinary Workspace writes.
+Project source isolation, import/copy authorization and explicit publication
+continue to apply. Historical acceptance details below do not reinstate the
+removed Workspace gate. Resource tools are now mutually scoped `workspace_*`
+and `project_*`, with no executable aliases for the old names.
+
 The 2026-09-06 [Project Native Resources](project-native-resources.md) contract
 now owns resource identity, internal file trees, member content permissions,
 source-copy authorization, explicit Workspace publication, and migration.

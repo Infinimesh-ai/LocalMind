@@ -9,7 +9,10 @@ import { property } from 'lit/decorators.js';
 import type { DocDisplayConfig } from '../ai-chat-chips';
 import type { ToolError } from './type';
 
-type DocWriteToolName = 'doc_create' | 'doc_update' | 'doc_update_meta';
+type DocWriteToolName =
+  | 'workspace_doc_create'
+  | 'workspace_doc_update'
+  | 'workspace_doc_update_meta';
 
 type DocWriteToolArgs = {
   doc_id?: string;
@@ -78,7 +81,10 @@ export class DocWriteTool extends WithDisposable(ShadowlessElement) {
 
   private getDocTitle(docId?: string) {
     const { data } = this;
-    if (data.toolName === 'doc_create' || data.toolName === 'doc_update_meta') {
+    if (
+      data.toolName === 'workspace_doc_create' ||
+      data.toolName === 'workspace_doc_update_meta'
+    ) {
       const title = data.args.title;
       if (title) return title;
     }
@@ -90,16 +96,18 @@ export class DocWriteTool extends WithDisposable(ShadowlessElement) {
   }
 
   private getToolIcon() {
-    return this.data.toolName === 'doc_create' ? PageIcon() : PenIcon();
+    return this.data.toolName === 'workspace_doc_create'
+      ? PageIcon()
+      : PenIcon();
   }
 
   private getCallLabel(title?: string) {
     switch (this.data.toolName) {
-      case 'doc_create':
+      case 'workspace_doc_create':
         return title ? `Creating "${title}"` : 'Creating document';
-      case 'doc_update':
+      case 'workspace_doc_update':
         return title ? `Updating "${title}"` : 'Updating document';
-      case 'doc_update_meta':
+      case 'workspace_doc_update_meta':
         return title ? `Renaming to "${title}"` : 'Updating document title';
       default:
         return 'Updating document';
@@ -108,11 +116,11 @@ export class DocWriteTool extends WithDisposable(ShadowlessElement) {
 
   private getResultLabel(title?: string) {
     switch (this.data.toolName) {
-      case 'doc_create':
+      case 'workspace_doc_create':
         return title ? `Created "${title}"` : 'Document created';
-      case 'doc_update':
+      case 'workspace_doc_update':
         return title ? `Updated "${title}"` : 'Document updated';
-      case 'doc_update_meta':
+      case 'workspace_doc_update_meta':
         return title ? `Renamed "${title}"` : 'Document title updated';
       default:
         return 'Document updated';

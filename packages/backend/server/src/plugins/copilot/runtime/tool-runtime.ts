@@ -12,6 +12,7 @@ import {
 import { PermissionAccess, PermissionService } from '../../../core/permission';
 import { ProjectResourceService } from '../../../core/project';
 import { Models } from '../../../models';
+import { isRetiredResourceTool } from '../../../models/common/copilot-tool-contract';
 import { mcpDelegationFingerprint } from '../../../models/copilot-mcp-delegation';
 import { IndexerService } from '../../indexer';
 import type { NodeTextMiddleware } from '../config';
@@ -95,44 +96,18 @@ export function canExposeDocumentWriteTools(environment: {
 }
 
 const PROJECT_SESSION_DIRECT_READ_TOOLS = new Set([
-  'doc_creation_status',
-  'blob_read',
-  'task_attachment_read',
   'code_artifact',
   'conversation_summary',
-  'doc_semantic_search',
-  'doc_keyword_search',
-  'project_doc_read',
   'web_search_exa',
   'web_crawl_exa',
   'doc_compose',
   'section_edit',
-  'conditional_noop_complete',
   'blocker_suggest',
-]);
-
-const PROJECT_SESSION_APPROVAL_GATED_TOOLS = new Set([
-  'doc_create',
-  'doc_copy',
-  'project_doc_update_request',
-  'project_doc_add',
 ]);
 
 const PROJECT_DERIVED_RESULT_TOOLS = new Set([
-  'doc_creation_status',
-  'code_artifact',
-  'conversation_summary',
-  'doc_compose',
-  'section_edit',
-  'conditional_noop_complete',
-  'blocker_suggest',
-  'doc_create',
-  'doc_copy',
-  'project_doc_update_request',
-  'project_doc_add',
-  'project_doc_read',
-  'doc_keyword_search',
-  'doc_semantic_search',
+  ...PROJECT_SESSION_DIRECT_READ_TOOLS,
+  ...PROJECT_NATIVE_TOOL_NAMES,
 ]);
 
 export function canRunDirectlyInProjectSession(toolName: string) {
@@ -144,9 +119,9 @@ export function canRunDirectlyInProjectSession(toolName: string) {
 
 export function canExposeInProjectSession(toolName: string, native = false) {
   return (
-    (native && PROJECT_NATIVE_TOOL_NAMES.has(toolName)) ||
-    canRunDirectlyInProjectSession(toolName) ||
-    PROJECT_SESSION_APPROVAL_GATED_TOOLS.has(toolName)
+    !toolName.startsWith('workspace_') &&
+    ((native && PROJECT_NATIVE_TOOL_NAMES.has(toolName)) ||
+      canRunDirectlyInProjectSession(toolName))
   );
 }
 
@@ -303,18 +278,20 @@ export class ToolRuntime {
             workspaceId
           );
           if (!docContext) break;
-          tools.blob_read = createBlobReadTool(async (blobId, chunk) => {
-            const current = await this.context.getOwnedContext(
-              actorId,
-              docContext.id,
-              { sessionId, workspaceId }
-            );
-            return buildBlobContentGetter(this.ac, current)(
-              options,
-              blobId,
-              chunk
-            );
-          });
+          tools.workspace_blob_read = createBlobReadTool(
+            async (blobId, chunk) => {
+              const current = await this.context.getOwnedContext(
+                actorId,
+                docContext.id,
+                { sessionId, workspaceId }
+              );
+              return buildBlobContentGetter(this.ac, current)(
+                options,
+                blobId,
+                chunk
+              );
+            }
+          );
           break;
         }
         case 'taskAttachmentRead': {
@@ -357,7 +334,7 @@ export class ToolRuntime {
             options.session,
             this.models
           );
-          tools.doc_semantic_search = createDocSemanticSearchTool(
+          tools.workspace_doc_semantic_search = createDocSemanticSearchTool(
             searchDocs.bind(null, options)
           );
           break;
@@ -370,7 +347,7 @@ export class ToolRuntime {
             this.models,
             this.docReader
           );
-          tools.doc_keyword_search = createDocKeywordSearchTool(
+          tools.workspace_doc_keyword_search = createDocKeywordSearchTool(
             searchDocs.bind(null, options)
           );
           break;
@@ -381,22 +358,24 @@ export class ToolRuntime {
             this.docReader,
             this.models
           );
-          tools.doc_read = createDocReadTool(getDoc.bind(null, options));
+          tools.workspace_doc_read = createDocReadTool(
+            getDoc.bind(null, options)
+          );
           break;
         }
         case 'docCreate': {
           if (options.session && this.documentCopies)
-            tools.doc_copy = createDocCopyRequestTool(
+            tools.workspace_doc_copy = createDocCopyRequestTool(
               this.documentCopies,
               options
             );
-          tools.doc_create = createDocCreateRequestTool(
+          tools.workspace_doc_create = createDocCreateRequestTool(
             this.ac,
             this.models,
             options,
             this.documentOperations
           );
-          tools.doc_creation_status = createDocCreationStatusTool(
+          tools.workspace_doc_creation_status = createDocCreationStatusTool(
             this.models,
             options
           );
@@ -408,7 +387,9 @@ export class ToolRuntime {
             this.docWriter,
             this.models
           );
-          tools.doc_update = createDocUpdateTool(updateDoc.bind(null, options));
+          tools.workspace_doc_update = createDocUpdateTool(
+            updateDoc.bind(null, options)
+          );
           break;
         }
         case 'docUpdateMeta': {
@@ -417,7 +398,7 @@ export class ToolRuntime {
             this.docWriter,
             this.models
           );
-          tools.doc_update_meta = createDocUpdateMetaTool(
+          tools.workspace_doc_update_meta = createDocUpdateMetaTool(
             updateDocMeta.bind(null, options)
           );
           break;
@@ -442,24 +423,7 @@ export class ToolRuntime {
               this.ac,
               this.permission,
               this.workspaceOrganization,
-              options,
-              options.taskId &&
-                options.session &&
-                options.user &&
-                options.workspace &&
-                options.delegatedExecution
-                ? documentId =>
-                    this.models.copilotMcpDelegation.canPlaceDocumentCreatedByCurrentToolLease(
-                      {
-                        requestId: options.taskId as string,
-                        sessionId: options.session as string,
-                        workspaceId: options.workspace as string,
-                        actorId: options.user as string,
-                        documentId,
-                        ...options.delegatedExecution,
-                      }
-                    )
-                : undefined
+              options
             )
           );
           break;
@@ -490,13 +454,14 @@ export class ToolRuntime {
           );
           const requestOfficeCommandBatch =
             buildOfficeCommandBatchRequestHandler(this.office, () => readProof);
-          tools.office_read = createOfficeReadTool(selector =>
+          tools.workspace_office_read = createOfficeReadTool(selector =>
             readOffice(options, undefined, undefined, selector)
           );
-          tools.office_command_request = createOfficeCommandRequestTool(
-            requestOfficeCommand.bind(null, options)
-          );
-          tools.office_command_batch_request =
+          tools.workspace_office_command_request =
+            createOfficeCommandRequestTool(
+              requestOfficeCommand.bind(null, options)
+            );
+          tools.workspace_office_command_batch_request =
             createOfficeCommandBatchRequestTool(
               requestOfficeCommandBatch.bind(null, options)
             );
@@ -628,6 +593,11 @@ export class ToolRuntime {
         ) {
           return false;
         }
+        if (
+          isRetiredResourceTool(name) ||
+          (!activeProjectId && name.startsWith('project_'))
+        )
+          return false;
         if (allowedNames && !allowedNames.has(name)) return false;
         if (!allowedCapabilities) return true;
         const expected = allowedCapabilities.get(name);
@@ -655,20 +625,12 @@ export class ToolRuntime {
     options: NonNullable<CopilotChatOptions>,
     expectedProjectId: string | null
   ) {
-    if (
-      !options.session &&
-      !options.maxToolExecutions &&
-      !options.conditionalDocumentUpdate
-    ) {
-      return tools;
-    }
-
     const readFingerprints = new Map<string, string>();
     const guarded: CopilotToolSet = { ...tools };
     if (options.conditionalDocumentUpdate) {
-      guarded.conditional_noop_complete = defineTool({
+      guarded.workspace_conditional_noop_complete = defineTool({
         description:
-          'Complete a conditional document update without writing only after doc_read proved the requested condition is already satisfied. Pass the exact readFingerprint returned by doc_read.',
+          'Complete a conditional document update without writing only after workspace_doc_read proved the requested condition is already satisfied. Pass the exact readFingerprint returned by workspace_doc_read.',
         inputSchema: z
           .object({
             document_id: z.string().trim().min(1).max(256),
@@ -701,6 +663,18 @@ export class ToolRuntime {
         ...tool,
         execute: async (args, executeOptions) => {
           executeOptions.signal?.throwIfAborted();
+          if (
+            isRetiredResourceTool(name) ||
+            (expectedProjectId
+              ? !canExposeInProjectSession(name, true)
+              : name.startsWith('project_'))
+          )
+            throw new Error('tool_scope_mismatch');
+          if (options.workspace && options.user)
+            await this.ac
+              .user(options.user)
+              .workspace(options.workspace)
+              .assert('Workspace.Copilot');
           if (options.session) {
             const session = await this.models.copilotSession.getMeta(
               options.session
@@ -752,69 +726,13 @@ export class ToolRuntime {
           }
           executions++;
 
-          const organizationWrite =
-            (name.startsWith('workspace_folder_') &&
-              name !== 'workspace_folder_list') ||
-            ['doc_trash', 'doc_restore', 'doc_delete_permanently'].includes(
-              name
-            );
-          const delegatedWorkspaceWrite = Boolean(
-            options.taskId && options.delegatedExecution
-          );
-          if (
-            organizationWrite &&
-            !delegatedWorkspaceWrite &&
-            options.user &&
-            options.workspace
-          ) {
-            await this.models.copilotContext.assertDocumentSourcesShared({
-              actorId: options.user,
-              sessionId: options.session,
-              sink: {
-                type: 'tool_write',
-                id: options.workspace,
-                documentId: options.workspace,
-                workspaceId: options.workspace,
-                phase: 'execute',
-              },
-            });
-          }
-
-          if (
-            [
-              'conditional_noop_complete',
-              'doc_update',
-              'doc_update_meta',
-            ].includes(name) &&
-            options.session &&
-            options.user &&
-            options.workspace &&
-            !delegatedWorkspaceWrite
-          ) {
-            await this.models.copilotContext.assertDocumentSourcesShared({
-              actorId: options.user,
-              sessionId: options.session,
-              sink: {
-                type:
-                  name === 'conditional_noop_complete'
-                    ? 'conditional_noop'
-                    : 'document_update',
-                id: String(args.document_id ?? args.doc_id),
-                documentId: String(args.document_id ?? args.doc_id),
-                workspaceId: options.workspace,
-                phase:
-                  name === 'conditional_noop_complete' ? 'noop' : 'execute',
-              },
-            });
-          }
-
           const conditionalDocumentId =
             options.conditionalDocumentUpdate?.documentId;
           const requestedDocumentId =
             typeof args.doc_id === 'string' ? args.doc_id : null;
           if (
             conditionalDocumentId &&
-            name === 'doc_update' &&
+            name === 'workspace_doc_update' &&
             requestedDocumentId === conditionalDocumentId &&
             !readFingerprints.has(conditionalDocumentId)
           ) {
@@ -854,7 +772,7 @@ export class ToolRuntime {
             resultObject?.type === 'error' || resultObject?.success === false;
           const readFingerprint =
             !failed &&
-            name === 'doc_read' &&
+            name === 'workspace_doc_read' &&
             requestedDocumentId &&
             requestedDocumentId === conditionalDocumentId
               ? replayedResult &&
@@ -883,10 +801,10 @@ export class ToolRuntime {
             options.user &&
             options.workspace &&
             [
-              'doc_read',
+              'workspace_doc_read',
               'project_doc_read',
-              'doc_keyword_search',
-              'doc_semantic_search',
+              'workspace_doc_keyword_search',
+              'workspace_doc_semantic_search',
             ].includes(name)
           ) {
             const sources = z
@@ -902,7 +820,7 @@ export class ToolRuntime {
               )
               .max(4096)
               .parse(
-                ['project_doc_read', 'doc_read'].includes(name)
+                ['project_doc_read', 'workspace_doc_read'].includes(name)
                   ? [result]
                   : result
               );
@@ -947,7 +865,7 @@ export class ToolRuntime {
               (!options.workspace && PROJECT_NATIVE_TOOL_NAMES.has(name)) ||
               (!failed && PROJECT_DERIVED_RESULT_TOOLS.has(name));
             const privateAttachment =
-              name === 'blob_read' || name === 'task_attachment_read';
+              name === 'workspace_blob_read' || name === 'task_attachment_read';
             await this.models.copilotContext.recordInputSources({
               ...identity,
               sources: [

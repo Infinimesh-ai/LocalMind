@@ -156,6 +156,16 @@ LocalMind AI 的关键不变量：
 
 ---
 
+普通 Workspace AI 写入以用户明确意图和与 UI 等价的实时 ACL 为准，不能因存在其他读者
+或会话私有来源追加 actor-only audience 门禁。Workspace 来源证据只作审计；Project
+导入、来源隔离和显式发布继续遵守各自边界。模型可见资源工具必须采用 `workspace_*`
+或 `project_*`，按会话互斥注册；旧含糊名称仅保留为历史审计，不能注册别名或恢复执行。
+切换契约前需备份并暂停 worker，使用 `packages/backend/server/scripts/retire-tool-contracts.ts`
+收敛旧任务。完整约定见
+`docs/ai-modernization/workspace-project-ai-write-authorization-remediation.zh-CN.md`。
+
+---
+
 ## 4. AI 任务必读文档
 
 AI 现代化任务按以下顺序读取：

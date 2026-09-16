@@ -8,29 +8,20 @@ adding more sophisticated extraction or retrieval.
 
 ## Implemented Foundation
 
-The [stage-two acceptance](project-ai-boundaries.md#stage-two-progress-on-2026-09-06)
-extends the session ledger to prompt, user-message, tool and recalled-memory
-sources, exact original Project grants, content fingerprints and immutable
-shared-write authorization audits. Legacy empty sessions also fail closed.
-Regrant does not revive old conversation sources. Automatic Project Memory
-decisions require a source session and recheck cumulative evidence even for
-replay and no-op. Document checks now include the destination's potential
-Workspace/direct-grant/other-Project audience. Ordinary conversation writes
-cannot share their private inputs: they require an actor-only destination;
-location confirmation does not upgrade source authority. Ordinary messages,
-prompts, Rules, recalled memories and tool outputs accumulate source evidence.
-Delegated planners retain source IDs and a private context fingerprint in their
-bound execution session, including direct document-update plans. Auxiliary
-PromptRuntime calls record their owned-session prompt fingerprint. Office
-single/batch commands and shared directory writes hold source authority through
-persistence; their rejected transactions retain source audits. The production
-MCP surface exposes delegation/query/cancellation only; inactive legacy
-factories must be audited before re-exposure. Business now runs 335 migrations
-after backed-up synchronization. Stage-two browser/transport acceptance passed;
-see the authority document's source/sink inventory. Recovered delegated tool
-receipts carry their revalidated results in structured message content because
-native prompt projection does not consume UI-only stream objects. No recovered
-receipt changes its original session source authority.
+The 2026-09-16 [Workspace/Project AI 写入授权与工具作用域重构方案](../workspace-project-ai-write-authorization-remediation.zh-CN.md) supersedes the former actor-only destination policy for ordinary Workspace AI writes.
+Owned Workspace conversations use live UI-equivalent ACL; sources remain bounded
+provenance and never grant or deny Workspace write permission. Successful writes
+record immutable `workspace-live-acl/v1` / `authorized_by_live_acl` evidence in
+the same transaction as the domain mutation. Failed transactions cannot leave a
+successful audit. Historical `shared-write-source/v1` rows retain their original
+judgments and fingerprints, including former destination waivers.
+
+Project source checks, original grant identity, attachment isolation and Project
+Memory checks remain enforced. Source retrieval still requires current read
+permission. Workspace tools cannot execute from Project conversations, and
+Project publication requires the explicit native resource workflow. Historical
+stage-two acceptance below describes the earlier policy, not an additional
+Workspace write gate.
 
 Current project selection rules are defined in
 [Project AI Boundaries](project-ai-boundaries.md) and supersede the historical

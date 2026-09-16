@@ -19,7 +19,7 @@ test.serial(
     try {
       for (let i = 0; i < 2; i++) {
         await clock.tickAsync(90_000);
-        budget.toolStarted('doc_read', String(i));
+        budget.toolStarted('workspace_doc_read', String(i));
         await clock.tickAsync(10_000);
         budget.toolCompleted();
       }
@@ -51,7 +51,8 @@ for (const phase of ['model', 'tool'] as const) {
         toolTimeoutMs: 60_000,
       });
       try {
-        if (phase === 'tool') budget.toolStarted('doc_update', 'write');
+        if (phase === 'tool')
+          budget.toolStarted('workspace_doc_update', 'write');
         const source =
           (async function* (): AsyncIterableIterator<StreamObject> {
             await new Promise(() => {});

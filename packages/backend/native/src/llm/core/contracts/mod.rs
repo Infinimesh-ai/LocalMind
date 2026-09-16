@@ -693,14 +693,14 @@ mod tests {
   fn should_roundtrip_tool_and_runtime_contracts() {
     let result_value = json!({
       "callId": "call-1",
-      "name": "doc_read",
+      "name": "workspace_doc_read",
       "args": { "docId": "a1" },
       "output": { "markdown": "# title" }
     });
     let event_value = json!({
       "type": "tool_result",
       "call_id": "call-1",
-      "name": "doc_read",
+      "name": "workspace_doc_read",
       "arguments": { "docId": "a1" },
       "output": { "markdown": "# title" }
     });

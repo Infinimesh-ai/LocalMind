@@ -573,7 +573,7 @@ export class OfficeCommandService {
       );
     }
     if (input.source === 'ai')
-      return await this.models.copilotContext.withDocumentSourcesShared(
+      return await this.models.copilotContext.withWorkspaceWriteAudit(
         {
           sessionId: input.sourceSessionId,
           actorId: input.actorId,
@@ -585,7 +585,15 @@ export class OfficeCommandService {
             phase: 'execute',
           },
         },
-        () => this.persistAuthorized(input)
+        async () => {
+          await this.assertPermissions(
+            input.owner,
+            input.actorId,
+            input.source,
+            input.artifact.id
+          );
+          return this.persistAuthorized(input);
+        }
       );
     return await this.persistAuthorized(input);
   }

@@ -151,7 +151,9 @@ test('exposes only bounded read and approval-gated Office request tools', async 
   });
   const runtime = new ToolRuntime(
     {} as never,
-    {} as never,
+    {
+      user: () => ({ workspace: () => ({ assert: async () => undefined }) }),
+    } as never,
     {} as never,
     {} as never,
     {} as never,
@@ -174,11 +176,11 @@ test('exposes only bounded read and approval-gated Office request tools', async 
   );
 
   t.deepEqual(Object.keys(tools).sort(), [
-    'office_command_batch_request',
-    'office_command_request',
-    'office_read',
+    'workspace_office_command_batch_request',
+    'workspace_office_command_request',
+    'workspace_office_read',
   ]);
-  const readResult = await tools.office_read.execute?.({}, {});
+  const readResult = await tools.workspace_office_read.execute?.({}, {});
   t.deepEqual(readResult, {
     artifactId: officeContext.artifactId,
     revisionId: officeContext.revisionId,
@@ -195,7 +197,7 @@ test('exposes only bounded read and approval-gated Office request tools', async 
     revisionId: officeContext.revisionId,
     selector: undefined,
   });
-  const readSchema = tools.office_read.jsonSchema ?? {};
+  const readSchema = tools.workspace_office_read.jsonSchema ?? {};
   const readProperties = (readSchema.properties ?? {}) as Record<
     string,
     unknown
@@ -206,12 +208,15 @@ test('exposes only bounded read and approval-gated Office request tools', async 
   t.false(Object.hasOwn(readProperties, 'revision_id'));
   t.false(readSchema.additionalProperties as boolean);
 
-  const inputSchema = tools.office_read.inputSchema;
+  const inputSchema = tools.workspace_office_read.inputSchema;
   t.true(inputSchema instanceof z.ZodType);
   if (!(inputSchema instanceof z.ZodType)) return;
   for (const selector of [null, 'null']) {
     readStateForAi.resetHistory();
-    await tools.office_read.execute?.(inputSchema.parse({ selector }), {});
+    await tools.workspace_office_read.execute?.(
+      inputSchema.parse({ selector }),
+      {}
+    );
     Sinon.assert.calledOnceWithExactly(readStateForAi, {
       workspaceId: 'workspace-1',
       actorId: 'user-1',
@@ -224,7 +229,7 @@ test('exposes only bounded read and approval-gated Office request tools', async 
   const encodedSelector = inputSchema.parse({
     selector: '{"kind":"pdf","page_index":0}',
   });
-  await tools.office_read.execute?.(encodedSelector, {});
+  await tools.workspace_office_read.execute?.(encodedSelector, {});
   Sinon.assert.calledOnceWithExactly(readStateForAi, {
     workspaceId: 'workspace-1',
     actorId: 'user-1',
@@ -253,8 +258,8 @@ test('exposes only bounded read and approval-gated Office request tools', async 
     source: 'ai',
     commands: [command],
   } as const;
-  const commandSchema = tools.office_command_request.inputSchema;
-  const batchSchema = tools.office_command_batch_request.inputSchema;
+  const commandSchema = tools.workspace_office_command_request.inputSchema;
+  const batchSchema = tools.workspace_office_command_batch_request.inputSchema;
   t.true(commandSchema instanceof z.ZodType);
   t.true(batchSchema instanceof z.ZodType);
   if (
@@ -270,8 +275,11 @@ test('exposes only bounded read and approval-gated Office request tools', async 
   const encodedBatch = batchSchema.parse({ batch: JSON.stringify(batch) });
   t.deepEqual(encodedCommand.command, command);
   t.deepEqual(encodedBatch.batch, batch);
-  await tools.office_command_request.execute?.(encodedCommand, {});
-  await tools.office_command_batch_request.execute?.(encodedBatch, {});
+  await tools.workspace_office_command_request.execute?.(encodedCommand, {});
+  await tools.workspace_office_command_batch_request.execute?.(
+    encodedBatch,
+    {}
+  );
   Sinon.assert.calledOnceWithExactly(request, {
     workspaceId: 'workspace-1',
     actorId: 'user-1',
@@ -379,11 +387,15 @@ test('revalidates persisted Office turn context and injects fixed-layout planner
   });
   const policy = result.finalMessage.find(
     message =>
-      message.role === 'system' && message.content.includes('office_read')
+      message.role === 'system' &&
+      message.content.includes('workspace_office_read')
   );
   t.truthy(policy);
   t.regex(policy?.content ?? '', /Never invent stable IDs/);
-  t.regex(policy?.content ?? '', /do not claim the edit completed/i);
+  t.regex(
+    policy?.content ?? '',
+    /report queued status until the worker returns its revision receipt/i
+  );
   t.regex(policy?.content ?? '', /PDF is fixed-layout/);
   t.regex(policy?.content ?? '', /reject body-text rewrite or reflow/i);
   const runtimePolicy = result.finalMessage
@@ -392,7 +404,7 @@ test('revalidates persisted Office turn context and injects fixed-layout planner
     .join('\n');
   t.regex(
     runtimePolicy,
-    /doc_create saves immediately to the current Workspace root by default/
+    /workspace_doc_create saves immediately to the current Workspace root by default/
   );
   t.notRegex(runtimePolicy, /requires an explicitly chosen destination/);
   t.true(persistTextResult.calledOnce);
@@ -479,7 +491,8 @@ test('supports the object stream transport used by Office AI Chat', async t => {
   t.truthy(
     result.finalMessage.find(
       message =>
-        message.role === 'system' && message.content.includes('office_read')
+        message.role === 'system' &&
+        message.content.includes('workspace_office_read')
     )
   );
   Sinon.assert.calledOnceWithExactly(

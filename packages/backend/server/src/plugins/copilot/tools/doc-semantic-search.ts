@@ -32,7 +32,7 @@ export const buildDocSearchGetter = (
     if (!options || !query?.trim() || !options.user || !options.workspace) {
       return toolError(
         'Doc Semantic Search Failed',
-        'Missing workspace, user, or query for doc_semantic_search.'
+        'Missing workspace, user, or query for workspace_doc_semantic_search.'
       );
     }
     const workspace = await models.workspace.get(options.workspace);

@@ -229,7 +229,7 @@ export const buildDocKeywordSearchGetter = (
     if (!options || !queryTrimmed || !options.user || !options.workspace) {
       return toolError(
         'Doc Keyword Search Failed',
-        'Missing workspace, user, or query for doc_keyword_search.'
+        'Missing workspace, user, or query for workspace_doc_keyword_search.'
       );
     }
     const workspace = await models.workspace.get(options.workspace);

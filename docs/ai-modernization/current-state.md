@@ -109,18 +109,19 @@ authority and does not recreate completed documents. Linux fixtures cover
 withdrawal, expiry, stale leases, queue outage, forged MCP confirmation, audience
 drift and multiple same-title documents. Cancelled runs cannot block another
 location recovery; manual resume updates the delegated request transactionally
-and rejects withdrawn operations or revoked credentials. Office command/batch
-writes and directory mutations enforce the source check through persistence;
+and rejects withdrawn operations or revoked credentials. Project writes retain source checks; Workspace Office/directory mutations
+hold live domain authority through persistence;
 transactional tool writes defer document broadcasts until commit.
 
-The delegated folder-placement compatibility path is also evidence-bound. The
-tool agent is instructed to resolve a user-named folder before creation and use
-`doc_create(folder_id)` atomically. If it instead creates at the Workspace root,
-`workspace_folder_add_document` can use the recorded server-resolved waiver
-only for the exact document proven by a completed `doc_create` checkpoint from
-the same active MCP request, lease, actor and Workspace. All existing-document
-placements remain enforcing, and the fallback writes the normal source-check
-audit rather than silently bypassing it or requesting manual confirmation.
+The 2026-09-16 Workspace write remediation removes the former actor-only
+source gate and creation-receipt placement waiver. Live UI-equivalent ACL now
+authorizes both new and existing document placement across tasks. Successful
+Workspace writes record `workspace-live-acl/v1`; old source judgments remain
+immutable. Explicit `workspace_*` / `project_*` resource tools and versioned
+runtime contracts replace ambiguous names without executable aliases. See the
+[remediation contract](workspace-project-ai-write-authorization-remediation.zh-CN.md)
+for current rules and the [execution record](workspace-project-ai-write-authorization-remediation.execution.zh-CN.md) for validation/deployment status.
+Earlier source-policy and deployed-runtime statements below are historical.
 
 Real Chrome verified human approve/reject second confirmation, rejection reason,
 duplicate handling, withdrawal, expiry, offline reconnection, reviewer/admin

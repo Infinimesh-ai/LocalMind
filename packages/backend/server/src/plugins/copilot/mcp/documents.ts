@@ -226,7 +226,7 @@ export function createDocumentMcpSurface(
       name: 'create_document',
       title: 'Create Document',
       description:
-        'Direct MCP document creation is unavailable. Use delegate_to_localmind; its internal doc_create normally saves to the delegated Workspace automatically and waits for a human location only when automatic resolution fails.',
+        'Direct MCP document creation is unavailable. Use delegate_to_localmind; its internal workspace_doc_create normally saves to the delegated Workspace automatically and waits for a human location only when automatic resolution fails.',
       parser: z
         .object({ title: z.string().min(1), content: z.string() })
         .strict(),
@@ -255,19 +255,32 @@ export function createDocumentMcpSurface(
           .can('Doc.Update');
         if (!accessible) return toolError(`Doc with id ${docId} not found.`);
         try {
-          await writer.updateDoc(workspaceId, docId, content, userId, () =>
-            models.copilotContext.assertDocumentSourcesShared({
-              actorId: userId,
-              sink: {
-                type: 'document_update',
-                id: docId,
-                documentId: docId,
-                workspaceId,
-                phase: 'execute',
+          await writer.withDeferredBroadcasts(() =>
+            models.copilotContext.withWorkspaceWriteAudit(
+              {
+                actorId: userId,
+                sink: {
+                  type: 'document_update',
+                  id: docId,
+                  documentId: docId,
+                  workspaceId,
+                  phase: 'execute',
+                },
               },
-            })
+              () =>
+                writer.updateDoc(workspaceId, docId, content, userId, () =>
+                  ac
+                    .user(userId)
+                    .workspace(workspaceId)
+                    .doc(docId)
+                    .assert('Doc.Update')
+                )
+            )
           );
-          return toolResult({ success: true, docId });
+          return toolResult(
+            { docId, success: true },
+            `Document ${docId} updated.`
+          );
         } catch (error) {
           logger.error(
             'Failed to update document through MCP',
@@ -296,13 +309,9 @@ export function createDocumentMcpSurface(
         try {
           const sanitizedTitle = title.replace(/[\r\n]+/g, ' ').trim();
           if (!sanitizedTitle) return toolError('Title cannot be empty.');
-          await writer.updateDocMeta(
-            workspaceId,
-            docId,
-            { title: sanitizedTitle },
-            userId,
-            () =>
-              models.copilotContext.assertDocumentSourcesShared({
+          await writer.withDeferredBroadcasts(() =>
+            models.copilotContext.withWorkspaceWriteAudit(
+              {
                 actorId: userId,
                 sink: {
                   type: 'document_update',
@@ -311,9 +320,26 @@ export function createDocumentMcpSurface(
                   workspaceId,
                   phase: 'execute',
                 },
-              })
+              },
+              () =>
+                writer.updateDocMeta(
+                  workspaceId,
+                  docId,
+                  { title: sanitizedTitle },
+                  userId,
+                  () =>
+                    ac
+                      .user(userId)
+                      .workspace(workspaceId)
+                      .doc(docId)
+                      .assert('Doc.Update')
+                )
+            )
           );
-          return toolResult({ success: true, docId });
+          return toolResult(
+            { docId, success: true },
+            `Document ${docId} title updated.`
+          );
         } catch (error) {
           logger.error(
             'Failed to update document metadata through MCP',

@@ -223,7 +223,7 @@ test('shared writes audit input history, survive rollback, and reject removed at
   });
   const id = await copilotSession.create({
     sessionId: randomUUID(),
-    workspaceId: workspace.id,
+    workspaceId: null,
     userId: user.id,
     selectedContextProjectId: project.id,
     title: null,
@@ -234,7 +234,7 @@ test('shared writes audit input history, survive rollback, and reject removed at
   const sink = {
     type: 'document_update' as const,
     id: 'isolated-sink',
-    workspaceId: workspace.id,
+    projectId: project.id,
     phase: 'execute' as const,
   };
   await db.aiSessionMessage.create({
@@ -271,7 +271,7 @@ test('shared writes audit input history, survive rollback, and reject removed at
   const fork = await copilotSession.create({
     sessionId: randomUUID(),
     parentSessionId: id,
-    workspaceId: workspace.id,
+    workspaceId: null,
     userId: user.id,
     selectedContextProjectId: project.id,
     title: null,
@@ -287,14 +287,11 @@ test('shared writes audit input history, survive rollback, and reject removed at
   );
 });
 
-test('shared source audience rejects Workspace expansion, public exposure and other Project readers', async t => {
+test('legacy Project writes cannot use Workspace ACL to bypass explicit publication', async t => {
   const { db, copilotContext, copilotSession } = t.context;
-  const outsider = await t.context.user.create({
-    email: 'audience-outsider@example.com',
-  });
   const project = await db.aiContextProject.create({
     data: {
-      name: 'Audience source Project',
+      name: 'Legacy boundary',
       createdByUserId: user.id,
       members: { create: { userId: user.id, role: 'owner' } },
     },
@@ -308,99 +305,29 @@ test('shared source audience rejects Workspace expansion, public exposure and ot
     promptName: 'prompt-name',
     promptAction: null,
   });
-  await db.aiSessionMessage.create({
-    data: { sessionId: id, role: 'user', content: 'Project-only brief' },
-  });
-  const identity = {
-    actorId: user.id,
-    sessionId: id,
-    sink: {
-      type: 'document_update' as const,
-      id: 'audience-sink',
-      documentId: 'audience-sink',
-      workspaceId: workspace.id,
-      phase: 'execute' as const,
-    },
-  };
-  await copilotContext.assertDocumentSourcesShared(identity);
-  await db.workspaceMember.create({
-    data: {
-      workspaceId: workspace.id,
-      userId: outsider.id,
-      role: 'member',
-      state: 'active',
-    },
-  });
-  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
-  await db.aiContextProjectMember.create({
-    data: { projectId: project.id, userId: outsider.id, role: 'member' },
-  });
-  await copilotContext.assertDocumentSourcesShared(identity);
-  await db.docAccessPolicy.create({
-    data: {
-      workspaceId: workspace.id,
-      docId: 'audience-sink',
-      visibility: 'public',
-      publicRole: 'external',
-    },
-  });
-  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
-  await db.docAccessPolicy.update({
-    where: {
-      workspaceId_docId: { workspaceId: workspace.id, docId: 'audience-sink' },
-    },
-    data: { visibility: 'private', publicRole: null },
-  });
-  const otherUser = await t.context.user.create({
-    email: 'other-project-reader@example.com',
-  });
-  await db.aiContextProject.create({
-    data: {
-      name: 'Other readers',
-      createdByUserId: otherUser.id,
-      members: { create: { userId: otherUser.id, role: 'owner' } },
-      grants: {
-        create: {
-          workspaceId: workspace.id,
-          docId: 'audience-sink',
-          level: 'read',
-          status: 'active',
-          source: 'direct',
-          grantedByUserId: user.id,
-          grantorUserIdSnapshot: user.id,
-        },
-      },
-    },
-  });
-  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
-  const audits = await db.aiSharedWriteSourceCheck.findMany({
-    where: { sessionId: id },
-    orderBy: { createdAt: 'asc' },
-  });
-  t.deepEqual(
-    audits.map(audit => audit.allowed),
-    [true, false, true, false, false]
-  );
-  t.like(audits[1].audienceEvidence, {
-    workspaceId: workspace.id,
-    documentId: 'audience-sink',
-    known: true,
-  });
   await t.throwsAsync(
-    db.aiSharedWriteSourceCheck.update({
-      where: { id: audits[0].id },
-      data: { audienceEvidence: {} },
-    })
+    copilotContext.assertProjectSourcesShared({
+      actorId: user.id,
+      projectId: project.id,
+      sessionId: id,
+      sink: {
+        type: 'document_update',
+        id: 'legacy-sink',
+        workspaceId: workspace.id,
+        phase: 'execute',
+      },
+    }),
+    { message: /Legacy Project writes to Workspace are suspended/ }
   );
 });
 
-test('a server-resolved destination records its waiver instead of dropping the source check', async t => {
+test('Workspace provenance is independent of audience, private inputs, retry and conversation age', async t => {
   const { db, copilotContext, copilotSession } = t.context;
   await db.aiSessionMessage.create({
-    data: { sessionId, role: 'user', content: 'Delegated brief' },
+    data: { sessionId, role: 'user', content: 'Requested shared update' },
   });
   const outsider = await t.context.user.create({
-    email: 'waived-reader@example.com',
+    email: 'shared-reader@example.com',
   });
   await db.workspaceMember.create({
     data: {
@@ -409,88 +336,6 @@ test('a server-resolved destination records its waiver instead of dropping the s
       role: 'member',
       state: 'active',
     },
-  });
-  const identity = {
-    actorId: user.id,
-    sessionId,
-    sink: {
-      type: 'document_create' as const,
-      id: 'waived-sink',
-      documentId: 'waived-sink',
-      workspaceId: workspace.id,
-      phase: 'execute' as const,
-    },
-  };
-  // A second reader removes the private audience, so an interactive write is
-  // rejected. A server-resolved destination proceeds, but only by recording
-  // the same judgement and the same evidence under a waiver reason.
-  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
-  await copilotContext.assertDocumentSourcesShared({
-    ...identity,
-    policy: 'record',
-  });
-  // A retry re-evidences the waiver rather than inheriting a silent skip.
-  await copilotContext.assertDocumentSourcesShared({
-    ...identity,
-    sink: { ...identity.sink, phase: 'retry' as const },
-    policy: 'record',
-  });
-  const audits = await db.aiSharedWriteSourceCheck.findMany({
-    where: { sessionId, sinkId: 'waived-sink' },
-    orderBy: { createdAt: 'asc' },
-  });
-  t.deepEqual(
-    audits.map(audit => [audit.allowed, audit.reasonCode, audit.phase]),
-    [
-      [false, 'unshared_source', 'execute'],
-      [false, 'waived_server_resolved_destination', 'execute'],
-      [false, 'waived_server_resolved_destination', 'retry'],
-    ]
-  );
-  t.true(audits.every(audit => audit.sourceFingerprint.length === 64));
-  t.like(audits[2].audienceEvidence, {
-    workspaceId: workspace.id,
-    documentId: 'waived-sink',
-    known: true,
-  });
-  await t.throwsAsync(
-    db.aiSharedWriteSourceCheck.update({
-      where: { id: audits[2].id },
-      data: { allowed: true },
-    })
-  );
-  // A Project destination is always picked explicitly, so the waiver must not
-  // reach the Project authority rules.
-  const project = await db.aiContextProject.create({
-    data: {
-      name: 'Waiver boundary Project',
-      createdByUserId: user.id,
-      members: { create: { userId: user.id, role: 'owner' } },
-    },
-  });
-  const projectSession = await copilotSession.create({
-    sessionId: randomUUID(),
-    workspaceId: workspace.id,
-    userId: user.id,
-    selectedContextProjectId: project.id,
-    title: null,
-    promptName: 'prompt-name',
-    promptAction: null,
-  });
-  await t.throwsAsync(
-    copilotContext.assertDocumentSourcesShared({
-      ...identity,
-      sessionId: projectSession,
-      policy: 'record',
-    }),
-    { message: /requires an explicit destination/ }
-  );
-});
-
-test('personal and unknown lineage cannot enter a shared document, including a completed noop', async t => {
-  const { db, copilotContext } = t.context;
-  await db.aiSessionMessage.create({
-    data: { sessionId, role: 'user', content: 'Private brief' },
   });
   await copilotContext.recordInputSources({
     sessionId,
@@ -515,38 +360,115 @@ test('personal and unknown lineage cannot enter a shared document, including a c
       phase: 'execute' as const,
     },
   };
-  await copilotContext.assertDocumentSourcesShared(identity);
-  const outsider = await t.context.user.create({
-    email: 'personal-sink-reader@example.com',
-  });
-  await db.docGrant.create({
-    data: {
-      workspaceId: workspace.id,
-      docId,
-      principalType: 'user',
-      principalId: outsider.id,
-      role: 'reader',
-    },
-  });
-  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
-  await t.throwsAsync(
-    copilotContext.assertDocumentSourcesShared({
-      ...identity,
-      sink: { ...identity.sink, type: 'conditional_noop', phase: 'noop' },
-    })
-  );
+  for (const phase of ['execute', 'retry', 'noop'] as const) {
+    t.is(
+      await copilotContext.withWorkspaceWriteAudit(
+        { ...identity, sink: { ...identity.sink, phase } },
+        async () => 'authorized-domain-result'
+      ),
+      'authorized-domain-result'
+    );
+  }
   const audits = await db.aiSharedWriteSourceCheck.findMany({
-    where: { sessionId },
+    where: { sessionId, sinkId: docId },
     orderBy: { createdAt: 'asc' },
   });
-  t.deepEqual(
-    audits.map(audit => audit.allowed),
-    [true, false, false]
+  t.is(audits.length, 3);
+  t.true(
+    audits.every(
+      audit =>
+        audit.allowed &&
+        audit.reasonCode === 'authorized_by_live_acl' &&
+        audit.policyVersion === 'workspace-live-acl/v1'
+    )
   );
   t.true(
-    JSON.stringify(audits[1].sources).includes('external-unverified-result')
+    JSON.stringify(audits[0].sources).includes('external-unverified-result')
   );
-  t.true(JSON.stringify(audits[1].sources).includes('private'));
+  t.false(JSON.stringify(audits[0].audienceEvidence).includes('userIds'));
+  await t.throwsAsync(
+    db.aiSharedWriteSourceCheck.update({
+      where: { id: audits[0].id },
+      data: { allowed: false },
+    })
+  );
+  await t.throwsAsync(
+    copilotContext.withWorkspaceWriteAudit(identity, async () => {
+      throw new Error('permission_denied');
+    }),
+    { message: 'permission_denied' }
+  );
+  t.is(
+    await db.aiSharedWriteSourceCheck.count({
+      where: { sessionId, sinkId: docId },
+    }),
+    3
+  );
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Scope isolation',
+      createdByUserId: user.id,
+      members: { create: { userId: user.id, role: 'owner' } },
+    },
+  });
+  const projectSession = await copilotSession.create({
+    sessionId: randomUUID(),
+    workspaceId: workspace.id,
+    userId: user.id,
+    selectedContextProjectId: project.id,
+    title: null,
+    promptName: 'prompt-name',
+    promptAction: null,
+  });
+  let executed = false;
+  await t.throwsAsync(
+    copilotContext.withWorkspaceWriteAudit(
+      { ...identity, sessionId: projectSession },
+      async () => {
+        executed = true;
+      }
+    )
+  );
+  t.false(executed);
+});
+
+test('large provenance stays bounded without blocking an ACL-authorized Workspace write', async t => {
+  const { copilotContext, db } = t.context;
+  const evidence = { note: 'a'.repeat(1900) };
+  // This is valid source-ledger data; its accumulated audit exceeds 4 MiB.
+  await db.aiSessionContextSource.createMany({
+    data: Array.from({ length: 2200 }, (_, i) => ({
+      sessionId,
+      workspaceId: workspace.id,
+      kind: 'unknown',
+      sourceId: `large-provenance-${i}`,
+      evidence,
+    })),
+  });
+  const value = await copilotContext.withWorkspaceWriteAudit(
+    {
+      actorId: user.id,
+      sessionId,
+      sink: {
+        type: 'document_update',
+        id: 'bounded-audit-sink',
+        documentId: 'bounded-audit-sink',
+        workspaceId: workspace.id,
+        phase: 'execute',
+      },
+    },
+    async () => 'authorized-domain-result'
+  );
+  t.is(value, 'authorized-domain-result');
+  const audit = await db.aiSharedWriteSourceCheck.findFirstOrThrow({
+    where: { sinkId: 'bounded-audit-sink' },
+  });
+  t.like(audit, {
+    allowed: true,
+    reasonCode: 'authorized_by_live_acl',
+    audienceEvidence: { sourcesTruncated: true },
+  });
+  t.true(Buffer.byteLength(JSON.stringify(audit.sources)) < 4 * 1024 * 1024);
 });
 
 test('context source evidence survives removal and forks and rejects rewrites', async t => {

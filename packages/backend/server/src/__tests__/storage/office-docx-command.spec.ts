@@ -55,7 +55,7 @@ test('executes a DOCX format command into immutable package/state evidence', asy
   }));
   const models = {
     copilotContext: {
-      withDocumentSourcesShared: Sinon.stub().callsFake(
+      withWorkspaceWriteAudit: Sinon.stub().callsFake(
         async (_input, execute) => await execute()
       ),
     },
@@ -162,7 +162,7 @@ test('persists DOCX text replacement without storing replacement text in revisio
   }));
   const models = {
     copilotContext: {
-      withDocumentSourcesShared: Sinon.stub().callsFake(
+      withWorkspaceWriteAudit: Sinon.stub().callsFake(
         async (_input, execute) => await execute()
       ),
     },
@@ -233,7 +233,7 @@ test('rejects altered parent bytes before writing command evidence', async t => 
   const appendRevision = Sinon.stub();
   const models = {
     copilotContext: {
-      withDocumentSourcesShared: Sinon.stub().callsFake(
+      withWorkspaceWriteAudit: Sinon.stub().callsFake(
         async (_input, execute) => await execute()
       ),
     },
@@ -306,7 +306,7 @@ test('previews a DOCX command without writing blobs or revisions', async t => {
   const put = Sinon.stub();
   const models = {
     copilotContext: {
-      withDocumentSourcesShared: Sinon.stub().callsFake(
+      withWorkspaceWriteAudit: Sinon.stub().callsFake(
         async (_input, execute) => await execute()
       ),
     },
@@ -381,7 +381,7 @@ test('rejects a stale DOCX command before reading or writing bytes', async t => 
   const appendRevision = Sinon.stub();
   const models = {
     copilotContext: {
-      withDocumentSourcesShared: Sinon.stub().callsFake(
+      withWorkspaceWriteAudit: Sinon.stub().callsFake(
         async (_input, execute) => await execute()
       ),
     },

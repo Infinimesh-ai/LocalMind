@@ -2,7 +2,7 @@ import { mcpDelegationFingerprint } from '../../../models/copilot-mcp-delegation
 import type { CopilotTool, CopilotToolSet } from '../tools';
 
 export const TOOL_CAPABILITY_SNAPSHOT_VERSION =
-  'localmind-tool-capability-snapshot/v1';
+  'localmind-tool-capability-snapshot/v2';
 
 export type ToolSideEffectType =
   | 'read'
@@ -17,12 +17,12 @@ export type ToolCapabilitySnapshot = {
 };
 
 const WORKSPACE_WRITE_TOOLS = new Set([
-  'doc_create',
-  'doc_copy',
-  'doc_update',
-  'doc_update_meta',
-  'project_doc_update_request',
-  'project_doc_add',
+  'workspace_doc_create',
+  'workspace_doc_copy',
+  'workspace_doc_update',
+  'workspace_doc_update_meta',
+  'workspace_office_command_request',
+  'workspace_office_command_batch_request',
   'workspace_folder_create',
   'workspace_folder_rename',
   'workspace_folder_move',
@@ -33,9 +33,9 @@ const WORKSPACE_WRITE_TOOLS = new Set([
   'workspace_folder_add_document',
   'workspace_folder_move_document',
   'workspace_folder_move_item',
-  'doc_trash',
-  'doc_restore',
-  'doc_delete_permanently',
+  'workspace_doc_trash',
+  'workspace_doc_restore',
+  'workspace_doc_delete_permanently',
 ]);
 
 const EXTERNAL_DYNAMIC_TOOLS = new Set([
@@ -54,6 +54,19 @@ export function toolSchemaFingerprint(
 
 export function toolSideEffectType(name: string): ToolSideEffectType {
   if (WORKSPACE_WRITE_TOOLS.has(name)) return 'workspace_write';
+  if (
+    [
+      'project_doc_create',
+      'project_doc_update',
+      'project_resource_update_meta',
+      'project_folder_create',
+      'project_office_command_request',
+      'project_office_command_batch_request',
+      'project_publication_prepare',
+      'project_file_request_create',
+    ].includes(name)
+  )
+    return 'project_write';
   if (EXTERNAL_DYNAMIC_TOOLS.has(name)) return 'external_dynamic';
   return 'read';
 }

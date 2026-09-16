@@ -17,7 +17,7 @@ fn append_tool_turns_should_replay_assistant_and_tool_messages() {
     &mut messages,
     &[NativeToolCall {
       id: "call_1".to_string(),
-      name: "doc_read".to_string(),
+      name: "workspace_doc_read".to_string(),
       args: json!({ "doc_id": "a1" }),
       raw_arguments_text: Some("{\"doc_id\":\"a1\"}".to_string()),
       argument_parse_error: None,

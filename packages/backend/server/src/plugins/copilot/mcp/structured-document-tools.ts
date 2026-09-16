@@ -213,7 +213,7 @@ export function createStructuredDocumentMcpTools(
     try {
       return toolResult(
         await dependencies.writer.withDeferredBroadcasts(() =>
-          models.copilotContext.withDocumentSourcesShared(
+          models.copilotContext.withWorkspaceWriteAudit(
             {
               actorId: userId,
               sink: {
@@ -224,7 +224,14 @@ export function createStructuredDocumentMcpTools(
                 phase: 'execute',
               },
             },
-            operation
+            async () => {
+              await ac
+                .user(userId)
+                .workspace(workspaceId)
+                .doc(docId)
+                .assert('Doc.Update');
+              return operation();
+            }
           )
         )
       );

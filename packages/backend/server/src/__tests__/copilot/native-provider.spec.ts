@@ -598,7 +598,7 @@ test('NativeProviderAdapter should append citation and attachment footnotes', as
       yield {
         type: 'tool_result',
         call_id: 'call_1',
-        name: 'blob_read',
+        name: 'workspace_blob_read',
         arguments: { blob_id: 'blob_1' },
         output: {
           blobId: 'blob_1',
@@ -610,7 +610,7 @@ test('NativeProviderAdapter should append citation and attachment footnotes', as
       yield {
         type: 'tool_result',
         call_id: 'call_2',
-        name: 'blob_read',
+        name: 'workspace_blob_read',
         arguments: { blob_id: 'blob_2' },
         output: {
           blobId: 'blob_2',
@@ -627,7 +627,7 @@ test('NativeProviderAdapter should append citation and attachment footnotes', as
       yield {
         type: 'tool_result',
         call_id: 'call_1',
-        name: 'doc_semantic_search',
+        name: 'workspace_doc_semantic_search',
         arguments: { query: 'A' },
         output: [
           {
@@ -772,7 +772,7 @@ test('NativeProviderAdapter streamObject should map tool and text events', async
         yield {
           type: 'tool_call',
           call_id: 'call_1',
-          name: 'doc_read',
+          name: 'workspace_doc_read',
           arguments: { doc_id: 'a1' },
         };
         yield { type: 'done', finish_reason: 'tool_calls' };
@@ -786,7 +786,7 @@ test('NativeProviderAdapter streamObject should map tool and text events', async
     createTestToolLoopBridge(
       dispatch,
       {
-        doc_read: {
+        workspace_doc_read: {
           inputSchema: z.object({ doc_id: z.string() }),
           execute: async () => ({ markdown: '# a1' }),
         },
@@ -1322,7 +1322,7 @@ test('buildNativeRequest should preserve tool schemas and defer Gemini rewrite t
         model: 'gemini-3.6-flash',
         messages: promptMessages(userPrompt('read doc')),
         toolContracts: buildToolContracts({
-          doc_read: defineTool({
+          workspace_doc_read: defineTool({
             inputSchema: schema,
             execute: async () => ({ markdown: '# doc' }),
           }),
@@ -1332,7 +1332,7 @@ test('buildNativeRequest should preserve tool schemas and defer Gemini rewrite t
         model: 'gpt-4.1',
         messages: promptMessages(userPrompt('read doc')),
         toolContracts: buildToolContracts({
-          doc_read: defineTool({
+          workspace_doc_read: defineTool({
             inputSchema: schema,
             execute: async () => ({ markdown: '# doc' }),
           }),
@@ -1779,7 +1779,7 @@ test('GeminiProvider should validate malformed attachments before canonicalizati
 test('GeminiProvider should drive tool loop on native path', async t => {
   const provider = new TestGeminiProvider();
   provider.testTools = {
-    doc_read: defineTool({
+    workspace_doc_read: defineTool({
       inputSchema: z.object({ doc_id: z.string() }),
       execute: async args => ({ markdown: `# ${(args as any).doc_id}` }),
     }),
@@ -1793,7 +1793,7 @@ test('GeminiProvider should drive tool loop on native path', async t => {
         {
           type: 'tool_call',
           call_id: 'call_1',
-          name: 'doc_read',
+          name: 'workspace_doc_read',
           arguments: { doc_id: 'a1' },
         },
         { type: 'done', finish_reason: 'tool_calls' },

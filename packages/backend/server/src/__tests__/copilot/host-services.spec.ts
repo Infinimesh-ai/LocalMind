@@ -393,7 +393,9 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
   };
   const runtime = new ToolRuntime(
     {} as any,
-    {} as any,
+    {
+      user: () => ({ workspace: () => ({ assert: async () => undefined }) }),
+    } as any,
     {} as any,
     {} as any,
     {} as any,
@@ -633,28 +635,26 @@ test('ToolRuntime rejects generic, Office, and provider-spoofed tools in project
     'project_doc_read',
     readTool,
   ]);
-  const tools = await runtime.getTools(
-    {
-      tools: ['office'],
-      session: 'session-1',
-    },
-    'gpt-4o-mini',
-    providerToolResolver
+  await t.throwsAsync(
+    runtime.getTools(
+      { tools: ['office'], session: 'session-1' },
+      'gpt-4o-mini',
+      providerToolResolver
+    ),
+    { message: /native Project conversation/ }
   );
-
-  t.deepEqual(Object.keys(tools), []);
   t.false(providerToolResolver.called);
-  t.false(canRunDirectlyInProjectSession('office_command_request'));
-  t.false(canRunDirectlyInProjectSession('office_read'));
+  t.false(canRunDirectlyInProjectSession('workspace_office_command_request'));
+  t.false(canRunDirectlyInProjectSession('workspace_office_read'));
   t.false(canRunDirectlyInProjectSession('workspace_folder_create'));
   t.false(canRunDirectlyInProjectSession('future_unclassified_tool'));
-  t.false(canRunDirectlyInProjectSession('doc_read'));
-  t.true(canRunDirectlyInProjectSession('doc_keyword_search'));
-  t.true(canRunDirectlyInProjectSession('doc_semantic_search'));
-  t.true(canRunDirectlyInProjectSession('project_doc_read'));
+  t.false(canRunDirectlyInProjectSession('workspace_doc_read'));
+  t.false(canRunDirectlyInProjectSession('workspace_doc_keyword_search'));
+  t.false(canRunDirectlyInProjectSession('workspace_doc_semantic_search'));
+  t.true(canExposeInProjectSession('project_doc_read', true));
   t.true(canRunDirectlyInProjectSession('blocker_suggest'));
   t.false(canRunDirectlyInProjectSession('project_doc_update_request'));
-  t.true(canExposeInProjectSession('project_doc_update_request'));
+  t.false(canExposeInProjectSession('project_doc_update_request'));
 });
 
 test('ToolRuntime never exposes Blocker suggestions without a selected Project', async t => {
@@ -714,9 +714,9 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
   );
 
   t.deepEqual(Object.keys(tools).sort(), [
-    'doc_delete_permanently',
-    'doc_restore',
-    'doc_trash',
+    'workspace_doc_delete_permanently',
+    'workspace_doc_restore',
+    'workspace_doc_trash',
     'workspace_folder_add_document',
     'workspace_folder_create',
     'workspace_folder_delete_permanently',
@@ -732,7 +732,11 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
 
 test('ToolRuntime reloads authorized attachment context on every execution', async t => {
   const recordInputSources = Sinon.stub().resolves();
-  const access = { allowLocal: () => access, can: async () => true };
+  const access = {
+    allowLocal: () => access,
+    can: async () => true,
+    assert: async () => undefined,
+  };
   const getFileContent = Sinon.stub().resolves('current content');
   const getOwnedBySessionId = Sinon.stub().resolves({ id: 'context-1' });
   const getOwnedContext = Sinon.stub().resolves({
@@ -784,7 +788,8 @@ test('ToolRuntime reloads authorized attachment context on every execution', asy
     'session-1',
     'workspace-1',
   ]);
-  const read = () => tools.blob_read.execute?.({ blob_id: 'blob-1' }, {});
+  const read = () =>
+    tools.workspace_blob_read.execute?.({ blob_id: 'blob-1' }, {});
   t.like(await read(), { content: 'current content' });
   t.deepEqual(getOwnedContext.firstCall.args, [
     'user-1',
@@ -845,7 +850,7 @@ test('ToolRuntime intersects task snapshots with current task-scoped tools', asy
         },
       ],
       allowedToolNames: [
-        'blob_read',
+        'workspace_blob_read',
         'task_attachment_read',
         'workspace_folder_list',
       ],
@@ -940,14 +945,14 @@ test('ToolRuntime requires a read before conditional update or no-op completion'
     'gpt-4o-mini',
     toolName =>
       toolName === 'docRead'
-        ? ['doc_read', readTool]
+        ? ['workspace_doc_read', readTool]
         : toolName === 'docUpdate'
-          ? ['doc_update', updateTool]
+          ? ['workspace_doc_update', updateTool]
           : undefined
   );
 
   const prematureUpdate = await t.throwsAsync(async () => {
-    await tools.doc_update.execute?.(
+    await tools.workspace_doc_update.execute?.(
       { doc_id: 'doc-1', content: 'replacement' },
       {}
     );
@@ -955,12 +960,15 @@ test('ToolRuntime requires a read before conditional update or no-op completion'
   t.is(prematureUpdate.message, 'conditional_document_update_requires_read');
   Sinon.assert.notCalled(update);
 
-  const read = (await tools.doc_read.execute?.({ doc_id: 'doc-1' }, {})) as {
+  const read = (await tools.workspace_doc_read.execute?.(
+    { doc_id: 'doc-1' },
+    {}
+  )) as {
     readFingerprint: string;
   };
   t.regex(read.readFingerprint, /^[a-f0-9]{64}$/);
   t.deepEqual(
-    await tools.conditional_noop_complete.execute?.(
+    await tools.workspace_conditional_noop_complete.execute?.(
       {
         document_id: 'doc-1',
         read_fingerprint: read.readFingerprint,
@@ -976,7 +984,7 @@ test('ToolRuntime requires a read before conditional update or no-op completion'
     }
   );
   await t.notThrowsAsync(async () => {
-    await tools.doc_update.execute?.(
+    await tools.workspace_doc_update.execute?.(
       { doc_id: 'doc-1', content: 'replacement' },
       {}
     );

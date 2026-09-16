@@ -428,6 +428,10 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
           }
         )
       : null;
+    await this.models.copilotContext.lockWorkspaceWriteAuthorization(
+      request.workspaceId,
+      request.docId
+    );
     await this.models.doc.lockContentWrite(request.workspaceId, request.docId);
 
     const workspaceAllowed = await this.ac
@@ -494,30 +498,6 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
       throw new Error(message);
     }
 
-    if (!projectId) {
-      try {
-        await this.models.copilotContext.assertDocumentSourcesShared({
-          actorId: run.actorId,
-          sessionId: run.sessionId,
-          sink: {
-            type: 'document_update',
-            id: request.docId,
-            documentId: request.docId,
-            workspaceId: request.workspaceId,
-            phase: workerAttempt > 1 ? 'retry' : 'execute',
-          },
-        });
-      } catch (error) {
-        if (delegation)
-          throw new AgentRuntimeDocUpdateDelegationFailure(
-            'Delegated document sources are not authorized for its readers',
-            'permission_denied',
-            { code: 'unshared_source', documentId: request.docId }
-          );
-        throw error;
-      }
-    }
-
     if (await checkCancellationRequested()) {
       this.logger.debug(
         `Agent runtime doc update cancelled before side effect: ${run.id}`
@@ -577,6 +557,18 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
       run.actorId
     );
 
+    if (!projectId)
+      await this.models.copilotContext.recordWorkspaceWriteAudit({
+        actorId: run.actorId,
+        sessionId: run.sessionId,
+        sink: {
+          type: 'document_update',
+          id: request.docId,
+          documentId: request.docId,
+          workspaceId: request.workspaceId,
+          phase: workerAttempt > 1 ? 'retry' : 'execute',
+        },
+      });
     const sideEffectFingerprint = this.sideEffectFingerprint(request);
     const sideEffectSummary = {
       version: 'agent-runtime-doc-update-side-effect/v1',
@@ -593,7 +585,7 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
       `Updated workspace document ${request.docId}`,
       delegation
         ? 'through credential-authorized MCP delegation.'
-        : 'through approved Agent Runtime office task.',
+        : 'through user-authorized Agent Runtime office task.',
     ].join(' ');
 
     await this.models.copilotAgentRuntime.completeStandaloneWorkerExecution({

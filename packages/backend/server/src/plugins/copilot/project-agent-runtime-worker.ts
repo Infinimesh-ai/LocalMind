@@ -12,6 +12,7 @@ import {
   ProjectWorkspaceImportService,
 } from '../../core/project-transfer';
 import { Models } from '../../models';
+import { assertCurrentProjectToolContract } from '../../models/common/copilot-tool-contract';
 import { PROJECT_AGENT_WORKFLOW } from '../../models/copilot-project-agent-runtime';
 import { PROJECT_PUBLICATION_WORKFLOW } from '../../models/project-publication';
 import { PROJECT_WORKSPACE_IMPORT_WORKFLOW } from '../../models/project-workspace-import';
@@ -114,13 +115,16 @@ export class CopilotProjectAgentRuntimeWorker {
       try {
         let resourceId: string | undefined;
         if (run.workflow === PROJECT_AGENT_WORKFLOW) {
+          assertCurrentProjectToolContract(
+            run.steps.find(step => step.stepKey === 'execute')?.input
+          );
           const command = ProjectResourceCommandSchema.parse(
             run.steps.find(step => step.stepKey === 'execute')?.input
           );
           const target =
-            command.toolName === 'doc_update'
+            command.toolName === 'project_doc_update'
               ? command.arguments.doc_id
-              : command.toolName === 'doc_update_meta'
+              : command.toolName === 'project_resource_update_meta'
                 ? command.arguments.resource_id
                 : undefined;
           if (typeof target === 'string') resourceId = target;

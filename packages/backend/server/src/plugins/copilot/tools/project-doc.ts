@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { BadRequest } from '../../../base';
 import { ProjectResourceService } from '../../../core/project';
 import { Models } from '../../../models';
+import { assertCurrentProjectToolContract } from '../../../models/common/copilot-tool-contract';
 import {
   PROJECT_AGENT_WORKFLOW,
   type ProjectAgentRun,
@@ -24,25 +25,25 @@ import {
 export const PROJECT_NATIVE_TOOL_NAMES = new Set([
   'project_file_request_recipients',
   'project_file_request_create',
-  'doc_create',
-  'doc_read',
-  'doc_update',
-  'doc_update_meta',
+  'project_doc_create',
+  'project_doc_read',
+  'project_doc_update',
+  'project_resource_update_meta',
   'project_resource_list',
   'project_folder_create',
-  'doc_keyword_search',
-  'doc_semantic_search',
-  'office_read',
-  'office_command_request',
-  'office_command_batch_request',
+  'project_doc_keyword_search',
+  'project_doc_semantic_search',
+  'project_office_read',
+  'project_office_command_request',
+  'project_office_command_batch_request',
   'project_publication_prepare',
 ]);
 
 const PROJECT_READ_TOOLS = new Set([
-  'doc_read',
+  'project_doc_read',
   'project_resource_list',
-  'doc_keyword_search',
-  'doc_semantic_search',
+  'project_doc_keyword_search',
+  'project_doc_semantic_search',
 ]);
 
 export function createProjectResourceTools(
@@ -81,6 +82,9 @@ export function createProjectResourceTools(
   };
   const proof = new Map<string, number>();
   if (executingRun) {
+    assertCurrentProjectToolContract(
+      executingRun.steps.find(step => step.stepKey === 'execute')?.input
+    );
     const command = ProjectResourceCommandSchema.parse(
       executingRun.steps.find(step => step.stepKey === 'execute')?.input
     );
@@ -197,8 +201,8 @@ export function createProjectResourceTools(
         };
       },
     }),
-    doc_keyword_search: search,
-    doc_semantic_search: search,
+    project_doc_keyword_search: search,
+    project_doc_semantic_search: search,
     project_resource_list: defineTool({
       description:
         'List the direct children of the current Project root or a Project folder. Follow nextCursor for pagination. These are internal Project resources; never infer an external Workspace target from a title.',
@@ -243,7 +247,7 @@ export function createProjectResourceTools(
         return { ...(await receipt(resource.id)), folderCreated: true };
       },
     }),
-    doc_create: defineTool({
+    project_doc_create: defineTool({
       description:
         'Create and save a real document or canvas inside the current Project, then return its persisted ID and path. Default to the Project root. External publication is a separate explicit operation; it is never a prerequisite for this internal save.',
       inputSchema: z
@@ -271,9 +275,9 @@ export function createProjectResourceTools(
         };
       },
     }),
-    doc_read: defineTool({
+    project_doc_read: defineTool({
       description:
-        'Read a document from this Project and return its immutable content version. Call this before doc_update. Source Workspace documents are independent copies and are not read by this tool.',
+        'Read a document from this Project and return its immutable content version. Call this before project_doc_update. Source Workspace documents are independent copies and are not read by this tool.',
       inputSchema: z.object({ doc_id: id }).strict(),
       execute: async ({ doc_id }) => {
         await authorize();
@@ -303,9 +307,9 @@ export function createProjectResourceTools(
         };
       },
     }),
-    doc_update: defineTool({
+    project_doc_update: defineTool({
       description:
-        'Save new Markdown to the exact Project document read by doc_read in this tool loop. The expected version must match that read. Conflicts require another read and comparison. This never updates Workspace copies.',
+        'Save new Markdown to the exact Project document read by project_doc_read in this tool loop. The expected version must match that read. Conflicts require another read and comparison. This never updates Workspace copies.',
       inputSchema: z
         .object({
           doc_id: id,
@@ -333,7 +337,7 @@ export function createProjectResourceTools(
         };
       },
     }),
-    doc_update_meta: defineTool({
+    project_resource_update_meta: defineTool({
       description:
         'Rename, move, reorder, trash or restore a Project resource using its current metadata version. All IDs must belong to this Project. For root moves use parent_id null; trash is reversible and never deletes external copies.',
       inputSchema: z
@@ -377,16 +381,16 @@ export function createProjectResourceTools(
       .filter(([name]) => {
         if (name === 'project_publication_prepare')
           return enabled.has('docCreate') || enabled.has('docUpdate');
-        if (name === 'doc_create') return enabled.has('docCreate');
-        if (name === 'doc_read') return enabled.has('docRead');
-        if (name === 'doc_update') return enabled.has('docUpdate');
-        if (name === 'doc_keyword_search')
+        if (name === 'project_doc_create') return enabled.has('docCreate');
+        if (name === 'project_doc_read') return enabled.has('docRead');
+        if (name === 'project_doc_update') return enabled.has('docUpdate');
+        if (name === 'project_doc_keyword_search')
           return (
             enabled.has('docKeywordSearch') || enabled.has('docSemanticSearch')
           );
-        if (name === 'doc_semantic_search')
+        if (name === 'project_doc_semantic_search')
           return enabled.has('docSemanticSearch');
-        if (name === 'doc_update_meta')
+        if (name === 'project_resource_update_meta')
           return (
             enabled.has('docUpdateMeta') || enabled.has('workspaceOrganization')
           );
@@ -408,7 +412,7 @@ export function createProjectResourceTools(
                   await authorize();
                   execute.signal?.throwIfAborted();
                   const command = {
-                    version: 1,
+                    version: 2,
                     toolName: name,
                     arguments: args,
                     toolCallId: execute.toolCallId,
@@ -418,7 +422,7 @@ export function createProjectResourceTools(
                       tools: options.tools,
                       billingUnitId: options.billingUnitId,
                     },
-                    ...(name === 'doc_update' &&
+                    ...(name === 'project_doc_update' &&
                     typeof args.doc_id === 'string' &&
                     proof.has(args.doc_id)
                       ? {
@@ -444,7 +448,8 @@ export function createProjectResourceTools(
                             await models.projectResource.get({
                               ...scope,
                               resourceId: targetId,
-                              includeTrash: name === 'doc_update_meta',
+                              includeTrash:
+                                name === 'project_resource_update_meta',
                             })
                           ).title
                         : null;
@@ -498,9 +503,9 @@ export function createProjectResourceTools(
                   };
                   try {
                     const resourceId =
-                      name === 'doc_update'
+                      name === 'project_doc_update'
                         ? parsed.arguments.doc_id
-                        : name === 'doc_update_meta'
+                        : name === 'project_resource_update_meta'
                           ? parsed.arguments.resource_id
                           : undefined;
                     if (typeof resourceId === 'string') {
@@ -560,11 +565,11 @@ export function createProjectResourceTools(
 
 export const ProjectResourceCommandSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     toolName: z.enum([
-      'doc_create',
-      'doc_update',
-      'doc_update_meta',
+      'project_doc_create',
+      'project_doc_update',
+      'project_resource_update_meta',
       'project_folder_create',
     ]),
     arguments: z.record(z.unknown()),
@@ -594,6 +599,9 @@ export async function executeProjectResourceRun(
     throw new BadRequest('This worker requires a native Project resource task');
   if (!(env.dev || env.selfhosted || env.namespaces.canary))
     throw new BadRequest('Document write tools are disabled');
+  assertCurrentProjectToolContract(
+    run.steps.find(step => step.stepKey === 'execute')?.input
+  );
   const command = ProjectResourceCommandSchema.parse(
     run.steps.find(step => step.stepKey === 'execute')?.input
   );

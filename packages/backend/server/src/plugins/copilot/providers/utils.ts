@@ -174,11 +174,11 @@ export class TextStreamParser {
             result += `\nCrawling the web "${chunk.input.url}"\n`;
             break;
           }
-          case 'doc_keyword_search': {
+          case 'workspace_doc_keyword_search': {
             result += `\nSearching the keyword "${chunk.input.query}"\n`;
             break;
           }
-          case 'doc_read': {
+          case 'workspace_doc_read': {
             result += `\nReading the doc "${chunk.input.doc_id}"\n`;
             break;
           }
@@ -196,7 +196,7 @@ export class TextStreamParser {
         );
         result = this.addPrefix(result);
         switch (chunk.toolName) {
-          case 'doc_semantic_search': {
+          case 'workspace_doc_semantic_search': {
             const output = chunk.output;
             if (Array.isArray(output)) {
               result += `\nFound ${output.length} document${output.length !== 1 ? 's' : ''} related to “${chunk.input.query}”.\n`;
@@ -205,14 +205,14 @@ export class TextStreamParser {
             } else {
               const message = asRecord(output)?.message;
               this.logger.warn(
-                `Unexpected result type for doc_semantic_search: ${
+                `Unexpected result type for workspace_doc_semantic_search: ${
                   typeof message === 'string' ? message : 'Unknown error'
                 }`
               );
             }
             break;
           }
-          case 'doc_keyword_search': {
+          case 'workspace_doc_keyword_search': {
             const output = chunk.output;
             if (Array.isArray(output)) {
               result += `\nFound ${output.length} document${output.length !== 1 ? 's' : ''} related to “${chunk.input.query}”.\n`;

@@ -5,6 +5,10 @@ import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
 
 import { BaseModel } from './base';
+import {
+  hasRetiredToolContract,
+  ToolContractRetiredError,
+} from './common/copilot-tool-contract';
 import type { CopilotRepairExecutionRecord } from './copilot-repair-execution';
 
 export type CopilotAgentRunStatus =
@@ -5343,6 +5347,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     },
     existing: CopilotAgentRunRecord
   ) {
+    if (hasRetiredToolContract(existing)) throw new ToolContractRetiredError();
     if (
       existing.status === 'cancelled' &&
       latestAgentRuntimeControlAction(existing) === 'abandon'

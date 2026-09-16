@@ -12,6 +12,7 @@ import {
 import {
   blockerSuggestionFromToolResult,
   ChatContentStreamObjects,
+  isLegacyResourceToolName,
   officeToolResultView,
 } from './stream-objects';
 
@@ -114,20 +115,20 @@ beforeAll(async () => {
 describe('Office tool result presentation', () => {
   test('restored read validation errors without an isError flag never claim success', () => {
     expect(
-      officeToolResultView('office_read', {
+      officeToolResultView('workspace_office_read', {
         message: 'selector JSON must match the required Office schema',
       })
     ).toEqual({
       status: 'error',
       name: 'The file could not be read. Reopen it and try again.',
     });
-    expect(officeToolResultView('office_read', {})).toEqual({
+    expect(officeToolResultView('workspace_office_read', {})).toEqual({
       status: 'error',
       name: 'The file could not be read. Reopen it and try again.',
     });
   });
   test('states that an approval request has not created a revision', () => {
-    const view = officeToolResultView('office_command_request', {
+    const view = officeToolResultView('workspace_office_command_request', {
       success: true,
       approvalRequired: true,
       taskId: 'task-1',
@@ -146,7 +147,7 @@ describe('Office tool result presentation', () => {
   });
 
   test('renders bounded read and persisted batch evidence without completion claims', () => {
-    const read = officeToolResultView('office_read', {
+    const read = officeToolResultView('workspace_office_read', {
       revisionId: 'revision-4',
       sequence: 4,
       truncated: false,
@@ -163,13 +164,16 @@ describe('Office tool result presentation', () => {
       ],
     });
 
-    const batch = officeToolResultView('office_command_batch_request', {
-      success: true,
-      approvalRequired: false,
-      taskId: 'task-2',
-      commandCount: 3,
-      previewSummary: { operation: 'office.command.batch' },
-    });
+    const batch = officeToolResultView(
+      'workspace_office_command_batch_request',
+      {
+        success: true,
+        approvalRequired: false,
+        taskId: 'task-2',
+        commandCount: 3,
+        previewSummary: { operation: 'office.command.batch' },
+      }
+    );
     expect(batch.status).toBe('success');
     if (batch.status !== 'success') return;
     expect(batch.name).toBe('Office change request saved');
@@ -185,7 +189,7 @@ describe('Office tool result presentation', () => {
     const parsed = StreamObjectSchema.parse({
       type: 'tool-result',
       toolCallId: 'call-1',
-      toolName: 'office_read',
+      toolName: 'workspace_office_read',
       args: { selector: '{"kind":"pdf","page_index":0}' },
       result: { message: 'selector validation failed' },
       isError: true,
@@ -206,7 +210,7 @@ describe('Office tool result presentation', () => {
     try {
       expect(
         officeToolResultView(
-          'office_command_request',
+          'workspace_office_command_request',
           { message: 'PRIVATE_SERVER_ERROR' },
           true
         )
@@ -358,4 +362,59 @@ describe('Blocker suggestion confirmation', () => {
     expect(onConfirm).toHaveBeenCalledTimes(2);
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
+});
+
+test('retired resource names are displayed as legacy without classifying current scoped tools as legacy', () => {
+  for (const name of [
+    'doc_create',
+    'doc_read',
+    'doc_update',
+    'office_command_request',
+  ])
+    expect(isLegacyResourceToolName(name)).toBe(true);
+  for (const name of [
+    'workspace_doc_create',
+    'project_doc_create',
+    'project_resource_update_meta',
+    'project_office_read',
+  ])
+    expect(isLegacyResourceToolName(name)).toBe(false);
+});
+
+test('historical and Project write receipts remain readable without Workspace document actions', async () => {
+  const { container, instance, rerender } = await renderBlockerSuggestion();
+  for (const toolName of [
+    'doc_create',
+    'doc_update',
+    'project_doc_create',
+    'project_doc_update',
+    'project_resource_update_meta',
+  ]) {
+    Object.defineProperty(instance, 'answer', {
+      value: [
+        {
+          type: 'tool-result',
+          toolCallId: 'persisted-call',
+          toolName,
+          args: {},
+          result: { docId: 'original-resource', markdown: 'x'.repeat(10000) },
+        },
+      ],
+    });
+    rerender();
+    const card = container.querySelector('tool-result-card') as
+      | (HTMLElement & {
+          name: string;
+          results: { content: string; onClick?: unknown }[];
+        })
+      | null;
+    expect(card?.name).toBe(
+      toolName.startsWith('project_') ? toolName : `${toolName} (legacy)`
+    );
+    expect(card?.results[0]?.content).toContain('original-resource');
+    expect(card?.results[0]?.content.length).toBeLessThanOrEqual(8192);
+    expect(card?.results[0]?.onClick).toBeUndefined();
+    expect(container.querySelector('doc-write-tool')).toBeNull();
+    expect(container.querySelector('button')).toBeNull();
+  }
 });

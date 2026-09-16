@@ -20,7 +20,7 @@ export const createDocCopyRequestTool = (
 ) =>
   defineTool({
     description:
-      'Prepare an independent copy of an existing document into another workspace only when the user requests it. Preserve the original; do not synchronize or copy its permissions. The user must choose a destination before creation. This returns a pending operation, not a created document. Check doc_creation_status for the real result.',
+      'Prepare an independent copy of an existing document into another workspace only when the user requests it. Preserve the original; do not synchronize or copy its permissions. The user must choose a destination before creation. This returns a pending operation, not a created document. Check workspace_doc_creation_status for the real result.',
     inputSchema: z
       .object({
         source_workspace_id: z.string().min(1).max(256),
@@ -223,7 +223,7 @@ export const createDocCreateRequestTool = (
                 documentCreated: null,
                 retrySafe: false,
                 message:
-                  'The document creation outcome could not be verified. Do not call doc_create again. Use doc_creation_status with this operationId before taking further action.',
+                  'The document creation outcome could not be verified. Do not call workspace_doc_create again. Use workspace_doc_creation_status with this operationId before taking further action.',
               };
             }
           }
@@ -320,27 +320,24 @@ export const buildDocCreateHandler = (
   };
 };
 
-function documentWriteSourceGuard(
+async function assertWorkspaceDocumentWrite(
+  ac: PermissionAccess,
   models: Models,
   actorId: string,
   workspaceId: string,
-  sessionId: string | undefined,
-  docId: string,
-  delegatedExecution = false
+  documentId: string,
+  sessionId?: string
 ) {
-  if (delegatedExecution) return async () => undefined;
-  return () =>
-    models.copilotContext.assertDocumentSourcesShared({
-      actorId,
-      sessionId,
-      sink: {
-        type: 'document_update',
-        id: docId,
-        documentId: docId,
-        workspaceId,
-        phase: 'execute',
-      },
-    });
+  await models.copilotContext.assertWorkspaceWriteSession({
+    actorId,
+    sessionId,
+  });
+  await ac.user(actorId).workspace(workspaceId).assert('Workspace.Copilot');
+  await ac
+    .user(actorId)
+    .workspace(workspaceId)
+    .doc(documentId)
+    .assert('Doc.Update');
 }
 
 export const buildDocUpdateHandler = (
@@ -362,6 +359,7 @@ export const buildDocUpdateHandler = (
       return notFound;
     }
 
+    const { user: actorId, workspace: workspaceId } = options;
     const canAccess = await ac
       .user(options.user)
       .workspace(options.workspace)
@@ -369,24 +367,44 @@ export const buildDocUpdateHandler = (
       .can('Doc.Update');
 
     if (!canAccess) {
-      return notFound;
+      const canRead = await ac
+        .user(actorId)
+        .workspace(workspaceId)
+        .doc(docId)
+        .can('Doc.Read');
+      return canRead
+        ? toolError(
+            'Permission Denied',
+            'Doc.Update permission is required for this document'
+          )
+        : notFound;
     }
 
-    const beforeWrite = documentWriteSourceGuard(
-      models,
-      options.user,
-      options.workspace,
-      options.session,
-      docId,
-      Boolean(options.delegatedExecution)
-    );
-    await beforeWrite();
-    const result = await writer.updateDoc(
-      options.workspace,
-      docId,
-      content,
-      options.user,
-      beforeWrite
+    const result = await writer.withDeferredBroadcasts(() =>
+      models.copilotContext.withWorkspaceWriteAudit(
+        {
+          actorId: actorId,
+          sessionId: options.session,
+          sink: {
+            type: 'document_update',
+            id: docId,
+            documentId: docId,
+            workspaceId: workspaceId,
+            phase: 'execute',
+          },
+        },
+        () =>
+          writer.updateDoc(workspaceId, docId, content, options.user, () =>
+            assertWorkspaceDocumentWrite(
+              ac,
+              models,
+              actorId,
+              workspaceId,
+              docId,
+              options.session
+            )
+          )
+      )
     );
 
     return {
@@ -414,6 +432,7 @@ export const buildDocUpdateMetaHandler = (
       return notFound;
     }
 
+    const { user: actorId, workspace: workspaceId } = options;
     const canAccess = await ac
       .user(options.user)
       .workspace(options.workspace)
@@ -421,7 +440,17 @@ export const buildDocUpdateMetaHandler = (
       .can('Doc.Update');
 
     if (!canAccess) {
-      return notFound;
+      const canRead = await ac
+        .user(actorId)
+        .workspace(workspaceId)
+        .doc(docId)
+        .can('Doc.Read');
+      return canRead
+        ? toolError(
+            'Permission Denied',
+            'Doc.Update permission is required for this document'
+          )
+        : notFound;
     }
 
     const sanitizedTitle = sanitizeTitle(title);
@@ -429,21 +458,36 @@ export const buildDocUpdateMetaHandler = (
       return toolError('Doc Meta Update Failed', 'Title cannot be empty');
     }
 
-    const beforeWrite = documentWriteSourceGuard(
-      models,
-      options.user,
-      options.workspace,
-      options.session,
-      docId,
-      Boolean(options.delegatedExecution)
-    );
-    await beforeWrite();
-    await writer.updateDocMeta(
-      options.workspace,
-      docId,
-      { title: sanitizedTitle },
-      options.user,
-      beforeWrite
+    await writer.withDeferredBroadcasts(() =>
+      models.copilotContext.withWorkspaceWriteAudit(
+        {
+          actorId: actorId,
+          sessionId: options.session,
+          sink: {
+            type: 'document_update',
+            id: docId,
+            documentId: docId,
+            workspaceId: workspaceId,
+            phase: 'execute',
+          },
+        },
+        () =>
+          writer.updateDocMeta(
+            workspaceId,
+            docId,
+            { title: sanitizedTitle },
+            options.user,
+            () =>
+              assertWorkspaceDocumentWrite(
+                ac,
+                models,
+                actorId,
+                workspaceId,
+                docId,
+                options.session
+              )
+          )
+      )
     );
 
     return {

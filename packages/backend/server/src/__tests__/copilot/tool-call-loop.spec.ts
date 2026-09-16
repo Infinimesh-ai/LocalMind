@@ -147,7 +147,7 @@ test('task_attachment_read uses the task-bound Blob reader beyond prompt preview
 
 test('buildToolContracts should project precomputed json schema', t => {
   const toolSet = {
-    doc_read: defineTool({
+    workspace_doc_read: defineTool({
       description: 'Read doc',
       inputSchema: z.object({
         doc_id: z.string(),
@@ -161,7 +161,7 @@ test('buildToolContracts should project precomputed json schema', t => {
 
   t.deepEqual(extracted, [
     {
-      name: 'doc_read',
+      name: 'workspace_doc_read',
       description: 'Read doc',
       parameters: {
         type: 'object',
@@ -179,7 +179,7 @@ test('buildToolContracts should project precomputed json schema', t => {
 test('buildToolContracts should reject tool definitions without json schema', t => {
   const error = t.throws(() =>
     buildToolContracts({
-      doc_read: {
+      workspace_doc_read: {
         description: 'Read doc',
         inputSchema: z.object({ doc_id: z.string() }),
         execute: async () => ({}),
@@ -192,7 +192,7 @@ test('buildToolContracts should reject tool definitions without json schema', t 
 
 test('defineTool should prefer explicit json schema when provided', t => {
   const extracted = buildToolContracts({
-    doc_read: defineTool({
+    workspace_doc_read: defineTool({
       description: 'Read doc',
       jsonSchema: {
         type: 'object',
@@ -211,7 +211,7 @@ test('defineTool should prefer explicit json schema when provided', t => {
 
   t.deepEqual(extracted, [
     {
-      name: 'doc_read',
+      name: 'workspace_doc_read',
       description: 'Read doc',
       parameters: {
         type: 'object',
@@ -226,7 +226,7 @@ test('defineTool should prefer explicit json schema when provided', t => {
 
 test('ToolContract should freeze stable tool schema and callback payloads', t => {
   const tool = parseToolContract({
-    name: 'doc_read',
+    name: 'workspace_doc_read',
     description: 'Read doc',
     parameters: {
       type: 'object',
@@ -240,7 +240,7 @@ test('ToolContract should freeze stable tool schema and callback payloads', t =>
     'toolCallbackResponse',
     {
       callId: 'call_1',
-      name: 'doc_read',
+      name: 'workspace_doc_read',
       args: { doc_id: 'a1' },
       output: { markdown: '# a1' },
     }
@@ -249,12 +249,12 @@ test('ToolContract should freeze stable tool schema and callback payloads', t =>
     'toolCallbackRequest',
     {
       callId: 'call_1',
-      name: 'doc_read',
+      name: 'workspace_doc_read',
       args: { doc_id: 'a1' },
     }
   );
 
-  t.is(tool.name, 'doc_read');
+  t.is(tool.name, 'workspace_doc_read');
   t.deepEqual(request.args, { doc_id: 'a1' });
   t.deepEqual(result.args, { doc_id: 'a1' });
 });
@@ -263,7 +263,7 @@ test('ToolLoopStreamEvent should reject malformed tool_result metadata at decode
   const event = parseToolLoopStreamEvent({
     type: 'tool_result',
     call_id: 'call_1',
-    name: 'doc_read',
+    name: 'workspace_doc_read',
     arguments: { doc_id: 'a1' },
     output: { markdown: '# a1' },
   });
@@ -284,7 +284,7 @@ test('ToolLoopStreamEvent should reject malformed tool_result metadata at decode
 test('createNativeToolExecutionCallback should preserve tool execution ABI', async t => {
   const callback = createToolExecutionCallback(
     {
-      doc_read: {
+      workspace_doc_read: {
         inputSchema: z.object({ doc_id: z.string() }),
         execute: async args => ({ markdown: `# ${String(args.doc_id)}` }),
       },
@@ -294,14 +294,14 @@ test('createNativeToolExecutionCallback should preserve tool execution ABI', asy
 
   const result = await callback({
     callId: 'call_1',
-    name: 'doc_read',
+    name: 'workspace_doc_read',
     args: { doc_id: 'a1' },
     rawArgumentsText: '{"doc_id":"a1"}',
   });
 
   t.deepEqual(result, {
     callId: 'call_1',
-    name: 'doc_read',
+    name: 'workspace_doc_read',
     args: { doc_id: 'a1' },
     rawArgumentsText: '{"doc_id":"a1"}',
     argumentParseError: undefined,
@@ -335,7 +335,7 @@ test('createNativeToolLoopBridge should preserve native callback and stream ABI'
         JSON.stringify({
           type: 'tool_call',
           call_id: 'call_1',
-          name: 'doc_read',
+          name: 'workspace_doc_read',
           arguments: { doc_id: 'a1' },
         })
       );
@@ -345,7 +345,7 @@ test('createNativeToolLoopBridge should preserve native callback and stream ABI'
           null,
           JSON.stringify({
             callId: 'call_1',
-            name: 'doc_read',
+            name: 'workspace_doc_read',
             args: { doc_id: 'a1' },
             rawArgumentsText: '{"doc_id":"a1"}',
           })
@@ -395,7 +395,7 @@ test('createNativeToolLoopBridge should preserve native callback and stream ABI'
       },
     },
     {
-      doc_read: {
+      workspace_doc_read: {
         inputSchema: z.object({ doc_id: z.string() }),
         execute: async (args, options) => {
           executedArgs = args;
@@ -431,7 +431,7 @@ test('createNativeToolLoopBridge should preserve native callback and stream ABI'
   );
 });
 
-test('doc_read should return specific sync errors for unavailable docs', async t => {
+test('workspace_doc_read should return specific sync errors for unavailable docs', async t => {
   const cases = [
     {
       name: 'local workspace without cloud sync',
@@ -592,7 +592,7 @@ test('document search tools should return sync error for local workspace', async
   });
 });
 
-test('doc_semantic_search should return empty array when nothing matches', async t => {
+test('workspace_doc_semantic_search should return empty array when nothing matches', async t => {
   const ac = {
     user: () => ({
       workspace: () => ({
@@ -628,7 +628,7 @@ test('doc_semantic_search should return empty array when nothing matches', async
   t.deepEqual(result, []);
 });
 
-test('doc_semantic_search should pass BYOK route context into embedding matches', async t => {
+test('workspace_doc_semantic_search should pass BYOK route context into embedding matches', async t => {
   const ac = {
     user: () => ({
       workspace: () => ({
@@ -687,7 +687,7 @@ test('doc_semantic_search should pass BYOK route context into embedding matches'
   });
 });
 
-test('doc_keyword_search ranks only readable document ids', async t => {
+test('workspace_doc_keyword_search ranks only readable document ids', async t => {
   const readableDocIds = ['doc-11', 'doc-12'];
   let permissionReads = 0;
   let searchOptions: unknown;
@@ -757,7 +757,7 @@ test('doc_keyword_search ranks only readable document ids', async t => {
   );
 });
 
-test('doc_keyword_search fallback ranks all bounded candidates before applying the limit', async t => {
+test('workspace_doc_keyword_search fallback ranks all bounded candidates before applying the limit', async t => {
   const recentDocIds = Array.from({ length: 16 }, (_, index) => `doc-${index}`);
   const readableDocIds = [...recentDocIds, 'doc-exact'];
   const readDocIds: string[] = [];
@@ -822,7 +822,7 @@ test('doc_keyword_search fallback ranks all bounded candidates before applying t
   ]);
 });
 
-test('blob_read should return explicit error when attachment context is missing', async t => {
+test('workspace_blob_read should return explicit error when attachment context is missing', async t => {
   const ac = {
     user: () => ({
       workspace: () => ({
@@ -846,6 +846,6 @@ test('blob_read should return explicit error when attachment context is missing'
     type: 'error',
     name: 'Blob Read Failed',
     message:
-      'Missing workspace, user, blob id, or copilot context for blob_read.',
+      'Missing workspace, user, blob id, or copilot context for workspace_blob_read.',
   });
 });

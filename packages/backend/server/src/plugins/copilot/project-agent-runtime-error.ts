@@ -1,5 +1,6 @@
 import { UserFriendlyError } from '../../base';
 import { ProjectPublicationConflict } from '../../core/project-transfer';
+import { ToolContractRetiredError } from '../../models/common/copilot-tool-contract';
 
 export function projectTaskFailure(error: unknown) {
   const header =
@@ -17,21 +18,23 @@ export function projectTaskFailure(error: unknown) {
       ? error.code
       : undefined;
   const code =
-    error instanceof ProjectPublicationConflict
-      ? 'publication_conflict'
-      : (errorCode && ['P2024', 'P1008'].includes(errorCode)) ||
-          (errorCode === 'P2028' &&
-            error instanceof Error &&
-            /expired transaction|timed out|timeout/i.test(error.message))
-        ? 'project_operation_timeout'
-        : errorCode === 'P2034'
-          ? 'project_operation_conflict'
-          : error instanceof UserFriendlyError &&
-              [401, 403].includes(error.status)
-            ? 'project_operation_permission_denied'
-            : error instanceof UserFriendlyError && error.status === 404
-              ? 'project_operation_source_unavailable'
-              : 'project_operation_failed';
+    error instanceof ToolContractRetiredError
+      ? 'tool_contract_retired'
+      : error instanceof ProjectPublicationConflict
+        ? 'publication_conflict'
+        : (errorCode && ['P2024', 'P1008'].includes(errorCode)) ||
+            (errorCode === 'P2028' &&
+              error instanceof Error &&
+              /expired transaction|timed out|timeout/i.test(error.message))
+          ? 'project_operation_timeout'
+          : errorCode === 'P2034'
+            ? 'project_operation_conflict'
+            : error instanceof UserFriendlyError &&
+                [401, 403].includes(error.status)
+              ? 'project_operation_permission_denied'
+              : error instanceof UserFriendlyError && error.status === 404
+                ? 'project_operation_source_unavailable'
+                : 'project_operation_failed';
   return {
     code,
     message:

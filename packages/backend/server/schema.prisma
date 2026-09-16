@@ -2723,6 +2723,7 @@ model AiSharedWriteSourceCheck {
   phase             String            @db.VarChar
   allowed           Boolean
   reasonCode        String            @map("reason_code") @db.VarChar
+  policyVersion     String            @default("shared-write-source/v1") @map("policy_version") @db.VarChar
   sourceFingerprint String            @map("source_fingerprint") @db.VarChar
   sources           Json              @db.JsonB
   audienceEvidence  Json              @default("{}") @map("audience_evidence") @db.JsonB

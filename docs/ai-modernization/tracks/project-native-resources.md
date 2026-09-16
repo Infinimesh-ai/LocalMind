@@ -22,6 +22,11 @@ Project Owner 独占文档导入或对外发布的资格。讨论中提出的双
 [Native Office](../../office-native/README.md) 继续决定 Office 编辑引擎和格式边界；
 本文扩展资源归属，不改变 OOXML/PDF 的编辑模型。
 
+模型可见工具按会话显式隔离：Project 原生资源使用 `project_*`（标题修改为
+`project_resource_update_meta`），普通 Workspace 资源使用 `workspace_*`。
+Project command 快照版本为 2。旧名称只用于历史展示，不恢复执行或注册别名。
+此次命名切换不改变导入权限、编辑租约或显式 Workspace 发布契约。
+
 ## 2. 已确认的产品规则
 
 | 编号 | 确定规则                                                                                                                                |

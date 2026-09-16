@@ -77,11 +77,13 @@ export class TurnOrchestrator {
         'You are editing the current LocalMind native Office artifact through audited tools.',
         `Validated context: ${JSON.stringify(office.context)}.`,
         `File: ${office.artifact.title} (${office.artifact.sourceFileName}), immutable revision ${office.revision.sequence}.`,
-        'Before every write request, call office_read in this tool loop and use only its returned revision and stable IDs. office_read is already bound to the validated current artifact and revision, so pass only an optional selector and never ask the user for an artifact ID.',
-        'Start with office_read({"selector":null}) to discover stable IDs, then read a narrower selection if needed. Do not guess current/active/sheet1 as worksheet IDs. A failed read is not revision evidence; retry without a selector.',
-        'Use office_command_request for one change and office_command_batch_request when all changes must succeed atomically.',
+        'Before every write request, call workspace_office_read in this tool loop and use only its returned revision and stable IDs. workspace_office_read is already bound to the validated current artifact and revision, so pass only an optional selector and never ask the user for an artifact ID.',
+        'Start with workspace_office_read({"selector":null}) to discover stable IDs, then read a narrower selection if needed. Do not guess current/active/sheet1 as worksheet IDs. A failed read is not revision evidence; retry without a selector.',
+        'Use workspace_office_command_request for one change and workspace_office_command_batch_request when all changes must succeed atomically.',
         'Never invent stable IDs, directly rewrite an OOXML/PDF package, or use another artifact.',
-        'A command request only creates a persisted preview awaiting approval. Say that approval is required and do not claim the edit completed.',
+        'projectId' in office.context
+          ? 'A Project command request creates a persisted preview awaiting approval. Report the actual task status and do not claim the edit completed.'
+          : 'A Workspace command request queues the user-requested edit after preview. No extra approval is required; report queued status until the worker returns its revision receipt.',
         'Only a later completed Agent Runtime result with a new immutable revision is completion evidence.',
         office.context.artifactKind === 'pdf'
           ? 'PDF is fixed-layout. Only use supported annotation, form, page, signature appearance, and redaction commands; reject body-text rewrite or reflow requests.'
@@ -90,6 +92,11 @@ export class TurnOrchestrator {
         .filter(Boolean)
         .join('\n'),
     };
+    if ('projectId' in office.context && typeof policy.content === 'string')
+      policy.content = policy.content.replaceAll(
+        'workspace_office_',
+        'project_office_'
+      );
     return appendChatSystemPolicy(messages, policy);
   }
 
@@ -204,8 +211,8 @@ export class TurnOrchestrator {
       content:
         'LocalMind Projects are managed by people. You must not create a Project, manage its members, change its permissions or AI policy, or approve/reject access requests. If asked to create a Project, explain that the user must create it in Intelligence. Never create a folder as a substitute. Report only actual tool execution outcomes; an access request is not a grant and a write preview is not a completed edit. ' +
         (prepared.session.config.workspaceId === null
-          ? `This conversation owns native Project resources in ${prepared.session.config.selectedContextProjectId}. Create folders and documents in this Project by default. Use project_resource_list to resolve exact internal parent IDs. doc_create saves the real internal document immediately; no Workspace location is needed. Workspace documents and Project resources are independent copies. Ordinary edits and retries must stay inside the Project. Only an explicit user request can start a separate external publication or source refresh. Cancellation or failure of publication must preserve the internal resource. Use doc_read before doc_update and handle version conflicts without overwriting.`
-          : 'Workspace doc_create saves immediately to the current Workspace root by default. Set folder_id only when the user explicitly named a target folder. If automatic destination resolution fails, report the returned waiting-for-location state without claiming creation; if the creation outcome is unknown, use doc_creation_status and do not call doc_create again.') +
+          ? `This conversation owns native Project resources in ${prepared.session.config.selectedContextProjectId}. Create folders and documents in this Project by default. Use project_resource_list to resolve exact internal parent IDs. project_doc_create saves the real internal document immediately; no Workspace location is needed. Workspace documents and Project resources are independent copies. Ordinary edits and retries must stay inside the Project. Only an explicit user request can start a separate external publication or source refresh. Cancellation or failure of publication must preserve the internal resource. Use project_doc_read before project_doc_update and handle version conflicts without overwriting.`
+          : 'Workspace workspace_doc_create saves immediately to the current Workspace root by default. Set folder_id only when the user explicitly named a target folder. If automatic destination resolution fails, report the returned waiting-for-location state without claiming creation; if the creation outcome is unknown, use workspace_doc_creation_status and do not call workspace_doc_create again.') +
         (prepared.session.config.workspaceId === null
           ? `\n${PROJECT_COLLABORATION_POLICY}`
           : ''),

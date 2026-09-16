@@ -182,18 +182,26 @@ test.serial(
         },
         'test'
       );
-      t.truthy(tools.office_read);
-      t.truthy(tools.office_command_request);
-      const rejected = await tools.office_command_request.execute!(
+      t.truthy(tools.project_office_read);
+      t.truthy(tools.project_office_command_request);
+      t.regex(
+        tools.project_office_command_request.description ?? '',
+        /explicit user approval/
+      );
+      t.regex(
+        tools.project_office_command_batch_request.description ?? '',
+        /explicit user approval/
+      );
+      const rejected = await tools.project_office_command_request.execute!(
         { command },
         { toolCallId: 'request-before-read', messages: [] }
       );
-      t.true(JSON.stringify(rejected).includes('Call office_read'));
-      await tools.office_read.execute!(
+      t.true(JSON.stringify(rejected).includes('Call project_office_read'));
+      await tools.project_office_read.execute!(
         {},
         { toolCallId: 'read', messages: [] }
       );
-      const requested = (await tools.office_command_request.execute!(
+      const requested = (await tools.project_office_command_request.execute!(
         {
           command,
         },

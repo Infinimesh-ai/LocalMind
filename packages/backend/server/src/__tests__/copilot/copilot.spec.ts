@@ -658,7 +658,10 @@ test.serial(
       /include them directly in delegate_to_localmind\.attachments/
     );
     t.notRegex(instructions, /upload_localmind_attachment/);
-    t.regex(instructions, /internal AI tools such as doc_create or doc_read/);
+    t.regex(
+      instructions,
+      /internal AI tools such as workspace_doc_create or workspace_doc_read/
+    );
     t.regex(instructions, /taskId is known from delegate_to_localmind/);
 
     const toolsResponse = await t.context.module
@@ -703,7 +706,10 @@ test.serial(
       delegateTool.description,
       /For every other request directed to LocalMind/
     );
-    t.regex(delegateTool.description, /never look for public doc_create/);
+    t.regex(
+      delegateTool.description,
+      /never look for public workspace_doc_create/
+    );
     t.regex(
       delegateTool.inputSchema.properties?.request?.description ?? '',
       /complete self-contained request/
@@ -3011,7 +3017,7 @@ test('should preserve assistant render trace when converting between chat messag
       {
         type: 'tool-call' as const,
         toolCallId: 'call_1',
-        toolName: 'doc_read',
+        toolName: 'workspace_doc_read',
         args: { docId: 'doc-1' },
         rawArgumentsText: '{"docId":"doc-1"}',
         thought: 'Need the current doc',
@@ -3020,7 +3026,7 @@ test('should preserve assistant render trace when converting between chat messag
       {
         type: 'tool-result' as const,
         toolCallId: 'call_2',
-        toolName: 'doc_keyword_search',
+        toolName: 'workspace_doc_keyword_search',
         args: { query: 'affine' },
         result: { hits: ['doc-2'] },
       },

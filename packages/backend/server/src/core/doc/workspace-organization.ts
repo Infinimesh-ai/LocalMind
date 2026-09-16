@@ -663,17 +663,16 @@ export class WorkspaceOrganizationService {
     private readonly models: Models
   ) {}
 
-  async withAiSourceCheck<T>(
+  async withAiWriteAudit<T>(
     input: {
       workspaceId: string;
       actorId: string;
       sessionId?: string | null;
-      policy?: 'enforce' | 'record';
     },
     operation: () => Promise<T>
   ) {
     return await this.writer.withDeferredBroadcasts(() =>
-      this.models.copilotContext.withDocumentSourcesShared(
+      this.models.copilotContext.withWorkspaceWriteAudit(
         {
           ...input,
           sink: {

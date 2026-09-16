@@ -24,6 +24,8 @@ import { WorkspacesController } from '../../core/workspaces/controller';
 import { WorkspaceBlobResolver } from '../../core/workspaces/resolvers/blob';
 import { Models } from '../../models';
 import { DocRole } from '../../models/common';
+import { isRetiredResourceTool } from '../../models/common/copilot-tool-contract';
+import { retireToolContracts } from '../../models/common/copilot-tool-contract-retirement';
 import { permissionWorkspaceLockKey } from '../../models/permission-write';
 import { createDocWithMarkdown, readAllDocIdsFromRootDoc } from '../../native';
 import { CopilotCronJobs } from '../../plugins/copilot/cron';
@@ -34,6 +36,8 @@ import { MCP_CAPABILITIES } from '../../plugins/copilot/mcp/capabilities';
 import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
 import { McpAiTaskControlService } from '../../plugins/copilot/mcp/task-control';
 import { McpAiTaskQueryService } from '../../plugins/copilot/mcp/task-query';
+import { toolAgentCheckpointReceipts } from '../../plugins/copilot/mcp/tool-agent-evidence';
+import { ToolRuntime } from '../../plugins/copilot/runtime/tool-runtime';
 import {
   createDocCopyRequestTool,
   createDocCreateRequestTool,
@@ -184,7 +188,22 @@ async function processingDelegation(context: {
     workflow: 'agent_runtime_localmind_tool_agent',
     status: 'queued',
     steps: [
-      { stepKey: 'execute', stepType: 'tool', status: 'pending', order: 0 },
+      {
+        stepKey: 'execute',
+        stepType: 'tool',
+        status: 'pending',
+        order: 0,
+        outputSummary: {
+          localMindToolAgentRequest: {
+            version: 'localmind-tool-agent-request/v6',
+            allowedToolNames: ['workspace_doc_create'],
+            completionContract: {
+              version: 'localmind-tool-agent-completion-contract/v4',
+              kind: 'none',
+            },
+          },
+        },
+      },
     ],
   });
   await models.copilotMcpDelegation.updateRequest(record.id, {
@@ -441,7 +460,7 @@ test('a revoked delegated credential prevents manual resume and preserves termin
   );
 });
 
-test('shared tool transaction publishes only committed document updates and retains rollback audit', async t => {
+test('Workspace write audit and broadcasts commit only with the domain transaction', async t => {
   const { db, actorId, workspaceId, organization, writer, reader, module } =
     t.context;
   const event = Sinon.spy(module.get(EventBus), 'emitDetached');
@@ -453,7 +472,7 @@ test('shared tool transaction publishes only committed document updates and reta
   update.getMap('meta').set('name', 'Rolled back isolated title');
   const delta = Y.encodeStateAsUpdate(update, vector);
   await t.throwsAsync(
-    organization.withAiSourceCheck({ workspaceId, actorId }, async () => {
+    organization.withAiWriteAudit({ workspaceId, actorId }, async () => {
       await writer.pushDocUpdate(workspaceId, workspaceId, delta, actorId);
       t.false(event.calledWith('doc.updates.pushed'));
       throw new Error('Isolated rollback');
@@ -465,8 +484,8 @@ test('shared tool transaction publishes only committed document updates and reta
     (await reader.getDoc(workspaceId, workspaceId))!.bin,
     before!.bin
   );
-  t.true((await db.aiSharedWriteSourceCheck.count()) > auditBefore);
-  await organization.withAiSourceCheck({ workspaceId, actorId }, async () => {
+  t.is(await db.aiSharedWriteSourceCheck.count(), auditBefore);
+  await organization.withAiWriteAudit({ workspaceId, actorId }, async () => {
     await writer.pushDocUpdate(workspaceId, workspaceId, delta, actorId);
     t.false(event.calledWith('doc.updates.pushed'));
   });
@@ -576,9 +595,8 @@ test('delegated location queue outage recovers its committed result without crea
   t.is(await db.workspaceDoc.count(), before);
 });
 
-test('delegated location rejects audience expansion after confirmation and recovers only at a newly confirmed private target', async t => {
-  const { models, db, actorId, workspaceId, hostId, service, writer } =
-    t.context;
+test('delegated creation remains authorized when another reader joins the target Workspace', async t => {
+  const { models, db, actorId, workspaceId, service, writer } = t.context;
   const task = await pendingDelegatedLocation(t.context);
   await service.confirmDestination({
     actorId,
@@ -594,44 +612,32 @@ test('delegated location rejects audience expansion after confirmation and recov
     data: { workspaceId, userId: outsider.id, role: 'member', state: 'active' },
   });
   const writes = Sinon.spy(writer, 'createDoc');
-  const before = await db.workspaceDoc.count();
-  await t.throwsAsync(
-    service.execute({
-      actorId,
-      operationId: task.operation.id,
-      expectedRevision: 1,
-    })
-  );
-  t.is(writes.callCount, 0);
-  t.is(await db.workspaceDoc.count(), before);
-  const denial = await db.aiSharedWriteSourceCheck.findFirstOrThrow({
-    where: { sinkId: task.operation.id, allowed: false },
-  });
-  t.like(denial.audienceEvidence, { workspaceId, known: true });
-  t.true(JSON.stringify(denial.sources).includes('private'));
-  const confirmed = await service.confirmDestination({
-    actorId,
-    operationId: task.operation.id,
-    workspaceId: hostId,
-    folderId: null,
-    expectedRevision: 1,
-  });
-  t.is(confirmed.destinationRevision, 2);
-  await t.throwsAsync(
-    service.execute({
-      actorId,
-      operationId: task.operation.id,
-      expectedRevision: 1,
-    })
-  );
   const completed = await service.execute({
     actorId,
     operationId: task.operation.id,
-    expectedRevision: 2,
+    expectedRevision: 1,
   });
-  t.is(completed.status, 'complete');
-  t.is(completed.destinationWorkspaceId, hostId);
+  t.like(completed, {
+    status: 'complete',
+    destinationWorkspaceId: workspaceId,
+    destinationRevision: 1,
+  });
+  const replay = await service.execute({
+    actorId,
+    operationId: task.operation.id,
+    expectedRevision: 1,
+  });
+  t.is(replay.documentId, completed.documentId);
   t.is(writes.callCount, 1);
+  const audit = await db.aiSharedWriteSourceCheck.findFirstOrThrow({
+    where: { sinkId: task.operation.id },
+  });
+  t.like(audit, {
+    allowed: true,
+    reasonCode: 'authorized_by_live_acl',
+    policyVersion: 'workspace-live-acl/v1',
+  });
+  t.true(JSON.stringify(audit.sources).includes('private'));
 });
 
 test('delegated location MCP cancellation closes its pending operation without creating or confirming a document', async t => {
@@ -695,7 +701,7 @@ test('delegated location rechecks revoked credentials and rejects stale worker c
       workerLeaseId: task.workerLeaseId,
       workerAttempt: 1,
       callId: 'stale',
-      toolName: 'doc_create',
+      toolName: 'workspace_doc_create',
       args: {},
     })
   );
@@ -1967,11 +1973,13 @@ test('creation tool reports an unknown outcome when a post-write receipt cannot 
     documentCreated: null,
     retrySafe: false,
   });
-  t.true(String(result.message).includes('Do not call doc_create again'));
+  t.true(
+    String(result.message).includes('Do not call workspace_doc_create again')
+  );
   t.false(result.documentCreated === false);
 });
 
-test('a delegated automatic destination records its source waiver instead of skipping the check', async t => {
+test('delegated and Web document creation use live ACL with the same shared Workspace audience', async t => {
   const {
     actorId,
     sessionId,
@@ -2025,29 +2033,21 @@ test('a delegated automatic destination records its source waiver instead of ski
     where: { sessionId: delegation.sessionId },
   });
   t.truthy(await reader.getDoc(hostId, operation.documentId));
-  // The waiver replaces the check's rejection, never its evidence: a shared
-  // audience keeps every confirm and execute recorded as unauthorized under a
-  // waiver reason, so a delegated write is never invisible to an audit.
   const audits = await db.aiSharedWriteSourceCheck.findMany({
     where: { sessionId: delegation.sessionId, sinkId: operation.id },
     orderBy: { createdAt: 'asc' },
   });
-  t.true(audits.length >= 2);
+  t.true(audits.length >= 1);
   t.deepEqual(
     [...new Set(audits.map(audit => `${audit.allowed}:${audit.reasonCode}`))],
-    ['false:waived_server_resolved_destination']
+    ['true:authorized_by_live_acl']
   );
   t.deepEqual([...new Set(audits.map(audit => audit.phase))].sort(), [
-    'confirm',
     'execute',
   ]);
   t.like(audits.at(-1)!.audienceEvidence, {
-    workspaceId: hostId,
     documentId: operation.documentId,
-    known: true,
   });
-  // The same destination stays closed to an interactive conversation, so the
-  // delegated path is a recorded exception rather than a wider write reach.
   await db.aiSessionMessage.create({
     data: { sessionId, role: 'user', content: 'Write mine too.' },
   });
@@ -2062,16 +2062,16 @@ test('a delegated automatic destination records its source waiver instead of ski
       { title: 'Personal log', content: 'Body', add_to_project: false },
       {}
     ),
-    { status: 'waiting_location', documentCreated: false, workspaceId: null }
+    { status: 'complete', documentCreated: true, workspaceId: hostId }
   );
-  t.is(create.callCount, 1);
+  t.is(create.callCount, 2);
   const denials = await db.aiSharedWriteSourceCheck.findMany({
     where: { sessionId },
   });
   t.true(denials.length >= 1);
   t.true(
     denials.every(
-      denial => !denial.allowed && denial.reasonCode === 'unshared_source'
+      audit => audit.allowed && audit.reasonCode === 'authorized_by_live_acl'
     )
   );
 });
@@ -3402,7 +3402,9 @@ test('retired Project document operations reject execution even after source aut
       folderId: null,
       expectedRevision: 0,
     });
-  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
+  await t.throwsAsync(confirm(), {
+    message: /legacy Project operation requires migration/i,
+  });
   t.is(await reader.getDoc(workspaceId, operation.documentId), null);
   const authorize = () =>
     seedProjectSourceGrant(db, {
@@ -3413,21 +3415,27 @@ test('retired Project document operations reject execution even after source aut
       requestedLevel: 'read',
     });
   await authorize();
-  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
+  await t.throwsAsync(confirm(), {
+    message: /legacy Project operation requires migration/i,
+  });
   await models.intelligenceWorkbenchAuthorization.removeSourceDocumentAuthorizations(
     {
       workspaceId: hostId,
       docId: source.docId,
     }
   );
-  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
+  await t.throwsAsync(confirm(), {
+    message: /legacy Project operation requires migration/i,
+  });
   t.is(await reader.getDoc(workspaceId, operation.documentId), null);
   t.is(
     (await models.copilotDocumentOperation.get(input)).createdDocumentAt,
     null
   );
   await authorize();
-  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
+  await t.throwsAsync(confirm(), {
+    message: /legacy Project operation requires migration/i,
+  });
   t.is(await reader.getDoc(workspaceId, operation.documentId), null);
 });
 
@@ -3786,4 +3794,300 @@ test('live directory denials and changed ancestors reject execution with zero cr
   );
   await t.throwsAsync(service.execute({ ...input, expectedRevision: 1 }));
   t.is(create.callCount, 0);
+});
+
+test('shared Workspace Web tools update and organize an existing document across conversations with live ACL', async t => {
+  const {
+    module,
+    models,
+    db,
+    writer,
+    reader,
+    hostId,
+    actorId,
+    sessionId,
+    organization,
+  } = t.context;
+  Sinon.stub(env, 'selfhosted').value(true);
+  const other = await models.user.create({
+    email: 'shared-write-reader@example.com',
+  });
+  await db.workspaceMember.create({
+    data: {
+      workspaceId: hostId,
+      userId: other.id,
+      role: 'member',
+      state: 'active',
+    },
+  });
+  const created = await writer.createDoc(
+    hostId,
+    'Existing work log',
+    'Original body',
+    actorId
+  );
+  const runtime = module.get(ToolRuntime);
+  const toolsFor = (session: string) =>
+    runtime.getTools(
+      {
+        user: actorId,
+        workspace: hostId,
+        session,
+        tools: [
+          'docRead',
+          'docUpdate',
+          'docUpdateMeta',
+          'workspaceOrganization',
+        ],
+      },
+      'scope-fixture'
+    );
+  const first = await toolsFor(sessionId);
+  t.false(
+    Object.keys(first).some(
+      name => name.startsWith('project_') || isRetiredResourceTool(name)
+    )
+  );
+  const call = async (
+    tools: typeof first,
+    name: string,
+    args: Record<string, unknown>
+  ) => tools[name].execute!(args, { toolCallId: randomUUID() });
+  t.like(
+    await call(first, 'workspace_doc_update', {
+      doc_id: created.docId,
+      content: 'Updated by explicit user request',
+    }),
+    { success: true }
+  );
+  t.like(
+    await call(first, 'workspace_doc_update_meta', {
+      doc_id: created.docId,
+      title: 'Existing shared work log',
+    }),
+    { success: true }
+  );
+  const folder = (await call(first, 'workspace_folder_create', {
+    name: 'September',
+    parent_folder_id: null,
+  })) as { folderId: string };
+  const secondSession = await models.copilotSession.createWithPrompt({
+    sessionId: randomUUID(),
+    userId: actorId,
+    workspaceId: hostId,
+    title: null,
+    prompt: {
+      name: 'shared-write-new-task',
+      model: 'gpt-5-mini',
+      action: null,
+    },
+  });
+  const second = await toolsFor(secondSession);
+  t.like(
+    await call(second, 'workspace_folder_add_document', {
+      document_id: created.docId,
+      folder_id: folder.folderId,
+    }),
+    { success: true }
+  );
+  t.deepEqual(
+    await organization.documentLocations(hostId, actorId, [created.docId]),
+    [{ docId: created.docId, folderId: folder.folderId }]
+  );
+  const before = await reader.getDoc(hostId, created.docId);
+  await db.workspaceMember.deleteMany({
+    where: { workspaceId: hostId, userId: actorId },
+  });
+  await t.throwsAsync(
+    call(second, 'workspace_doc_update', {
+      doc_id: created.docId,
+      content: 'Must never be saved',
+    })
+  );
+  const beforeState = new Y.Doc();
+  const afterState = new Y.Doc();
+  Y.applyUpdate(beforeState, before!.bin);
+  Y.applyUpdate(afterState, (await reader.getDoc(hostId, created.docId))!.bin);
+  t.deepEqual(
+    afterState.getMap('blocks').toJSON(),
+    beforeState.getMap('blocks').toJSON()
+  );
+  beforeState.destroy();
+  afterState.destroy();
+  const audits = await db.aiSharedWriteSourceCheck.findMany({
+    where: { sinkWorkspaceId: hostId, policyVersion: 'workspace-live-acl/v1' },
+  });
+  t.true(audits.length >= 4);
+  t.true(
+    audits.every(
+      audit => audit.allowed && audit.reasonCode === 'authorized_by_live_acl'
+    )
+  );
+});
+
+test('tool contract cutover terminates active legacy tasks and preserves completed history and checkpoints', async t => {
+  const { models, db, hostId, actorId, sessionId } = t.context;
+  const legacyRequest = {
+    version: 'localmind-tool-agent-request/v5',
+    allowedToolNames: ['doc_read'],
+    completionContract: {
+      version: 'localmind-tool-agent-completion-contract/v3',
+      kind: 'none',
+    },
+  };
+  const create = (status: 'queued' | 'waiting_approval' | 'completed') =>
+    models.copilotAgentRuntime.createRun({
+      workspaceId: hostId,
+      actorId,
+      sessionId,
+      workflow: 'agent_runtime_localmind_tool_agent',
+      sourceType: 'agent_runtime_office_task',
+      sourceId: randomUUID(),
+      status,
+      title: 'Legacy tool contract fixture',
+      target: {},
+      evidence: {},
+      steps: [
+        {
+          stepKey: 'execute',
+          stepType: 'tool',
+          status:
+            status === 'completed'
+              ? 'completed'
+              : status === 'waiting_approval'
+                ? 'waiting_approval'
+                : 'pending',
+          title: 'Legacy execution',
+          order: 0,
+          outputSummary: { localMindToolAgentRequest: legacyRequest },
+        },
+      ],
+    });
+  const queued = await create('queued');
+  const waiting = await create('waiting_approval');
+  const completed = await create('completed');
+  const delegated = await processingDelegation(t.context);
+  await db.aiAgentStep.updateMany({
+    where: { runId: delegated.runId },
+    data: { outputSummary: { localMindToolAgentRequest: legacyRequest } },
+  });
+  const checkpoint = await db.aiMcpDelegationToolCall.create({
+    data: {
+      requestId: delegated.requestId,
+      callId: 'legacy-write',
+      ordinal: 0,
+      toolName: 'doc_update',
+      args: { doc_id: 'original-document', content: 'Original checkpoint' },
+      result: { value: { success: true, docId: 'original-document' } },
+      completedAt: new Date(),
+    },
+  });
+  const pending = await db.aiMcpDelegationToolCall.create({
+    data: {
+      requestId: delegated.requestId,
+      callId: 'legacy-unconfirmed',
+      ordinal: 1,
+      toolName: 'doc_create',
+      args: { title: 'Unconfirmed document' },
+    },
+  });
+  const callback = await models.copilotMcpDelegation.enqueueCallback({
+    requestId: delegated.requestId,
+    eventType: 'approval_required',
+    payload: { version: 'test/v1', original: true },
+  });
+  const receipts = toolAgentCheckpointReceipts([checkpoint, pending], hostId);
+  t.like(receipts.toolExecutions[0], {
+    toolName: 'doc_update',
+    legacy: true,
+    relation: 'updated',
+    documentId: 'original-document',
+  });
+  t.like(receipts.pendingToolCalls[0], {
+    toolName: 'doc_create',
+    status: 'unconfirmed',
+  });
+  const history = await db.aiAgentRun.findUniqueOrThrow({
+    where: { id: completed.id },
+    include: { steps: true, timelineEvents: true },
+  });
+  t.like(await retireToolContracts(db), { affectedRuns: 3, retiredRuns: 0 });
+  t.like(await retireToolContracts(db, true), {
+    affectedRuns: 3,
+    retiredRuns: 3,
+    retiredDelegations: 1,
+    cancelledCallbacks: 1,
+  });
+  for (const id of [queued.id, waiting.id]) {
+    const run = await models.copilotAgentRuntime.get(hostId, id);
+    t.like(run, {
+      status: 'failed',
+      failureCode: 'tool_contract_retired',
+      workerLeaseId: null,
+      workerLeaseExpiresAt: null,
+    });
+    t.is(
+      run!.steps[0].outputSummary.localMindToolAgentRequest &&
+        (
+          run!.steps[0].outputSummary.localMindToolAgentRequest as {
+            version: string;
+          }
+        ).version,
+      legacyRequest.version
+    );
+    await t.throwsAsync(
+      models.copilotAgentRuntime.controlRun({
+        workspaceId: hostId,
+        actorId,
+        id,
+        action: 'resume',
+      }),
+      { message: 'tool_contract_retired' }
+    );
+  }
+  t.deepEqual(
+    await db.aiAgentRun.findUniqueOrThrow({
+      where: { id: completed.id },
+      include: { steps: true, timelineEvents: true },
+    }),
+    history
+  );
+  const retiredDelegation = await db.aiMcpDelegationRequest.findUniqueOrThrow({
+    where: { id: delegated.requestId },
+  });
+  t.like(retiredDelegation, {
+    status: 'failed',
+    result: { code: 'tool_contract_retired', retryable: false },
+  });
+  t.like(
+    await db.aiAgentRun.findUniqueOrThrow({ where: { id: delegated.runId } }),
+    { status: 'failed', workerLeaseId: null, workerLeaseExpiresAt: null }
+  );
+  t.deepEqual(
+    await db.aiMcpDelegationToolCall.findUnique({
+      where: { id: checkpoint.id },
+    }),
+    checkpoint
+  );
+  t.deepEqual(
+    await db.aiMcpDelegationToolCall.findUnique({ where: { id: pending.id } }),
+    pending
+  );
+  t.like(
+    await db.aiMcpDelegationCallbackDelivery.findUniqueOrThrow({
+      where: { id: callback.id },
+    }),
+    {
+      status: 'cancelled',
+      payload: callback.payload,
+      payloadFingerprint: callback.payloadFingerprint,
+      workerLeaseId: null,
+      workerLeaseExpiresAt: null,
+      nextAttemptAt: null,
+    }
+  );
+  t.like(await retireToolContracts(db, true), {
+    affectedRuns: 0,
+    retiredRuns: 0,
+  });
 });

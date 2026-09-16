@@ -5,7 +5,7 @@ export const LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_LEGACY_VERSION =
 export const LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_PREVIOUS_VERSION =
   'localmind-tool-agent-completion-contract/v2';
 export const LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION =
-  'localmind-tool-agent-completion-contract/v3';
+  'localmind-tool-agent-completion-contract/v4';
 
 const ToolSuccessRequirementSchema = z
   .object({
@@ -226,25 +226,25 @@ function buildSpecificRequirements(input: {
   if (documentId && requestsDocumentBodyUpdate(request)) {
     if (requestsConditionalDocumentBodyUpdate(request)) {
       return [
-        toolSuccess(['doc_read'], { documentId }),
+        toolSuccess(['workspace_doc_read'], { documentId }),
         {
           kind: 'any_of',
           minCount: 1,
           requirements: [
-            toolSuccess(['doc_update'], {
+            toolSuccess(['workspace_doc_update'], {
               documentId,
-              afterToolName: 'doc_read',
+              afterToolName: 'workspace_doc_read',
             }),
-            toolSuccess(['conditional_noop_complete'], {
+            toolSuccess(['workspace_conditional_noop_complete'], {
               documentId,
-              afterToolName: 'doc_read',
+              afterToolName: 'workspace_doc_read',
             }),
           ],
         },
       ];
     }
     if (deniesWriteAction(request)) return [];
-    return [toolSuccess(['doc_update'], { documentId })];
+    return [toolSuccess(['workspace_doc_update'], { documentId })];
   }
 
   if (deniesWriteAction(request)) return [];
@@ -282,7 +282,7 @@ function buildSpecificRequirements(input: {
   }
   if (destructiveIntent.permanentDocumentDelete) {
     return [
-      toolSuccess(['doc_delete_permanently'], {
+      toolSuccess(['workspace_doc_delete_permanently'], {
         ...(documentId ? { documentId } : {}),
         workspaceOperations: ['delete_document_permanently'],
       }),
@@ -310,7 +310,7 @@ function buildSpecificRequirements(input: {
   }
   if (namesDocument && restore) {
     return [
-      toolSuccess(['doc_restore'], {
+      toolSuccess(['workspace_doc_restore'], {
         ...(documentId ? { documentId } : {}),
         workspaceOperations: ['restore_document'],
       }),
@@ -318,7 +318,7 @@ function buildSpecificRequirements(input: {
   }
   if (namesDocument && ordinaryDelete) {
     return [
-      toolSuccess(['doc_trash'], {
+      toolSuccess(['workspace_doc_trash'], {
         ...(documentId ? { documentId } : {}),
         workspaceOperations: ['trash_document'],
       }),
@@ -330,14 +330,19 @@ function buildSpecificRequirements(input: {
       request
     )
   ) {
-    return [toolSuccess(['doc_create'])];
+    return [toolSuccess(['workspace_doc_create'])];
   }
   if (
     /\b(?:rename|change|update|edit)\b.{0,48}\b(?:document|doc|note|file)\b.{0,24}\b(?:title|name)\b|(?:修改|更新|设置|重命名|改名).{0,24}(?:文档|文件|笔记|日志|记录)(?:的)?(?:标题|名称)/is.test(
       request
     )
   ) {
-    return [toolSuccess(['doc_update_meta'], documentId ? { documentId } : {})];
+    return [
+      toolSuccess(
+        ['workspace_doc_update_meta'],
+        documentId ? { documentId } : {}
+      ),
+    ];
   }
   if (
     /\b(?:create|new|make)\b.{0,32}\b(?:folder|directory)\b|(?:创建|新建).{0,24}(?:文件夹|目录)/is.test(

@@ -20,7 +20,7 @@ export const buildBlobContentGetter = (
     if (!options?.user || !options?.workspace || !blobId || !context) {
       return toolError(
         'Blob Read Failed',
-        'Missing workspace, user, blob id, or copilot context for blob_read.'
+        'Missing workspace, user, blob id, or copilot context for workspace_blob_read.'
       );
     }
     const canAccess = await ac

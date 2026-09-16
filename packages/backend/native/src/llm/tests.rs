@@ -104,7 +104,7 @@ fn resolve_stream_chain_should_preserve_tool_name_across_empty_deltas() {
 
   let first = pipeline.process(StreamEvent::ToolCallDelta {
     call_id: "call-1".to_string(),
-    name: Some("doc_keyword_search".to_string()),
+    name: Some("workspace_doc_keyword_search".to_string()),
     arguments_delta: String::new(),
   });
   let second = pipeline.process(StreamEvent::ToolCallDelta {
@@ -118,7 +118,7 @@ fn resolve_stream_chain_should_preserve_tool_name_across_empty_deltas() {
     [StreamEvent::ToolCallDelta {
       name: Some(name),
       ..
-    }] if name == "doc_keyword_search"
+    }] if name == "workspace_doc_keyword_search"
   ));
   assert!(matches!(
     second.as_slice(),
