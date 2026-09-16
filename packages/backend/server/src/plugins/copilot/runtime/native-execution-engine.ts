@@ -358,14 +358,21 @@ async function executePreparedPlan(
       if (!dispatch) {
         return null;
       }
+      const signal = plan.request.options?.signal;
+      signal?.throwIfAborted();
+      const routes = dispatch.routes.slice(
+        0,
+        plan.request.options?.maxProviderAttempts ?? dispatch.routes.length
+      );
       return await runPreparedValuePlan(
         plan,
-        dispatch.routes.length,
+        routes.length,
         executionMetrics,
         async () => {
           const result = await llmStructuredDispatchPlan({
-            preparedRoutes: dispatch.routes,
+            preparedRoutes: routes,
           });
+          signal?.throwIfAborted();
           await recordByokUsage(byok, plan, {
             providerId: result.provider_id,
             model: result.response.model ?? dispatch.prepared.route.model,

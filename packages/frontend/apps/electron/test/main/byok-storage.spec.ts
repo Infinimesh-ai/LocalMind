@@ -167,6 +167,7 @@ describe('byok storage handlers', () => {
       apiKey: 'sk-openai',
       endpoint: 'https://api.openai.example/v1',
       modelId: 'gpt-5.6-sol',
+      apiStyle: 'chat_completions',
       sortOrder: 4,
       enabled: false,
     });
@@ -188,6 +189,7 @@ describe('byok storage handlers', () => {
       description: 'Primary key',
       endpoint: 'https://api.openai.example/v1',
       modelId: 'gpt-5.6-sol',
+      apiStyle: 'chat_completions',
       sortOrder: 4,
       enabled: false,
     });
@@ -216,6 +218,7 @@ describe('byok storage handlers', () => {
       apiKey: 'sk-openai-next',
       endpoint: 'https://api.openai.example/v1',
       modelId: 'gpt-5.6-sol',
+      apiStyle: 'chat_completions',
       sortOrder: 4,
       enabled: true,
     });

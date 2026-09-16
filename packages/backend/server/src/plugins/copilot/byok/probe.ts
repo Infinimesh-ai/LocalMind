@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import type { safeFetch } from '../../../base';
+import { resolveByokApiStyle } from '../../../models/copilot-byok-protocol';
 import { ByokProvider } from './types';
 
 const TEST_TIMEOUT_MS = 10_000;
@@ -30,9 +31,16 @@ export async function runProviderProbe(
   apiKey: string,
   endpoint: string | null,
   allowPrivateEndpoint: boolean,
-  modelId?: string | null
+  modelId?: string | null,
+  apiStyle?: string | null
 ): Promise<ProviderProbeResult> {
-  const request = buildProbeRequest(provider, apiKey, endpoint, modelId);
+  const request = buildProbeRequest(
+    provider,
+    apiKey,
+    endpoint,
+    modelId,
+    apiStyle
+  );
   const response = await probeFetch(
     request.url,
     {
@@ -121,8 +129,10 @@ function buildProbeRequest(
   provider: ByokProvider,
   apiKey: string,
   endpoint: string | null,
-  modelId?: string | null
+  modelId?: string | null,
+  apiStyle?: string | null
 ): ProbeRequest {
+  const resolvedStyle = resolveByokApiStyle(provider, apiStyle);
   switch (provider) {
     case ByokProvider.openai:
       if (modelId) {
@@ -130,18 +140,28 @@ function buildProbeRequest(
           method: 'POST',
           url: joinEndpoint(
             endpoint ?? 'https://api.openai.com/v1',
-            'responses'
+            resolvedStyle === 'chat_completions'
+              ? 'chat/completions'
+              : 'responses'
           ),
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            model: modelId,
-            input: 'Reply with OK.',
-            max_output_tokens: 64,
-            store: false,
-          }),
+          body: JSON.stringify(
+            resolvedStyle === 'chat_completions'
+              ? {
+                  model: modelId,
+                  messages: [{ role: 'user', content: 'Reply with OK.' }],
+                  max_tokens: 1024,
+                }
+              : {
+                  model: modelId,
+                  input: 'Reply with OK.',
+                  max_output_tokens: 64,
+                  store: false,
+                }
+          ),
           operation: 'chat',
         };
       }

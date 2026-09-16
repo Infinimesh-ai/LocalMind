@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "6b229c85553e9e72fd7a31b43833edcd4be4198a"
+  },
+  "path_in_vcs": "crates/llm_runtime"
+}

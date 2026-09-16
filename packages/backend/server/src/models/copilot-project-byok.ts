@@ -3,6 +3,7 @@ import { Transactional } from '@nestjs-cls/transactional';
 
 import { ActionForbidden, BadRequest } from '../base';
 import { BaseModel } from './base';
+import { resolveByokApiStyle } from './copilot-byok-protocol';
 
 @Injectable()
 export class CopilotProjectByokModel extends BaseModel {
@@ -34,6 +35,7 @@ export class CopilotProjectByokModel extends BaseModel {
   @Transactional()
   async save(input: {
     expectedRevision: number;
+    apiStyle?: string | null;
     provider: string;
     encryptedApiKey: string;
     endpoint: string | null;
@@ -51,7 +53,13 @@ export class CopilotProjectByokModel extends BaseModel {
         'Project BYOK changed. Reload the settings and try again.'
       );
     }
+    const apiStyle =
+      input.apiStyle !== undefined
+        ? input.apiStyle
+        : (current?.apiStyle ?? null);
+    resolveByokApiStyle(input.provider, apiStyle);
     const data = {
+      apiStyle,
       revision: input.expectedRevision + 1,
       provider: input.provider,
       encryptedApiKey: input.encryptedApiKey,
@@ -73,6 +81,7 @@ export class CopilotProjectByokModel extends BaseModel {
         revision: saved.revision,
         actorId: input.actorId,
         provider: saved.provider,
+        apiStyle: saved.apiStyle,
         endpoint: saved.endpoint,
         modelId: saved.modelId,
         enabled: saved.enabled,

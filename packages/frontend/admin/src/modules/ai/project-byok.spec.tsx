@@ -107,6 +107,7 @@ test('saves one global configuration with no workspace or user assignment', asyn
       input: {
         expectedRevision: 0,
         provider: 'openai',
+        apiStyle: 'responses',
         endpoint: null,
         modelId: 'project-model',
         apiKey: 'new-key',
@@ -133,6 +134,7 @@ test('editing retains saved credentials without returning a key to the browser',
       input: {
         expectedRevision: 4,
         provider: 'openai',
+        apiStyle: 'responses',
         endpoint: null,
         modelId: 'global-model',
         apiKey: undefined,

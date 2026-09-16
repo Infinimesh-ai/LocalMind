@@ -22,6 +22,8 @@ query workspaceByokSettings($id: String!, $from: DateTime!, $to: DateTime!) {
         enabled
         endpoint
         modelId
+        apiStyle
+        configRevision
         endpointEditable
         sortOrder
         capabilities

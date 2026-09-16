@@ -5,7 +5,7 @@ export const LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_LEGACY_VERSION =
 export const LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_PREVIOUS_VERSION =
   'localmind-tool-agent-completion-contract/v2';
 export const LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION =
-  'localmind-tool-agent-completion-contract/v4';
+  'localmind-tool-agent-completion-contract/v5';
 
 const ToolSuccessRequirementSchema = z
   .object({
@@ -84,13 +84,19 @@ export const LocalMindToolAgentCompletionContractSchema = z.union([
   z.discriminatedUnion('kind', [
     z
       .object({
-        version: z.literal(LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION),
+        version: z.enum([
+          'localmind-tool-agent-completion-contract/v4',
+          LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION,
+        ]),
         kind: z.literal('none'),
       })
       .strict(),
     z
       .object({
-        version: z.literal(LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION),
+        version: z.enum([
+          'localmind-tool-agent-completion-contract/v4',
+          LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_VERSION,
+        ]),
         kind: z.literal('requirements'),
         requirements: z
           .array(
@@ -159,14 +165,35 @@ function requestsConditionalDocumentBodyUpdate(request: string) {
   ].some(pattern => pattern.test(request));
 }
 
-const WRITE_DENIAL_PATTERNS = [
-  /\b(?:do\s+not|don't|must\s+not|without)\b.{0,64}\b(?:create|update|modify|write|append|delete|remove|restore|rename|move|send|publish|execute)\b/is,
-  /(?:不要|无需|不需要|不得|禁止|别).{0,32}(?:创建|新建|更新|修改|写入|追加|删除|移除|恢复|重命名|移动|发送|发布|执行)/is,
-  /只(?:搜索|查询|检索|列出|查看|读取).{0,32}(?:不执行|不调用|不写入|不要修改|不要删除)/is,
-];
+// Source text is data. Only explicit instruction clauses contribute completion
+// requirements; a negation in one clause cannot erase another requested action.
+export function taskInstructionText(request: string) {
+  const withoutQuotedData = request
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/^\s*>.*$/gm, '')
+    .replace(
+      /<(?:body|source|document_content)>[\s\S]*?<\/(?:body|source|document_content)>/gi,
+      ''
+    );
+  const bodyBoundary =
+    /(?:^|\n)\s*(?:正文|日志正文|待保存内容|待保存资料|source text|document body|log body)\s*[:：]\s*\n/i.exec(
+      withoutQuotedData
+    );
+  return bodyBoundary
+    ? withoutQuotedData.slice(0, bodyBoundary.index)
+    : withoutQuotedData;
+}
 
-function deniesWriteAction(request: string) {
-  return WRITE_DENIAL_PATTERNS.some(pattern => pattern.test(request));
+function positiveActionClauses(request: string) {
+  return taskInstructionText(request)
+    .split(/[,，;；。\n]|\bbut\b|但是|但/iu)
+    .filter(
+      clause =>
+        !/(?:\b(?:do\s+not|don't|must\s+not|without)\s+(?:\w+\s+){0,2}(?:create|update|modify|write|append|save|delete|remove|restore|rename|move|send|publish|execute)\b|(?:不要|无需|不需要|不得|禁止|别|不)(?:再|去|进行)?(?:创建|新建|更新|修改|写入|追加|保存|删除|移除|恢复|重命名|移动|发送|发布|执行))/iu.test(
+          clause
+        )
+    )
+    .join('；');
 }
 
 const PERMANENT_DELETE_DENIAL_PATTERNS = [
@@ -220,11 +247,12 @@ function buildSpecificRequirements(input: {
   request: string;
   documentIds: string[];
 }): CompletionRequirement[] {
-  const { request } = input;
+  const instruction = taskInstructionText(input.request);
+  const request = positiveActionClauses(input.request);
   const documentId =
     input.documentIds.length === 1 ? input.documentIds[0] : null;
   if (documentId && requestsDocumentBodyUpdate(request)) {
-    if (requestsConditionalDocumentBodyUpdate(request)) {
+    if (requestsConditionalDocumentBodyUpdate(instruction)) {
       return [
         toolSuccess(['workspace_doc_read'], { documentId }),
         {
@@ -243,11 +271,21 @@ function buildSpecificRequirements(input: {
         },
       ];
     }
-    if (deniesWriteAction(request)) return [];
     return [toolSuccess(['workspace_doc_update'], { documentId })];
   }
 
-  if (deniesWriteAction(request)) return [];
+  if (input.documentIds.length === 0 && requestsDocumentBodyUpdate(request)) {
+    return [
+      {
+        kind: 'any_of',
+        minCount: 1,
+        requirements: [
+          toolSuccess(['workspace_doc_create']),
+          toolSuccess(['workspace_doc_update']),
+        ],
+      },
+    ];
+  }
 
   const enterpriseProviders = [
     /\bwecom\b|企业微信|企微/is.test(request) ? 'WECOM' : null,
@@ -289,7 +327,10 @@ function buildSpecificRequirements(input: {
     ];
   }
 
-  const restore = /\brestore\b|(?:恢复|还原)/is.test(request);
+  const restore =
+    /\brestore\b.{0,24}\b(?:folder|directory|document|doc|file)\b|(?:恢复|还原).{0,12}(?:文件夹|目录|文档|文件)/iu.test(
+      request
+    );
   const ordinaryDelete =
     /\b(?:delete|remove|trash)\b|(?:删除|移除|放入|移到|移至).{0,12}(?:垃圾箱|回收站|trash)?/is.test(
       request
@@ -384,6 +425,7 @@ function buildSpecificRequirements(input: {
 export function buildToolAgentDestructiveIntent(
   request: string
 ): LocalMindToolAgentDestructiveIntent {
+  request = taskInstructionText(request);
   if (!requestsExplicitPermanentDelete(request)) {
     return {
       permanentDocumentDelete: false,

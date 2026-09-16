@@ -48,6 +48,7 @@ function ProjectByokForm({
   const [endpoint, setEndpoint] = useState(settings.endpoint ?? '');
   const [modelId, setModelId] = useState(settings.modelId ?? '');
   const [apiKey, setApiKey] = useState('');
+  const [apiStyle, setApiStyle] = useState(settings.apiStyle ?? 'responses');
   const [feedback, setFeedback] = useState<{
     ok: boolean;
     message: string;
@@ -69,6 +70,7 @@ function ProjectByokForm({
   const input = {
     expectedRevision: settings.revision,
     provider,
+    apiStyle: provider === 'openai' ? apiStyle : null,
     endpoint: endpoint.trim() || null,
     modelId: modelId.trim(),
     apiKey: apiKey.trim() || undefined,
@@ -81,7 +83,8 @@ function ProjectByokForm({
       const { testProjectByokConfig: result } = await test({ input });
       setFeedback({
         ok: result.ok,
-        message: result.message ?? i18n['com.affine.admin.provider-verified'](),
+        message:
+          result.message ?? i18n['com.affine.admin.byok-connection-verified'](),
       });
     } catch {
       setFeedback({
@@ -204,6 +207,31 @@ function ProjectByokForm({
             </SelectContent>
           </Select>
         </div>
+        {provider === 'openai' ? (
+          <div className="min-w-0 space-y-2">
+            <Label htmlFor="project-byok-api-style">
+              {i18n['com.affine.admin.byok-api-protocol']()}
+            </Label>
+            <Select
+              value={apiStyle}
+              disabled={busy}
+              onValueChange={value => {
+                setApiStyle(value);
+                setFeedback(null);
+              }}
+            >
+              <SelectTrigger id="project-byok-api-style">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="responses">Responses</SelectItem>
+                <SelectItem value="chat_completions">
+                  Chat Completions
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         <div className="min-w-0 space-y-2">
           <Label htmlFor="project-byok-model">
             {i18n['com.affine.admin.model-id']()}
@@ -211,7 +239,10 @@ function ProjectByokForm({
           <Input
             id="project-byok-model"
             value={modelId}
-            onChange={event => setModelId(event.target.value)}
+            onChange={event => {
+              setModelId(event.target.value);
+              setFeedback(null);
+            }}
             maxLength={255}
             required
           />
@@ -224,7 +255,10 @@ function ProjectByokForm({
             id="project-byok-endpoint"
             type="url"
             value={endpoint}
-            onChange={event => setEndpoint(event.target.value)}
+            onChange={event => {
+              setEndpoint(event.target.value);
+              setFeedback(null);
+            }}
             disabled={!settings.customEndpointSupported || busy}
             maxLength={2048}
             placeholder={i18n['com.affine.admin.provider-default']()}
@@ -239,7 +273,10 @@ function ProjectByokForm({
             type="password"
             autoComplete="new-password"
             value={apiKey}
-            onChange={event => setApiKey(event.target.value)}
+            onChange={event => {
+              setApiKey(event.target.value);
+              setFeedback(null);
+            }}
             maxLength={8192}
             placeholder={
               settings.configured && provider === settings.provider

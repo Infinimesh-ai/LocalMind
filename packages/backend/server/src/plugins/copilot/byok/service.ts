@@ -12,6 +12,7 @@ import {
   safeFetch,
 } from '../../../base';
 import { Models } from '../../../models';
+import { resolveByokApiStyle } from '../../../models/copilot-byok-protocol';
 import type { CopilotModelDefinition, CopilotProviderProfile } from '../config';
 import { ModelInputType, ModelOutputType } from '../providers/types';
 import { ByokEntitlementPolicy } from './policy';
@@ -46,6 +47,7 @@ export type ProjectByokInput = {
   apiKey?: string | null;
   endpoint?: string | null;
   modelId: string;
+  apiStyle?: string | null;
 };
 
 export type ByokProfileSourceFilter = {
@@ -63,6 +65,8 @@ export type ByokKeyConfig = {
   enabled: boolean;
   endpoint: string | null;
   modelId: string | null;
+  apiStyle: string | null;
+  configRevision: number;
   endpointEditable: boolean;
   sortOrder: number;
   capabilities: string[];
@@ -111,6 +115,8 @@ type UpsertByokConfigInput = {
   apiKey?: string | null;
   endpoint?: string | null;
   modelId?: string | null;
+  apiStyle?: string | null;
+  expectedRevision?: number | null;
   sortOrder?: number | null;
   enabled?: boolean | null;
   userId?: string;
@@ -130,6 +136,8 @@ type TestByokConfigInput = {
   apiKey?: string | null;
   endpoint?: string | null;
   modelId?: string | null;
+  apiStyle?: string | null;
+  expectedRevision?: number | null;
   configId?: string | null;
   userId?: string;
 };
@@ -141,6 +149,7 @@ export type ByokLocalLeaseProvider = {
   apiKey: string;
   endpoint?: string | null;
   modelId?: string | null;
+  apiStyle?: string | null;
   sortOrder?: number | null;
   enabled?: boolean | null;
 };
@@ -204,6 +213,7 @@ export class ByokService {
       provider: current?.provider ?? ByokProvider.openai,
       endpoint: current?.endpoint ?? null,
       modelId: current?.modelId ?? null,
+      apiStyle: current?.apiStyle ?? null,
       enabled: current?.enabled ?? false,
       lastValidatedAt: current?.lastValidatedAt ?? null,
       lastUsedAt: current?.lastUsedAt ?? null,
@@ -238,6 +248,11 @@ export class ByokService {
         'Project BYOK changed. Reload the settings and try again.'
       );
     }
+    const apiStyle =
+      input.apiStyle !== undefined
+        ? input.apiStyle
+        : (current?.apiStyle ?? null);
+    resolveByokApiStyle(input.provider, apiStyle);
     const apiKey = input.apiKey?.trim();
     if (apiKey && apiKey.length > 8192) {
       throw new BadRequestException('API key is too long.');
@@ -278,6 +293,7 @@ export class ByokService {
       endpoint,
       modelId,
       credentialChanged: Boolean(apiKey),
+      apiStyle,
     };
   }
 
@@ -286,6 +302,7 @@ export class ByokService {
     encryptedApiKey: string;
     endpoint: string | null;
     modelId: string;
+    apiStyle?: string | null;
   }) {
     try {
       await runProviderProbe(
@@ -294,7 +311,8 @@ export class ByokService {
         this.crypto.decrypt(input.encryptedApiKey),
         input.endpoint,
         this.privateEndpointSupported,
-        input.modelId
+        input.modelId,
+        input.apiStyle
       );
     } catch {
       // Provider errors can contain authorization headers or response bodies.
@@ -532,6 +550,15 @@ export class ByokService {
     if (input.id && (!existing || existing.workspaceId !== input.workspaceId)) {
       throw new BadRequest('BYOK config not found.');
     }
+    if (
+      existing &&
+      input.apiStyle !== undefined &&
+      input.expectedRevision == null
+    ) {
+      throw new BadRequest(
+        'API protocol changes require the current configuration revision.'
+      );
+    }
     const encryptedApiKey = input.apiKey
       ? this.crypto.encrypt(input.apiKey)
       : undefined;
@@ -557,6 +584,8 @@ export class ByokService {
 
     const row = await this.models.copilotWorkspaceByokConfig.upsert({
       id: input.id,
+      apiStyle: input.apiStyle,
+      expectedRevision: input.expectedRevision ?? existing?.configRevision,
       workspaceId: input.workspaceId,
       provider: input.provider,
       name: input.name.trim(),
@@ -645,6 +674,8 @@ export class ByokService {
     let apiKey = input.apiKey;
     let endpoint = this.normalizeEndpoint(input.endpoint);
     let modelId = this.normalizeModelId(input.modelId);
+    let apiStyle = input.apiStyle;
+    let testedRevision: number | undefined;
     if (!apiKey && input.configId && input.storage === ByokKeyStorage.server) {
       const config = await this.models.copilotWorkspaceByokConfig.get(
         input.configId
@@ -655,6 +686,22 @@ export class ByokService {
         config.provider !== input.provider
       ) {
         throw new BadRequestException('BYOK config not found.');
+      }
+      if (
+        input.expectedRevision != null &&
+        input.expectedRevision !== config.configRevision
+      ) {
+        throw new BadRequest('BYOK changed. Reload settings before testing.');
+      }
+      apiStyle =
+        input.apiStyle !== undefined ? input.apiStyle : config.apiStyle;
+      // A draft probe must never validate or disable the persisted configuration.
+      if (
+        input.endpoint === undefined &&
+        input.modelId === undefined &&
+        input.apiStyle === undefined
+      ) {
+        testedRevision = config.configRevision;
       }
       apiKey = this.crypto.decrypt(config.encryptedApiKey);
       endpoint =
@@ -677,13 +724,15 @@ export class ByokService {
         apiKey,
         endpoint,
         this.privateEndpointSupported,
-        modelId
+        modelId,
+        apiStyle
       );
       if (input.configId && input.storage === ByokKeyStorage.server) {
         await this.models.copilotWorkspaceByokConfig.markValidated(
           input.workspaceId,
           input.configId,
-          input.userId
+          input.userId,
+          testedRevision
         );
       }
       metrics.ai.counter('byok_test_key').add(1, {
@@ -704,7 +753,8 @@ export class ByokService {
         await this.models.copilotWorkspaceByokConfig.markFailure(
           input.workspaceId,
           input.configId,
-          message
+          message,
+          testedRevision
         );
       }
       metrics.ai.counter('byok_test_key').add(1, {
@@ -736,6 +786,7 @@ export class ByokService {
       this.assertProvider(provider.provider);
       const endpoint = this.normalizeEndpoint(provider.endpoint);
       const modelId = this.normalizeModelId(provider.modelId);
+      resolveByokApiStyle(provider.provider, provider.apiStyle);
       return { ...provider, endpoint, modelId };
     });
     const activeCacheKey = this.localLeaseActiveCacheKey({
@@ -757,6 +808,7 @@ export class ByokService {
         encryptedApiKey: this.crypto.encrypt(provider.apiKey),
         endpoint: provider.endpoint,
         modelId: provider.modelId,
+        apiStyle: provider.apiStyle,
         sortOrder: provider.sortOrder,
         enabled: provider.enabled,
       })),
@@ -814,11 +866,14 @@ export class ByokService {
           source: ByokProviderSource.ProjectGlobal,
           priority: BYOK_PROFILE_PRIORITY_BASE,
           models: [row.modelId],
-          modelDefinitions: [this.modelDefinition(row.provider, row.modelId)],
+          modelDefinitions: [
+            this.modelDefinition(row.provider, row.modelId, row.apiStyle),
+          ],
           config: this.providerConfig(
             row.provider,
             row.encryptedApiKey,
-            row.endpoint
+            row.endpoint,
+            row.apiStyle
           ),
         } as CopilotProviderProfile,
       ];
@@ -906,6 +961,21 @@ export class ByokService {
     const meta = this.parseProfileMeta(input.providerId, input.workspaceId);
     if (!meta) return;
 
+    const failureCode =
+      typeof input.error === 'object' &&
+      input.error !== null &&
+      'code' in input.error
+        ? input.error.code
+        : undefined;
+    if (
+      failureCode === 'invalid_structured_output' ||
+      (input.error instanceof Error &&
+        (input.error.name === 'AbortError' ||
+          /(?:\b429\b|\b50[0234]\b|ECONNRESET|ECONNREFUSED)/.test(
+            input.error.message
+          )))
+    )
+      return;
     const message = this.sanitizeError(input.error);
     metrics.ai.counter('byok_route_failure').add(1, {
       workspace: input.workspaceId,
@@ -917,7 +987,8 @@ export class ByokService {
       await this.models.copilotWorkspaceByokConfig.markFailure(
         input.workspaceId,
         meta.keyId,
-        message
+        message,
+        meta.revision
       );
     }
     if (meta.source === ByokProviderSource.ProjectGlobal && meta.revision) {
@@ -951,7 +1022,7 @@ export class ByokService {
       .map((row, index): CopilotProviderProfile => {
         const provider = row.provider as ByokProvider;
         return {
-          id: this.profileId(workspaceId, provider, row.id, 'server'),
+          id: `${this.profileId(workspaceId, provider, row.id, 'server')}-r${row.configRevision}`,
           type: byokProviderToCopilotType(provider),
           priority:
             BYOK_PROFILE_PRIORITY_BASE - SERVER_PROFILE_PRIORITY_OFFSET - index,
@@ -959,13 +1030,16 @@ export class ByokService {
           ...(row.modelId
             ? {
                 models: [row.modelId],
-                modelDefinitions: [this.modelDefinition(provider, row.modelId)],
+                modelDefinitions: [
+                  this.modelDefinition(provider, row.modelId, row.apiStyle),
+                ],
               }
             : {}),
           config: this.providerConfig(
             provider,
             row.encryptedApiKey,
-            row.endpoint
+            row.endpoint,
+            row.apiStyle
           ),
         } as CopilotProviderProfile;
       });
@@ -993,6 +1067,10 @@ export class ByokService {
     ) {
       return [];
     }
+    const leaseFingerprint = createHash('sha256')
+      .update(context.byokLeaseId)
+      .digest('hex')
+      .slice(0, 16);
     return lease.providers
       .filter(provider => provider.enabled !== false)
       .map((provider, index): CopilotProviderProfile => {
@@ -1000,7 +1078,7 @@ export class ByokService {
           id: this.profileId(
             context.workspaceId ?? lease.workspaceId,
             provider.provider,
-            `${index}`,
+            `${index}-${leaseFingerprint}`,
             'local'
           ),
           type: byokProviderToCopilotType(provider.provider),
@@ -1010,14 +1088,19 @@ export class ByokService {
             ? {
                 models: [provider.modelId],
                 modelDefinitions: [
-                  this.modelDefinition(provider.provider, provider.modelId),
+                  this.modelDefinition(
+                    provider.provider,
+                    provider.modelId,
+                    provider.apiStyle
+                  ),
                 ],
               }
             : {}),
           config: this.providerConfig(
             provider.provider,
             provider.encryptedApiKey,
-            provider.endpoint ?? null
+            provider.endpoint ?? null,
+            provider.apiStyle
           ),
         } as CopilotProviderProfile;
       });
@@ -1026,11 +1109,18 @@ export class ByokService {
   private providerConfig(
     provider: ByokProvider,
     encryptedApiKey: string,
-    endpoint: string | null
+    endpoint: string | null,
+    apiStyle?: string | null
   ) {
+    const resolvedStyle = resolveByokApiStyle(provider, apiStyle);
     const apiKey = this.crypto.decrypt(encryptedApiKey);
     switch (provider) {
       case ByokProvider.openai:
+        return {
+          apiKey,
+          apiStyle: resolvedStyle,
+          ...(endpoint ? { baseURL: endpoint } : {}),
+        };
       case ByokProvider.gemini:
       case ByokProvider.anthropic:
         return { apiKey, ...(endpoint ? { baseURL: endpoint } : {}) };
@@ -1076,12 +1166,14 @@ export class ByokService {
       return null;
     }
 
-    const keyId = match[3];
+    const revisionMatch = /^(.*)-r([1-9][0-9]*)$/.exec(match[3]);
+    const keyId = revisionMatch ? revisionMatch[1] : match[3];
     return {
       provider: match[2] as ByokProvider,
       source: keyId.startsWith('local-')
         ? ByokProviderSource.Local
         : ByokProviderSource.Server,
+      revision: revisionMatch ? Number(revisionMatch[2]) : undefined,
       keyId: keyId.startsWith('local-') ? undefined : keyId,
     };
   }
@@ -1093,6 +1185,8 @@ export class ByokService {
     description: string | null;
     endpoint: string | null;
     modelId: string | null;
+    apiStyle?: string | null;
+    configRevision?: number;
     sortOrder: number;
     enabled: boolean;
     disabledReason: string | null;
@@ -1113,6 +1207,8 @@ export class ByokService {
       enabled: row.enabled,
       endpoint: row.endpoint,
       modelId: row.modelId,
+      apiStyle: row.apiStyle ?? null,
+      configRevision: row.configRevision ?? 1,
       endpointEditable: this.customEndpointSupported,
       sortOrder: row.sortOrder,
       capabilities: this.capabilities(provider, 'server'),
@@ -1217,8 +1313,10 @@ export class ByokService {
 
   private modelDefinition(
     provider: ByokProvider,
-    modelId: string
+    modelId: string,
+    apiStyle?: string | null
   ): CopilotModelDefinition {
+    const resolvedStyle = resolveByokApiStyle(provider, apiStyle);
     if (provider === ByokProvider.fal) {
       return {
         id: modelId,
@@ -1236,7 +1334,9 @@ export class ByokService {
 
     const backendKind =
       provider === ByokProvider.openai
-        ? ('openai_responses' as const)
+        ? resolvedStyle === 'chat_completions'
+          ? ('openai_chat' as const)
+          : ('openai_responses' as const)
         : provider === ByokProvider.anthropic
           ? ('anthropic' as const)
           : ('gemini_api' as const);
@@ -1310,6 +1410,7 @@ export class ByokService {
             apiKey: provider.apiKey,
             endpoint: provider.endpoint ?? null,
             modelId: provider.modelId ?? null,
+            apiStyle: provider.apiStyle ?? null,
             sortOrder: provider.sortOrder ?? 0,
             enabled: provider.enabled ?? true,
           }))

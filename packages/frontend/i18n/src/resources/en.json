@@ -4698,6 +4698,8 @@
   "com.affine.localmind.project-tasks.waitingEditor": "{{name}} is editing this file. Save and close the file in that tab so AI can continue.",
   "com.affine.localmind.project-tasks.waitingEditorUnknown": "Waiting for editing to finish. Save and close the file in the editing tab so AI can continue.",
   "com.affine.localmind.project-tasks.handoffApprovalUnknown": "Approval could not be confirmed. Retry approval in the task card. This page stays read-only until the task is resolved.",
+  "com.affine.admin.byok-api-protocol": "API protocol",
+  "com.affine.admin.byok-connection-verified": "Provider connection verified. Structured planning and tool execution have not been tested.",
   "error.INTERNAL_SERVER_ERROR": "An internal error occurred.",
   "error.NETWORK_ERROR": "Network error.",
   "error.TOO_MANY_REQUEST": "Too many requests.",

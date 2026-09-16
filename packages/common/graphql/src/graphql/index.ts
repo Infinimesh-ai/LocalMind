@@ -247,6 +247,7 @@ export const projectByokSettingsFragment = `fragment ProjectByokSettings on Proj
   provider
   endpoint
   modelId
+  apiStyle
   enabled
   lastValidatedAt
   lastUsedAt
@@ -261,6 +262,7 @@ export const projectByokSettingsFragment = `fragment ProjectByokSettings on Proj
     provider
     endpoint
     modelId
+    apiStyle
     enabled
     credentialChanged
     createdAt
@@ -738,6 +740,8 @@ export const adminWorkspaceByokSettingsQuery = {
       enabled
       endpoint
       modelId
+      apiStyle
+      configRevision
       endpointEditable
       sortOrder
       capabilities
@@ -11178,6 +11182,8 @@ export const workspaceByokSettingsQuery = {
         enabled
         endpoint
         modelId
+        apiStyle
+        configRevision
         endpointEditable
         sortOrder
         capabilities

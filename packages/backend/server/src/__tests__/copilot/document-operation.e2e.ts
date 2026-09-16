@@ -198,10 +198,10 @@ async function processingDelegation(context: {
         order: 0,
         outputSummary: {
           localMindToolAgentRequest: {
-            version: 'localmind-tool-agent-request/v6',
+            version: 'localmind-tool-agent-request/v7',
             allowedToolNames: ['workspace_doc_create'],
             completionContract: {
-              version: 'localmind-tool-agent-completion-contract/v4',
+              version: 'localmind-tool-agent-completion-contract/v5',
               kind: 'none',
             },
           },

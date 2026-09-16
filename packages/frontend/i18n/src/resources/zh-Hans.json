@@ -4851,5 +4851,7 @@
   "com.affine.localmind.project-tasks.handoffInProgress": "已将文件交给 AI，当前页面暂时只读。任务结束后会恢复编辑。",
   "com.affine.localmind.project-tasks.waitingEditor": "{{name}} 正在编辑此文件。请在持有编辑权的页面保存并关闭文件，AI 随后会继续执行。",
   "com.affine.localmind.project-tasks.waitingEditorUnknown": "正在等待编辑结束。请在持有编辑权的页面保存并关闭文件，AI 随后会继续执行。",
-  "com.affine.localmind.project-tasks.handoffApprovalUnknown": "尚未确认审批结果，请在任务卡片重试批准。当前页面保持只读，直到任务状态确认。"
+  "com.affine.localmind.project-tasks.handoffApprovalUnknown": "尚未确认审批结果，请在任务卡片重试批准。当前页面保持只读，直到任务状态确认。",
+  "com.affine.admin.byok-api-protocol": "API 协议",
+  "com.affine.admin.byok-connection-verified": "连接测试通过，尚未验证结构化规划与工具执行能力。"
 }

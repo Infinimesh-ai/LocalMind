@@ -409,6 +409,7 @@ export const CopilotStructuredOptionsSchema =
       responseSchemaJson: z.record(z.unknown()).optional(),
       schemaHash: z.string().optional(),
       strict: z.boolean().optional(),
+      maxProviderAttempts: z.number().int().min(1).max(2).optional(),
     })
     .optional();
 

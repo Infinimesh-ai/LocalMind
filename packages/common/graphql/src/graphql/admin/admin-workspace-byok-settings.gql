@@ -16,6 +16,8 @@ query adminWorkspaceByokSettings($workspaceId: String!) {
       enabled
       endpoint
       modelId
+        apiStyle
+        configRevision
       endpointEditable
       sortOrder
       capabilities

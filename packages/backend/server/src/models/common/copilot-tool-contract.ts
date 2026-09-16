@@ -59,9 +59,9 @@ export function hasRetiredToolContract(run: {
       requests.length !== 1 ||
       requests.some(
         request =>
-          request.version !== 'localmind-tool-agent-request/v6' ||
+          request.version !== 'localmind-tool-agent-request/v7' ||
           object(request.completionContract).version !==
-            'localmind-tool-agent-completion-contract/v4' ||
+            'localmind-tool-agent-completion-contract/v5' ||
           !Array.isArray(request.allowedToolNames) ||
           request.allowedToolNames.some(
             name =>

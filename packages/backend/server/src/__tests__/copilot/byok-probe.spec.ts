@@ -227,3 +227,50 @@ test('provider probe accepts FAL catalog wrapper variants but not empty lists', 
   t.is(result.operation, 'model_catalog');
   t.is(error?.message, 'Provider returned an invalid model catalog.');
 });
+
+test('explicit Chat protocol probes the configured model with Chat messages', async t => {
+  const fetch = Sinon.stub<
+    Parameters<typeof safeFetch>,
+    ReturnType<typeof safeFetch>
+  >().resolves(
+    new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }))
+  );
+  await runProviderProbe(
+    fetch,
+    ByokProvider.openai,
+    'secret',
+    'https://provider.example/v1',
+    false,
+    'qwen3.8-flash',
+    'chat_completions'
+  );
+  t.is(fetch.firstCall.args[0], 'https://provider.example/v1/chat/completions');
+  const body = JSON.parse(String(fetch.firstCall.args[1]?.body));
+  t.is(body.model, 'qwen3.8-flash');
+  t.deepEqual(body.messages, [{ role: 'user', content: 'Reply with OK.' }]);
+  t.false('input' in body);
+});
+
+test('invalid protocol values and provider combinations never dispatch', async t => {
+  for (const [provider, apiStyle] of [
+    [ByokProvider.openai, 'auto'],
+    [ByokProvider.gemini, 'chat_completions'],
+  ] as const) {
+    const fetch = Sinon.stub<
+      Parameters<typeof safeFetch>,
+      ReturnType<typeof safeFetch>
+    >();
+    await t.throwsAsync(
+      runProviderProbe(
+        fetch,
+        provider,
+        'secret',
+        null,
+        false,
+        'model',
+        apiStyle
+      )
+    );
+    t.false(fetch.called);
+  }
+});

@@ -69,6 +69,8 @@ type KeyDraft = {
   endpoint: string;
   id?: string;
   modelId: string;
+  apiStyle: string;
+  expectedRevision?: number;
   name: string;
   provider: ByokProvider;
   sortOrder: number;
@@ -82,7 +84,7 @@ const PROVIDER_LABELS: Record<ByokProvider, string> = {
 };
 
 const TEST_STATUS_LABELS: Record<ByokKeyTestStatus, string> = {
-  [ByokKeyTestStatus.passed]: 'Verified',
+  [ByokKeyTestStatus.passed]: 'Connection tested',
   [ByokKeyTestStatus.failed]: 'Failed',
   [ByokKeyTestStatus.untested]: 'Not tested',
 };
@@ -97,6 +99,7 @@ function emptyDraft(
     enabled: true,
     endpoint: '',
     modelId: '',
+    apiStyle: 'responses',
     name: 'Primary',
     provider,
     sortOrder,
@@ -111,6 +114,8 @@ function keyDraft(key: WorkspaceByokKey): KeyDraft {
     endpoint: key.endpoint ?? '',
     id: key.id,
     modelId: key.modelId ?? '',
+    apiStyle: key.apiStyle ?? 'responses',
+    expectedRevision: key.configRevision,
     name: key.name,
     provider: key.provider,
     sortOrder: key.sortOrder,
@@ -123,6 +128,8 @@ function testFingerprint(draft: KeyDraft, customEndpointSupported: boolean) {
     endpoint: customEndpointSupported ? draft.endpoint.trim() : undefined,
     id: draft.id ?? null,
     modelId: draft.modelId.trim(),
+    apiStyle: draft.apiStyle,
+    expectedRevision: draft.expectedRevision,
     provider: draft.provider,
   });
 }
@@ -199,6 +206,9 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
             ? draft.endpoint.trim() || null
             : undefined,
           modelId: draft.modelId.trim() || null,
+          apiStyle:
+            draft.provider === ByokProvider.openai ? draft.apiStyle : null,
+          expectedRevision: draft.expectedRevision,
           provider: draft.provider,
           storage: ByokKeyStorage.server,
           workspaceId: scope.id,
@@ -217,7 +227,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
       setAvailableModels(result.testWorkspaceByokConfig.models ?? []);
       setTestedFingerprint(currentTestFingerprint);
       await mutate();
-      toast.success(i18n['com.affine.admin.provider-credential-verified']());
+      toast.success(i18n['com.affine.admin.byok-connection-verified']());
     } catch (testError) {
       console.error(testError);
       setTestedFingerprint(null);
@@ -240,6 +250,9 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
             : undefined,
           id: draft.id,
           modelId: draft.modelId.trim() || null,
+          apiStyle:
+            draft.provider === ByokProvider.openai ? draft.apiStyle : null,
+          expectedRevision: draft.expectedRevision,
           name: draft.name.trim(),
           provider: draft.provider,
           sortOrder: draft.sortOrder,
@@ -551,6 +564,32 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
               </SelectContent>
             </Select>
           </div>
+          {draft.provider === ByokProvider.openai ? (
+            <div className="space-y-2">
+              <Label htmlFor={`byok-api-style-${scope.id}`}>
+                {i18n['com.affine.admin.byok-api-protocol']()}
+              </Label>
+              <Select
+                value={draft.apiStyle}
+                disabled={isTesting || isSaving}
+                onValueChange={apiStyle => {
+                  setDraft(current => ({ ...current, apiStyle }));
+                  setTestedFingerprint(null);
+                  setAvailableModels([]);
+                }}
+              >
+                <SelectTrigger id={`byok-api-style-${scope.id}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="responses">Responses</SelectItem>
+                  <SelectItem value="chat_completions">
+                    Chat Completions
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor={`byok-name-${scope.id}`}>
               {i18n['com.affine.admin.credential-name']()}

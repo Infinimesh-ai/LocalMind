@@ -7571,6 +7571,7 @@ export interface ProjectAiModelType {
 export interface ProjectByokAuditEventType {
   __typename?: 'ProjectByokAuditEventType';
   actorId: Scalars['String']['output'];
+  apiStyle: Maybe<Scalars['String']['output']>;
   createdAt: Scalars['DateTime']['output'];
   credentialChanged: Scalars['Boolean']['output'];
   enabled: Scalars['Boolean']['output'];
@@ -7582,6 +7583,7 @@ export interface ProjectByokAuditEventType {
 
 export interface ProjectByokConfigInput {
   apiKey?: InputMaybe<Scalars['String']['input']>;
+  apiStyle?: InputMaybe<Scalars['String']['input']>;
   endpoint?: InputMaybe<Scalars['String']['input']>;
   expectedRevision: Scalars['SafeInt']['input'];
   modelId: Scalars['String']['input'];
@@ -7591,6 +7593,7 @@ export interface ProjectByokConfigInput {
 export interface ProjectByokSettingsType {
   __typename?: 'ProjectByokSettingsType';
   allowedProviders: Array<ByokProvider>;
+  apiStyle: Maybe<Scalars['String']['output']>;
   auditEvents: Array<ProjectByokAuditEventType>;
   configured: Scalars['Boolean']['output'];
   customEndpointSupported: Scalars['Boolean']['output'];
@@ -8921,8 +8924,10 @@ export enum SubscriptionVariant {
 
 export interface TestWorkspaceByokConfigInput {
   apiKey?: InputMaybe<Scalars['String']['input']>;
+  apiStyle?: InputMaybe<Scalars['String']['input']>;
   configId?: InputMaybe<Scalars['ID']['input']>;
   endpoint?: InputMaybe<Scalars['String']['input']>;
+  expectedRevision?: InputMaybe<Scalars['SafeInt']['input']>;
   modelId?: InputMaybe<Scalars['String']['input']>;
   provider: ByokProvider;
   storage: ByokKeyStorage;
@@ -9169,9 +9174,11 @@ export interface UpsertAdminAiProfileInput {
 
 export interface UpsertWorkspaceByokConfigInput {
   apiKey?: InputMaybe<Scalars['String']['input']>;
+  apiStyle?: InputMaybe<Scalars['String']['input']>;
   description?: InputMaybe<Scalars['String']['input']>;
   enabled?: InputMaybe<Scalars['Boolean']['input']>;
   endpoint?: InputMaybe<Scalars['String']['input']>;
+  expectedRevision?: InputMaybe<Scalars['SafeInt']['input']>;
   id?: InputMaybe<Scalars['ID']['input']>;
   modelId?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
@@ -9305,7 +9312,9 @@ export interface WorkspaceByokCapabilityWarningType {
 
 export interface WorkspaceByokKeyConfigType {
   __typename?: 'WorkspaceByokKeyConfigType';
+  apiStyle: Maybe<Scalars['String']['output']>;
   capabilities: Array<Scalars['String']['output']>;
+  configRevision: Scalars['SafeInt']['output'];
   configured: Scalars['Boolean']['output'];
   description: Maybe<Scalars['String']['output']>;
   disabledReason: Maybe<Scalars['String']['output']>;
@@ -10119,6 +10128,8 @@ export type AdminWorkspaceByokSettingsQuery = {
       enabled: boolean;
       endpoint: string | null;
       modelId: string | null;
+      apiStyle: string | null;
+      configRevision: number;
       endpointEditable: boolean;
       sortOrder: number;
       capabilities: Array<string>;
@@ -10390,6 +10401,7 @@ export type AdminProjectByokSettingsQuery = {
     provider: ByokProvider;
     endpoint: string | null;
     modelId: string | null;
+    apiStyle: string | null;
     enabled: boolean;
     lastValidatedAt: string | null;
     lastUsedAt: string | null;
@@ -10405,6 +10417,7 @@ export type AdminProjectByokSettingsQuery = {
       provider: ByokProvider;
       endpoint: string | null;
       modelId: string;
+      apiStyle: string | null;
       enabled: boolean;
       credentialChanged: boolean;
       createdAt: string;
@@ -10425,6 +10438,7 @@ export type SaveProjectByokConfigMutation = {
     provider: ByokProvider;
     endpoint: string | null;
     modelId: string | null;
+    apiStyle: string | null;
     enabled: boolean;
     lastValidatedAt: string | null;
     lastUsedAt: string | null;
@@ -10440,6 +10454,7 @@ export type SaveProjectByokConfigMutation = {
       provider: ByokProvider;
       endpoint: string | null;
       modelId: string;
+      apiStyle: string | null;
       enabled: boolean;
       credentialChanged: boolean;
       createdAt: string;
@@ -10461,6 +10476,7 @@ export type SetProjectByokEnabledMutation = {
     provider: ByokProvider;
     endpoint: string | null;
     modelId: string | null;
+    apiStyle: string | null;
     enabled: boolean;
     lastValidatedAt: string | null;
     lastUsedAt: string | null;
@@ -10476,6 +10492,7 @@ export type SetProjectByokEnabledMutation = {
       provider: ByokProvider;
       endpoint: string | null;
       modelId: string;
+      apiStyle: string | null;
       enabled: boolean;
       credentialChanged: boolean;
       createdAt: string;
@@ -20425,6 +20442,7 @@ export type ProjectByokSettingsFragment = {
   provider: ByokProvider;
   endpoint: string | null;
   modelId: string | null;
+  apiStyle: string | null;
   enabled: boolean;
   lastValidatedAt: string | null;
   lastUsedAt: string | null;
@@ -20440,6 +20458,7 @@ export type ProjectByokSettingsFragment = {
     provider: ByokProvider;
     endpoint: string | null;
     modelId: string;
+    apiStyle: string | null;
     enabled: boolean;
     credentialChanged: boolean;
     createdAt: string;
@@ -23805,6 +23824,8 @@ export type WorkspaceByokSettingsQuery = {
         enabled: boolean;
         endpoint: string | null;
         modelId: string | null;
+        apiStyle: string | null;
+        configRevision: number;
         endpointEditable: boolean;
         sortOrder: number;
         capabilities: Array<string>;

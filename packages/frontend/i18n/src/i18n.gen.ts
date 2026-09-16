@@ -19065,6 +19065,14 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.project-tasks.handoffApprovalUnknown"](): string;
     /**
+      * `API protocol`
+      */
+    ["com.affine.admin.byok-api-protocol"](): string;
+    /**
+      * `Provider connection verified. Structured planning and tool execution have not been tested.`
+      */
+    ["com.affine.admin.byok-connection-verified"](): string;
+    /**
       * `An internal error occurred.`
       */
     ["error.INTERNAL_SERVER_ERROR"](): string;

@@ -30,6 +30,9 @@ class ProjectByokAuditEventType {
   @Field(() => String, { nullable: true })
   endpoint!: string | null;
 
+  @Field(() => String, { nullable: true })
+  apiStyle!: string | null;
+
   @Field()
   modelId!: string;
 
@@ -56,6 +59,9 @@ class ProjectByokSettingsType {
 
   @Field(() => String, { nullable: true })
   endpoint!: string | null;
+
+  @Field(() => String, { nullable: true })
+  apiStyle!: string | null;
 
   @Field(() => String, { nullable: true })
   modelId!: string | null;
@@ -110,6 +116,9 @@ class ProjectByokConfigInput implements ProjectByokInput {
 
   @Field(() => String, { nullable: true })
   endpoint?: string | null;
+
+  @Field(() => String, { nullable: true })
+  apiStyle?: string | null;
 
   @Field()
   modelId!: string;

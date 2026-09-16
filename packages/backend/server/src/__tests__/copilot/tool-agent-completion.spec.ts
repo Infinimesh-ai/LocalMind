@@ -17,7 +17,7 @@ test('requires a document update for explicit English and Chinese body mutations
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v4',
+        version: 'localmind-tool-agent-completion-contract/v5',
         kind: 'requirements',
         requirements: [
           {
@@ -43,7 +43,7 @@ test('does not require a body update for read-only or upload requests', t => {
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v4',
+        version: 'localmind-tool-agent-completion-contract/v5',
         kind: 'none',
       }
     );
@@ -58,7 +58,7 @@ test('requires a metadata tool for explicit document title changes', t => {
     t.deepEqual(
       buildToolAgentCompletionContract({ request, documentIds: [documentId] }),
       {
-        version: 'localmind-tool-agent-completion-contract/v4',
+        version: 'localmind-tool-agent-completion-contract/v5',
         kind: 'requirements',
         requirements: [
           {
@@ -80,7 +80,7 @@ test('does not require one document update when the target is ambiguous', t => {
       documentIds: ['first-document', 'second-document'],
     }),
     {
-      version: 'localmind-tool-agent-completion-contract/v4',
+      version: 'localmind-tool-agent-completion-contract/v5',
       kind: 'none',
     }
   );
@@ -94,7 +94,7 @@ test('classifies guarded append requests as conditional document updates', t => 
       documentIds: [documentId],
     }),
     {
-      version: 'localmind-tool-agent-completion-contract/v4',
+      version: 'localmind-tool-agent-completion-contract/v5',
       kind: 'requirements',
       requirements: [
         {
@@ -186,4 +186,36 @@ test('requires explicit permanent-delete wording and classifies mixed Chinese Tr
     permanentDocumentDelete: true,
     permanentFolderDelete: true,
   });
+});
+
+test('log body negations cannot erase the current save requirement or request restore', t => {
+  for (const request of [
+    '保存今日日志，不要发送消息。\n正文：\n不要求账号登录，也不执行完整验收。恢复索引。',
+    '保存今日日志。\n> 不要求账号登录，也不执行完整验收。恢复索引。',
+    '保存今日日志，不要发送消息。',
+  ]) {
+    const contract = buildToolAgentCompletionContract({
+      request,
+      documentIds: [],
+    });
+    t.is(contract.kind, 'requirements');
+    t.true(JSON.stringify(contract).includes('workspace_doc_create'));
+    t.false(JSON.stringify(contract).includes('restore'));
+  }
+});
+
+test('read-only denial remains read-only while another denied action cannot cancel saving', t => {
+  t.is(
+    buildToolAgentCompletionContract({
+      request: '不要写入，只总结',
+      documentIds: [documentId],
+    }).kind,
+    'none'
+  );
+  const contract = buildToolAgentCompletionContract({
+    request: '保存日志，不要发送消息',
+    documentIds: [documentId],
+  });
+  t.is(contract.kind, 'requirements');
+  t.true(JSON.stringify(contract).includes('workspace_doc_update'));
 });

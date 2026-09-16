@@ -1266,9 +1266,9 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
     String(delegated.agentRunId)
   );
   t.like(run?.steps[0]?.outputSummary.localMindToolAgentRequest, {
-    version: 'localmind-tool-agent-request/v6',
+    version: 'localmind-tool-agent-request/v7',
     completionContract: {
-      version: 'localmind-tool-agent-completion-contract/v4',
+      version: 'localmind-tool-agent-completion-contract/v5',
       kind: 'requirements',
       requirements: [
         {
@@ -1512,7 +1512,7 @@ test('LocalMind tool agent exposes missing conditional read evidence', async t =
   );
   t.like(run?.steps[0]?.outputSummary.localMindToolAgentRequest, {
     completionContract: {
-      version: 'localmind-tool-agent-completion-contract/v4',
+      version: 'localmind-tool-agent-completion-contract/v5',
       kind: 'requirements',
       requirements: [
         {
@@ -2079,7 +2079,7 @@ test('inline delegated attachment is bound to one credential family and becomes 
   );
 });
 
-test('planner renders an answer again when branch fields contain answer text', async t => {
+test('planner retries structured output when branch fields contain answer text', async t => {
   const { credentials, models, owner, runtime } = t.context;
   const workspace = await models.workspace.create(owner.id);
   const issued = await credentials.create({
@@ -2090,7 +2090,8 @@ test('planner renders an answer again when branch fields contain answer text', a
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: plannerResult({
         kind: 'answer',
@@ -2100,9 +2101,16 @@ test('planner renders an answer again when branch fields contain answer text', a
       }),
     },
   } as any);
-  const renderer = Sinon.stub(runtime, 'text').resolves(
-    'Complete conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner] Action'
-  );
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'answer',
+        answer:
+          'Complete conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner] Action',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
 
   const delegated = await delegate(t.context, issued.token, {
     request: 'Return a conclusion, a Markdown table, and one action.',
@@ -2110,29 +2118,14 @@ test('planner renders an answer again when branch fields contain answer text', a
     idempotencyKey: 'repair-answer-branch-fields',
   });
 
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
+
   t.like(delegated, {
     status: 'completed',
     kind: 'answer',
     answer:
       'Complete conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner] Action',
-  });
-  t.true(renderer.calledOnce);
-  t.regex(renderer.firstCall.args[1][0].content, /final answer generator/);
-  t.regex(
-    renderer.firstCall.args[1][0].content,
-    /literal newline characters between sections, Markdown table rows, and list items/
-  );
-  t.regex(
-    renderer.firstCall.args[1][0].content,
-    /Never compress Markdown into one line/
-  );
-  t.regex(
-    renderer.firstCall.args[1][0].content,
-    /every requested output component is present/
-  );
-  t.like(renderer.firstCall.args[2], {
-    maxTokens: 6_000,
-    temperature: 0,
   });
 });
 
@@ -2227,7 +2220,7 @@ test('tool snapshot exceptions persist a terminal task failure', async t => {
   });
 });
 
-test('planner renders document content again when update fields are empty', async t => {
+test('planner retries structured output when update fields are empty', async t => {
   const { credentials, owner, runtime, worker } = t.context;
   const { docId, workspaceId } = await createDocument(
     t.context,
@@ -2242,14 +2235,23 @@ test('planner renders document content again when update fields are empty', asyn
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: plannerResult({ kind: 'document_update' }),
     },
   } as any);
-  const renderer = Sinon.stub(runtime, 'text').resolves(
-    '# Repaired\n\nComplete replacement body.'
-  );
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'document_update',
+        docId,
+        content: '# Repaired\n\nComplete replacement body.',
+        summary: 'Replace the document',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
 
   const delegated = await delegate(t.context, issued.token, {
     request: 'Replace the document with the supplied Markdown.',
@@ -2257,13 +2259,14 @@ test('planner renders document content again when update fields are empty', asyn
     idempotencyKey: 'repair-document-update-fields',
   });
 
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
+
   t.like(delegated, {
     status: 'queued',
     kind: 'document_update',
     execution: 'queued',
   });
-  t.true(renderer.calledOnce);
-  t.regex(renderer.firstCall.args[1][0].content, /replacement renderer/);
   await worker.runStandaloneAgentRuntime({
     workspaceId,
     runId: String(delegated.agentRunId),
@@ -2274,7 +2277,7 @@ test('planner renders document content again when update fields are empty', asyn
   t.true(markdown?.markdown.includes('Complete replacement body.'));
 });
 
-test('planner repairs a formatted answer when the answer field omits sections', async t => {
+test('planner retries strict schema and formatted answer validation', async t => {
   const { credentials, models, owner, runtime } = t.context;
   const workspace = await models.workspace.create(owner.id);
   const issued = await credentials.create({
@@ -2285,7 +2288,8 @@ test('planner repairs a formatted answer when the answer field omits sections', 
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: {
         kind: 'answer',
@@ -2294,17 +2298,16 @@ test('planner repairs a formatted answer when the answer field omits sections', 
       },
     },
   } as any);
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'answer',
+        answer:
+          'Conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner｜Date] Action',
+      }),
+    },
+  } as any);
   const renderer = Sinon.stub(runtime, 'text');
-  renderer
-    .onFirstCall()
-    .resolves(
-      'Conclusion.\n\n| Risk ｜ Evidence |\n| A ｜ B |\n\n- [Owner] Action'
-    );
-  renderer
-    .onSecondCall()
-    .resolves(
-      'Conclusion.\n\n| Risk ｜ Evidence |\n| A ｜ B |\n\n- Owner｜Date Action'
-    );
 
   const delegated = await delegate(t.context, issued.token, {
     request:
@@ -2313,17 +2316,18 @@ test('planner repairs a formatted answer when the answer field omits sections', 
     idempotencyKey: 'repair-formatted-answer-sections',
   });
 
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
+
   t.like(delegated, {
     status: 'completed',
     kind: 'answer',
     answer:
       'Conclusion.\n\n| Risk | Evidence |\n| --- | --- |\n| A | B |\n\n- [Owner｜Date] Action',
   });
-  t.true(renderer.calledTwice);
-  t.regex(renderer.secondCall.args[1][0].content, /format repairer/);
 });
 
-test('planner repairs an unsupported result as a read-only answer', async t => {
+test('planner preserves an unsupported plan without rendering its reason', async t => {
   const { credentials, models, owner, runtime } = t.context;
   const workspace = await models.workspace.create(owner.id);
   const issued = await credentials.create({
@@ -2351,14 +2355,12 @@ test('planner repairs an unsupported result as a read-only answer', async t => {
   });
 
   t.like(delegated, {
-    status: 'completed',
-    kind: 'answer',
-    answer: 'UPDATED-MARKER',
+    status: 'unsupported_task',
   });
-  t.true(renderer.calledOnce);
+  Sinon.assert.notCalled(renderer);
 });
 
-test('planner repairs a tool-agent result when provided snapshots answer the request', async t => {
+test('planner preserves a valid read tool plan without an unbudgeted renderer', async t => {
   const { credentials, owner, runtime } = t.context;
   const { docId, workspaceId } = await createDocument(
     t.context,
@@ -2390,14 +2392,13 @@ test('planner repairs a tool-agent result when provided snapshots answer the req
   });
 
   t.like(delegated, {
-    status: 'completed',
-    kind: 'answer',
-    answer: 'SNAPSHOT-MARKER',
+    status: 'queued',
+    kind: 'tool_agent',
   });
-  t.true(renderer.calledOnce);
+  Sinon.assert.notCalled(renderer);
 });
 
-test('planner renders document content again when literal Markdown differs', async t => {
+test('planner retries structured output when literal Markdown differs', async t => {
   const { credentials, owner, runtime, worker } = t.context;
   const { docId, workspaceId } = await createDocument(
     t.context,
@@ -2412,7 +2413,8 @@ test('planner renders document content again when literal Markdown differs', asy
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: plannerResult({
         kind: 'document_update',
@@ -2422,9 +2424,17 @@ test('planner renders document content again when literal Markdown differs', asy
       }),
     },
   } as any);
-  const renderer = Sinon.stub(runtime, 'text').resolves(
-    '# Complete\n\nMarker: UPDATED-MARKER'
-  );
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'document_update',
+        docId,
+        content: '# Complete\n\nMarker: UPDATED-MARKER',
+        summary: 'Replace the document',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
 
   const delegated = await delegate(t.context, issued.token, {
     request:
@@ -2433,15 +2443,13 @@ test('planner renders document content again when literal Markdown differs', asy
     idempotencyKey: 'repair-literal-document-update',
   });
 
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
+
   t.like(delegated, {
     status: 'queued',
     kind: 'document_update',
   });
-  t.true(renderer.calledOnce);
-  t.regex(
-    renderer.firstCall.args[1][0].content,
-    /no requested content is missing, added, repeated, or rewritten/
-  );
   await worker.runStandaloneAgentRuntime({
     workspaceId,
     runId: String(delegated.agentRunId),
@@ -2452,7 +2460,7 @@ test('planner renders document content again when literal Markdown differs', asy
   t.true(markdown?.markdown.includes('Marker: UPDATED-MARKER'));
 });
 
-test('literal one-document replacement overrides an answer plan', async t => {
+test('literal one-document replacement requires a corrected structured plan', async t => {
   const { credentials, owner, runtime } = t.context;
   const { docId, workspaceId } = await createDocument(
     t.context,
@@ -2467,7 +2475,8 @@ test('literal one-document replacement overrides an answer plan', async t => {
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: plannerResult({
         kind: 'answer',
@@ -2476,9 +2485,17 @@ test('literal one-document replacement overrides an answer plan', async t => {
       }),
     },
   } as any);
-  const renderer = Sinon.stub(runtime, 'text').resolves(
-    '# Complete\n\nMarker: OVERRIDDEN-KIND'
-  );
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'document_update',
+        docId,
+        content: '# Complete\n\nMarker: OVERRIDDEN-KIND',
+        summary: 'Replace the document',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
 
   const delegated = await delegate(t.context, issued.token, {
     request:
@@ -2487,15 +2504,17 @@ test('literal one-document replacement overrides an answer plan', async t => {
     idempotencyKey: 'override-tool-agent-document-update',
   });
 
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
+
   t.like(delegated, {
     status: 'queued',
     kind: 'document_update',
     operation: { kind: 'document_update', documentId: docId },
   });
-  t.true(renderer.calledOnce);
 });
 
-test('LocalMind tool agent accepts a summary emitted in the reason field', async t => {
+test('LocalMind tool agent retries a summary emitted in the reason field', async t => {
   const { credentials, models, owner, runtime } = t.context;
   const workspace = await models.workspace.create(owner.id);
   const issued = await credentials.create({
@@ -2506,7 +2525,8 @@ test('LocalMind tool agent accepts a summary emitted in the reason field', async
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: plannerResult({
         kind: 'tool_agent',
@@ -2515,11 +2535,24 @@ test('LocalMind tool agent accepts a summary emitted in the reason field', async
     },
   } as any);
 
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Create the requested workspace document',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
+
   const delegated = await delegate(t.context, issued.token, {
     request: 'Create one workspace document.',
     documentIds: [],
     idempotencyKey: 'normalize-tool-agent-reason',
   });
+
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
 
   t.like(delegated, {
     status: 'queued',
@@ -2538,7 +2571,7 @@ test('LocalMind tool agent accepts a summary emitted in the reason field', async
   });
 });
 
-test('enterprise data requests use the tool agent when the planner returns an answer', async t => {
+test('enterprise data requests require a corrected tool agent plan', async t => {
   const { credentials, models, owner, runtime } = t.context;
   const workspace = await models.workspace.create(owner.id);
   const issued = await credentials.create({
@@ -2549,7 +2582,8 @@ test('enterprise data requests use the tool agent when the planner returns an an
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: plannerResult({
         kind: 'answer',
@@ -2558,11 +2592,24 @@ test('enterprise data requests use the tool agent when the planner returns an an
     },
   } as any);
 
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Use the connected enterprise tools to complete the task.',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
+
   const delegated = await delegate(t.context, issued.token, {
     request: '查询我今天的钉钉日程，并只返回结果条数。',
     documentIds: [],
     idempotencyKey: 'route-dingtalk-query-to-tool-agent',
   });
+
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
 
   t.like(delegated, {
     status: 'queued',
@@ -2581,7 +2628,7 @@ test('enterprise data requests use the tool agent when the planner returns an an
   });
 });
 
-test('SparkClaw requests use the tool agent when the planner returns an answer', async t => {
+test('SparkClaw requests require a corrected tool agent plan', async t => {
   const { credentials, models, owner, runtime } = t.context;
   const workspace = await models.workspace.create(owner.id);
   const issued = await credentials.create({
@@ -2592,7 +2639,8 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
     capabilities: [...MCP_CAPABILITIES],
     expirationDays: 30,
   });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+  const planner = Sinon.stub(runtime, 'generateStructuredValue');
+  planner.onFirstCall().resolves({
     value: {
       result: plannerResult({
         kind: 'answer',
@@ -2601,11 +2649,24 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
     },
   } as any);
 
+  planner.onSecondCall().resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Use the connected SparkClaw tools to complete the task.',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
+
   const delegated = await delegate(t.context, issued.token, {
     request: '可以向 SparkClaw 要当前排队任务的信息吗？只返回任务数量。',
     documentIds: [],
     idempotencyKey: 'route-sparkclaw-query-to-tool-agent',
   });
+
+  t.true(planner.calledTwice);
+  Sinon.assert.notCalled(renderer);
 
   t.like(delegated, {
     status: 'queued',
@@ -2628,7 +2689,7 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
   );
   const toolRequest = run?.steps[0]?.outputSummary
     .localMindToolAgentRequest as Record<string, unknown>;
-  t.is(toolRequest.version, 'localmind-tool-agent-request/v6');
+  t.is(toolRequest.version, 'localmind-tool-agent-request/v7');
   t.true(Array.isArray(toolRequest.allowedToolNames));
   t.is(typeof toolRequest.toolSnapshotFingerprint, 'string');
   t.true(Array.isArray(toolRequest.toolCapabilities));
@@ -2638,7 +2699,7 @@ test('SparkClaw requests use the tool agent when the planner returns an answer',
   t.deepEqual(toolRequest.sparkClawToolCapabilities, []);
   t.is(typeof toolRequest.sparkClawToolCapabilitySnapshotFingerprint, 'string');
   t.deepEqual(toolRequest.completionContract, {
-    version: 'localmind-tool-agent-completion-contract/v4',
+    version: 'localmind-tool-agent-completion-contract/v5',
     kind: 'requirements',
     requirements: [
       {
@@ -3462,3 +3523,74 @@ async function close(server: Server) {
     server.closeAllConnections();
   });
 }
+
+test('planner stops after two invalid structured results without enqueuing tools', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'Bounded planner failure',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const planner = Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        reason: 'Private draft must not be accepted as summary.',
+      }),
+    },
+  } as any);
+  const renderer = Sinon.stub(runtime, 'text');
+  const result = await delegate(t.context, issued.token, {
+    request: 'Create one workspace document.',
+    documentIds: [],
+    idempotencyKey: 'planner-two-invalid-results',
+  });
+  t.like(result, { status: 'failed', code: 'ai_planning_failed' });
+  t.true(planner.calledTwice);
+  const run = await models.copilotAgentRuntime.get(
+    workspace.id,
+    String(result.agentRunId)
+  );
+  t.like(run, { status: 'failed', workflow: 'agent_runtime_record_only' });
+  t.true(run?.steps.every(step => step.stepType === 'model'));
+  Sinon.assert.notCalled(renderer);
+  for (const call of planner.getCalls())
+    t.is(call.args[2]?.maxProviderAttempts, 1);
+  t.false(JSON.stringify(result).includes('Private draft'));
+});
+
+test('planner rechecks credential revocation before its second attempt', async t => {
+  const { credentials, models, owner, runtime } = t.context;
+  const workspace = await models.workspace.create(owner.id);
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId: workspace.id,
+    name: 'Planner revocation',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  const planner = Sinon.stub(runtime, 'generateStructuredValue').callsFake(
+    async () => {
+      await credentials.revoke(issued.credential.id, owner.id, workspace.id);
+      return { value: { result: {} } } as any;
+    }
+  );
+  const result = await delegate(t.context, issued.token, {
+    request: 'Create one workspace document.',
+    documentIds: [],
+    idempotencyKey: 'planner-revoked-between-attempts',
+  });
+  t.like(result, { status: 'failed', code: 'permission_denied' });
+  t.true(planner.calledOnce);
+  const run = await models.copilotAgentRuntime.get(
+    workspace.id,
+    String(result.agentRunId)
+  );
+  t.like(run, { status: 'failed', workflow: 'agent_runtime_record_only' });
+  t.true(run?.steps.every(step => step.stepType === 'model'));
+});

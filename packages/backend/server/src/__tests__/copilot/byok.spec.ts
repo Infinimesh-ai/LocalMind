@@ -650,8 +650,8 @@ test('byok service persists encrypted server keys and never returns plaintext', 
   t.deepEqual(
     profiles.map(profile => profile.id),
     [
-      `byok-${workspaceHash(workspace.id)}-openai-${backup.id}`,
-      `byok-${workspaceHash(workspace.id)}-openai-${primary.id}`,
+      `byok-${workspaceHash(workspace.id)}-openai-${backup.id}-r2`,
+      `byok-${workspaceHash(workspace.id)}-openai-${primary.id}-r1`,
     ]
   );
   t.deepEqual(
@@ -821,6 +821,13 @@ test('local leases are short lived and do not persist keys to server configs', a
     profiles.map(profile => profile.source),
     ['byok_local']
   );
+
+  const rotatedProfiles = await t.context.byok.getProfiles({
+    workspaceId: workspace.id,
+    userId: user.id,
+    byokLeaseId: updatedLease.leaseId,
+  });
+  t.not(rotatedProfiles[0]?.id, profiles[0]?.id);
 
   const otherWorkspace = await t.context.models.workspace.create(user.id);
   t.deepEqual(
@@ -1111,7 +1118,6 @@ test('test key failure disables a saved key and success restores it', async t =>
     userId: user.id,
     provider: ByokProvider.openai,
     storage: ByokKeyStorage.server,
-    apiKey: 'sk-test-primary',
     configId: key.id,
   });
   t.false(failed.ok);
@@ -1379,7 +1385,7 @@ test('dispatch failure disables server BYOK key by provider id', async t => {
 
   await t.context.byok.recordProviderFailure({
     workspaceId: workspace.id,
-    providerId: `byok-${workspaceHash(workspace.id)}-openai-${key.id}`,
+    providerId: `byok-${workspaceHash(workspace.id)}-openai-${key.id}-r${key.configRevision}`,
     featureKind: 'chat',
     error: new Error('401 invalid sk-dispatch-primary'),
   });
@@ -1450,7 +1456,8 @@ test('effective profiles use local lease before server keys and skip disabled ke
   await t.context.models.copilotWorkspaceByokConfig.markFailure(
     workspace.id,
     serverKey.id,
-    'recent_failure'
+    'recent_failure',
+    serverKey.configRevision
   );
   await t.context.byok.upsertConfig({
     workspaceId: workspace.id,
@@ -1654,5 +1661,110 @@ test('usage query aggregates BYOK usage by day and feature in the database', asy
         totalTokens: 7,
       },
     ]
+  );
+});
+
+test('API protocol revisions preserve old-client updates and fence late probes', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, user.id);
+  const input = {
+    workspaceId: workspace.id,
+    userId: user.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    name: 'Qwen',
+    apiKey: 'synthetic-key',
+    modelId: 'qwen3.8-flash',
+  };
+  const original = await t.context.byok.upsertConfig(input);
+  t.is(original.apiStyle, null);
+  t.is(original.configRevision, 1);
+  await t.throwsAsync(
+    t.context.byok.upsertConfig({
+      ...input,
+      id: original.id,
+      apiKey: undefined,
+      apiStyle: 'chat_completions',
+    })
+  );
+  const changed = await t.context.byok.upsertConfig({
+    ...input,
+    id: original.id,
+    apiKey: undefined,
+    expectedRevision: 1,
+    apiStyle: 'chat_completions',
+  });
+  t.is(changed.configRevision, 2);
+  t.is(changed.apiStyle, 'chat_completions');
+  await t.context.models.copilotWorkspaceByokConfig.markValidated(
+    workspace.id,
+    original.id,
+    user.id,
+    1
+  );
+  await t.context.models.copilotWorkspaceByokConfig.markFailure(
+    workspace.id,
+    original.id,
+    'stale',
+    1
+  );
+  const current = await t.context.models.copilotWorkspaceByokConfig.get(
+    original.id
+  );
+  t.true(current?.enabled);
+  t.is(current?.lastValidatedAt, null);
+  const unchanged = await t.context.byok.upsertConfig({
+    ...input,
+    id: original.id,
+    apiKey: undefined,
+  });
+  t.is(unchanged.apiStyle, 'chat_completions');
+  t.is(unchanged.configRevision, 2);
+  await t.context.models.copilotWorkspaceByokConfig.touchUsed(
+    workspace.id,
+    original.id
+  );
+  t.is(
+    (await t.context.models.copilotWorkspaceByokConfig.get(original.id))
+      ?.configRevision,
+    2
+  );
+  await t.throwsAsync(
+    t.context.byok.upsertConfig({
+      ...input,
+      id: original.id,
+      apiKey: undefined,
+      apiStyle: 'responses',
+      expectedRevision: 1,
+    })
+  );
+  const profiles = await t.context.byok.getProfiles({
+    workspaceId: workspace.id,
+    userId: user.id,
+  });
+  const profile = profiles.find(profile =>
+    profile.id.endsWith(`${original.id}-r2`)
+  );
+  for (const error of [
+    Object.assign(new Error('Schema validation failed'), {
+      code: 'invalid_structured_output',
+    }),
+    new Error('upstream returned status 429'),
+  ]) {
+    await t.context.byok.recordProviderFailure({
+      workspaceId: workspace.id,
+      providerId: profile?.id,
+      featureKind: 'action',
+      error,
+    });
+  }
+  t.true(
+    (await t.context.models.copilotWorkspaceByokConfig.get(original.id))
+      ?.enabled
+  );
+  t.is(profile?.modelDefinitions?.[0].backendKind, 'openai_chat');
+  t.is(
+    (profile?.config as { apiStyle?: string })?.apiStyle,
+    'chat_completions'
   );
 });

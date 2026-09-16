@@ -5966,6 +5966,7 @@ type ProjectAiModelType {
 
 type ProjectByokAuditEventType {
   actorId: String!
+  apiStyle: String
   createdAt: DateTime!
   credentialChanged: Boolean!
   enabled: Boolean!
@@ -5977,6 +5978,7 @@ type ProjectByokAuditEventType {
 
 input ProjectByokConfigInput {
   apiKey: String
+  apiStyle: String
   endpoint: String
   expectedRevision: SafeInt!
   modelId: String!
@@ -5985,6 +5987,7 @@ input ProjectByokConfigInput {
 
 type ProjectByokSettingsType {
   allowedProviders: [ByokProvider!]!
+  apiStyle: String
   auditEvents: [ProjectByokAuditEventType!]!
   configured: Boolean!
   customEndpointSupported: Boolean!
@@ -6965,8 +6968,10 @@ enum SubscriptionVariant {
 
 input TestWorkspaceByokConfigInput {
   apiKey: String
+  apiStyle: String
   configId: ID
   endpoint: String
+  expectedRevision: SafeInt
   modelId: String
   provider: ByokProvider!
   storage: ByokKeyStorage!
@@ -7206,9 +7211,11 @@ input UpsertAdminAiProfileInput {
 
 input UpsertWorkspaceByokConfigInput {
   apiKey: String
+  apiStyle: String
   description: String
   enabled: Boolean
   endpoint: String
+  expectedRevision: SafeInt
   id: ID
   modelId: String
   name: String!
@@ -7326,7 +7333,9 @@ type WorkspaceByokCapabilityWarningType {
 }
 
 type WorkspaceByokKeyConfigType {
+  apiStyle: String
   capabilities: [String!]!
+  configRevision: SafeInt!
   configured: Boolean!
   description: String
   disabledReason: String

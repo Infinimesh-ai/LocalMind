@@ -23,6 +23,7 @@ type WorkspaceByokKey = {
   apiKey: string;
   endpoint?: string | null;
   modelId?: string | null;
+  apiStyle?: 'chat_completions' | 'responses' | null;
   sortOrder?: number | null;
   enabled?: boolean | null;
 };
@@ -52,12 +53,23 @@ function normalizeKey(
   if (!allowedProviders.has(key.provider)) {
     throw new Error('Unsupported BYOK provider.');
   }
+  const apiStyle = hasOwnField(key, 'apiStyle')
+    ? key.apiStyle
+    : existing?.apiStyle;
+  if (
+    apiStyle != null &&
+    (key.provider !== 'openai' ||
+      !['chat_completions', 'responses'].includes(apiStyle))
+  ) {
+    throw new Error('Invalid BYOK API protocol.');
+  }
   const apiKey = key.apiKey ?? existing?.apiKey;
   if (!key.id || !key.name || !apiKey) {
     throw new Error('Invalid BYOK key.');
   }
   return {
     id: key.id,
+    apiStyle: apiStyle ?? null,
     provider: key.provider,
     name: key.name,
     description: hasOwnField(key, 'description')

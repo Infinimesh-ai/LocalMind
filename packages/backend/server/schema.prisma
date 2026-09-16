@@ -2869,6 +2869,8 @@ model AiWorkspaceBlobEmbedding {
 }
 
 model AiWorkspaceByokConfig {
+  configRevision      Int       @default(1) @map("config_revision")
+  apiStyle            String?   @map("api_style") @db.VarChar(32)
   id                  String    @id @default(uuid()) @db.VarChar
   workspaceId         String    @map("workspace_id") @db.VarChar
   provider            String    @db.VarChar
@@ -2901,6 +2903,7 @@ model AiWorkspaceByokConfig {
 }
 
 model AiProjectByokConfig {
+  apiStyle        String?   @map("api_style") @db.VarChar(32)
   id              String    @id @default("global") @db.VarChar
   revision        Int
   provider        String    @db.VarChar(32)
@@ -2919,6 +2922,7 @@ model AiProjectByokConfig {
 }
 
 model AiProjectByokAuditEvent {
+  apiStyle          String?  @map("api_style") @db.VarChar(32)
   id                String   @id @default(uuid()) @db.VarChar
   revision          Int      @unique
   actorId           String   @map("actor_id") @db.VarChar
@@ -4190,17 +4194,17 @@ model LocalMindLogEvent {
 }
 
 model LocalMindLogPolicy {
-  id                       String   @id @default("default") @db.VarChar
-  runtimeRetentionDays     Int      @default(30) @map("runtime_retention_days")
-  failureRetentionDays     Int      @default(90) @map("failure_retention_days")
-  traceRetentionDays       Int      @default(14) @map("trace_retention_days")
-  auditRetentionDays       Int      @default(365) @map("audit_retention_days")
-  spoolMaxBytes            BigInt   @default(52428800) @map("spool_max_bytes")
-  legalHold                Boolean  @default(false) @map("legal_hold")
-  retentionFrozen          Boolean  @default(false) @map("retention_frozen")
+  id                       String    @id @default("default") @db.VarChar
+  runtimeRetentionDays     Int       @default(30) @map("runtime_retention_days")
+  failureRetentionDays     Int       @default(90) @map("failure_retention_days")
+  traceRetentionDays       Int       @default(14) @map("trace_retention_days")
+  auditRetentionDays       Int       @default(365) @map("audit_retention_days")
+  spoolMaxBytes            BigInt    @default(52428800) @map("spool_max_bytes")
+  legalHold                Boolean   @default(false) @map("legal_hold")
+  retentionFrozen          Boolean   @default(false) @map("retention_frozen")
   frozenAt                 DateTime? @map("frozen_at") @db.Timestamptz(3)
-  externalTelemetryEnabled Boolean  @default(false) @map("external_telemetry_enabled")
-  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  externalTelemetryEnabled Boolean   @default(false) @map("external_telemetry_enabled")
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("localmind_log_policies")
 }

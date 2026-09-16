@@ -6,6 +6,10 @@ import {
   UserFriendlyError,
 } from '../../../base';
 import {
+  type ByokApiStyle,
+  resolveByokApiStyle,
+} from '../../../models/copilot-byok-protocol';
+import {
   type LlmBackendConfig,
   llmResolveRequestIntentOptions,
 } from '../../../native';
@@ -35,6 +39,7 @@ export type OpenAIConfig = {
   apiKey: string;
   baseURL?: string;
   oldApiStyle?: boolean;
+  apiStyle?: ByokApiStyle | null;
 };
 
 export type OpenAICompatibleConfig = {
@@ -185,7 +190,11 @@ export class OpenAIProvider extends OpenAIBaseProvider<OpenAIConfig> {
   readonly type = CopilotProviderType.OpenAI;
 
   protected resolveModelBackendKind(execution?: CopilotProviderExecution) {
-    return this.getConfig(execution).oldApiStyle
+    const config = this.getConfig(execution);
+    return resolveByokApiStyle(
+      'openai',
+      config.apiStyle ?? (config.oldApiStyle ? 'chat_completions' : null)
+    ) === 'chat_completions'
       ? ('openai_chat' as const)
       : ('openai_responses' as const);
   }

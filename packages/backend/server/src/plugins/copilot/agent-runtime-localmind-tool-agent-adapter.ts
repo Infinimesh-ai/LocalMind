@@ -66,7 +66,7 @@ const LOCALMIND_TOOL_AGENT_REQUEST_V3_VERSION =
 const LOCALMIND_TOOL_AGENT_REQUEST_V4_VERSION =
   'localmind-tool-agent-request/v4';
 const LOCALMIND_TOOL_AGENT_REQUEST_CURRENT_VERSION =
-  'localmind-tool-agent-request/v6';
+  'localmind-tool-agent-request/v7';
 const LOCALMIND_TOOL_AGENT_V1_AI_TOOLS = [
   'blobRead',
   'codeArtifact',
