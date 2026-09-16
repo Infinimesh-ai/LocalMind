@@ -12,6 +12,7 @@ import {
   DocReader,
   DocumentDestinationService,
   DocWriter,
+  WorkspaceOrganizationService,
 } from '../../core/doc';
 import { PermissionAccess } from '../../core/permission';
 import { Models, WorkspaceMemberStatus, WorkspaceRole } from '../../models';
@@ -904,20 +905,36 @@ test('delegated document creation stores its document without a location confirm
 });
 
 test('LocalMind tool agent creates a document and returns a sanitized task artifact', async t => {
-  const { credentials, db, owner, runtime, worker } = t.context;
+  const { auth, credentials, db, owner, runtime, worker } = t.context;
+  const member = await auth.signUp(
+    `mcp-placement-member-${randomUUID()}@affine.pro`,
+    '123456'
+  );
   const { docId: sourceDocId, workspaceId } = await createDocument(
     t.context,
     owner.id,
-    'Source content for the delegated summary.'
+    'Source content for the delegated summary.',
+    member.id
   );
-  const placedDocument = await t.context
-    .app!.get(DocWriter)
-    .createDoc(
-      workspaceId,
-      'Folder placement source',
-      'Readable folder placement content.',
-      owner.id
-    );
+  const organization = t.context.app!.get(WorkspaceOrganizationService);
+  await organization.applyDataOperations(
+    workspaceId,
+    owner.id,
+    owner.id,
+    'folders',
+    [
+      {
+        op: 'upsert',
+        key: 'folder-1',
+        values: {
+          type: 'folder',
+          parentId: null,
+          data: 'Daily logs',
+          index: 'a0',
+        },
+      },
+    ]
+  );
   const issued = await credentials.create({
     userId: owner.id,
     workspaceId,
@@ -946,67 +963,71 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       t.is(options.workspace, workspaceId);
       t.truthy(options.signal);
       t.deepEqual(options.tools, [...LOCALMIND_DELEGATION_AI_TOOLS]);
-      const createDoc = buildDocCreateHandler(
-        t.context.app!.get(PermissionAccess),
-        t.context.app!.get(DocWriter)
+      const tools = await t.context
+        .app!.get(ToolRuntime)
+        .getTools(options, 'delegated-placement-fixture');
+      if (
+        !options.taskId ||
+        !options.session ||
+        !options.user ||
+        !options.workspace ||
+        !options.delegatedExecution
+      ) {
+        throw new Error('Delegated execution fixture is incomplete');
+      }
+      t.false(
+        await t.context.models.copilotMcpDelegation.canPlaceDocumentCreatedByCurrentToolLease(
+          {
+            requestId: options.taskId,
+            sessionId: options.session,
+            workspaceId: options.workspace,
+            actorId: options.user,
+            documentId: sourceDocId,
+            ...options.delegatedExecution,
+          }
+        )
       );
-      const created = (await createDoc(
-        options,
-        '8.16日志',
-        'A concise summary created by the LocalMind tool agent.'
-      )) as { docId: string; idempotentReplay: boolean };
-      const replayed = (await createDoc(
-        options,
-        '8.16日志',
-        'A concise summary created by the LocalMind tool agent.'
-      )) as { docId: string; idempotentReplay: boolean };
-      t.is(replayed.docId, created.docId);
-      t.false(created.idempotentReplay);
-      t.true(replayed.idempotentReplay);
-      createdDocumentId = created.docId;
+      const createArgs = {
+        title: '8.16日志',
+        content: 'A concise summary created by the LocalMind tool agent.',
+        add_to_project: false,
+      };
+      const created = (await tools.doc_create.execute!(createArgs, {
+        toolCallId: 'create-doc-call',
+        signal: options.signal,
+      })) as Record<string, unknown>;
+      t.true(created.documentCreated);
+      createdDocumentId = String(created.documentId);
       yield {
         type: 'tool-call',
         toolCallId: 'create-doc-call',
         toolName: 'doc_create',
-        args: {
-          title: '8.16日志',
-          content: 'A concise summary created by the LocalMind tool agent.',
-        },
+        args: createArgs,
       };
       yield {
         type: 'tool-result',
         toolCallId: 'create-doc-call',
         toolName: 'doc_create',
-        args: {
-          title: '8.16日志',
-          content: 'A concise summary created by the LocalMind tool agent.',
-        },
-        result: {
-          success: true,
-          docId: created.docId,
-          message: 'Document created successfully',
-        },
+        args: createArgs,
+        result: created,
       };
+      const placementArgs = {
+        folder_id: 'folder-1',
+        document_id: createdDocumentId,
+      };
+      const placed = await tools.workspace_folder_add_document.execute!(
+        placementArgs,
+        {
+          toolCallId: 'add-folder-document-call',
+          signal: options.signal,
+        }
+      );
       yield {
         type: 'tool-result',
         toolCallId: 'add-folder-document-call',
         toolName: 'workspace_folder_add_document',
-        args: {
-          folder_id: 'folder-1',
-          document_id: placedDocument.docId,
-        },
-        result: {
-          success: true,
-          folderId: 'folder-1',
-          documentId: placedDocument.docId,
-          placementId: 'placement-1',
-          idempotentReplay: false,
-          workspaceEffect: {
-            kind: 'workspace_organization',
-            operation: 'add_document',
-            folderId: 'folder-1',
-          },
-        },
+        args: placementArgs,
+        result: placed,
       };
       yield {
         type: 'tool-result',
@@ -1025,7 +1046,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
 
   const delegated = await delegate(t.context, issued.token, {
     request:
-      'Summarize the supplied document, create 8.16日志, and write the summary into it.',
+      'Summarize the supplied document, create 8.16日志, write the summary into it, and place it in the Daily logs folder.',
     documentIds: [sourceDocId],
     idempotencyKey: 'tool-agent-create-document',
   });
@@ -1076,7 +1097,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
   t.like(task.result.toolExecutions[1], {
     toolName: 'workspace_folder_add_document',
     status: 'completed',
-    documentId: placedDocument.docId,
+    documentId: createdDocumentId,
     workspaceEffect: {
       kind: 'workspace_organization',
       operation: 'add_document',
@@ -1109,7 +1130,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
       { toolName: 'doc_create' },
       {
         toolName: 'workspace_folder_add_document',
-        documentId: placedDocument.docId,
+        documentId: createdDocumentId,
         workspaceEffect: {
           kind: 'workspace_organization',
           operation: 'add_document',
@@ -1123,6 +1144,31 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     .app!.get(DocReader)
     .getDocMarkdown(workspaceId, createdDocumentId, true);
   t.true(markdown?.markdown.includes('A concise summary created by'));
+  t.deepEqual(
+    await organization.documentLocations(workspaceId, owner.id, [
+      createdDocumentId,
+    ]),
+    [{ docId: createdDocumentId, folderId: 'folder-1' }]
+  );
+  const delegationRecord = await db.aiMcpDelegationRequest.findUniqueOrThrow({
+    where: { id: String(delegated.taskId) },
+  });
+  if (!delegationRecord.executionSessionId) {
+    throw new Error('Delegated execution session is missing');
+  }
+  const placementAudits = await db.aiSharedWriteSourceCheck.findMany({
+    where: {
+      sessionId: delegationRecord.executionSessionId,
+      sinkType: 'tool_write',
+    },
+  });
+  t.true(
+    placementAudits.some(
+      audit =>
+        audit.allowed === false &&
+        audit.reasonCode === 'waived_server_resolved_destination'
+    )
+  );
   t.is(await db.aiMcpDelegationCallbackDelivery.count(), 0);
 });
 

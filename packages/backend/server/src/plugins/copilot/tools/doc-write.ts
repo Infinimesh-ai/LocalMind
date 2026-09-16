@@ -123,7 +123,7 @@ export const createDocCreateRequestTool = (
 ) =>
   defineTool({
     description: documentOperations
-      ? 'Create and save a new document in the current workspace immediately. It is stored at the workspace root unless the user named a target folder. The returned documentId is persisted; report the real result instead of asking the user to confirm a location. Never use a document or folder as a substitute for creating a Project.'
+      ? 'Create and save a new document in the current workspace immediately. It is stored at the workspace root unless the user named a target folder. When the user named a target folder, first resolve that folder and pass its folder_id to this call; do not create at the root and place it afterward. The returned documentId is persisted; report the real result instead of asking the user to confirm a location. Never use a document or folder as a substitute for creating a Project.'
       : 'Prepare a new document for the user to choose its storage workspace and explicit root or folder. This does not create a document. Report waiting for location selection until a persisted operation result confirms creation. Never use a document or folder as a substitute for creating a Project.',
     inputSchema: z
       .object({

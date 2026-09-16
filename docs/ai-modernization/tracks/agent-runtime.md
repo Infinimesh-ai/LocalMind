@@ -36,6 +36,15 @@ actual destination Workspace. Recovered tool receipts use structured nonempty
 message content so native prompt projection retains prior execution results.
 The real Redis and browser notification fault matrix also passed.
 
+Delegated document placement now keeps the same source boundary when a tool
+agent does not use the preferred atomic `doc_create(folder_id)` path. The
+workspace-folder tool may record the server-resolved destination waiver only
+when the current leased MCP task has a completed, persisted `doc_create`
+receipt for that exact document, actor and Workspace. Existing documents,
+other tasks and stale leases continue through the enforcing source check. The
+fallback therefore completes the named-folder request without another user
+confirmation while retaining a `waived_server_resolved_destination` audit row.
+
 The [Project AI Boundaries](project-ai-boundaries.md) contract adds
 durable document creation/copy operations with explicit storage destinations,
 stable destination IDs, conditional leases and separate creation/project-add

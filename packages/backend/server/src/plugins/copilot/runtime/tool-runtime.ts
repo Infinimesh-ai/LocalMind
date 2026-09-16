@@ -442,7 +442,24 @@ export class ToolRuntime {
               this.ac,
               this.permission,
               this.workspaceOrganization,
-              options
+              options,
+              options.taskId &&
+                options.session &&
+                options.user &&
+                options.workspace &&
+                options.delegatedExecution
+                ? documentId =>
+                    this.models.copilotMcpDelegation.canPlaceDocumentCreatedByCurrentToolLease(
+                      {
+                        requestId: options.taskId as string,
+                        sessionId: options.session as string,
+                        workspaceId: options.workspace as string,
+                        actorId: options.user as string,
+                        documentId,
+                        ...options.delegatedExecution,
+                      }
+                    )
+                : undefined
             )
           );
           break;

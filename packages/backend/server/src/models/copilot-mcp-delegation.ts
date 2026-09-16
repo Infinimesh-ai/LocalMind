@@ -77,6 +77,12 @@ export type CreateMcpAttachmentInput = {
   contentFingerprint: string;
 };
 
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 @Injectable()
 export class CopilotMcpDelegationModel extends BaseModel {
   listToolCalls(requestId: string) {
@@ -116,6 +122,39 @@ export class CopilotMcpDelegationModel extends BaseModel {
     )
       throw new Error('Delegated tool execution lease is unavailable');
     return request;
+  }
+
+  async canPlaceDocumentCreatedByCurrentToolLease(input: {
+    requestId: string;
+    sessionId: string;
+    runId: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+    workspaceId: string;
+    actorId: string;
+    documentId: string;
+  }) {
+    const request = await this.assertToolLease(input);
+    if (
+      request.workspaceId !== input.workspaceId ||
+      request.actorId !== input.actorId
+    ) {
+      return false;
+    }
+    const calls = await this.listToolCalls(request.id);
+    return calls.some(call => {
+      if (call.toolName !== 'doc_create' || !call.completedAt) return false;
+      const result = objectValue(objectValue(call.result).value);
+      if (result.type === 'error' || result.documentCreated === false)
+        return false;
+      const documentId = result.documentId ?? result.docId;
+      const workspaceId = result.workspaceId;
+      return (
+        documentId === input.documentId &&
+        (result.documentCreated === true || result.success === true) &&
+        (workspaceId === undefined || workspaceId === input.workspaceId)
+      );
+    });
   }
 
   @Transactional()

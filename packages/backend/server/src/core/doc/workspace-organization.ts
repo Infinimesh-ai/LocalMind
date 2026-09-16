@@ -664,7 +664,12 @@ export class WorkspaceOrganizationService {
   ) {}
 
   async withAiSourceCheck<T>(
-    input: { workspaceId: string; actorId: string; sessionId?: string | null },
+    input: {
+      workspaceId: string;
+      actorId: string;
+      sessionId?: string | null;
+      policy?: 'enforce' | 'record';
+    },
     operation: () => Promise<T>
   ) {
     return await this.writer.withDeferredBroadcasts(() =>

@@ -26,6 +26,7 @@ function createOrganization(input?: {
   deletedDocumentIds?: string[];
   failPermanentDeleteOnceFor?: Set<string>;
   orphanDocumentIds?: string[];
+  sourceChecks?: Array<Record<string, unknown>>;
 }) {
   const docs = new Map<string, Y.Doc>([['workspace-1', rootFixture()]]);
   for (const docId of input?.orphanDocumentIds ?? []) {
@@ -74,9 +75,12 @@ function createOrganization(input?: {
     {
       copilotContext: {
         withDocumentSourcesShared: async (
-          _input: unknown,
+          sourceCheck: Record<string, unknown>,
           operation: () => Promise<unknown>
-        ) => await operation(),
+        ) => {
+          input?.sourceChecks?.push(sourceCheck);
+          return await operation();
+        },
       },
       workspaceDirectoryGrant: {
         snapshot: async () => directoryPolicySnapshot('actor', []),
@@ -136,13 +140,15 @@ function createPermissions(input?: {
 function tools(
   organization: WorkspaceOrganizationService,
   permissions = createPermissions(),
-  options: Record<string, unknown> = { legacyWorkspaceFolderDelete: true }
+  options: Record<string, unknown> = { legacyWorkspaceFolderDelete: true },
+  canPlaceDelegatedCreatedDocument?: (documentId: string) => Promise<boolean>
 ) {
   return createWorkspaceOrganizationTools(
     permissions.ac as never,
     permissions.permission as never,
     organization,
-    { user: 'user-1', workspace: 'workspace-1', ...options }
+    { user: 'user-1', workspace: 'workspace-1', ...options },
+    canPlaceDelegatedCreatedDocument
   );
 }
 
@@ -311,6 +317,37 @@ test('workspace folder tools manage folder trees and document placements safely'
     ['Projects']
   );
   t.deepEqual(afterDelete.documents, []);
+});
+
+test('delegated placement records a source waiver only for a document attested by the host', async t => {
+  const sourceChecks: Array<Record<string, unknown>> = [];
+  const organization = createOrganization({ sourceChecks });
+  const toolSet = tools(
+    organization,
+    createPermissions({ readableDocumentIds: ['doc-1', 'doc-2'] }),
+    {},
+    async documentId => documentId === 'doc-1'
+  );
+  const folder = await run(toolSet, 'workspace_folder_create', {
+    name: 'Delegated',
+    parent_folder_id: null,
+  });
+  sourceChecks.length = 0;
+
+  const createdByTask = await run(toolSet, 'workspace_folder_add_document', {
+    folder_id: folder.folderId,
+    document_id: 'doc-1',
+  });
+  t.true(createdByTask.success);
+  t.is(sourceChecks[0].policy, 'record');
+
+  sourceChecks.length = 0;
+  const existingDocument = await run(toolSet, 'workspace_folder_add_document', {
+    folder_id: folder.folderId,
+    document_id: 'doc-2',
+  });
+  t.true(existingDocument.success);
+  t.is(sourceChecks[0].policy, 'enforce');
 });
 
 test('workspace folder tools enforce organization ACLs', async t => {

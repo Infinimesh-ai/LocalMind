@@ -113,6 +113,15 @@ and rejects withdrawn operations or revoked credentials. Office command/batch
 writes and directory mutations enforce the source check through persistence;
 transactional tool writes defer document broadcasts until commit.
 
+The delegated folder-placement compatibility path is also evidence-bound. The
+tool agent is instructed to resolve a user-named folder before creation and use
+`doc_create(folder_id)` atomically. If it instead creates at the Workspace root,
+`workspace_folder_add_document` can use the recorded server-resolved waiver
+only for the exact document proven by a completed `doc_create` checkpoint from
+the same active MCP request, lease, actor and Workspace. All existing-document
+placements remain enforcing, and the fallback writes the normal source-check
+audit rather than silently bypassing it or requesting manual confirmation.
+
 Real Chrome verified human approve/reject second confirmation, rejection reason,
 duplicate handling, withdrawal, expiry, offline reconnection, reviewer/admin
 changes, revocation and applicant results using isolated documents. Notification

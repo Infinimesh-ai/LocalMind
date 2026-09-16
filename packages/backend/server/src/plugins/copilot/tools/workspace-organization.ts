@@ -180,7 +180,8 @@ export function createWorkspaceOrganizationTools(
   ac: PermissionAccess,
   permission: PermissionService,
   organization: WorkspaceOrganizationService,
-  options: NonNullable<CopilotChatOptions>
+  options: NonNullable<CopilotChatOptions>,
+  canPlaceDelegatedCreatedDocument?: (documentId: string) => Promise<boolean>
 ): CopilotToolSet {
   const context = () => {
     if (!options?.user || !options.workspace) {
@@ -275,7 +276,11 @@ export function createWorkspaceOrganizationTools(
     );
   };
 
-  const execute = async <T>(name: string, operation: () => Promise<T>) => {
+  const execute = async <T>(
+    name: string,
+    operation: () => Promise<T>,
+    sourcePolicy?: () => Promise<'enforce' | 'record'>
+  ) => {
     try {
       return name === 'list'
         ? await operation()
@@ -284,6 +289,7 @@ export function createWorkspaceOrganizationTools(
               workspaceId: context().workspaceId,
               actorId: context().userId,
               sessionId: options.session,
+              policy: sourcePolicy ? await sourcePolicy() : 'enforce',
             },
             operation
           );
@@ -921,49 +927,57 @@ export function createWorkspaceOrganizationTools(
         })
         .strict(),
       execute: async ({ folder_id, document_id }) =>
-        execute('add document', async () => {
-          await assertWrite();
-          await assertReadableDocument(document_id);
-          const { nodes } = await readOrganization();
-          requireFolder(nodes, folder_id);
-          const existing = nodes.find(
-            node =>
-              node.type === 'doc' &&
-              node.parentId === folder_id &&
-              node.data === document_id
-          );
-          if (existing) {
+        execute(
+          'add document',
+          async () => {
+            await assertWrite();
+            await assertReadableDocument(document_id);
+            const { nodes } = await readOrganization();
+            requireFolder(nodes, folder_id);
+            const existing = nodes.find(
+              node =>
+                node.type === 'doc' &&
+                node.parentId === folder_id &&
+                node.data === document_id
+            );
+            if (existing) {
+              return {
+                success: true,
+                placementId: existing.id,
+                documentId: document_id,
+                folderId: folder_id,
+                idempotentReplay: true,
+                workspaceEffect: workspaceEffect('add_document', folder_id),
+              };
+            }
+            const placementId = nanoid();
+            await apply([
+              {
+                op: 'upsert',
+                key: placementId,
+                values: {
+                  parentId: folder_id,
+                  type: 'doc',
+                  data: document_id,
+                  index: nextIndex(nodes, folder_id),
+                },
+              },
+            ]);
             return {
               success: true,
-              placementId: existing.id,
+              placementId,
               documentId: document_id,
               folderId: folder_id,
-              idempotentReplay: true,
+              idempotentReplay: false,
               workspaceEffect: workspaceEffect('add_document', folder_id),
             };
-          }
-          const placementId = nanoid();
-          await apply([
-            {
-              op: 'upsert',
-              key: placementId,
-              values: {
-                parentId: folder_id,
-                type: 'doc',
-                data: document_id,
-                index: nextIndex(nodes, folder_id),
-              },
-            },
-          ]);
-          return {
-            success: true,
-            placementId,
-            documentId: document_id,
-            folderId: folder_id,
-            idempotentReplay: false,
-            workspaceEffect: workspaceEffect('add_document', folder_id),
-          };
-        }),
+          },
+          async () =>
+            canPlaceDelegatedCreatedDocument &&
+            (await canPlaceDelegatedCreatedDocument(document_id))
+              ? 'record'
+              : 'enforce'
+        ),
     }),
 
     workspace_folder_move_document: defineTool({
