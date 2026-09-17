@@ -1,10 +1,12 @@
 # LocalMind MCP 中文指南
 
-LocalMind 对外暴露绑定工作区的 AI 委托接口。调用方把完整的自然语言任务交给
-`delegate_to_localmind`，LocalMind 内置 AI 负责规划，并通过 LocalMind 自己的
-Agent Runtime 执行已支持的操作。本地文件与委托任务在同一次调用中提交，一个只读
-工具用于在异步返回或回调后核对持久化任务状态，另一个控制工具用于取消尚未结束的
-任务。
+LocalMind 在同一个工作区 MCP 接口提供直接资源工具和 AI 委托工具。调用方已经准备好的
+Markdown 和明确的文档/目录操作可直接持久化，不调用模型，不依赖 BYOK，不创建 AI 会话、
+AgentRun 或回调。明确委托给 LocalMind AI 的理解、生成和多步骤任务继续通过原有运行时执行。
+
+新增 10 个直接工具需管理员启用 `LOCALMIND_MCP_RESOURCES_ENABLED=true`（默认关闭），
+并在凭证中明确授权。原有 3 个委托工具和旧凭证默认能力不变。关闭直接功能后，已授权的
+`workspace_operation_get` 仍可用于核对历史回执。
 
 精确参数与回调协议见 [LocalMind MCP 工具参考](./localmind-mcp-tools.md)。
 
@@ -16,17 +18,18 @@ Agent Runtime 执行已支持的操作。本地文件与委托任务在同一次
 | 方法   | `POST`                                                   |
 | 传输   | 无状态 Streamable HTTP，JSON 响应                        |
 | 鉴权   | `Authorization: Bearer <MCP_TOKEN>`                      |
-| 服务   | `localmind-ai` / `3.4.0`                                 |
-| 工具   | 委托、任务查询和仅取消任务的控制工具                     |
+| 服务   | `localmind-ai` / `3.5.0`                                 |
+| 工具   | 10 个直接资源工具 + 3 个 AI 委托工具（按授权与开关发现） |
 
 Token 和地址绑定一个工作区，不能跨工作区使用。
 
 ## 创建凭据
 
 1. 进入“工作区设置 > 集成 > MCP Server”。
-2. 创建凭据并选择允许调用的三个 AI 工具：`delegate_to_localmind`、
-   `get_localmind_task` 和 `control_localmind_task`。
-3. 需要委托、核对和取消完整流程时，授予全部三个工具权限。
+2. 在“直接资源工具”和“AI 委托工具”两组中独立选择允许的工具。默认仍只选择原有
+   3 个委托能力；既有凭证和轮换凭证不会自动增加资源权限。
+3. 勾选直接写工具时，建议同时选中 `workspace_operation_get`，便于核对不确定结果；
+   界面只提示，不会自动勾选。资源能力还需实例管理员启用对应功能。
 4. 可选填写调用方的结果通知地址，用于接收任务终态通知。
 5. 把只显示一次的 MCP Token，以及配置通知时生成的回调签名密钥放进调用方的
    secret 存储。
@@ -70,22 +73,42 @@ MCP 客户端的普通对话与原生工作流。对于已经明确交给 LocalM
    也不要新建或猜测任务 ID。
 2. 如果用户明确要求停止或取消一个未完成的已有任务，使用已知 `taskId` 直接调用
    `control_localmind_task`。不要先调用委托工具。
-3. 其余所有要求 LocalMind 回答或执行的请求都属于委托，包括要求继续完成实际工作的
-   追问、补充修改、继续执行和重试。LocalMind 请求可以包括问答、文档读取/搜索/新建/
-   更新/改名、总结、网页研究和多步骤工作。
-4. 委托请求包含本地文件时，直接把文件放入 `delegate_to_localmind` 的
-   `attachments`。`attachmentIds` 只用于复用同一凭据家族此前委托返回的附件。
-5. 最后通过 `delegate_to_localmind` 提交完整请求。
+3. 查询直接写入结果时，使用 `operationId` 调用 `workspace_operation_get`。
+4. 已整理好的内容和明确资源操作调用已授权的 `workspace_*` 直接工具；需要 LocalMind AI
+   理解、生成、组合执行，或用户明确委托时，调用 `delegate_to_localmind`。
+5. 委托请求中的本地文件放入 `attachments`；`attachmentIds` 仅复用同族历史委托附件。
 
-调用方不应寻找 `doc_create`、`doc_read` 等低层公开工具：它们是 LocalMind AI 内部
-使用的 AI Chat 工具。`taskId` 是任务标识，不是文档 ID；`documentIds` 只能填写已知
-的现有文档 ID，不能填写文档标题。
+仅使用实际发现的工具。权限失败、版本冲突或内容不支持时，不能改用 delegate 绕过失败。
+`operationId`、`taskId`、`documentId`、`folderId` 不可混用；标题和路径不能代替 ID。
+网络超时或断连后，使用原幂等键和原参数重试，或查询操作，不能换键盲目重做。
+
+## 直接资源操作
+
+- 文档：列表、关键词搜索、完整 Markdown 读取、创建、正文替换、标题更新。
+- 目录：逐层列表、创建、移动文档到唯一目录或根目录。
+- 回执：同 actor/工作区/凭证族的只读查询，仍检查结果资源的当前读取权。
+- 5 个写工具都要求 `idempotencyKey`。正文/标题更新要求读取返回的 `expectedVersion`；
+  创建目录和移动文档要求目录列表返回的 `expectedDirectoryVersion`。
+- 正文上限为 1 MiB UTF-8；空正文合法。当前安全往返范围包含普通段落、标题、列表、
+  常见强调和链接。代码块、表格、图片、嵌入和其他不能无损往返的结构拒绝替换；可读取的
+  不支持结构返回 `contentWritable: false`。读取不会静默截断正文。
+- 创建时的 `folderId` 与正文、根注册、业务标识和成功回执原子提交，失败不会留下未归档文档。
+- 可选 `externalId` 在工作区和凭证族内唯一；不同键重复创建返回冲突，不按标题合并。
+  轮换保持命名空间；回收站及永久删除保留绑定/墓碑，防止悄悄重建。
+- 搜索可能受索引延迟或有界扫描限制，检查 `partial`、`coverage`、`reason`；零结果不等于不存在。
+
+返回值位于 `structuredContent.result`，包含契约版本 `localmind-resource-mcp/v1`。
+写回执区分 `writeOutcome: none | committed | unknown`；`processing/needs_reconciliation`
+须继续核对。原子事务提交后的通知和合并任务通过 outbox 重试，不能把成功回执改成失败。
+完整输入、错误码和示例见[工具参考](localmind-mcp-tools.md#direct-resource-tools)。
 
 ## 权限模型
 
-任务创建时会保存 MCP 凭据所选公开工具权限的快照。这个快照是任务固定的最大权限。轮换
+直接操作要求实时 Workspace/Doc/目录 ACL，不要求 `Workspace.Copilot`，常规容量限制与限流继续有效。
+
+AI 任务创建时仅保存凭据与原有 3 个委托能力交集的快照。这个快照是任务固定的最大权限。轮换
 会保留凭据家族、工具权限和回调配置；吊销整个家族、禁用用户或到期都会阻止已排队的
-任务执行。旧资源 capability 模型签发的凭据会在迁移时统一吊销，必须重新创建。
+任务执行。本次扩展不会吊销、扩权或重建既有凭据，也不退役在途委托任务。历史旧契约的退役迁移不在本次重复执行。
 
 工具 Agent 任务还会保存创建时实际可用的内部工具名称和输入 Schema fingerprint。
 Enterprise 与 SparkClaw 聚合工具还会冻结具体连接、provider、工具、风险和确认要求。

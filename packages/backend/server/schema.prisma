@@ -33,6 +33,7 @@ model User {
   // Invite others to join the workspace
   connectedAccounts                         ConnectedAccount[]
   calendarAccounts                          CalendarAccount[]
+  mcpResourceOperations                     McpResourceOperation[]
   mcpCredentials                            McpCredential[]
   aiMcpAttachments                          AiMcpAttachment[]                      @relation("mcp_attachment_actor")
   mcpDelegationEndpoints                    AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_user")
@@ -287,6 +288,8 @@ model Workspace {
   accessRequests                        AccessRequest[]                        @relation("access_request_workspace")
   aiContextRules                        AiContextRule[]                        @relation("context_rule_workspace")
   aiContextPolicies                     AiContextPolicy[]                      @relation("context_policy_workspace")
+  mcpResourceOperations                 McpResourceOperation[]
+  docOutbox                             WorkspaceDocOutbox[]
   mcpCredentials                        McpCredential[]
   aiMcpAttachments                      AiMcpAttachment[]                      @relation("mcp_attachment_workspace")
   mcpDelegationEndpoints                AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_workspace")
@@ -3609,6 +3612,9 @@ model McpCredential {
   attachments        AiMcpAttachment[]        @relation("mcp_attachment_credential")
   delegationRequests AiMcpDelegationRequest[] @relation("mcp_delegation_request_credential")
 
+  resourceOperations McpResourceOperation[]
+
+  @@unique([id, familyId, userId, workspaceId])
   @@unique([familyId, generation])
   @@index([userId, workspaceId])
   @@index([expiresAt])
@@ -4244,4 +4250,79 @@ model LocalMindAuditEnvelope {
   @@index([projectId, occurredAt])
   @@index([eventId])
   @@map("localmind_audit_envelopes")
+}
+
+// Direct MCP identities survive document deletion; the binding is a tombstone,
+// never a cascading FK to mutable document content.
+model McpResourceOperation {
+  id                 String                        @id @default(uuid()) @db.VarChar
+  contractVersion    String                        @map("contract_version") @db.VarChar(64)
+  workspaceId        String                        @map("workspace_id") @db.VarChar
+  actorId            String                        @map("actor_id") @db.VarChar
+  credentialFamilyId String                        @map("credential_family_id") @db.VarChar
+  credentialId       String                        @map("credential_id") @db.VarChar
+  toolName           String                        @map("tool_name") @db.VarChar(64)
+  idempotencyKey     String                        @map("idempotency_key") @db.VarChar(256)
+  requestFingerprint String                        @map("request_fingerprint") @db.VarChar(64)
+  documentId         String?                       @map("document_id") @db.VarChar
+  folderId           String?                       @map("folder_id") @db.VarChar
+  parentId           String?                       @map("parent_id") @db.VarChar
+  status             String                        @default("processing") @db.VarChar(32)
+  result             Json?
+  errorCode          String?                       @map("error_code") @db.VarChar(64)
+  createdAt          DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt        DateTime?                     @map("completed_at") @db.Timestamptz(3)
+  workspace          Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor              User                          @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  credential         McpCredential                 @relation(fields: [credentialId, credentialFamilyId, actorId, workspaceId], references: [id, familyId, userId, workspaceId], onDelete: NoAction)
+  events             McpResourceOperationEvent[]
+  externalDocuments  McpResourceExternalDocument[]
+
+  @@unique([workspaceId, actorId, credentialFamilyId, toolName, idempotencyKey], map: "mcp_resource_operation_identity")
+  @@unique([id, workspaceId, credentialFamilyId, documentId])
+  @@index([workspaceId, actorId, credentialFamilyId, createdAt])
+  @@map("mcp_resource_operations")
+}
+
+model McpResourceOperationEvent {
+  id          String               @id @default(uuid()) @db.VarChar
+  operationId String               @map("operation_id") @db.VarChar
+  sequence    Int
+  status      String               @db.VarChar(32)
+  errorCode   String?              @map("error_code") @db.VarChar(64)
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  operation   McpResourceOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@unique([operationId, sequence])
+  @@map("mcp_resource_operation_events")
+}
+
+model McpResourceExternalDocument {
+  workspaceId        String               @map("workspace_id") @db.VarChar
+  credentialFamilyId String               @map("credential_family_id") @db.VarChar
+  externalId         String               @map("external_id") @db.VarChar(256)
+  documentId         String               @map("document_id") @db.VarChar
+  operationId        String               @map("operation_id") @db.VarChar
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  operation          McpResourceOperation  @relation(fields: [operationId, workspaceId, credentialFamilyId, documentId], references: [id, workspaceId, credentialFamilyId, documentId], onDelete: Cascade)
+
+  @@id([workspaceId, credentialFamilyId, externalId])
+  @@index([workspaceId, documentId])
+  @@map("mcp_resource_external_documents")
+}
+
+model WorkspaceDocOutbox {
+  id          String   @id @default(uuid()) @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  docId       String   @map("doc_id") @db.VarChar
+  editorId    String?  @map("editor_id") @db.VarChar
+  update      Bytes
+  timestamp   BigInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "workspace_doc_outbox_workspace_fk")
+
+  @@index([createdAt])
+  @@map("workspace_doc_outbox")
 }

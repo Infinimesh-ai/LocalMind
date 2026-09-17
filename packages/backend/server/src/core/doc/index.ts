@@ -13,15 +13,19 @@ import { DocumentDestinationService } from './document-destination';
 import { DocEventsListener } from './event';
 import { DocStorageCronJob } from './job';
 import { DocStorageOptions } from './options';
+import { WorkspaceDocOutboxPublisher } from './outbox';
 import { DatabaseDocReader, DocReader, DocReaderProvider } from './reader';
 import { StructuredDocService } from './structured';
 import { WorkspaceOrganizationService } from './workspace-organization';
+import { WorkspaceResourceService } from './workspace-resource';
 import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
 
 @Module({
   imports: [BackendRuntimeModule, QuotaModule, PermissionModule, StorageModule],
   providers: [
     DocStorageOptions,
+    WorkspaceResourceService,
+    WorkspaceDocOutboxPublisher,
     PgWorkspaceDocStorageAdapter,
     PgUserspaceDocStorageAdapter,
     DocStorageCronJob,
@@ -35,6 +39,7 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
     DocumentDestinationService,
   ],
   exports: [
+    WorkspaceResourceService,
     DatabaseDocReader,
     DocReader,
     DocWriter,
@@ -66,3 +71,5 @@ export {
   type WorkspaceDataTable,
   type WorkspaceRootOperation,
 } from './workspace-organization';
+
+export { WorkspaceResourceService };

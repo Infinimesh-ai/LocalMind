@@ -46,3 +46,31 @@ describe('MCP capability selection', () => {
     ]);
   });
 });
+
+test('direct writes suggest receipt lookup without implicitly granting it or delegation', async () => {
+  const {
+    needsOperationQueryHint,
+    MCP_CAPABILITY_GROUPS,
+    MCP_WRITE_CAPABILITIES,
+  } = await import('./capabilities');
+  const capabilities = updateMcpCapabilities(
+    new Set(),
+    'workspace_doc_create',
+    true
+  );
+  expect([...capabilities]).toEqual(['workspace_doc_create']);
+  expect(needsOperationQueryHint(capabilities)).toBe(true);
+  expect(
+    needsOperationQueryHint(
+      updateMcpCapabilities(capabilities, 'workspace_operation_get', true)
+    )
+  ).toBe(false);
+  expect(needsOperationQueryHint(new Set(['workspace_doc_read']))).toBe(false);
+  expect(MCP_WRITE_CAPABILITIES.has('workspace_doc_read')).toBe(false);
+  expect(MCP_WRITE_CAPABILITIES.has('workspace_folder_move_document')).toBe(
+    true
+  );
+  expect(MCP_CAPABILITY_GROUPS.map(group => group.options.length)).toEqual([
+    10, 3,
+  ]);
+});

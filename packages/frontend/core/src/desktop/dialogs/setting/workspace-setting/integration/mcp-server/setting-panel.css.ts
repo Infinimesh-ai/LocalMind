@@ -285,3 +285,28 @@ globalStyle(`${modalActions} > button`, {
     '(max-width: 520px)': { minWidth: 0, flex: 1 },
   },
 });
+
+export const capabilityGroup = style({
+  border: 0,
+  padding: 0,
+  margin: 0,
+  minWidth: 0,
+});
+export const capabilityGroupTitle = style({
+  fontSize: cssVar('fontXs'),
+  fontWeight: 600,
+  color: cssVarV2('text/primary'),
+  padding: '12px 10px 4px',
+});
+
+export const capabilityCheckbox = style({
+  width: '100%',
+  gap: 8,
+  fontSize: cssVar('fontSm'),
+  color: cssVarV2('text/primary'),
+});
+globalStyle(`${capabilityCheckbox} > svg`, {
+  width: 16,
+  height: 16,
+  flexShrink: 0,
+});

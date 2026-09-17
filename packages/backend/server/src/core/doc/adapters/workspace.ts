@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { chunk } from 'lodash-es';
+import { mergeUpdates } from 'yjs';
 
 import {
   DocHistoryNotFound,
@@ -13,8 +14,10 @@ import {
 } from '../../../base';
 import { retryable } from '../../../base/utils/promise';
 import { Models } from '../../../models';
+import { DocumentReadLimitExceeded } from '../../../models/doc';
 import { applyUpdatesWithNative } from '../merge-updates';
 import { DocStorageOptions } from '../options';
+import { ResourceError } from '../resource-types';
 import type { RootDocUpdatePlan } from '../root-doc-registration';
 import {
   DocRecord,
@@ -22,6 +25,7 @@ import {
   DocUpdate,
   HistoryFilter,
 } from '../storage';
+import { workspaceDocTransaction } from '../transaction-context';
 
 declare global {
   interface Events {
@@ -53,6 +57,57 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     super(options);
   }
 
+  async withTransactionalWrites<T>(operation: () => Promise<T>) {
+    return await workspaceDocTransaction.run(
+      {
+        writable: true,
+        read: (workspaceId, docId) =>
+          this.readAuthoritative(workspaceId, docId),
+      },
+      operation
+    );
+  }
+
+  async withTransactionalReads<T>(operation: () => Promise<T>) {
+    return await workspaceDocTransaction.run(
+      {
+        writable: false,
+        read: (workspaceId, docId) =>
+          this.readAuthoritative(workspaceId, docId, false),
+      },
+      operation
+    );
+  }
+
+  private async readAuthoritative(
+    workspaceId: string,
+    docId: string,
+    lock = true
+  ) {
+    const rows = await this.models.doc
+      .readAuthoritative(workspaceId, docId, lock)
+      .catch(error => {
+        if (error instanceof DocumentReadLimitExceeded)
+          throw new ResourceError('content_too_large');
+        throw error;
+      });
+    if (!rows.length) return null;
+    const last = rows[rows.length - 1];
+    return {
+      spaceId: workspaceId,
+      docId,
+      bin: mergeUpdates(rows.map(row => row.blob)),
+      timestamp: last.timestamp.getTime(),
+      editor: last.editorId ?? undefined,
+    };
+  }
+
+  override async getDoc(workspaceId: string, docId: string) {
+    const transaction = workspaceDocTransaction.getStore();
+    if (transaction) return await transaction.read(workspaceId, docId);
+    return await super.getDoc(workspaceId, docId);
+  }
+
   async pushDocUpdates(
     workspaceId: string,
     docId: string,
@@ -61,12 +116,38 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     beforeInsert?: () => Promise<void>,
     afterInsert?: () => Promise<void>
   ) {
+    if (workspaceDocTransaction.getStore()?.writable === false)
+      throw new Error('Cannot write in a resource observation');
     if (!updates.length) {
       return 0;
     }
 
     updates = await this.filterValidDocUpdates(workspaceId, docId, updates);
     if (!updates.length) return 0;
+
+    if (workspaceDocTransaction.getStore()) {
+      const created = await this.models.doc.createUpdates(
+        updates.map(blob => ({
+          spaceId: workspaceId,
+          docId,
+          blob: Buffer.from(blob),
+          timestamp: Date.now(),
+          editorId,
+        })),
+        beforeInsert,
+        afterInsert
+      );
+      for (const [index, update] of updates.entries()) {
+        await this.models.workspaceDocOutbox.add({
+          workspaceId,
+          docId,
+          editorId,
+          update: Buffer.from(update),
+          timestamp: BigInt(created.timestamps[index]),
+        });
+      }
+      return created.timestamps[created.timestamps.length - 1];
+    }
 
     const isNewDoc = !(await this.models.doc.exists(workspaceId, docId));
 
@@ -152,6 +233,24 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     editorId?: string,
     beforeWrite?: () => Promise<void>
   ) {
+    if (workspaceDocTransaction.getStore()) {
+      const current = await this.getDoc(workspaceId, workspaceId);
+      if (!current)
+        throw new DocNotFound({ spaceId: workspaceId, docId: workspaceId });
+      const plan = build(current.bin);
+      if (this.isEmptyBin(plan.update))
+        return { update: plan.update, timestamp: current.timestamp };
+      // A direct write never replaces an invalid bootstrap root silently.
+      if (plan.replacementSnapshot) throw new FailedToSaveUpdates();
+      const timestamp = await this.pushDocUpdates(
+        workspaceId,
+        workspaceId,
+        [plan.update],
+        editorId,
+        beforeWrite
+      );
+      return { update: plan.update, timestamp };
+    }
     await using _lock = await this.lockDocForUpdate(workspaceId, workspaceId);
     const current = await this.squashPendingUpdatesToSnapshot(
       workspaceId,

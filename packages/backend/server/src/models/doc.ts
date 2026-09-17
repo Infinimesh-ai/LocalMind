@@ -45,6 +45,8 @@ export function documentContentWriteLockKey(
   return `doc:content-write:${workspaceId}:${docId}`;
 }
 
+export class DocumentReadLimitExceeded extends Error {}
+
 /**
  * Workspace Doc Model
  *
@@ -99,6 +101,31 @@ export class DocModel extends BaseModel {
   @Transactional()
   async lockContentWrite(workspaceId: string, docId: string) {
     await this.lockContentWrites([{ workspaceId, docId }]);
+  }
+
+  /** One database snapshot, including every committed update (not the merge
+   * worker's 100-row batch). The caller holds the content lock until commit. */
+  async readAuthoritative(workspaceId: string, docId: string, lock = true) {
+    if (lock) await this.lockContentWrite(workspaceId, docId);
+    const [budget] = await this.db.$queryRaw<
+      Array<{ bytes: bigint; count: bigint }>
+    >`
+      SELECT COALESCE(SUM(size), 0)::bigint AS bytes, COUNT(*)::bigint AS count FROM (
+        SELECT octet_length(blob) AS size FROM snapshots WHERE workspace_id = ${workspaceId} AND guid = ${docId}
+        UNION ALL SELECT octet_length(blob) FROM updates WHERE workspace_id = ${workspaceId} AND guid = ${docId}
+      ) inputs`;
+    if (budget.bytes > 32n * 1024n * 1024n || budget.count > 10000n)
+      throw new DocumentReadLimitExceeded();
+    return await this.db.$queryRaw<
+      Array<{ blob: Buffer; timestamp: Date; editorId: string | null }>
+    >`
+      SELECT blob, updated_at AS timestamp, updated_by AS "editorId"
+      FROM snapshots WHERE workspace_id = ${workspaceId} AND guid = ${docId}
+      UNION ALL
+      SELECT blob, created_at AS timestamp, created_by AS "editorId"
+      FROM updates WHERE workspace_id = ${workspaceId} AND guid = ${docId}
+      ORDER BY timestamp ASC
+    `;
   }
 
   private updateToDocRecord(row: Update): Doc {
@@ -370,6 +397,11 @@ export class DocModel extends BaseModel {
    */
   @Transactional()
   async delete(workspaceId: string, docId: string) {
+    await this.lockContentWrite(workspaceId, docId);
+    await this.db.mcpResourceExternalDocument.updateMany({
+      where: { workspaceId, documentId: docId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
     const ident = { where: { workspaceId, id: docId } };
     const { count: snapshots } = await this.db.snapshot.deleteMany(ident);
     const { count: updates } = await this.db.update.deleteMany(ident);

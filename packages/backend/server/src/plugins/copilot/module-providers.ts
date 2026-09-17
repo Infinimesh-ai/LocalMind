@@ -61,6 +61,7 @@ import { IntelligenceWorkbenchResolver } from './intelligence-workbench-resolver
 import { McpAttachmentService } from './mcp/attachments';
 import { McpAiDelegationService } from './mcp/delegation';
 import { WorkspaceMcpProvider } from './mcp/provider';
+import { McpResourcesService } from './mcp/resources';
 import { McpAiTaskControlService } from './mcp/task-control';
 import { McpAiTaskQueryService } from './mcp/task-query';
 import {
@@ -250,6 +251,7 @@ export const COPILOT_JOB_PROVIDERS = [
 export const COPILOT_MCP_PROVIDERS = [
   McpAiTaskQueryService,
   WorkspaceMcpProvider,
+  McpResourcesService,
 ];
 
 export const COPILOT_KERNEL_PROVIDERS = [

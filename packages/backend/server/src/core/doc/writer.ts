@@ -17,6 +17,7 @@ import {
   prepareRootDocRegistration,
   readRootDocPageIdsWithYjs,
 } from './root-doc-registration';
+import { workspaceDocTransaction } from './transaction-context';
 
 export interface CreateDocResult {
   docId: string;
@@ -507,6 +508,7 @@ export class DocWriter {
   publishDocUpdatesPushed(
     payloads: readonly WorkspaceDocUpdatesPushedPayload[]
   ) {
+    if (workspaceDocTransaction.getStore()) return; // Persisted by the storage outbox.
     const deferred = this.deferredBroadcasts.getStore();
     if (deferred) {
       deferred.push(...payloads);

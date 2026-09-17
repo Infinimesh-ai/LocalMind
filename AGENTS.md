@@ -166,6 +166,15 @@ LocalMind AI 的关键不变量：
 
 ---
 
+公开 Workspace MCP 的直接资源能力以
+`docs/ai-modernization/mcp-direct-resource-tools-design.zh-CN.md` 为产品契约；接入、参数与恢复
+流程见 `docs/localmind-mcp.md`、`docs/localmind-mcp-tools.md`。10 个直接资源工具与原有
+3 个委托工具独立授权，`LOCALMIND_MCP_RESOURCES_ENABLED` 默认关闭。直接操作不进入 AI
+运行时；文档事务、版本检查和目录操作位于 `src/core/doc/`，持久回执位于 `src/models/`。
+扩充公开能力不得扩大旧凭据或委托任务冻结快照；关闭功能仍保留已授权的回执查询。
+
+---
+
 ## 4. AI 任务必读文档
 
 AI 现代化任务按以下顺序读取：

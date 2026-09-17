@@ -394,6 +394,8 @@ export class WorkspaceMcpController {
         const tool = server.tools.find(item => item.name === params.name);
         if (!tool) {
           if (isNotification) return null;
+          const denied = server.unavailableToolResult?.(params.name);
+          if (denied) return this.successResponse(responseId, denied);
           return this.errorResponse(
             responseId,
             -32602,
@@ -401,7 +403,12 @@ export class WorkspaceMcpController {
           );
         }
 
-        const args = this.asObject(params.arguments) ?? {};
+        const args =
+          params.arguments === undefined ? {} : this.asObject(params.arguments);
+        if (!args) {
+          if (isNotification) return null;
+          return this.errorResponse(responseId, -32602, 'Invalid params');
+        }
         try {
           const result = await tool.execute(args, { signal });
           if (isNotification) return null;

@@ -3,11 +3,12 @@ import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hoo
 import type { McpCredential } from '@affine/core/modules/cloud/services/mcp-credential';
 import { copyTextToClipboard } from '@affine/core/utils/clipboard';
 import { useI18n } from '@affine/i18n';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   DEFAULT_MCP_CAPABILITIES,
-  MCP_CAPABILITY_OPTIONS,
+  MCP_CAPABILITY_GROUPS,
+  needsOperationQueryHint,
   updateMcpCapabilities,
 } from './capabilities';
 import * as styles from './setting-panel.css';
@@ -46,6 +47,7 @@ export const McpCredentialModal = ({
   );
   const [callbackUrl, setCallbackUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!mode) {
@@ -72,6 +74,8 @@ export const McpCredentialModal = ({
   );
 
   const submit = useAsyncCallback(async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       await onCreate(
@@ -81,6 +85,7 @@ export const McpCredentialModal = ({
         callbackUrl.trim() || null
       );
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }, [callbackUrl, capabilities, expirationDays, name, onCreate]);
@@ -135,30 +140,51 @@ export const McpCredentialModal = ({
                 {t['com.affine.integration.mcp-server.field.access']()}
               </span>
               <div className={styles.capabilitySelector}>
-                {MCP_CAPABILITY_OPTIONS.map(option => (
-                  <div
-                    className={styles.capabilitySelectorRow}
-                    key={option.key}
+                {MCP_CAPABILITY_GROUPS.map(group => (
+                  <fieldset
+                    key={group.key}
+                    className={styles.capabilityGroup}
+                    disabled={submitting}
                   >
-                    <span className={styles.capabilitySelectorName}>
+                    <legend className={styles.capabilityGroupTitle}>
                       {t[
-                        `com.affine.integration.mcp-server.capability.${option.key}`
+                        `com.affine.integration.mcp-server.group.${group.key}`
                       ]()}
-                    </span>
-                    <div className={styles.capabilitySelectorChecks}>
-                      <Checkbox
-                        checked={capabilities.has(option.capability)}
-                        label={t[
-                          'com.affine.integration.mcp-server.capability.allow'
-                        ]()}
-                        onChange={(_, checked) =>
-                          toggleCapability(option.capability, checked)
-                        }
-                      />
-                    </div>
-                  </div>
+                    </legend>
+                    {group.options.map(option => (
+                      <div
+                        className={styles.capabilitySelectorRow}
+                        key={option.key}
+                      >
+                        <Checkbox
+                          name={`mcp-capability-${option.capability}`}
+                          role="presentation"
+                          className={styles.capabilityCheckbox}
+                          labelClassName={styles.capabilitySelectorName}
+                          checked={capabilities.has(option.capability)}
+                          label={t[
+                            `com.affine.integration.mcp-server.capability.${option.key}`
+                          ]()}
+                          disabled={submitting}
+                          onChange={(_, checked) =>
+                            toggleCapability(option.capability, checked)
+                          }
+                        />
+                      </div>
+                    ))}
+                  </fieldset>
                 ))}
               </div>
+              <p className={styles.description}>
+                {t['com.affine.integration.mcp-server.resources-hint']()}
+              </p>
+              {needsOperationQueryHint(capabilities) && (
+                <p role="status" className={styles.warning}>
+                  {t[
+                    'com.affine.integration.mcp-server.operation-query-hint'
+                  ]()}
+                </p>
+              )}
             </div>
             <label className={styles.field}>
               <span>

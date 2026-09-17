@@ -1,6 +1,6 @@
 # LocalMind MCP Tool Reference
 
-This reference describes `localmind-ai` version `3.4.0`. `tools/list` is the
+This reference describes `localmind-ai` version `3.5.0`. `tools/list` is the
 authoritative JSON Schema source.
 
 ## Tools
@@ -26,27 +26,21 @@ matching intent first:
 2. If the user explicitly asks to stop or cancel an unfinished existing task,
    call `control_localmind_task` directly with its known `taskId`. Do not
    delegate first.
-3. Treat every other request that asks LocalMind to answer or act as a
-   delegation, including follow-ups that request additional work, revisions,
-   continuations, and retries. LocalMind requests can include questions,
-   summaries, document
-   reads/searches/creates/updates/renames, web research, attachment processing,
-   and multi-step workspace work.
-4. If the delegated request includes local files, include them directly in
-   `attachments`. Use `attachmentIds` only to reuse files returned by an
-   earlier delegation in the same credential family.
-5. Submit the complete request through `delegate_to_localmind`.
+3. Query a direct `operationId` through `workspace_operation_get`.
+4. Use granted `workspace_*` direct tools for prepared content and explicit resource
+   operations. Use `delegate_to_localmind` when interpretation, generation or a
+   multi-step task is explicitly delegated to LocalMind AI.
+5. Include delegated local files in `attachments`, or reuse prior same-family
+   delegation files through `attachmentIds`.
 
-The caller must not search for low-level tools such as `doc_create` or
-`doc_read`. Those tools are internal to LocalMind AI; the public caller submits
-the complete task through `delegate_to_localmind`, and LocalMind chooses the
-internal tools.
+Capability, permission, version, and unsupported-content failures must not be
+bypassed by switching a direct request to delegation. Discover the actual subset
+with `tools/list`. Direct `operationId` and AI `taskId` are separate identities.
 
 ### `delegate_to_localmind`
 
 Starts one complete natural-language task with LocalMind's built-in AI. This is
-the only public MCP tool that submits requests asking LocalMind to answer or
-act. Use it only for requests directed to LocalMind as defined above, never as
+the public entry for work explicitly delegated to LocalMind AI. Use it only for requests directed to LocalMind as defined above, never as
 the host agent's global request router. Do not use it for existing-task status,
 result, or cancellation requests; those route directly to
 `get_localmind_task` or `control_localmind_task`. Follow-ups that request
@@ -246,3 +240,101 @@ MCP Resources are not advertised. Protocol versions `2024-10-07`,
 `2024-11-05`, `2025-03-26`, `2025-06-18`, and `2025-11-25` are accepted.
 JSON-RPC batching is rejected for post-2025-03 versions; notifications return
 HTTP 202 when there is no response message.
+
+## Direct resource tools
+
+These ten tools use `contractVersion: "localmind-resource-mcp/v1"` and
+`structuredContent.result`. They do not invoke models, require BYOK, or create
+AI tasks. `LOCALMIND_MCP_RESOURCES_ENABLED` defaults to false; enable it after
+applying the migration. Each tool also needs its own explicit capability.
+`workspace_operation_get` stays available for authorized reconciliation when the
+flag is off. Existing credentials and default capability sets remain unchanged.
+
+| Tool                             | Input (all objects strict, camelCase)                                           | Successful result                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `workspace_doc_list`             | `folderId?`, `externalId?`, `cursor?`, `limit?`                                 | `items`, `nextCursor`; document metadata, visible locations, version, URL                             |
+| `workspace_doc_keyword_search`   | `query`, `limit?`                                                               | `items` with bounded plain-text summaries, `retrievalMode`, `partial`, `coverage`, `reason`           |
+| `workspace_doc_read`             | `documentId`                                                                    | Complete Markdown `content`, title, type, version, locations, URL, `contentWritable`, optional reason |
+| `workspace_doc_create`           | `title`, `content`, `folderId?`, `externalId?`, `idempotencyKey`                | Document/folder IDs, document/directory versions, URL                                                 |
+| `workspace_doc_update`           | `documentId`, `content`, `expectedVersion`, `idempotencyKey`                    | Document ID, visible locations, version, URL                                                          |
+| `workspace_doc_update_meta`      | `documentId`, `title`, `expectedVersion`, `idempotencyKey`                      | Document ID, visible locations, version, URL                                                          |
+| `workspace_folder_list`          | `parentId?`, `cursor?`, `limit?`                                                | `items` with folder IDs, titles and rights, `directoryVersion`, `nextCursor`                          |
+| `workspace_folder_create`        | `title`, `parentId?`, `expectedDirectoryVersion`, `idempotencyKey`              | Folder/parent IDs, directory version                                                                  |
+| `workspace_folder_move_document` | `documentId`, nullable `folderId`, `expectedDirectoryVersion`, `idempotencyKey` | Document/folder IDs, document/directory versions, URL                                                 |
+| `workspace_operation_get`        | `operationId`                                                                   | Immutable historical receipt or a read-only processing observation                                    |
+
+IDs and keys are 1–256 characters; titles are trimmed, 1–512; queries 1–128;
+versions are opaque strings up to 2048 characters. `content` is exactly
+`{ "format": "markdown", "text": "..." }` with a 1 MiB UTF-8 limit. Empty text
+is valid. All nested objects reject unknown fields, including client-supplied
+actor, workspace, source, or approval fields. The HTTP JSON limit is 32 MiB,
+allowing escaping and the wrapper around a 1 MiB body.
+
+Lists default to 50 and cap at 100; keyword search defaults to 10 and caps at 20.
+Document lists inspect at most 200 candidates per page; continue even after an
+empty page when `nextCursor` is non-null. Directory cursors bind their revision
+and fail with `cursor_stale` after a change. Cursors are encrypted/authenticated
+and bind the actor, workspace and filters; every page checks current ACL.
+Omitted document `folderId` means all readable untrashed documents; null means
+root, excluding placements hidden by directory permissions. Omitted creation
+`folderId` or `parentId` means root. Moving removes every prior placement and
+keeps exactly one target placement; null removes all placements. Any uneditable
+source placement rejects the entire move.
+
+Markdown body replacement is limited to structures verified by a lossless native
+round trip: ordinary paragraphs, headings, lists, emphasis and links. Code blocks
+currently fail that check because the native converter changes newlines. Images,
+HTML, tables, embedded blocks and unsupported structures fail closed. Reads may
+return `contentWritable: false`; oversized complete reads return `content_too_large`
+rather than truncating. Listing metadata and moving do not require a writable body.
+
+All five writes require `idempotencyKey`. Their success receipts include
+`operationId`, `toolName`, `workspaceId`, `status: "succeeded"`, `changed`,
+`replayed`, and `writeOutcome: "committed"`. A no-op preserves the version.
+Creation commits content, root registration, metadata, placement, external binding,
+receipt and outbox atomically. Versions include committed pending Yjs updates;
+compare-and-write and normal sync participate in the same content lock.
+The authoritative read budget is 32 MiB of encoded state and 10,000 input records;
+exceeding it fails closed. Root metadata is bounded to 10,000 documents.
+
+`externalId` is unique within workspace/credential family, independent of the
+idempotency key. Rotation preserves both namespaces. New keys cannot overwrite
+an existing binding. Unreadable or trashed targets return `resource_not_found`;
+permanent deletion preserves a tombstone. New credential families are independent.
+
+Domain failures set `isError: true` and return `error.code` with
+`writeOutcome: "none"`. Codes: `invalid_input`, `capability_denied`,
+`resource_not_found`, `permission_denied`, `version_conflict`,
+`directory_version_conflict`, `cursor_stale`, `idempotency_conflict`,
+`external_id_conflict`, `folder_name_conflict`, `unsupported_document_kind`,
+`unsupported_document_structure`, `content_too_large`, `quota_exceeded`,
+`rate_limited`, `operation_not_found`, `temporarily_unavailable`.
+Version conflicts may include `error.currentVersion`. Endpoint authentication,
+throttling and malformed JSON-RPC retain the existing HTTP/protocol errors.
+
+After disconnection or unknown commit outcome, reuse the original key and identical
+arguments, or query the returned operation ID. `processing/needs_reconciliation`
+means `writeOutcome: "unknown"` and includes `pollAfterMs`; it is not a failure
+or permission to create a new identity. Queries never run, cancel, or retry work.
+A process crash releases the transaction execution lock; the original request can
+safely recover an uncommitted operation. Committed receipts are replayed before
+checking the original expected version. Replay/query verifies the same actor,
+workspace and family plus current read permissions for resources and historical
+locations. Outbox delivery retries cannot rewrite a committed result.
+
+Example create arguments (IDs are placeholders):
+
+```json
+{
+  "title": "2026-09-16 工作日志",
+  "content": { "format": "markdown", "text": "## 完成\n\n- 完成测试。\n" },
+  "folderId": "folder_example",
+  "externalId": "daily-log/member-02/2026-09-16",
+  "idempotencyKey": "daily-log-member-02-20260916-create-001"
+}
+```
+
+Read with `workspace_doc_read`, then submit the complete revised content and its
+returned version to `workspace_doc_update` using a new logical request key.
+Direct tools never create Projects, import/publish Project resources, change ACL,
+delete resources, or expose internal arbitrary-tool execution.

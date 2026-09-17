@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import type { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
@@ -68,9 +70,15 @@ export type PermissionDocAction = DocAction | 'Doc.Preview';
 @Injectable()
 export class PermissionContextLoader {
   constructor(
-    private readonly db: PrismaClient,
-    private readonly cls?: ClsService
+    private readonly database: PrismaClient,
+    private readonly cls?: ClsService,
+    @Optional()
+    private readonly transactionHost?: TransactionHost<TransactionalAdapterPrisma>
   ) {}
+
+  private get db() {
+    return this.transactionHost?.tx ?? this.database;
+  }
 
   async load(input: {
     userId?: string;

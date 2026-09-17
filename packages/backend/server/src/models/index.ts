@@ -55,6 +55,7 @@ import { IscpModel } from './iscp';
 import { MagicLinkOtpModel } from './magic-link-otp';
 import { MailDeliveryModel } from './mail-delivery';
 import { McpCredentialModel } from './mcp-credential';
+import { McpResourceOperationModel } from './mcp-resource-operation';
 import { NotificationModel } from './notification';
 import { OfficeArtifactModel } from './office-artifact';
 import { OfficeCommandRequestModel } from './office-command-request';
@@ -81,6 +82,7 @@ import { WorkspaceModel } from './workspace';
 import { WorkspaceAnalyticsModel } from './workspace-analytics';
 import { WorkspaceCalendarModel } from './workspace-calendar';
 import { WorkspaceDirectoryGrantModel } from './workspace-directory-grant';
+import { WorkspaceDocOutboxModel } from './workspace-doc-outbox';
 import { WorkspaceUserModel } from './workspace-user';
 
 const MODELS = {
@@ -150,6 +152,8 @@ const MODELS = {
   commentAttachment: CommentAttachmentModel,
   blob: BlobModel,
   mcpCredential: McpCredentialModel,
+  mcpResourceOperation: McpResourceOperationModel,
+  workspaceDocOutbox: WorkspaceDocOutboxModel,
   calendarAccount: CalendarAccountModel,
   calendarSubscription: CalendarSubscriptionModel,
   calendarEvent: CalendarEventModel,

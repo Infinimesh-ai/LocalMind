@@ -24,8 +24,8 @@ import { LOCALMIND_DELEGATION_AI_TOOLS } from '../../plugins/copilot/agent-runti
 import { CopilotAgentRuntimeWorker } from '../../plugins/copilot/agent-runtime-worker';
 import { CopilotDocumentOperationService } from '../../plugins/copilot/document-operation-service';
 import {
-  MCP_CAPABILITIES,
   MCP_DELEGATE_CAPABILITY,
+  MCP_DELEGATION_CAPABILITIES,
   MCP_TASK_CONTROL_CAPABILITY,
 } from '../../plugins/copilot/mcp/capabilities';
 import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
@@ -259,7 +259,7 @@ test('credential-authorized document task runs without approval and sends a sign
     workspaceId,
     name: 'SparkClaw result notification flow',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -390,7 +390,7 @@ test('credential-authorized document task runs without approval and sends a sign
     workspaceId,
     name: 'Other task query family',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -480,7 +480,7 @@ test('task query fails closed when a delegation points at another task run', asy
     workspaceId,
     name: 'Task query linkage validation',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -549,7 +549,7 @@ test('delegated location waits without creation and resumes two distinct confirm
     workspaceId,
     name: 'Isolated location task',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   // The tool resolves its destination automatically inside the execution
@@ -813,7 +813,7 @@ test('delegated document creation stores its document without a location confirm
     workspaceId,
     name: 'Automatic location task',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -966,7 +966,7 @@ test('LocalMind tool agent creates a document and returns a sanitized task artif
     workspaceId,
     name: 'LocalMind tool agent document creation',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1198,7 +1198,7 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
     workspaceId,
     name: 'LocalMind required document update',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1330,7 +1330,7 @@ test('LocalMind tool agent fails when an explicit document update stops after re
     workspaceId,
     name: 'LocalMind missing update evidence',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1405,7 +1405,7 @@ for (const waitingLocation of [false, true]) {
       workspaceId: workspace.id,
       name: 'LocalMind document creation evidence',
       accessMode: McpAccessMode.READ_WRITE,
-      capabilities: [...MCP_CAPABILITIES],
+      capabilities: [...MCP_DELEGATION_CAPABILITIES],
       expirationDays: 30,
     });
     Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1480,7 +1480,7 @@ test('LocalMind tool agent exposes missing conditional read evidence', async t =
     workspaceId,
     name: 'LocalMind conditional document update',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1583,7 +1583,7 @@ test('LocalMind tool agent rejects required tools removed after the task snapsho
     workspaceId,
     name: 'LocalMind current tool intersection',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1637,7 +1637,7 @@ test('LocalMind tool agent records a normal stream close after timeout as failed
     workspaceId: workspace.id,
     name: 'LocalMind tool agent timeout',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1717,7 +1717,7 @@ for (const timeoutPhase of ['model', 'tool', 'lost_result'] as const) {
       workspaceId,
       name: 'Durable timeout receipts',
       accessMode: McpAccessMode.READ_WRITE,
-      capabilities: [...MCP_CAPABILITIES],
+      capabilities: [...MCP_DELEGATION_CAPABILITIES],
       expirationDays: 30,
     });
     Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -1902,7 +1902,7 @@ test('inline delegated attachment is bound to one credential family and becomes 
     workspaceId,
     name: 'LocalMind attachment processing',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const attachmentText =
@@ -2029,7 +2029,7 @@ test('inline delegated attachment is bound to one credential family and becomes 
     workspaceId,
     name: 'Other attachment credential family',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const inaccessible = await delegate(t.context, otherFamily.token, {
@@ -2087,7 +2087,7 @@ test('planner retries structured output when branch fields contain answer text',
     workspaceId: workspace.id,
     name: 'LocalMind answer field repair',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2137,7 +2137,7 @@ test('direct answers do not depend on external tool capability snapshots', async
     workspaceId: workspace.id,
     name: 'LocalMind answer without tool snapshot',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -2181,7 +2181,7 @@ test('tool snapshot exceptions persist a terminal task failure', async t => {
     workspaceId: workspace.id,
     name: 'LocalMind tool snapshot failure',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -2232,7 +2232,7 @@ test('planner retries structured output when update fields are empty', async t =
     workspaceId,
     name: 'LocalMind update field repair',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2285,7 +2285,7 @@ test('planner retries strict schema and formatted answer validation', async t =>
     workspaceId: workspace.id,
     name: 'LocalMind formatted answer repair',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2335,7 +2335,7 @@ test('planner preserves an unsupported plan without rendering its reason', async
     workspaceId: workspace.id,
     name: 'LocalMind read-only unsupported repair',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -2372,7 +2372,7 @@ test('planner preserves a valid read tool plan without an unbudgeted renderer', 
     workspaceId,
     name: 'LocalMind snapshot answer repair',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -2410,7 +2410,7 @@ test('planner retries structured output when literal Markdown differs', async t 
     workspaceId,
     name: 'LocalMind literal update repair',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2472,7 +2472,7 @@ test('literal one-document replacement requires a corrected structured plan', as
     workspaceId,
     name: 'LocalMind update kind override',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2522,7 +2522,7 @@ test('LocalMind tool agent retries a summary emitted in the reason field', async
     workspaceId: workspace.id,
     name: 'LocalMind planner field normalization',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2579,7 +2579,7 @@ test('enterprise data requests require a corrected tool agent plan', async t => 
     workspaceId: workspace.id,
     name: 'Enterprise tool routing',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2636,7 +2636,7 @@ test('SparkClaw requests require a corrected tool agent plan', async t => {
     workspaceId: workspace.id,
     name: 'SparkClaw tool routing',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue');
@@ -2723,7 +2723,7 @@ test('LocalMind tool agent rechecks credential activity before starting its tool
     workspaceId,
     name: 'Tool agent credential recheck',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -2767,7 +2767,7 @@ test('task control immediately cancels queued work and sends a cancellation noti
     workspaceId,
     name: 'Task cancellation',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -2938,7 +2938,7 @@ test('running task cancellation is cooperative and reconciles to terminal state'
     workspaceId,
     name: 'Cooperative task cancellation',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -3036,7 +3036,7 @@ test('worker rechecks credential activity before executing an authorized task', 
     workspaceId,
     name: 'Credential activity recheck',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -3091,7 +3091,7 @@ test('worker rechecks live ACL before applying the credential-authorized update'
     workspaceId,
     name: 'Worker ACL recheck',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -3144,7 +3144,7 @@ test('worker rechecks document version before applying the credential-authorized
     workspaceId,
     name: 'Worker version recheck',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -3205,7 +3205,7 @@ test('worker failures send a terminal failure notification', async t => {
     workspaceId,
     name: 'Worker failure notification',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
     callbackUrl: `${t.context.callbackOrigin}/localmind/results`,
   });
@@ -3260,7 +3260,7 @@ test('document side effects run without a result notification callback', async t
     workspaceId,
     name: 'No callback',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -3532,7 +3532,7 @@ test('planner stops after two invalid structured results without enqueuing tools
     workspaceId: workspace.id,
     name: 'Bounded planner failure',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue').resolves({
@@ -3571,7 +3571,7 @@ test('planner rechecks credential revocation before its second attempt', async t
     workspaceId: workspace.id,
     name: 'Planner revocation',
     accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
+    capabilities: [...MCP_DELEGATION_CAPABILITIES],
     expirationDays: 30,
   });
   const planner = Sinon.stub(runtime, 'generateStructuredValue').callsFake(

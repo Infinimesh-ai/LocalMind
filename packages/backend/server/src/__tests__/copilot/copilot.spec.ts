@@ -45,7 +45,7 @@ import {
   CopilotEmbeddingJob,
   MockEmbeddingClient,
 } from '../../plugins/copilot/embedding';
-import { MCP_CAPABILITIES } from '../../plugins/copilot/mcp/capabilities';
+import { MCP_DELEGATION_CAPABILITIES } from '../../plugins/copilot/mcp/capabilities';
 import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
 import { WorkspaceMcpProvider } from '../../plugins/copilot/mcp/provider';
 import {
@@ -630,27 +630,34 @@ test.serial(
         capabilities: {
           tools: { listChanged: false },
         },
-        serverInfo: { name: 'localmind-ai', version: '3.4.0' },
+        serverInfo: { name: 'localmind-ai', version: '3.5.0' },
       },
     });
     const instructions = response.body.result.instructions as string;
     t.regex(instructions, /LOCALMIND-SCOPED TOOL ROUTING/);
     t.regex(
       instructions,
-      /For every other request directed to LocalMind that asks for an answer or action/
+      /For explicit resource operations and prepared content/
     );
-    t.regex(instructions, /follow-ups that request additional work/);
+    t.regex(
+      instructions,
+      /explicitly delegates interpretation, generation or multi-step work/
+    );
     t.regex(instructions, /Do not use this server as a global request router/);
     t.regex(instructions, /Codex, Claude, or other MCP clients/);
     t.regex(instructions, /use get_localmind_task directly/);
     t.regex(instructions, /use control_localmind_task directly/);
     t.true(
       instructions.indexOf('use get_localmind_task directly') <
-        instructions.indexOf('For every other request directed to LocalMind')
+        instructions.indexOf(
+          'For explicit resource operations and prepared content'
+        )
     );
     t.true(
       instructions.indexOf('use control_localmind_task directly') <
-        instructions.indexOf('For every other request directed to LocalMind')
+        instructions.indexOf(
+          'For explicit resource operations and prepared content'
+        )
     );
     t.notRegex(instructions, /every new user request/i);
     t.regex(
@@ -660,7 +667,7 @@ test.serial(
     t.notRegex(instructions, /upload_localmind_attachment/);
     t.regex(
       instructions,
-      /internal AI tools such as workspace_doc_create or workspace_doc_read/
+      /Direct resource capability and AI delegation capability are independent/
     );
     t.regex(instructions, /taskId is known from delegate_to_localmind/);
 
@@ -696,7 +703,7 @@ test.serial(
     t.regex(delegateTool.description, /use control_localmind_task instead/);
     t.regex(
       delegateTool.description,
-      /follow-ups that request additional work/
+      /explicitly requests LocalMind AI planning, generation or multi-step execution/
     );
     t.regex(delegateTool.description, /not a global router/);
     t.regex(delegateTool.description, /Codex, Claude, or other host agents/);
@@ -704,11 +711,11 @@ test.serial(
     t.notRegex(delegateTool.description, /every new user request/i);
     t.regex(
       delegateTool.description,
-      /For every other request directed to LocalMind/
+      /Explicit resource operations with prepared content/
     );
     t.regex(
       delegateTool.description,
-      /never look for public workspace_doc_create/
+      /independently of the public direct resource capabilities/
     );
     t.regex(
       delegateTool.inputSchema.properties?.request?.description ?? '',
@@ -847,7 +854,7 @@ test.serial(
     const listed = await mcpCredentials.list(userId, ws.id);
     t.is(listed.length, 1);
     t.is(listed[0].status, 'ROTATING');
-    t.deepEqual(listed[0].capabilities, [...MCP_CAPABILITIES]);
+    t.deepEqual(listed[0].capabilities, [...MCP_DELEGATION_CAPABILITIES]);
     await mcpCredentials.authenticate(issued.token, ws.id);
     await mcpCredentials.revoke(rotated.credential.id, userId, ws.id);
     await t.throwsAsync(mcpCredentials.authenticate(issued.token, ws.id));
@@ -933,7 +940,7 @@ test.serial(
     const completeServer = await mcpProvider.for(
       userId,
       ws.id,
-      MCP_CAPABILITIES
+      MCP_DELEGATION_CAPABILITIES
     );
     const completeToolNames = completeServer.tools.map(tool => tool.name);
     t.deepEqual(completeToolNames, [
@@ -3388,7 +3395,11 @@ test('tool bridge should execute with parsed zod args and preserve callback resp
     argumentParseError: undefined,
     output: { message: 'executed' },
   });
-  t.deepEqual(execute.firstCall.args, [{ name: 'AFFiNE' }, options]);
+  t.deepEqual(execute.firstCall.args, [
+    { name: 'AFFiNE' },
+    { ...options, toolCallId: 'call-2' },
+  ]);
+  t.deepEqual(options, {}, 'the caller options must remain unchanged');
 });
 
 test('tool bridge should reject malformed or unknown tool calls without executing tools', async t => {
@@ -4471,6 +4482,21 @@ test('should handle copilot cron jobs correctly', async t => {
         ],
         ['copilot.agentRuntime.run', {}],
         [
+          'indexer.projectResources.index',
+          {},
+          { jobId: 'minute-project-resource-index' },
+        ],
+        [
+          'copilot.projectAgentRuntime.run',
+          {},
+          { jobId: 'minute-copilot-project-agent-runtime' },
+        ],
+        [
+          'copilot.mcpDelegation.deliverCallback',
+          {},
+          { jobId: 'minute-copilot-mcp-delegation-deliver-callback' },
+        ],
+        [
           'copilot.repairExecution.recoverExpiredLeases',
           {
             limit: 50,
@@ -4496,6 +4522,11 @@ test('should handle copilot cron jobs correctly', async t => {
           {
             jobId: 'minute-copilot-provider-health-probe-process',
           },
+        ],
+        [
+          'copilot.externalMcp.processPendingOperations',
+          { limit: 25 },
+          { jobId: 'minute-copilot-external-mcp-process-pending-operations' },
         ],
       ]
     );
@@ -4646,7 +4677,9 @@ test('capability policy host should select image routes with image output type',
   const factory = module.get(CopilotProviderFactory);
   const routeContext = {
     userId,
+    sessionId: 'session-1',
     workspaceId: 'workspace-1',
+    projectId: undefined,
     byokLeaseId: 'lease-1',
     featureKind: 'image' as const,
     quotaBackedRoutesAllowed: false,
@@ -5885,6 +5918,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     ],
     agentRuntimeRunStatusGaps: [
       'waiting_approval -> not_projected',
+      'waiting_for_location -> not_projected',
       'retrying -> not_projected',
       'rollback_running -> not_projected',
       'archived -> not_projected',
@@ -5988,6 +6022,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       'queued',
       'running',
       'waiting_approval',
+      'waiting_for_location',
       'completed',
       'failed',
       'cancelled',
@@ -6039,6 +6074,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     ],
     agentRuntimeUnsupportedRunStatuses: [
       'waiting_approval',
+      'waiting_for_location',
       'retrying',
       'rollback_running',
       'archived',
@@ -6161,6 +6197,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     ],
     agentRuntimeRunStatusGaps: [
       'waiting_approval -> not_projected',
+      'waiting_for_location -> not_projected',
       'retrying -> not_projected',
       'rollback_running -> not_projected',
       'archived -> not_projected',
@@ -6235,6 +6272,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
       'queued',
       'running',
       'waiting_approval',
+      'waiting_for_location',
       'completed',
       'failed',
       'cancelled',
@@ -6286,6 +6324,7 @@ test('resolver action runs should expose recent sanitized workspace scoped diagn
     ],
     agentRuntimeUnsupportedRunStatuses: [
       'waiting_approval',
+      'waiting_for_location',
       'retrying',
       'rollback_running',
       'archived',

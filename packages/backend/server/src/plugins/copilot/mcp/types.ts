@@ -65,6 +65,7 @@ export type WorkspaceMcpServer = {
   version: string;
   instructions: string;
   tools: WorkspaceMcpToolDefinition[];
+  unavailableToolResult?: (name: string) => WorkspaceMcpToolResult | undefined;
   listResources?: (cursor?: string) => Promise<WorkspaceMcpResourcePage | null>;
   resourceTemplates?: WorkspaceMcpResourceTemplate[];
   readResource?: (uri: string) => Promise<WorkspaceMcpResourceContents | null>;

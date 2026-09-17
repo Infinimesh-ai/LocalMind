@@ -1,5 +1,15 @@
 # Current State
 
+## Direct MCP Resources
+
+The [direct resource contract](mcp-direct-resource-tools-design.zh-CN.md) is implemented
+with ten explicitly granted Workspace tools alongside the existing three delegation
+tools. `LOCALMIND_MCP_RESOURCES_ENABLED` defaults to false; no runtime deployment
+or credential expansion is part of this implementation. Direct calls use current
+ACL, atomic writes, version checks, immutable receipts and a durable document outbox,
+without models or AI sessions. Verification and remaining limits are recorded in
+the [execution report](mcp-direct-resource-tools.execution.zh-CN.md).
+
 ## Project Workbench Redesign
 
 The confirmed [workbench contract](tracks/project-workbench-redesign.md)

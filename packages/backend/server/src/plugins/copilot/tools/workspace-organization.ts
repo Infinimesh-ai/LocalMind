@@ -600,9 +600,9 @@ export function createWorkspaceOrganizationTools(
             .describe('Parent folder ID, or null for a root folder'),
         })
         .strict(),
-      execute: async ({ name, parent_folder_id }, context) =>
+      execute: async ({ name, parent_folder_id }, executeOptions) =>
         execute('create', async () => {
-          const latestUser = context.messages?.findLast(
+          const latestUser = executeOptions.messages?.findLast(
             message => message.role === 'user'
           )?.content;
           if (
@@ -617,47 +617,26 @@ export function createWorkspaceOrganizationTools(
             );
           }
           await assertWrite();
-          const { nodes } = await readOrganization();
+          const { userId, workspaceId } = context();
           const parentId = parent_folder_id ?? null;
-          if (parentId) requireFolder(nodes, parentId);
           const folderName = normalizedName(name);
           if (!folderName) throw new Error('Folder name cannot be empty.');
-          const existing = nodes.find(
-            node =>
-              node.type === 'folder' &&
-              node.parentId === parentId &&
-              node.data === folderName
-          );
-          if (existing) {
-            return {
-              success: true,
-              folderId: existing.id,
-              name: existing.data,
-              parentFolderId: existing.parentId,
-              idempotentReplay: true,
-              workspaceEffect: workspaceEffect('create_folder', existing.id),
-            };
-          }
-          const folderId = nanoid();
-          await apply([
-            {
-              op: 'upsert',
-              key: folderId,
-              values: {
-                parentId,
-                type: 'folder',
-                data: folderName,
-                index: nextIndex(nodes, parentId),
-              },
-            },
-          ]);
+          const result = await organization.createResourceFolder({
+            workspaceId,
+            actorId: userId,
+            folderId: nanoid(),
+            parentId,
+            title: folderName,
+            reuseExisting: true,
+            authorize: assertWrite,
+          });
           return {
             success: true,
-            folderId,
+            folderId: result.folderId,
             name: folderName,
             parentFolderId: parentId,
-            idempotentReplay: false,
-            workspaceEffect: workspaceEffect('create_folder', folderId),
+            idempotentReplay: !result.changed,
+            workspaceEffect: workspaceEffect('create_folder', result.folderId),
           };
         }),
     }),
@@ -978,77 +957,25 @@ export function createWorkspaceOrganizationTools(
       execute: async ({ document_id, folder_id }) =>
         execute('move document', async () => {
           await assertWrite();
+          const { userId, workspaceId } = context();
           await assertReadableDocument(document_id);
-          const { nodes } = await readOrganization();
-          if (folder_id) requireFolder(nodes, folder_id);
-          const placements = nodes.filter(
-            node => node.type === 'doc' && node.data === document_id
-          );
-          if (!folder_id) {
-            if (!placements.length) {
-              return {
-                success: true,
-                documentId: document_id,
-                folderId: null,
-                removedPlacementCount: 0,
-                idempotentReplay: true,
-                workspaceEffect: workspaceEffect('move_document', null),
-              };
-            }
-            await apply(
-              placements.map(node => ({ op: 'delete', key: node.id }))
-            );
-            return {
-              success: true,
-              documentId: document_id,
-              folderId: null,
-              removedPlacementCount: placements.length,
-              idempotentReplay: false,
-              workspaceEffect: workspaceEffect('move_document', null),
-            };
-          }
-
-          const targetPlacement = placements.find(
-            node => node.parentId === folder_id
-          );
-          if (placements.length === 1 && targetPlacement) {
-            return {
-              success: true,
-              placementId: targetPlacement.id,
-              documentId: document_id,
-              folderId: folder_id,
-              idempotentReplay: true,
-              workspaceEffect: workspaceEffect('move_document', folder_id),
-            };
-          }
-          const placementId =
-            targetPlacement?.id ?? placements[0]?.id ?? nanoid();
-          const operations: Parameters<
-            WorkspaceOrganizationService['applyDataOperations']
-          >[4] = placements
-            .filter(node => node.id !== placementId)
-            .map(node => ({ op: 'delete', key: node.id }));
-          if (!targetPlacement) {
-            operations.push({
-              op: 'upsert',
-              key: placementId,
-              values: {
-                parentId: folder_id,
-                type: 'doc',
-                data: document_id,
-                index: nextIndex(nodes, folder_id),
-              },
-            });
-          }
-          await apply(operations);
-          return {
-            success: true,
-            placementId,
+          const result = await organization.moveResourceDocument({
+            workspaceId,
+            actorId: userId,
             documentId: document_id,
             folderId: folder_id,
-            removedPlacementCount:
-              placements.length - (targetPlacement ? 1 : 0),
-            idempotentReplay: false,
+            authorize: async () => {
+              await assertWrite();
+              await assertReadableDocument(document_id);
+            },
+          });
+          return {
+            success: true,
+            ...(result.placementId ? { placementId: result.placementId } : {}),
+            documentId: document_id,
+            folderId: folder_id,
+            removedPlacementCount: result.removedPlacementCount,
+            idempotentReplay: !result.changed,
             workspaceEffect: workspaceEffect('move_document', folder_id),
           };
         }),

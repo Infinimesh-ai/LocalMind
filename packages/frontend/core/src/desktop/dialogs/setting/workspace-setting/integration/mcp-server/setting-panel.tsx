@@ -19,7 +19,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { IntegrationSettingHeader } from '../setting';
-import { MCP_CAPABILITY_OPTIONS } from './capabilities';
+import { MCP_CAPABILITY_OPTIONS, MCP_WRITE_CAPABILITIES } from './capabilities';
 import { McpCredentialModal } from './credential-modal';
 import MCPIcon from './MCP.inline.svg';
 import * as styles from './setting-panel.css';
@@ -99,8 +99,8 @@ export const McpServerSettingPanel = () => {
       callbackUrl: string | null
     ) => {
       try {
-        const accessMode = capabilities.some(
-          capability => capability !== 'get_localmind_task'
+        const accessMode = capabilities.some(capability =>
+          MCP_WRITE_CAPABILITIES.has(capability)
         )
           ? McpAccessMode.READ_WRITE
           : McpAccessMode.READ_ONLY;

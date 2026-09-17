@@ -10714,7 +10714,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.name"](): string;
     /**
-      * `Delegate workspace tasks from external AI clients to LocalMind's built-in AI.`
+      * `Read and save workspace resources directly, or delegate tasks to LocalMind AI.`
       */
     ["com.affine.integration.mcp-server.desc"](): string;
     /**
@@ -10842,7 +10842,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.create.title"](): string;
     /**
-      * `This credential is limited to the selected LocalMind AI tools and this workspace.`
+      * `This credential is limited to the selected tools and this workspace.`
       */
     ["com.affine.integration.mcp-server.create.description"](): string;
     /**
@@ -10850,7 +10850,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.field.label"](): string;
     /**
-      * `Allowed AI tools`
+      * `Allowed tools`
       */
     ["com.affine.integration.mcp-server.field.access"](): string;
     /**
@@ -19072,6 +19072,102 @@ export function useAFFiNEI18N(): {
       * `Provider connection verified. Structured planning and tool execution have not been tested.`
       */
     ["com.affine.admin.byok-connection-verified"](): string;
+    /**
+      * `List documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-list"](): string;
+    /**
+      * `List readable documents and look up an external business ID.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-list.description"](): string;
+    /**
+      * `Search documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-search"](): string;
+    /**
+      * `Search readable documents by keyword without AI.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-search.description"](): string;
+    /**
+      * `Read documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-read"](): string;
+    /**
+      * `Read full Markdown and the current version.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-read.description"](): string;
+    /**
+      * `Create documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-create"](): string;
+    /**
+      * `Save prepared Markdown to a folder or the workspace root.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-create.description"](): string;
+    /**
+      * `Replace document content`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-update"](): string;
+    /**
+      * `Replace supported Markdown content after a version check.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-update.description"](): string;
+    /**
+      * `Rename documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-title"](): string;
+    /**
+      * `Change only the title after a version check.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-title.description"](): string;
+    /**
+      * `List folders`
+      */
+    ["com.affine.integration.mcp-server.capability.folder-list"](): string;
+    /**
+      * `List one level of visible folders and its directory version.`
+      */
+    ["com.affine.integration.mcp-server.capability.folder-list.description"](): string;
+    /**
+      * `Create folders`
+      */
+    ["com.affine.integration.mcp-server.capability.folder-create"](): string;
+    /**
+      * `Create one folder in a known parent or at the root.`
+      */
+    ["com.affine.integration.mcp-server.capability.folder-create.description"](): string;
+    /**
+      * `Move documents`
+      */
+    ["com.affine.integration.mcp-server.capability.folder-move"](): string;
+    /**
+      * `Move a document to one folder or the workspace root.`
+      */
+    ["com.affine.integration.mcp-server.capability.folder-move.description"](): string;
+    /**
+      * `Query direct operation results`
+      */
+    ["com.affine.integration.mcp-server.capability.operation-get"](): string;
+    /**
+      * `Check persisted receipts without executing or cancelling work.`
+      */
+    ["com.affine.integration.mcp-server.capability.operation-get.description"](): string;
+    /**
+      * `Direct resource tools`
+      */
+    ["com.affine.integration.mcp-server.group.resources"](): string;
+    /**
+      * `AI delegation tools`
+      */
+    ["com.affine.integration.mcp-server.group.delegation"](): string;
+    /**
+      * `Direct tools require administrator enablement and your current resource permissions. They do not call a model. Selecting them does not grant AI delegation.`
+      */
+    ["com.affine.integration.mcp-server.resources-hint"](): string;
+    /**
+      * `Consider selecting “Query direct operation results” to check whether a write was saved if the connection is interrupted.`
+      */
+    ["com.affine.integration.mcp-server.operation-query-hint"](): string;
     /**
       * `An internal error occurred.`
       */

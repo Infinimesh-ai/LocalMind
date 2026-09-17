@@ -1,11 +1,14 @@
 # LocalMind MCP Integration
 
-LocalMind exposes a workspace-bound AI delegation surface to external MCP
-clients. The caller sends a complete natural-language task; the built-in
-LocalMind AI plans it, uses LocalMind's Agent Runtime for supported work, and
-returns or calls back with the result. Local files travel in the same delegation
-call, a read-only tool reconciles persisted task state after asynchronous
-returns or callbacks, and a control tool cancels unfinished work.
+LocalMind exposes workspace-bound direct resource tools and AI delegation through
+one MCP endpoint. Prepared Markdown and explicit document/folder operations use
+the direct tools without a model, BYOK, AI session, task, or callback. Natural-language
+work explicitly delegated to LocalMind continues through its Agent Runtime.
+
+The ten direct tools require `LOCALMIND_MCP_RESOURCES_ENABLED=true` (default false)
+and explicit credential capabilities. The existing three delegation tools and
+historical credential defaults are unchanged. Receipt lookup remains available
+to authorized credentials when the direct feature is disabled.
 
 A Simplified Chinese guide is available at
 [LocalMind MCP Chinese Guide](./localmind-mcp.zh-CN.md). The exact tool schema
@@ -31,7 +34,7 @@ checkpoint remains unconfirmed unless a persisted result proves its outcome.
 | Endpoint       | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
 | Method         | `POST`                                                   |
 | Authentication | `Authorization: Bearer <MCP_TOKEN>`                      |
-| Server         | `localmind-ai` version `3.4.0`                           |
+| Server         | `localmind-ai` version `3.5.0`                           |
 | Tools          | Delegation, task query, and cancel control               |
 
 The token and endpoint are bound to one workspace. A token issued for one
@@ -40,10 +43,11 @@ workspace cannot be used on another workspace endpoint.
 ## Create A Credential
 
 1. Open **Workspace settings > Integrations > MCP Server**.
-2. Create a credential and select the public AI tools it may call:
-   `delegate_to_localmind`, `get_localmind_task`, and
-   `control_localmind_task`.
-3. Grant all three for a caller that delegates, reconciles, and cancels tasks.
+2. Select individual capabilities in **Direct resource tools** and **AI delegation tools**.
+   Existing defaults select only the three delegation capabilities.
+3. For direct writes, also select `workspace_operation_get` to reconcile uncertain
+   outcomes; it is suggested but never granted implicitly. The UI notes that
+   an administrator must enable direct resource tools.
 4. Optionally add the caller's result notification URL for terminal task
    notifications.
 5. Store the one-time MCP token and, when notifications are configured, the
@@ -94,29 +98,35 @@ rule in order and apply the most specific matching intent first:
 2. If the user explicitly asks to stop or cancel an unfinished existing task,
    call `control_localmind_task` directly with its known `taskId`. Do not
    delegate first.
-3. Treat every other request that asks LocalMind to answer or act as a
-   delegation, including follow-ups that request additional work, revisions,
-   continuations, and retries. LocalMind requests can include questions, document
-   reads/searches/creates/updates, attachment processing, summaries, web
-   research, and multi-step work.
-4. If that delegated request includes local files, include them directly in
-   `delegate_to_localmind.attachments`. Use `attachmentIds` only to reuse files
-   returned by an earlier delegation in the same credential family.
-5. Submit the complete request through `delegate_to_localmind`.
+3. Reconcile a direct write using `workspace_operation_get` and its `operationId`.
+4. For explicit document/folder operations and prepared content, use the granted
+   `workspace_*` direct tools. For interpretation, generation, or multi-step work
+   explicitly delegated to LocalMind AI, use `delegate_to_localmind`.
+5. Submit local files in delegated `attachments`; reuse earlier same-family
+   files through `attachmentIds`.
 
-Do not look for public tools such as `doc_create` or `doc_read`. They are
-internal AI Chat tools selected by LocalMind after delegation. `taskId` values
-are task identifiers, while `documentIds` contains existing document ids, not
-document titles.
+Use only discovered tools. Never change a direct permission, conflict, or
+unsupported-content failure into a delegation to bypass that failure. `operationId`,
+`taskId`, `documentId`, and `folderId` identify different objects. Titles and paths
+cannot substitute for resource IDs. After uncertain writes retry with the original
+idempotency key and identical arguments, or query the operation.
 
 ## Authority Model
 
-The MCP credential's selected public tool permissions are copied onto a task
+Direct tools require current Workspace, document and directory ACLs and do not
+require `Workspace.Copilot`. Ordinary quota restrictions and endpoint throttling
+still apply. Direct operations have durable, immutable receipts distinct from AI
+tasks. Queries and replays require the same actor/workspace/credential family and
+current resource read permissions. See the [tool reference](localmind-mcp-tools.md#direct-resource-tools)
+for bounds, version checks, pagination and recovery.
+
+Only the intersection with the original three delegation capabilities is copied onto a task
 when it is created. That snapshot is the task's fixed maximum authority. Rotating
 the credential preserves the family, permissions, and callback configuration;
 revoking the family or disabling the user prevents queued work from executing.
-Credentials from the legacy resource-capability model are revoked
-during migration and must be recreated.
+This resource expansion preserves existing credentials, families, and in-flight
+tasks; it does not revoke or expand them. An earlier, unrelated tool-contract
+retirement migration is not repeated by this change.
 
 Each tool-agent task also persists the exact internal tool names and input-Schema
 fingerprints that were actually available at creation time. Enterprise and

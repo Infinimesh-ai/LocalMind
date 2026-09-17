@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { generateKeyBetween } from 'fractional-indexing';
 import { nanoid } from 'nanoid';
 import * as Y from 'yjs';
 
@@ -8,6 +9,8 @@ import { BadRequest, NotFound } from '../../base';
 import { Models } from '../../models';
 import type { DirectoryRights } from '../../models/workspace-directory-grant';
 import { DocReader } from './reader';
+import { ResourceError } from './resource-types';
+import { workspaceDocTransaction } from './transaction-context';
 import { DocWriter } from './writer';
 
 const MAX_OPERATIONS = 100;
@@ -804,7 +807,10 @@ export class WorkspaceOrganizationService {
     docId: string,
     createIfMissing = false
   ): Promise<LoadedDoc> {
-    const record = await this.reader.getDoc(workspaceId, docId);
+    const record = await (
+      workspaceDocTransaction.getStore()?.read ??
+      this.reader.getDoc.bind(this.reader)
+    )(workspaceId, docId);
     if (!record?.bin && !createIfMissing) {
       throw new NotFoundException(`Document ${docId} not found`);
     }
@@ -908,10 +914,10 @@ export class WorkspaceOrganizationService {
   private async readDirectorySnapshot(workspaceId: string, userId: string) {
     // Storage is read on every request, so missed realtime/Redis invalidation
     // cannot reuse a stale tree. Only parsing is cached, never actor rights.
-    const record = await this.reader.getDoc(
-      workspaceId,
-      resolveWorkspaceDataDocId('folders', workspaceId, userId)
-    );
+    const record = await (
+      workspaceDocTransaction.getStore()?.read ??
+      this.reader.getDoc.bind(this.reader)
+    )(workspaceId, resolveWorkspaceDataDocId('folders', workspaceId, userId));
     const revision = directorySnapshotRevision(record?.bin);
     const now = Date.now();
     for (const [key, entry] of this.directorySnapshots) {
@@ -1011,6 +1017,168 @@ export class WorkspaceOrganizationService {
     };
   }
 
+  async assertResourceFolder(
+    workspaceId: string,
+    actorId: string,
+    folderId: string | null,
+    write = false,
+    create = false
+  ) {
+    const directory = await this.readDirectory(workspaceId, actorId);
+    const rights =
+      folderId === null
+        ? directory.rootRights
+        : directory.entries.find(
+            entry => entry.row.id === folderId && entry.row.type === 'folder'
+          )?.rights;
+    if (!rights?.canRead) throw new ResourceError('resource_not_found');
+    if (
+      write &&
+      (!rights.canWrite ||
+        !rights.canOrganize ||
+        (create && !rights.canCreateFolder))
+    )
+      throw new ResourceError('permission_denied');
+    return directory;
+  }
+
+  async createResourceFolder(input: {
+    workspaceId: string;
+    actorId: string;
+    folderId: string;
+    parentId: string | null;
+    title: string;
+    reuseExisting?: boolean;
+    authorize: () => Promise<void>;
+  }) {
+    return await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      async () => {
+        await input.authorize();
+        const directory = await this.assertResourceFolder(
+          input.workspaceId,
+          input.actorId,
+          input.parentId,
+          true,
+          true
+        );
+        const siblings = directory.entries.filter(
+          entry => (entry.row.parentId ?? null) === input.parentId
+        );
+        const existing = siblings.find(
+          entry => entry.row.type === 'folder' && entry.row.data === input.title
+        );
+        if (existing) {
+          if (input.reuseExisting)
+            return { folderId: String(existing.row.id), changed: false };
+          throw new ResourceError('folder_name_conflict');
+        }
+        const last = siblings
+          .map(entry => String(entry.row.index))
+          .sort()
+          .at(-1);
+        await this.applyDataOperations(
+          input.workspaceId,
+          input.actorId,
+          input.actorId,
+          'folders',
+          [
+            {
+              op: 'upsert',
+              key: input.folderId,
+              values: {
+                parentId: input.parentId,
+                type: 'folder',
+                data: input.title,
+                index: generateKeyBetween(last ?? null, null),
+              },
+            },
+          ]
+        );
+        return { folderId: input.folderId, changed: true };
+      }
+    );
+  }
+
+  async moveResourceDocument(input: {
+    workspaceId: string;
+    actorId: string;
+    documentId: string;
+    folderId: string | null;
+    authorize: () => Promise<void>;
+  }) {
+    return await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      async () => {
+        await input.authorize();
+        const directory = await this.assertResourceFolder(
+          input.workspaceId,
+          input.actorId,
+          input.folderId,
+          true
+        );
+        const raw = await this.readDirectorySnapshot(
+          input.workspaceId,
+          input.actorId
+        );
+        const placements = raw.rows.filter(
+          row => row.type === 'doc' && row.data === input.documentId
+        );
+        const visible = new Map(
+          directory.entries.map(entry => [String(entry.row.id), entry])
+        );
+        for (const placement of placements) {
+          const rights = visible.get(String(placement.id))?.rights;
+          if (!rights?.canRead || !rights.canWrite || !rights.canOrganize)
+            throw new ResourceError('permission_denied');
+        }
+        const target = placements.find(row => row.parentId === input.folderId);
+        if (
+          (!input.folderId && !placements.length) ||
+          (input.folderId && placements.length === 1 && target)
+        )
+          return {
+            changed: false,
+            placementId: target ? String(target.id) : null,
+            removedPlacementCount: 0,
+          };
+        const key = target ? String(target.id) : nanoid();
+        const operations: WorkspaceDataOperation[] = placements
+          .filter(row => row.id !== target?.id)
+          .map(row => ({ op: 'delete', key: String(row.id) }));
+        if (input.folderId && !target) {
+          const last = raw.rows
+            .filter(row => row.parentId === input.folderId)
+            .map(row => String(row.index))
+            .sort()
+            .at(-1);
+          operations.push({
+            op: 'upsert',
+            key,
+            values: {
+              parentId: input.folderId,
+              type: 'doc',
+              data: input.documentId,
+              index: generateKeyBetween(last ?? null, null),
+            },
+          });
+        }
+        await this.applyDataOperations(
+          input.workspaceId,
+          input.actorId,
+          input.actorId,
+          'folders',
+          operations
+        );
+        return {
+          changed: true,
+          placementId: input.folderId ? key : null,
+          removedPlacementCount: placements.length - (target ? 1 : 0),
+        };
+      }
+    );
+  }
+
   async readFoldersForAdministration(workspaceId: string, actorId: string) {
     await this.models.workspaceDirectoryGrant.assertAdministrator(
       workspaceId,
@@ -1020,10 +1188,10 @@ export class WorkspaceOrganizationService {
   }
 
   async directoryRevision(workspaceId: string, userId: string) {
-    const record = await this.reader.getDoc(
-      workspaceId,
-      resolveWorkspaceDataDocId('folders', workspaceId, userId)
-    );
+    const record = await (
+      workspaceDocTransaction.getStore()?.read ??
+      this.reader.getDoc.bind(this.reader)
+    )(workspaceId, resolveWorkspaceDataDocId('folders', workspaceId, userId));
     return directorySnapshotRevision(record?.bin);
   }
 
@@ -1220,10 +1388,10 @@ export class WorkspaceOrganizationService {
         removedRecordIds,
       });
       if (!page) {
-        const existingDoc = await this.reader.getDoc(
-          input.workspaceId,
-          input.documentId
-        );
+        const existingDoc = await (
+          workspaceDocTransaction.getStore()?.read ??
+          this.reader.getDoc.bind(this.reader)
+        )(input.workspaceId, input.documentId);
         if (existingDoc) {
           throw new Error(
             'Document must already be in Trash before permanent deletion.'
@@ -1821,7 +1989,12 @@ export class WorkspaceOrganizationService {
         }
         if (page) {
           await input.authorizeDocument(documentId);
-        } else if (await this.reader.getDoc(input.workspaceId, documentId)) {
+        } else if (
+          await (
+            workspaceDocTransaction.getStore()?.read ??
+            this.reader.getDoc.bind(this.reader)
+          )(input.workspaceId, documentId)
+        ) {
           throw new Error(
             `Document ${documentId} is no longer in Trash; permanent deletion scope changed.`
           );
