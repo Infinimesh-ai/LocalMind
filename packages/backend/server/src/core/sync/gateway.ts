@@ -337,11 +337,8 @@ export class SpaceSyncGateway
     timestamp: number,
     editor: string
   ) {
-    if (
-      spaceType === SpaceType.Workspace &&
-      docId === `db$${spaceId}$folders`
-    ) {
-      await this.broadcastDirectoryUpdate({
+    if (spaceType === SpaceType.Workspace) {
+      await this.broadcastWorkspaceDocUpdate({
         spaceId,
         docId,
         updates: [Buffer.from(update, 'base64')],
@@ -380,7 +377,7 @@ export class SpaceSyncGateway
       } satisfies BroadcastDocUpdateMessage);
   }
 
-  private async broadcastDirectoryUpdate(input: {
+  private async broadcastWorkspaceDocUpdate(input: {
     spaceId: string;
     docId: string;
     updates: Uint8Array[];
@@ -412,17 +409,25 @@ export class SpaceSyncGateway
           let allowed = access.get(actorId);
           if (allowed === undefined) {
             allowed =
+              !!(await this.models.user.getPublicUser(actorId)) &&
+              (await this.ac
+                .user(actorId)
+                .workspace(input.spaceId)
+                .can('Workspace.Sync')) &&
               (await this.ac
                 .user(actorId)
                 .doc(input.spaceId, input.docId)
                 .projectScope(null)
                 .can('Doc.Read')) &&
-              (await this.models.workspaceDirectoryGrant.canReadWholeTable(
-                input.spaceId,
-                actorId
-              ));
+              (input.docId !== `db$${input.spaceId}$folders` ||
+                (await this.models.workspaceDirectoryGrant.canReadWholeTable(
+                  input.spaceId,
+                  actorId
+                )));
             access.set(actorId, allowed);
           }
+          // Decisions live only for this delivery. ACL/user changes after this
+          // check are not atomic with socket emission and cannot recall data.
           if (!allowed) continue;
           if (socket.rooms.has(rooms[1]))
             socket.emit('space:broadcast-doc-updates', payload);
@@ -438,6 +443,11 @@ export class SpaceSyncGateway
               });
           }
         }
+        metrics.socketio
+          .counter('doc_updates_broadcast')
+          .add(payload.updates.length, {
+            mode: payload.compressed ? 'compressed' : 'batch',
+          });
       }
     );
   }
@@ -787,11 +797,8 @@ export class SpaceSyncGateway
     if (!this.server || updates.length === 0) {
       return;
     }
-    if (
-      spaceType === SpaceType.Workspace &&
-      docId === `db$${spaceId}$folders`
-    ) {
-      await this.broadcastDirectoryUpdate({
+    if (spaceType === SpaceType.Workspace) {
+      await this.broadcastWorkspaceDocUpdate({
         spaceId,
         docId,
         updates,

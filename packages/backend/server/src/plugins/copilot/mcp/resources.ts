@@ -347,17 +347,17 @@ export class McpResourcesService {
           })
         );
       if (name === 'workspace_doc_list')
-        return await this.resources.snapshot(
-          this.actor(credential),
-          async () => ({
-            ...this.base(credential),
-            ...(await this.resources.list(
-              this.actor(credential),
-              credential.familyId,
-              RESOURCE_INPUT_SCHEMAS[name].parse(args)
-            )),
-          })
-        );
+        // A list observes multiple bodies plus the shared mode table. Use one
+        // read snapshot instead of retaining properties -> next-body locks,
+        // which would invert a body writer's body -> properties lock order.
+        return await this.resources.observe(async () => ({
+          ...this.base(credential),
+          ...(await this.resources.list(
+            this.actor(credential),
+            credential.familyId,
+            RESOURCE_INPUT_SCHEMAS[name].parse(args)
+          )),
+        }));
       if (name === 'workspace_folder_list')
         return await this.resources.snapshot(
           this.actor(credential),

@@ -860,6 +860,43 @@ export class WorkspaceOrganizationService {
     }
   }
 
+  /** Match DocPropertiesStore: non-null current properties override legacy
+   * system properties, including an explicit page mode. Transactional resource
+   * reads retain the root/body/properties content locks through commit; sync and
+   * snapshot writers acquire the same per-document locks at persistence. */
+  async readDocumentPrimaryMode(workspaceId: string, documentId: string) {
+    const root = await this.load(workspaceId, workspaceId);
+    try {
+      const properties = await this.load(
+        workspaceId,
+        resolveWorkspaceDataDocId('document_properties', workspaceId, ''),
+        true
+      );
+      try {
+        const record = properties.doc.getMap<unknown>(documentId);
+        const current =
+          record.get('$$DELETED') === true
+            ? undefined
+            : record.get('primaryMode');
+        const pages = root.doc
+          .getMap('affine:workspace-properties')
+          .get('pageProperties');
+        const legacy = jsonObject(
+          pages instanceof Y.Map ? pages.get(documentId) : undefined
+        );
+        const legacyMode = jsonObject(
+          jsonObject(legacy.system).primaryMode
+        ).value;
+        const mode = current ?? legacyMode?.toString();
+        return mode === 'edgeless' ? ('edgeless' as const) : ('page' as const);
+      } finally {
+        properties.doc.destroy();
+      }
+    } finally {
+      root.doc.destroy();
+    }
+  }
+
   async readFolders(workspaceId: string, userId: string) {
     return (await this.readDirectory(workspaceId, userId)).entries.map(
       entry => entry.row

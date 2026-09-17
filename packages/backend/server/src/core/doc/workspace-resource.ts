@@ -12,6 +12,7 @@ import { PermissionAccess, PermissionService } from '../permission';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
 import {
   readResourceMarkdown,
+  updateResourceMarkdown,
   validateResourceMarkdown,
 } from './resource-markdown';
 import {
@@ -25,13 +26,17 @@ import { DocWriter } from './writer';
 
 const cursorSchema = z
   .object({
+    sortVersion: z.number().int().optional(),
     scope: z.string(),
     after: z.string(),
     time: z.number().optional(),
     revision: z.string().optional(),
   })
   .strict();
-type RootPage = { id: string; title?: string; trash?: boolean; mode?: string };
+const CURSOR_SORT_VERSION = 2;
+const compareResourceIds = (a: string, b: string) =>
+  a < b ? -1 : a > b ? 1 : 0;
+type RootPage = { id: string; title?: string; trash?: boolean };
 
 @Injectable()
 export class WorkspaceResourceService {
@@ -162,6 +167,10 @@ export class WorkspaceResourceService {
     const page = await this.assertDocument(input, documentId);
     const record = await this.storage.getDoc(input.workspaceId, documentId);
     if (!record) throw new ResourceError('resource_not_found');
+    const primaryMode = await this.organization.readDocumentPrimaryMode(
+      input.workspaceId,
+      documentId
+    );
     const doc = new Y.Doc();
     let title = page.title ?? '';
     let documentType: 'page' | 'edgeless' | 'unknown' = 'unknown';
@@ -173,7 +182,7 @@ export class WorkspaceResourceService {
       if (pages.length === 1) {
         const text = pages[0].get('prop:title');
         if (text instanceof Y.Text) title = text.toString();
-        documentType = page.mode === 'edgeless' ? 'edgeless' : 'page';
+        documentType = primaryMode;
       }
     } catch {
       /* Metadata can still identify a non-Markdown resource. */
@@ -191,6 +200,7 @@ export class WorkspaceResourceService {
           documentId,
           record.timestamp,
           page.title ?? '',
+          primaryMode,
         ]),
         updatedAt: new Date(record.timestamp).toISOString(),
         locations: await this.locations(input, documentId),
@@ -241,15 +251,20 @@ export class WorkspaceResourceService {
   }
 
   private cursor(value: z.infer<typeof cursorSchema>) {
-    return this.crypto.encrypt(JSON.stringify(value));
+    return this.crypto.encrypt(
+      JSON.stringify({ ...value, sortVersion: CURSOR_SORT_VERSION })
+    );
   }
   private decodeCursor(value: string | undefined, scope: string) {
     if (!value) return null;
     try {
       const cursor = cursorSchema.parse(JSON.parse(this.crypto.decrypt(value)));
       if (cursor.scope !== scope) throw new Error();
+      if (cursor.sortVersion !== CURSOR_SORT_VERSION)
+        throw new ResourceError('cursor_stale');
       return cursor;
-    } catch {
+    } catch (error) {
+      if (error instanceof ResourceError) throw error;
       throw new ResourceError('invalid_input');
     }
   }
@@ -276,7 +291,7 @@ export class WorkspaceResourceService {
           (row.parentId ?? null) === args.parentId &&
           (!cursor || String(row.id) > cursor.after)
       )
-      .sort((a, b) => String(a.row.id).localeCompare(String(b.row.id)))
+      .sort((a, b) => compareResourceIds(String(a.row.id), String(b.row.id)))
       .slice(0, args.limit + 1);
     const items = entries.slice(0, args.limit).map(({ row, rights }) => ({
       folderId: String(row.id),
@@ -360,7 +375,7 @@ export class WorkspaceResourceService {
           page.time < (cursor.time ?? 0) ||
           (page.time === cursor.time && page.id > cursor.after)
       )
-      .sort((a, b) => b.time - a.time || a.id.localeCompare(b.id));
+      .sort((a, b) => b.time - a.time || compareResourceIds(a.id, b.id));
     const items: Awaited<ReturnType<WorkspaceResourceService['describe']>>[] =
       [];
     let scanned = 0;
@@ -484,7 +499,14 @@ export class WorkspaceResourceService {
                   command.documentId,
                   command.content.text,
                   input.actorId,
-                  authorize
+                  authorize,
+                  (bin, markdown, documentId) =>
+                    updateResourceMarkdown(
+                      bin,
+                      markdown,
+                      documentId,
+                      input.actorId
+                    )
                 )
               ).changed !== false;
             const saved = await this.read(input, command.documentId);

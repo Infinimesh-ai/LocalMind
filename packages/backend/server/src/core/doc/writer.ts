@@ -279,14 +279,20 @@ export class DocWriter {
     docId: string,
     markdown: string,
     editorId?: string,
-    beforeWrite?: () => Promise<void>
+    beforeWrite?: () => Promise<void>,
+    prepareUpdate?: (
+      binary: Buffer,
+      markdown: string,
+      docId: string
+    ) => Uint8Array
   ): Promise<UpdateDocResult> {
     const deferred = await this.updateDocDeferred(
       workspaceId,
       docId,
       markdown,
       editorId,
-      beforeWrite
+      beforeWrite,
+      prepareUpdate
     );
     this.publishDocUpdatesPushed(deferred.broadcasts);
     return deferred.result;
@@ -297,7 +303,12 @@ export class DocWriter {
     docId: string,
     markdown: string,
     editorId?: string,
-    beforeWrite?: () => Promise<void>
+    beforeWrite?: () => Promise<void>,
+    prepareUpdate: (
+      binary: Buffer,
+      markdown: string,
+      docId: string
+    ) => Uint8Array = updateDocWithMarkdown
   ): Promise<DeferredDocUpdateResult> {
     const broadcasts: WorkspaceDocUpdatesPushedPayload[] = [];
     this.logger.debug(
@@ -320,7 +331,7 @@ export class DocWriter {
           existingDoc.bin.byteOffset,
           existingDoc.bin.byteLength
         );
-    const delta = updateDocWithMarkdown(existingBinary, markdown, docId);
+    const delta = prepareUpdate(existingBinary, markdown, docId);
 
     if (this.storage.isEmptyBin(delta)) {
       return {

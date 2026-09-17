@@ -9,15 +9,16 @@ import Sinon from 'sinon';
 import * as Y from 'yjs';
 
 import { AppModule } from '../../app.module';
-import { Config } from '../../base';
+import { Config, CryptoHelper } from '../../base';
 import { ConfigModule } from '../../base/config';
 import {
   PgWorkspaceDocStorageAdapter,
   WorkspaceOrganizationService,
 } from '../../core/doc';
 import { WorkspaceDocOutboxPublisher } from '../../core/doc/outbox';
+import { DocWriter } from '../../core/doc/writer';
 import { DocRole, Models, WorkspaceRole } from '../../models';
-import { BackendRuntime } from '../../native';
+import { BackendRuntime, createDocWithMarkdown } from '../../native';
 import {
   MCP_CAPABILITIES,
   MCP_DELEGATION_CAPABILITIES,
@@ -33,6 +34,10 @@ import { McpResourcesService } from '../../plugins/copilot/mcp/resources';
 import { CapabilityRuntime } from '../../plugins/copilot/runtime/capability-runtime';
 import { IndexerService } from '../../plugins/indexer';
 import { createTestingApp, type TestingApp } from '../utils';
+import {
+  addEditorProperties,
+  DAILY_LOG_MARKDOWN,
+} from './fixtures/resource-markdown';
 
 type Context = {
   app: TestingApp;
@@ -209,6 +214,159 @@ test('create, read, update, replay and query persist without AI lifecycle', asyn
   t.is(await db.aiAgentRun.count(), 0);
   t.is(await db.aiMcpDelegationRequest.count(), 0);
   t.is(await db.mcpResourceExternalDocument.count(), 1);
+});
+
+test('editor-authored log updates preserve blocks and provenance through direct MCP', async t => {
+  const { app, workspaceId, actorId, db } = t.context;
+  const created = await create(t.context, {
+    content: { format: 'markdown', text: DAILY_LOG_MARKDOWN },
+    externalId: 'daily-log/editor-fixture',
+  });
+  if (created.toolName !== 'workspace_doc_create') return t.fail();
+  const documentId = created.documentId;
+  const storage = app.get(PgWorkspaceDocStorageAdapter);
+  const original = await storage.getDoc(workspaceId, documentId);
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, original!.bin);
+    const vector = Y.encodeStateVector(doc);
+    addEditorProperties(doc);
+    await storage.pushDocUpdates(
+      workspaceId,
+      documentId,
+      [Y.encodeStateAsUpdate(doc, vector)],
+      actorId
+    );
+    const blocks = doc.getMap<Y.Map<unknown>>('blocks');
+    const before = new Map(
+      [...blocks].map(([id, block]) => [id, block.toJSON()])
+    );
+    const read = await call(t.context, 'workspace_doc_read', { documentId });
+    if (!('content' in read)) return t.fail(JSON.stringify(read));
+    t.true(read.contentWritable);
+    const updatedMarkdown =
+      read.content.text.replace('待更新事项', '更新后的事项') + '* 新增记录\n';
+    const args = {
+      documentId,
+      expectedVersion: read.version,
+      content: { format: 'markdown', text: updatedMarkdown },
+      idempotencyKey: 'editor-log-update',
+    };
+    const start = Date.now();
+    const receipt = RESOURCE_RECEIPT_SCHEMA.parse(
+      await call(t.context, 'workspace_doc_update', args)
+    );
+    t.is(receipt.status, 'succeeded');
+    t.true(receipt.changed);
+    const stored = await storage.getDoc(workspaceId, documentId);
+    Y.applyUpdate(doc, stored!.bin);
+    for (const [id, old] of before) {
+      const block = blocks.get(id)!;
+      t.truthy(block, `retained block ${id}`);
+      if (!old['prop:meta:createdAt']) continue;
+      t.is(block.get('prop:meta:createdAt'), old['prop:meta:createdAt']);
+      t.is(block.get('prop:meta:createdBy'), old['prop:meta:createdBy']);
+      if (old['prop:text'] === '待更新事项') {
+        t.is(block.get('prop:meta:updatedBy'), actorId);
+        t.true(Number(block.get('prop:meta:updatedAt')) >= start);
+      } else {
+        t.is(block.get('prop:meta:updatedAt'), old['prop:meta:updatedAt']);
+        t.is(block.get('prop:meta:updatedBy'), old['prop:meta:updatedBy']);
+      }
+    }
+    const added = [...blocks].filter(([id]) => !before.has(id));
+    t.is(added.length, 1);
+    t.is(added[0][1].get('prop:meta:createdBy'), actorId);
+    const after = await call(t.context, 'workspace_doc_read', { documentId });
+    if (!('content' in after)) return t.fail(JSON.stringify(after));
+    t.true(after.contentWritable);
+    t.is(after.title, read.title);
+    t.deepEqual(after.locations, read.locations);
+    t.is(after.content.text, updatedMarkdown);
+    const events = await db.workspaceDocOutbox.findMany({
+      select: { id: true },
+    });
+    const replay = RESOURCE_RECEIPT_SCHEMA.parse(
+      await call(t.context, 'workspace_doc_update', args)
+    );
+    t.true(replay.replayed);
+    t.is(replay.operationId, receipt.operationId);
+    const noOp = await call(t.context, 'workspace_doc_update', {
+      ...args,
+      expectedVersion: after.version,
+      idempotencyKey: 'editor-log-no-op',
+    });
+    t.true('changed' in noOp && !noOp.changed);
+    const stale = await call(t.context, 'workspace_doc_update', {
+      ...args,
+      idempotencyKey: 'editor-log-stale',
+    });
+    t.is('error' in stale ? stale.error.code : '', 'version_conflict');
+    t.is(
+      await db.workspaceDocOutbox.count({
+        where: { id: { notIn: events.map(row => row.id) } },
+      }),
+      0
+    );
+    const unchanged = await storage.getDoc(workspaceId, documentId);
+    t.deepEqual(Buffer.from(unchanged!.bin), Buffer.from(stored!.bin));
+  } finally {
+    doc.destroy();
+  }
+});
+
+test('non-default editor state rejects MCP updates without body writes', async t => {
+  const { app, workspaceId, actorId, db } = t.context;
+  const created = await create(t.context);
+  if (created.toolName !== 'workspace_doc_create') return t.fail();
+  const storage = app.get(PgWorkspaceDocStorageAdapter);
+  const original = await storage.getDoc(workspaceId, created.documentId);
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, original!.bin);
+    const vector = Y.encodeStateVector(doc);
+    addEditorProperties(doc);
+    const paragraph = [...doc.getMap<Y.Map<unknown>>('blocks').values()].find(
+      b => b.get('sys:flavour') === 'affine:paragraph'
+    )!;
+    paragraph.set('prop:collapsed', true);
+    await storage.pushDocUpdates(
+      workspaceId,
+      created.documentId,
+      [Y.encodeStateAsUpdate(doc, vector)],
+      actorId
+    );
+    const read = await call(t.context, 'workspace_doc_read', {
+      documentId: created.documentId,
+    });
+    if (!('content' in read)) return t.fail(JSON.stringify(read));
+    t.false(read.contentWritable);
+    const before = await storage.getDoc(workspaceId, created.documentId);
+    const outbox = await db.workspaceDocOutbox.findMany({
+      select: { id: true },
+    });
+    const rejected = await call(t.context, 'workspace_doc_update', {
+      documentId: created.documentId,
+      expectedVersion: read.version,
+      content: { format: 'markdown', text: 'replacement' },
+      idempotencyKey: 'reject-collapsed',
+    });
+    t.is(
+      'error' in rejected ? rejected.error.code : '',
+      'unsupported_document_structure'
+    );
+    t.is('writeOutcome' in rejected ? rejected.writeOutcome : '', 'none');
+    const after = await storage.getDoc(workspaceId, created.documentId);
+    t.deepEqual(Buffer.from(after!.bin), Buffer.from(before!.bin));
+    t.is(
+      await db.workspaceDocOutbox.count({
+        where: { id: { notIn: outbox.map(row => row.id) } },
+      }),
+      0
+    );
+  } finally {
+    doc.destroy();
+  }
 });
 
 test('atomic create and placement rolls back on a storage failure, then recovers using original key', async t => {
@@ -1108,4 +1266,536 @@ test('native snapshot writer cannot bypass an active resource content lock', asy
     'version' in after ? after.version : '',
     'version' in before ? before.version : ''
   );
+});
+
+async function syncPropertyUpdate(
+  context: Context,
+  documentId: string,
+  source: 'current' | 'legacy',
+  mode: string | null
+) {
+  const { workspaceId, actorId, app } = context;
+  const storage = app.get(PgWorkspaceDocStorageAdapter);
+  const docId =
+    source === 'current' ? `db$${workspaceId}$docProperties` : workspaceId;
+  const snapshot = await storage.getDoc(workspaceId, docId);
+  const doc = new Y.Doc();
+  try {
+    if (snapshot) Y.applyUpdate(doc, snapshot.bin);
+    const vector = Y.encodeStateVector(doc);
+    if (source === 'current') {
+      const row = doc.getMap(documentId);
+      row.set('id', documentId);
+      row.set('primaryMode', mode);
+    } else {
+      const properties = doc.getMap('affine:workspace-properties');
+      if (!properties.has('pageProperties'))
+        properties.set('pageProperties', new Y.Map());
+      const pages = properties.get('pageProperties') as Y.Map<unknown>;
+      pages.set(
+        documentId,
+        new Y.Map([
+          [
+            'system',
+            new Y.Map([['primaryMode', new Y.Map([['value', mode]])]]),
+          ],
+        ])
+      );
+    }
+    return {
+      docId,
+      update: Y.encodeStateAsUpdate(doc, vector),
+      workspaceId,
+      actorId,
+    };
+  } finally {
+    doc.destroy();
+  }
+}
+
+for (const source of ['current', 'legacy'] as const) {
+  test(`primary mode from ${source} properties invalidates versions and blocks canvas replacement`, async t => {
+    const created = await create(t.context);
+    if (created.toolName !== 'workspace_doc_create') return t.fail();
+    const { app, workspaceId, actorId } = t.context;
+    const storage = app.get(PgWorkspaceDocStorageAdapter);
+    const mode = await syncPropertyUpdate(
+      t.context,
+      created.documentId,
+      source,
+      'edgeless'
+    );
+    await storage.pushDocUpdates(
+      workspaceId,
+      mode.docId,
+      [mode.update],
+      actorId
+    );
+    const read = await call(t.context, 'workspace_doc_read', {
+      documentId: created.documentId,
+    });
+    if (!('content' in read)) return t.fail(JSON.stringify(read));
+    t.is(read.documentType, 'edgeless');
+    t.false(read.contentWritable);
+    t.not(read.version, created.version);
+    const listing = await call(t.context, 'workspace_doc_list', {});
+    t.true(
+      'items' in listing &&
+        listing.items.some(
+          item => 'documentType' in item && item.documentType === 'edgeless'
+        )
+    );
+    const args = {
+      documentId: created.documentId,
+      content: { format: 'markdown', text: 'must not replace' },
+      idempotencyKey: randomUUID(),
+    };
+    t.is(
+      code(
+        await call(t.context, 'workspace_doc_update', {
+          ...args,
+          expectedVersion: created.version,
+        })
+      ),
+      'version_conflict'
+    );
+    t.is(
+      code(
+        await call(t.context, 'workspace_doc_update', {
+          ...args,
+          idempotencyKey: randomUUID(),
+          expectedVersion: read.version,
+        })
+      ),
+      'unsupported_document_kind'
+    );
+    const unchanged = await call(t.context, 'workspace_doc_read', {
+      documentId: created.documentId,
+    });
+    t.deepEqual(
+      'content' in unchanged ? unchanged.content : null,
+      read.content
+    );
+    const titled = await call(t.context, 'workspace_doc_update_meta', {
+      documentId: created.documentId,
+      title: 'Canvas title',
+      expectedVersion: read.version,
+      idempotencyKey: randomUUID(),
+    });
+    t.true('changed' in titled && titled.changed);
+  });
+}
+
+test('current non-null mode overrides legacy; null and deleted rows fall back; missing mode is page', async t => {
+  const created = await create(t.context);
+  if (created.toolName !== 'workspace_doc_create') return t.fail();
+  const { app, workspaceId, actorId } = t.context;
+  const storage = app.get(PgWorkspaceDocStorageAdapter);
+  const check = async (expected: 'page' | 'edgeless') => {
+    const read = await call(t.context, 'workspace_doc_read', {
+      documentId: created.documentId,
+    });
+    t.is('documentType' in read ? read.documentType : '', expected);
+    t.is(
+      'contentWritable' in read && read.contentWritable,
+      expected === 'page'
+    );
+  };
+  await check('page');
+  for (const [source, value, expected] of [
+    ['legacy', 'edgeless', 'edgeless'],
+    ['current', 'page', 'page'],
+    ['current', null, 'edgeless'],
+    ['current', '', 'page'],
+    ['current', 'edgeless', 'edgeless'],
+    ['legacy', 'page', 'edgeless'],
+  ] as const) {
+    const mode = await syncPropertyUpdate(
+      t.context,
+      created.documentId,
+      source,
+      value
+    );
+    await storage.pushDocUpdates(
+      workspaceId,
+      mode.docId,
+      [mode.update],
+      actorId
+    );
+    await check(expected);
+  }
+  await app
+    .get(WorkspaceOrganizationService)
+    .applyDataOperations(workspaceId, actorId, actorId, 'document_properties', [
+      { op: 'delete', key: created.documentId },
+    ]);
+  await check('page');
+});
+
+for (const source of ['current', 'legacy'] as const) {
+  test(`a ${source} mode change committed while replacement waits is rejected`, async t => {
+    const created = await create(t.context);
+    if (created.toolName !== 'workspace_doc_create') return t.fail();
+    const { models, workspaceId, actorId } = t.context;
+    const mode = await syncPropertyUpdate(
+      t.context,
+      created.documentId,
+      source,
+      'edgeless'
+    );
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const changing = models.doc.createUpdates(
+      [
+        {
+          spaceId: workspaceId,
+          docId: mode.docId,
+          blob: Buffer.from(mode.update),
+          timestamp: Date.now(),
+          editorId: actorId,
+        },
+      ],
+      undefined,
+      async () => {
+        entered.resolve();
+        await release.promise;
+      }
+    );
+    await entered.promise;
+    const waiting = Promise.withResolvers<void>();
+    const read = models.doc.readAuthoritative.bind(models.doc);
+    const stub = Sinon.stub(models.doc, 'readAuthoritative').callsFake(
+      async (...args) => {
+        if (args[1] === mode.docId) waiting.resolve();
+        return await read(...args);
+      }
+    );
+    try {
+      const writing = call(t.context, 'workspace_doc_update', {
+        documentId: created.documentId,
+        expectedVersion: created.version,
+        content: { format: 'markdown', text: 'stale' },
+        idempotencyKey: randomUUID(),
+      });
+      await waiting.promise;
+      release.resolve();
+      await changing;
+      t.is(code(await writing), 'version_conflict');
+    } finally {
+      release.resolve();
+      await changing;
+      stub.restore();
+    }
+  });
+
+  test(`replacement holds ${source} mode lock until body commit`, async t => {
+    const created = await create(t.context);
+    if (created.toolName !== 'workspace_doc_create') return t.fail();
+    const { app, db, workspaceId, actorId } = t.context;
+    const storage = app.get(PgWorkspaceDocStorageAdapter);
+    const mode = await syncPropertyUpdate(
+      t.context,
+      created.documentId,
+      source,
+      'edgeless'
+    );
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const writer = app.get(DocWriter);
+    const update = writer.updateDoc.bind(writer);
+    const stub = Sinon.stub(writer, 'updateDoc').callsFake(async (...args) => {
+      entered.resolve();
+      await release.promise;
+      return await update(...args);
+    });
+    const writing = call(t.context, 'workspace_doc_update', {
+      documentId: created.documentId,
+      expectedVersion: created.version,
+      content: { format: 'markdown', text: 'committed before canvas switch' },
+      idempotencyKey: randomUUID(),
+    });
+    try {
+      await entered.promise;
+      const [probe] = await db.$queryRaw<
+        Array<{ acquired: boolean }>
+      >`SELECT pg_try_advisory_xact_lock(hashtextextended(${`doc:content-write:${workspaceId}:${mode.docId}`}, 0)) AS acquired`;
+      t.false(probe.acquired);
+      const changing = storage.pushDocUpdates(
+        workspaceId,
+        mode.docId,
+        [mode.update],
+        actorId
+      );
+      release.resolve();
+      t.is('error' in (await writing), false);
+      await changing;
+      const read = await call(t.context, 'workspace_doc_read', {
+        documentId: created.documentId,
+      });
+      t.is('documentType' in read ? read.documentType : '', 'edgeless');
+      t.true(
+        'content' in read &&
+          read.content.text.includes('committed before canvas switch')
+      );
+    } finally {
+      release.resolve();
+      await writing;
+      stub.restore();
+    }
+  });
+}
+
+const paginationIds = [
+  '_',
+  '-',
+  'a',
+  'A',
+  'b',
+  'B',
+  '0',
+  '9',
+  'a-',
+  'a_',
+  'aa',
+  'aA',
+];
+async function paginationFixture(context: Context, mixedTimes = false) {
+  const { models, workspaceId, actorId } = context;
+  const storage = context.app.get(PgWorkspaceDocStorageAdapter);
+  const root = new Y.Doc();
+  const existing = await storage.getDoc(workspaceId, workspaceId);
+  if (existing) Y.applyUpdate(root, existing.bin);
+  const pages = root.getMap('meta').get('pages') as Y.Array<unknown>;
+  pages.delete(0, pages.length);
+  const directory = new Y.Doc();
+  for (const [i, id] of paginationIds.entries()) {
+    pages.push([{ id, title: id }]);
+    const row = directory.getMap(id);
+    for (const [key, value] of Object.entries({
+      id,
+      type: 'folder',
+      parentId: null,
+      data: id,
+      index: `a${i}`,
+    }))
+      row.set(key, value);
+    await models.doc.upsertMeta(workspaceId, id, { title: id });
+    await models.doc.upsert({
+      spaceId: workspaceId,
+      docId: id,
+      blob: Buffer.from(createDocWithMarkdown(id, 'body', id)),
+      timestamp: 1000 + (mixedTimes ? i % 3 : 0),
+      editorId: actorId,
+    });
+  }
+  for (const [docId, doc] of [
+    [workspaceId, root],
+    [`db$${workspaceId}$folders`, directory],
+  ] as const) {
+    // Merge with the initialized CRDT instead of replacing it with an unrelated
+    // snapshot that can conflict with an in-flight root compaction.
+    await storage.pushDocUpdates(
+      workspaceId,
+      docId,
+      [Y.encodeStateAsUpdate(doc)],
+      actorId
+    );
+    doc.destroy();
+  }
+}
+
+for (const mixedTimes of [false, true]) {
+  test(`resource pagination traverses code-unit IDs without gaps: mixed times=${mixedTimes}`, async t => {
+    await paginationFixture(t.context, mixedTimes);
+    const expectedDocs = [...paginationIds].sort(
+      (a, b) =>
+        (mixedTimes
+          ? (paginationIds.indexOf(b) % 3) - (paginationIds.indexOf(a) % 3)
+          : 0) || (a < b ? -1 : a > b ? 1 : 0)
+    );
+    for (const name of [
+      'workspace_folder_list',
+      'workspace_doc_list',
+    ] as const) {
+      for (const limit of [1, 5, 6, 12, 100]) {
+        const found: string[] = [];
+        let cursor: string | undefined;
+        do {
+          const page = await call(t.context, name, {
+            limit,
+            ...(cursor ? { cursor } : {}),
+          });
+          if (!('items' in page) || !('nextCursor' in page))
+            return t.fail(JSON.stringify(page));
+          found.push(
+            ...page.items.map(item =>
+              'documentId' in item
+                ? item.documentId
+                : 'folderId' in item
+                  ? item.folderId
+                  : 'unexpected'
+            )
+          );
+          cursor = page.nextCursor ?? undefined;
+          if (found.length > paginationIds.length)
+            return t.fail('pagination repeated items');
+        } while (cursor);
+        t.deepEqual(
+          found,
+          name === 'workspace_doc_list'
+            ? expectedDocs
+            : [...paginationIds].sort()
+        );
+      }
+      const first = await call(t.context, name, { limit: 1 });
+      if (!('nextCursor' in first) || !first.nextCursor) return t.fail();
+      const crypto = t.context.app.get(CryptoHelper);
+      const legacy = JSON.parse(crypto.decrypt(first.nextCursor));
+      delete legacy.sortVersion;
+      t.is(
+        code(
+          await call(t.context, name, {
+            limit: 1,
+            cursor: crypto.encrypt(JSON.stringify(legacy)),
+          })
+        ),
+        'cursor_stale'
+      );
+      const tampered = Buffer.from(first.nextCursor, 'base64');
+      tampered[tampered.length - 1] ^= 1;
+      t.is(
+        code(
+          await call(t.context, name, {
+            limit: 1,
+            cursor: tampered.toString('base64'),
+          })
+        ),
+        'invalid_input'
+      );
+    }
+    for (const [name, filter] of [
+      ['workspace_folder_list', { parentId: 'A' }],
+      ['workspace_doc_list', { folderId: 'A' }],
+      ['workspace_doc_list', { externalId: 'missing' }],
+    ] as const) {
+      const empty = await call(t.context, name, filter);
+      t.deepEqual('items' in empty ? empty.items : null, []);
+      t.is('nextCursor' in empty ? empty.nextCursor : 'missing', null);
+    }
+  });
+}
+
+test('document scan budget continues after empty pages and respects folder/external filters', async t => {
+  const { app, models, workspaceId, actorId } = t.context;
+  const targetFolder = await folder(t.context, 'target');
+  const target = await create(t.context, {
+    folderId: targetFolder.folderId,
+    externalId: 'selected',
+  });
+  if (target.toolName !== 'workspace_doc_create') return t.fail();
+  const storage = app.get(PgWorkspaceDocStorageAdapter);
+  const rootSnapshot = await storage.getDoc(workspaceId, workspaceId);
+  const root = new Y.Doc();
+  Y.applyUpdate(root, rootSnapshot!.bin);
+  const vector = Y.encodeStateVector(root);
+  const pages = root.getMap('meta').get('pages') as Y.Array<unknown>;
+  const time = Date.now() + 10000;
+  for (let i = 0; i < 201; i++) {
+    const id = `skip-${i}`;
+    pages.push([{ id }]);
+    await models.doc.upsertMeta(workspaceId, id, { title: id });
+    await models.doc.upsert({
+      spaceId: workspaceId,
+      docId: id,
+      blob: Buffer.from(createDocWithMarkdown(id, 'skip', id)),
+      timestamp: time,
+      editorId: actorId,
+    });
+  }
+  await storage.pushDocUpdates(
+    workspaceId,
+    workspaceId,
+    [Y.encodeStateAsUpdate(root, vector)],
+    actorId
+  );
+  root.destroy();
+  const first = await call(t.context, 'workspace_doc_list', {
+    folderId: targetFolder.folderId,
+    limit: 1,
+  });
+  if (!('items' in first) || !('nextCursor' in first)) return t.fail();
+  t.deepEqual(first.items, []);
+  t.truthy(first.nextCursor);
+  const next = await call(t.context, 'workspace_doc_list', {
+    folderId: targetFolder.folderId,
+    limit: 1,
+    cursor: first.nextCursor,
+  });
+  t.deepEqual(
+    'items' in next
+      ? next.items.map(item => ('documentId' in item ? item.documentId : null))
+      : null,
+    [target.documentId]
+  );
+  t.is('nextCursor' in next ? next.nextCursor : 'missing', null);
+  const external = await call(t.context, 'workspace_doc_list', {
+    externalId: 'selected',
+    limit: 1,
+  });
+  t.deepEqual(
+    'items' in external
+      ? external.items.map(item =>
+          'documentId' in item ? item.documentId : null
+        )
+      : null,
+    [target.documentId]
+  );
+});
+
+test('listing observes committed modes without inverting a body/properties writer lock', async t => {
+  const created = await create(t.context);
+  if (created.toolName !== 'workspace_doc_create') return t.fail();
+  const { models, workspaceId, actorId } = t.context;
+  const pending = new Y.Doc();
+  pending.getMap('concurrency-fixture').set('pending', true);
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const writing = models.doc.createUpdates(
+    [
+      {
+        spaceId: workspaceId,
+        docId: created.documentId,
+        blob: Buffer.from(Y.encodeStateAsUpdate(pending)),
+        timestamp: Date.now(),
+        editorId: actorId,
+      },
+    ],
+    undefined,
+    async () => {
+      entered.resolve();
+      await release.promise;
+    }
+  );
+  pending.destroy();
+  try {
+    await entered.promise;
+    const list = await call(t.context, 'workspace_doc_list', {});
+    t.deepEqual(
+      'items' in list
+        ? list.items.map(item =>
+            'documentId' in item ? item.documentId : null
+          )
+        : null,
+      [created.documentId]
+    );
+    t.true(
+      'items' in list &&
+        list.items.some(
+          item => 'documentType' in item && item.documentType === 'page'
+        )
+    );
+  } finally {
+    release.resolve();
+    await writing;
+  }
 });

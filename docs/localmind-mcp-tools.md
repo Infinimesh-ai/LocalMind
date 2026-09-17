@@ -275,6 +275,11 @@ Document lists inspect at most 200 candidates per page; continue even after an
 empty page when `nextCursor` is non-null. Directory cursors bind their revision
 and fail with `cursor_stale` after a change. Cursors are encrypted/authenticated
 and bind the actor, workspace and filters; every page checks current ACL.
+Folder IDs sort in ascending UTF-16 code-unit order. Documents sort by update
+time descending, then ID in the same ascending order. Both cursor types carry
+an authenticated sorting version; cursors from the previous ordering fail with
+`cursor_stale`. Discard a stale cursor and restart from the first page. Pagination
+does not provide a snapshot across requests.
 Omitted document `folderId` means all readable untrashed documents; null means
 root, excluding placements hidden by directory permissions. Omitted creation
 `folderId` or `parentId` means root. Moving removes every prior placement and
@@ -336,5 +341,11 @@ Example create arguments (IDs are placeholders):
 
 Read with `workspace_doc_read`, then submit the complete revised content and its
 returned version to `workspace_doc_update` using a new logical request key.
+The effective page/canvas mode comes from `docProperties.primaryMode`, with
+non-null current properties taking precedence over legacy root properties.
+Canvas documents report `contentWritable: false`; body replacement fails with
+`unsupported_document_kind`. A mode change invalidates a previously read
+document version and may instead return `version_conflict`. Title updates remain
+available under their existing permissions and version checks.
 Direct tools never create Projects, import/publish Project resources, change ACL,
 delete resources, or expose internal arbitrary-tool execution.

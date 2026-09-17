@@ -286,3 +286,54 @@ node /Users/dev2/.codex/tmp/localmind-skill-forward-test.mjs
 Skill Creator 验证器、JavaScript 语法检查、格式检查通过。行为结果保留于
 `/Users/dev2/.codex/tmp/localmind-skill-validation.json`。直接工具缺少日期排序能力的限制
 仍然保留，skill 明确报告“内容已保存，日期排序未完成”，未伪造排序成功。
+
+## 后续：2026-09-17 编辑器日志可写性修复
+
+现有编辑器日志被直接 MCP 判为 `unsupported_document_structure`：正文、层级和
+行内格式可以往返，但编辑器默认属性及四个块元数据字段在 Markdown 重建时缺失，
+严格属性比较因此拒绝更新。本轮沿用直接资源设计契约修复服务端，不改变能力授权、
+ACL、版本、事务、回执或 outbox 边界。
+
+- `src/core/doc/resource-markdown.ts` 按块类型规范化明确默认值，只排除四个经过
+  类型检查且由更新路径维护的创建/修改元数据字段；未知属性、评论、非默认状态
+  和原有有损 Markdown 类型仍拒绝。
+- 原生匹配器对部分文本分段及默认属性的比较会将未修改条目当成改写。原生更新
+  先作用于内存副本，再在同级块中按正文语义优先对齐未修改块，只把实际属性与
+  子节点变化应用到原文档。保留未修改块的 ID、`Y.Text` 对象和创建/修改记录；
+  维护修改/新增块的记录，不补造旧块缺失的创建历史。
+- `src/core/doc/writer.ts` 增加内部增量准备回调，直接资源服务在既有锁及事务内
+  使用上述更新方式；其他调用保持原生默认路径。无需数据库迁移、GraphQL 生成、
+  Rust 改动或前端改动。
+- 回归 fixture 使用合成的四章节日志，覆盖括号标题、粗体、链接后的普通文字、
+  嵌套列表、插入/删除、空正文、勾选状态、旧元数据缺失、非默认状态拒绝、回读、
+  幂等重放和版本冲突。分页 fixture 改为合并到已初始化的 CRDT，避免独立快照
+  与后台合并冲突；outbox 断言允许后台清理已有事件，检查是否出现新增事件。
+
+复用 `localmind_code_review_runner` 和固定镜像 `localmind-affine:test`，使用独立
+`code_review_20260917` 数据库；未重建镜像或启动完整运行时。容器已有
+`NODE_OPTIONS=--import=/workspace/tools/cli/register.js`。
+
+```sh
+docker exec localmind_code_review_runner yarn workspace @affine/server ava \
+  --concurrency=1 --serial --timeout=2m \
+  src/__tests__/copilot/copilot-mcp-resources.spec.ts \
+  src/__tests__/copilot/copilot-mcp-resources.e2e.ts
+docker exec localmind_code_review_runner yarn tsc \
+  -b packages/backend/server/tsconfig.json --pretty false
+docker exec localmind_code_review_runner yarn workspace @affine/server \
+  typecheck:copilot --file src/__tests__/copilot/copilot-mcp-resources.spec.ts
+docker exec localmind_code_review_runner yarn workspace @affine/server \
+  typecheck:copilot --file src/__tests__/copilot/copilot-mcp-resources.e2e.ts
+```
+
+结果：58 项测试通过（21 项单元、37 项集成）；后端及两个测试文件类型检查、变更
+TypeScript 的 oxlint、变更文件 Prettier 和 `git diff --check` 通过。
+
+另在容器内用真实日志只读副本离线应用完整合并稿：更新前后均可写，正文与目标
+一致，38 个原有块全部保留，34 个未修改正文块仍使用原 ID，原有创建记录保留。
+统计说明按合并稿修改；没有把真实日志内容加入测试 fixture 或仓库。
+
+本轮未 commit、push、部署或更新线上日志。上线后仍需重新读取最新正文及版本，
+再合并、提交并核对回执。测试容器验证后停止，独立测试数据库保留供复现。
+现有 Markdown 子集限制仍适用；Docker 虚拟磁盘观察到约 59 GB 已用满，本轮未
+重建镜像、清理其他任务资源或删除数据卷，后续镜像构建前需先处理空间问题。

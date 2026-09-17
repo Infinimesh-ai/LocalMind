@@ -4,6 +4,8 @@ import { io, type Socket as SocketIOClient } from 'socket.io-client';
 import { applyUpdate, Doc, encodeStateAsUpdate, encodeStateVector } from 'yjs';
 
 import { CANARY_CLIENT_VERSION_MAX_AGE_DAYS } from '../../base';
+import { WorkspaceDocOutboxPublisher } from '../../core/doc/outbox';
+import { SpaceSyncGateway } from '../../core/sync/gateway';
 import {
   DocRole,
   Models,
@@ -1473,3 +1475,230 @@ test('concurrent regular and scoped joins cannot create dual socket state', asyn
     socket.disconnect();
   }
 });
+
+for (const clientVersion of ['0.25.0', '0.26.0']) {
+  for (const origin of ['client', 'server', 'outbox'] as const) {
+    test(`workspace ${origin} broadcast rechecks recipient ACL for ${clientVersion}`, async t => {
+      const db = app.get(PrismaClient);
+      const models = app.get(Models);
+      const owner = await loginWithCookie(app);
+      const member = await loginWithCookie(app);
+      const workspace = await models.workspace.create(owner.user.id);
+      const docId = 'broadcast-private-doc';
+      await models.workspaceUser.set(
+        workspace.id,
+        member.user.id,
+        WorkspaceRole.Collaborator,
+        { status: WorkspaceMemberStatus.Accepted }
+      );
+      await models.doc.setDefaultRole(workspace.id, docId, DocRole.None);
+      await createSnapshot(db, {
+        workspaceId: workspace.id,
+        docId,
+        userId: owner.user.id,
+        ...createYjsSnapshot('body'),
+      });
+      const sender = createClient(url, owner.cookieHeader);
+      const ownerOther = createClient(url, owner.cookieHeader);
+      const receiver = createClient(url, member.cookieHeader, {
+        affinePresenceUserId: owner.user.id,
+        userId: owner.user.id,
+      });
+      const receiverOther = createClient(url, member.cookieHeader);
+      const sockets = [sender, ownerOther, receiver, receiverOther];
+      const event =
+        clientVersion === '0.25.0'
+          ? 'space:broadcast-doc-update'
+          : 'space:broadcast-doc-updates';
+      const wrongEvent =
+        clientVersion === '0.25.0'
+          ? 'space:broadcast-doc-updates'
+          : 'space:broadcast-doc-update';
+      try {
+        for (const socket of sockets) {
+          await waitForConnect(socket);
+          unwrapResponse(
+            t,
+            await emitWithAck(socket, 'space:join', {
+              spaceType: 'workspace',
+              spaceId: workspace.id,
+              clientVersion,
+            })
+          );
+        }
+        const send = async (
+          allowed: boolean,
+          beforeDelivery?: () => Promise<unknown>
+        ) => {
+          const update = createYjsUpdateBase64();
+          const delivery = [
+            waitForEvent<{
+              docId: string;
+              update?: string;
+              updates?: string[];
+            }>(ownerOther, event).then(payload => {
+              t.is(payload.docId, docId);
+              t.is(payload.update ?? payload.updates?.[0], update);
+            }),
+            expectNoEvent(ownerOther, wrongEvent),
+            ...(origin === 'client' ? [expectNoEvent(sender, event)] : []),
+            ...[receiver, receiverOther].map(socket =>
+              allowed
+                ? waitForEvent(socket, event)
+                : expectNoEvent(socket, event)
+            ),
+          ];
+          if (origin === 'client') {
+            unwrapResponse(
+              t,
+              await emitWithAck(sender, 'space:push-doc-update', {
+                spaceType: 'workspace',
+                spaceId: workspace.id,
+                docId,
+                update,
+              })
+            );
+          } else if (origin === 'server') {
+            await app.get(SpaceSyncGateway).onDocUpdatesPushed({
+              spaceType: 'workspace',
+              spaceId: workspace.id,
+              docId,
+              updates: [Buffer.from(update, 'base64')],
+              timestamp: Date.now(),
+              editor: owner.user.id,
+            });
+          } else {
+            await models.workspaceDocOutbox.add({
+              workspaceId: workspace.id,
+              docId,
+              update: Buffer.from(update, 'base64'),
+              timestamp: BigInt(Date.now()),
+              editorId: owner.user.id,
+            });
+            await beforeDelivery?.();
+            await app.get(WorkspaceDocOutboxPublisher).publish();
+          }
+          await Promise.all(delivery);
+        };
+        await send(false);
+        await createProjectDocumentGrants(db, {
+          ownerId: owner.user.id,
+          memberId: member.user.id,
+          workspaceId: workspace.id,
+          docs: [{ docId, level: 'read' }],
+        });
+        await send(false);
+        await models.docUser.set(
+          workspace.id,
+          docId,
+          member.user.id,
+          DocRole.Reader
+        );
+        await send(true);
+        await models.docUser.delete(workspace.id, docId, member.user.id);
+        await send(false);
+        await models.docUser.set(
+          workspace.id,
+          docId,
+          member.user.id,
+          DocRole.Reader
+        );
+        await db.user.update({
+          where: { id: member.user.id },
+          data: { disabled: true },
+        });
+        await send(false);
+        await db.user.update({
+          where: { id: member.user.id },
+          data: { disabled: false },
+        });
+        await send(true);
+        if (origin === 'outbox') {
+          await send(false, () =>
+            models.docUser.delete(workspace.id, docId, member.user.id)
+          );
+          await models.docUser.set(
+            workspace.id,
+            docId,
+            member.user.id,
+            DocRole.Reader
+          );
+        }
+        await db.workspaceMember.update({
+          where: {
+            workspaceId_userId_state: {
+              workspaceId: workspace.id,
+              userId: member.user.id,
+              state: 'active',
+            },
+          },
+          data: { state: 'suspended' },
+        });
+        await send(false);
+      } finally {
+        sockets.forEach(socket => socket.disconnect());
+      }
+    });
+  }
+}
+
+for (const clientVersion of ['0.25.0', '0.26.0']) {
+  test(`directory broadcast keeps table authorization for ${clientVersion}`, async t => {
+    const db = app.get(PrismaClient);
+    const models = app.get(Models);
+    const owner = await loginWithCookie(app);
+    const member = await loginWithCookie(app);
+    const workspace = await models.workspace.create(owner.user.id);
+    await models.workspaceUser.set(
+      workspace.id,
+      member.user.id,
+      WorkspaceRole.Collaborator,
+      { status: WorkspaceMemberStatus.Accepted }
+    );
+    const receiver = createClient(url, member.cookieHeader);
+    const allowed = createClient(url, owner.cookieHeader);
+    const event =
+      clientVersion === '0.25.0'
+        ? 'space:broadcast-doc-update'
+        : 'space:broadcast-doc-updates';
+    try {
+      for (const socket of [receiver, allowed]) {
+        await waitForConnect(socket);
+        unwrapResponse(
+          t,
+          await emitWithAck(socket, 'space:join', {
+            spaceType: 'workspace',
+            spaceId: workspace.id,
+            clientVersion,
+          })
+        );
+      }
+      await db.workspaceDirectoryGrant.create({
+        data: {
+          workspaceId: workspace.id,
+          directoryId: 'hidden',
+          principalId: member.user.id,
+          canRead: false,
+          canWrite: false,
+          canOrganize: false,
+          canCreateFolder: false,
+        },
+      });
+      const delivered = waitForEvent(allowed, event);
+      const denied = expectNoEvent(receiver, event);
+      await app.get(SpaceSyncGateway).onDocUpdatesPushed({
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        docId: `db$${workspace.id}$folders`,
+        updates: [Buffer.from(createYjsUpdateBase64(), 'base64')],
+        timestamp: Date.now(),
+        editor: owner.user.id,
+      });
+      await Promise.all([delivered, denied]);
+      t.pass();
+    } finally {
+      receiver.disconnect();
+      allowed.disconnect();
+    }
+  });
+}
