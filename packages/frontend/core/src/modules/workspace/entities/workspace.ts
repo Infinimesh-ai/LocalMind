@@ -30,6 +30,8 @@ export class Workspace extends Entity {
 
   _docCollection: WorkspaceInterface | null = null;
 
+  private pendingLocalUpdates = true;
+
   get docCollection() {
     if (!this._docCollection) {
       this._docCollection = new WorkspaceImpl({
@@ -78,8 +80,45 @@ export class Workspace extends Entity {
   }
 
   get canGracefulStop() {
-    // TODO
-    return true;
+    return !this.pendingLocalUpdates;
+  }
+
+  startLifecycleTracking() {
+    const subscription = this.engine.doc.state$.subscribe({
+      next: state => {
+        this.pendingLocalUpdates = state.updating;
+      },
+      error: () => {
+        // The local doc frontend persists updates before reporting idle. Keep
+        // the workspace alive when its state can no longer be observed.
+        this.pendingLocalUpdates = true;
+      },
+    });
+    this.disposables.push(() => subscription.unsubscribe());
+  }
+
+  private backgroundWorkSuspended = false;
+
+  localRootReady = false;
+
+  markLocalRootReady() {
+    this.localRootReady = true;
+  }
+
+  async suspendBackgroundWork() {
+    if (this.backgroundWorkSuspended) {
+      return;
+    }
+    this.backgroundWorkSuspended = true;
+    await this.engine.client?.pauseSync();
+  }
+
+  async resumeBackgroundWork() {
+    if (!this.backgroundWorkSuspended) {
+      return;
+    }
+    this.backgroundWorkSuspended = false;
+    await this.engine.client?.resumeSync();
   }
 
   get engine() {
@@ -122,5 +161,6 @@ export class Workspace extends Entity {
 
   override dispose(): void {
     this.docCollection.dispose();
+    super.dispose();
   }
 }

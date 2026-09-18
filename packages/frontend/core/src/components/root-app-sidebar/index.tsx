@@ -37,7 +37,6 @@ import {
   NavigationPanelCollections,
   NavigationPanelFavorites,
   NavigationPanelMigrationFavorites,
-  NavigationPanelOrganize,
   NavigationPanelTags,
 } from '../../desktop/components/navigation-panel';
 import { WorkbenchService } from '../../modules/workbench';
@@ -57,6 +56,7 @@ import { TemplateDocEntrance } from './template-doc-entrance';
 import { TrashButton } from './trash-button';
 import { UpdaterButton } from './updater-button';
 import UserInfo from './user-info';
+import { SidebarWorkspaces } from './workspaces';
 
 export type RootAppSidebarProps = {
   isPublicWorkspace: boolean;
@@ -275,7 +275,7 @@ export const RootAppSidebar = memo((): ReactElement => {
       </SidebarContainer>
       <SidebarScrollableContainer>
         <NavigationPanelFavorites />
-        <NavigationPanelOrganize />
+        <SidebarWorkspaces />
         <NavigationPanelMigrationFavorites />
         <NavigationPanelTags />
         <NavigationPanelCollections />

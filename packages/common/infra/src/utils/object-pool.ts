@@ -96,4 +96,22 @@ export class ObjectPool<Key, T> {
 
     this.objects.clear();
   }
+
+  /**
+   * Explicitly remove an unreferenced object without changing the pool's
+   * default garbage-collection cadence.
+   */
+  delete(key: Key) {
+    const entry = this.objects.get(key);
+    if (
+      !entry ||
+      entry.rc !== 0 ||
+      (this.options.onDangling && !this.options.onDangling(entry.obj))
+    ) {
+      return false;
+    }
+    this.options.onDelete?.(entry.obj);
+    this.objects.delete(key);
+    return true;
+  }
 }

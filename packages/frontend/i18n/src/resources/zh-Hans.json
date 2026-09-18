@@ -1,4 +1,10 @@
 {
+  "com.affine.rootAppSidebar.shortcuts": "快捷操作",
+  "com.affine.rootAppSidebar.more": "更多操作",
+  "com.affine.rootAppSidebar.workspaces": "工作区",
+  "com.affine.rootAppSidebar.manage-workspaces": "添加或管理工作区",
+  "com.affine.rootAppSidebar.files": "文件",
+  "com.affine.rootAppSidebar.no-documents": "暂无文档，点击 + 新建。",
   "com.affine.localmind.project-search.results": "在项目中找到 {{count}} 个与「{{query}}」相关的文件",
   "com.affine.localmind.office-tool.readFailed": "无法读取文件，请重新打开后重试。",
   "com.affine.localmind.office-tool.requestFailed": "无法准备修改请求，请检查文件后重试。",

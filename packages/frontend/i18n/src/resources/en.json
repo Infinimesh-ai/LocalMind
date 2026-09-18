@@ -1,4 +1,10 @@
 {
+  "com.affine.rootAppSidebar.shortcuts": "Quick actions",
+  "com.affine.rootAppSidebar.more": "More actions",
+  "com.affine.rootAppSidebar.workspaces": "Workspaces",
+  "com.affine.rootAppSidebar.manage-workspaces": "Add or manage workspaces",
+  "com.affine.rootAppSidebar.files": "Files",
+  "com.affine.rootAppSidebar.no-documents": "No documents yet. Create one with +.",
   "com.affine.localmind.project-search.results": "Project files found for \"{{query}}\": {{count}}",
   "com.affine.localmind.office-tool.readFailed": "The file could not be read. Reopen it and try again.",
   "com.affine.localmind.office-tool.requestFailed": "The change request could not be prepared. Check the file and try again.",

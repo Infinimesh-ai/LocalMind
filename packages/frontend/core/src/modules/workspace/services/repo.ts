@@ -1,6 +1,6 @@
 import { DebugLogger } from '@affine/debug';
 import type { WorkerInitOptions } from '@affine/nbstore/worker/client';
-import { ObjectPool, Service } from '@toeverything/infra';
+import { ObjectPool, type RcRef, Service } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 
 import type { Workspace } from '../entities/workspace';
@@ -14,13 +14,45 @@ import { WorkspaceService } from './workspace';
 
 const logger = new DebugLogger('affine:workspace-repository');
 
+const DEFAULT_WARM_CACHE_TTL = 60_000;
+const DEFAULT_WARM_CACHE_CAPACITY = 3;
+
+type WarmCacheOptions = {
+  ttlMs: number;
+  capacity: number;
+};
+
+type WarmEntry = {
+  ref: RcRef<Workspace>;
+  timer: ReturnType<typeof setTimeout>;
+  lastUsedAt: number;
+};
+
 export class WorkspaceRepositoryService extends Service {
   constructor(
     private readonly flavoursService: WorkspaceFlavoursService,
     private readonly profileRepo: WorkspaceProfileService,
-    private readonly workspacesListService: WorkspaceListService
+    private readonly workspacesListService: WorkspaceListService,
+    private readonly warmCacheOptions: WarmCacheOptions = {
+      ttlMs: DEFAULT_WARM_CACHE_TTL,
+      capacity: DEFAULT_WARM_CACHE_CAPACITY,
+    }
   ) {
     super();
+    const identityBoundarySubscription =
+      this.workspacesListService.list.workspaces$.subscribe(() => {
+        // Cloud providers emit a fresh account-scoped list on account changes.
+        // Evicting all inactive leases here prevents reuse across account or
+        // server-list boundaries, even if workspace ids happen to overlap.
+        this.evictWarmWorkspaces();
+      });
+    this.disposables.push(() => identityBoundarySubscription.unsubscribe());
+    if (typeof window !== 'undefined') {
+      window.addEventListener('memorypressure', this.evictWarmWorkspaces);
+      this.disposables.push(() => {
+        window.removeEventListener('memorypressure', this.evictWarmWorkspaces);
+      });
+    }
   }
   pool = new ObjectPool<string, Workspace>({
     onDelete(workspace) {
@@ -44,7 +76,9 @@ export class WorkspaceRepositoryService extends Service {
     customEngineWorkerInitOptions?: WorkerInitOptions
   ): {
     workspace: Workspace;
-    dispose: () => void;
+    dispose: (options?: { warm?: boolean }) => void;
+    reused: boolean;
+    validateAccess?: (signal?: AbortSignal) => Promise<void>;
   } => {
     if (options.isSharedMode || options.docScopeId) {
       const workspace = this.instantiate(
@@ -53,28 +87,123 @@ export class WorkspaceRepositoryService extends Service {
       );
       return {
         workspace,
+        reused: false,
         dispose: () => {
           workspace.scope.dispose();
         },
       };
     }
 
-    const exist = this.pool.get(options.metadata.id);
+    const poolKey = this.getPoolKey(options);
+    const exist = this.pool.get(poolKey);
     if (exist) {
-      return {
-        workspace: exist.obj,
-        dispose: exist.release,
-      };
+      return this.activate(poolKey, exist);
     }
 
     const workspace = this.instantiate(options, customEngineWorkerInitOptions);
 
-    const ref = this.pool.put(workspace.meta.id, workspace);
+    const ref = this.pool.put(poolKey, workspace);
 
+    return this.activate(poolKey, ref);
+  };
+
+  private getPoolKey(options: WorkspaceOpenOptions) {
+    return `workspace:${options.metadata.flavour}:${options.metadata.id}`;
+  }
+
+  private activate(poolKey: string, ref: RcRef<Workspace>) {
+    const warmEntry = this.warmEntries.get(poolKey);
+    const reused = !!warmEntry;
+    if (warmEntry) {
+      clearTimeout(warmEntry.timer);
+      this.warmEntries.delete(poolKey);
+      warmEntry.ref.release();
+    }
+    void ref.obj.resumeBackgroundWork().catch(error => {
+      logger.warn('failed to resume warm workspace', error);
+    });
+
+    let disposed = false;
+    const flavourProvider = this.flavoursService.flavours$.value.find(
+      provider => provider.flavour === ref.obj.flavour
+    );
     return {
       workspace: ref.obj,
-      dispose: ref.release,
+      reused,
+      validateAccess: flavourProvider?.validateWorkspaceAccess
+        ? (signal?: AbortSignal) =>
+            flavourProvider.validateWorkspaceAccess?.(ref.obj.id, signal) ??
+            Promise.resolve()
+        : undefined,
+      dispose: (options?: { warm?: boolean }) => {
+        if (disposed) {
+          return;
+        }
+        disposed = true;
+        if (options?.warm !== false) {
+          this.retainWarm(poolKey, ref.obj);
+        }
+        ref.release();
+        if (options?.warm === false) {
+          this.pool.delete(poolKey);
+        }
+      },
     };
+  }
+
+  private readonly warmEntries = new Map<string, WarmEntry>();
+
+  private retainWarm(poolKey: string, workspace: Workspace) {
+    if (
+      this.warmCacheOptions.capacity <= 0 ||
+      this.warmCacheOptions.ttlMs <= 0 ||
+      this.warmEntries.has(poolKey)
+    ) {
+      return;
+    }
+
+    const ref = this.pool.get(poolKey);
+    if (!ref) {
+      return;
+    }
+    void workspace.suspendBackgroundWork().catch(error => {
+      logger.warn('failed to suspend warm workspace', error);
+    });
+    const entry: WarmEntry = {
+      ref,
+      lastUsedAt: Date.now(),
+      timer: setTimeout(() => {
+        this.evictWarmWorkspace(poolKey, entry);
+      }, this.warmCacheOptions.ttlMs),
+    };
+    this.warmEntries.set(poolKey, entry);
+    this.enforceWarmCapacity();
+  }
+
+  private enforceWarmCapacity() {
+    while (this.warmEntries.size > this.warmCacheOptions.capacity) {
+      const oldest = [...this.warmEntries.entries()].reduce((a, b) =>
+        a[1].lastUsedAt <= b[1].lastUsedAt ? a : b
+      );
+      this.evictWarmWorkspace(oldest[0], oldest[1]);
+    }
+  }
+
+  private evictWarmWorkspace(poolKey: string, expected?: WarmEntry) {
+    const entry = this.warmEntries.get(poolKey);
+    if (!entry || (expected && entry !== expected)) {
+      return;
+    }
+    clearTimeout(entry.timer);
+    this.warmEntries.delete(poolKey);
+    entry.ref.release();
+    this.pool.delete(poolKey);
+  }
+
+  evictWarmWorkspaces = () => {
+    for (const [poolKey, entry] of this.warmEntries) {
+      this.evictWarmWorkspace(poolKey, entry);
+    }
   };
 
   openByWorkspaceId = (workspaceId: string) => {
@@ -113,6 +242,7 @@ export class WorkspaceRepositoryService extends Service {
     const workspace = workspaceScope.get(WorkspaceService).workspace;
 
     workspace.engine.start();
+    workspace.startLifecycleTracking();
 
     workspaceScope.emitEvent(WorkspaceInitialized, workspace);
 
@@ -125,5 +255,11 @@ export class WorkspaceRepositoryService extends Service {
     }
 
     return workspace;
+  }
+
+  override dispose(): void {
+    this.evictWarmWorkspaces();
+    this.pool.clear();
+    super.dispose();
   }
 }

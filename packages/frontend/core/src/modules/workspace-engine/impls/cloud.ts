@@ -453,6 +453,13 @@ class CloudWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
     return { workspace: access };
   }
 
+  async validateWorkspaceAccess(
+    workspaceId: string,
+    signal?: AbortSignal
+  ): Promise<void> {
+    await this.getWorkspaceInfo(workspaceId, signal);
+  }
+
   getEngineWorkerInitOptions(workspaceId: string): WorkerInitOptions {
     return {
       local: {

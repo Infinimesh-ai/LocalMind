@@ -36,6 +36,30 @@ function createProxy(initValue: (key: string) => any) {
 }
 export function useAFFiNEI18N(): {
     /**
+      * `Quick actions`
+      */
+    ["com.affine.rootAppSidebar.shortcuts"](): string;
+    /**
+      * `More actions`
+      */
+    ["com.affine.rootAppSidebar.more"](): string;
+    /**
+      * `Workspaces`
+      */
+    ["com.affine.rootAppSidebar.workspaces"](): string;
+    /**
+      * `Add or manage workspaces`
+      */
+    ["com.affine.rootAppSidebar.manage-workspaces"](): string;
+    /**
+      * `Files`
+      */
+    ["com.affine.rootAppSidebar.files"](): string;
+    /**
+      * `No documents yet. Create one with +.`
+      */
+    ["com.affine.rootAppSidebar.no-documents"](): string;
+    /**
       * `Project files found for "{{query}}": {{count}}`
       */
     ["com.affine.localmind.project-search.results"](options: Readonly<{

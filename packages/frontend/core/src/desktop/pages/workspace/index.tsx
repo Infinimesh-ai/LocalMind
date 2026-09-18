@@ -14,6 +14,7 @@ import {
   type Workspace,
   type WorkspaceMetadata,
   WorkspacesService,
+  WorkspaceSwitchService,
 } from '@affine/core/modules/workspace';
 import {
   createDocumentScopedWorkerInitOptions,
@@ -24,7 +25,6 @@ import type { WorkerInitOptions } from '@affine/nbstore/worker/client';
 import { ZipTransformer } from '@blocksuite/affine/widgets/linked-doc';
 import {
   FrameworkScope,
-  LiveData,
   useLiveData,
   useService,
   useServices,
@@ -37,7 +37,6 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom';
-import { map } from 'rxjs';
 import * as _Y from 'yjs';
 
 import { AffineErrorBoundary } from '../../../components/affine/affine-error-boundary';
@@ -74,17 +73,20 @@ export const Component = (): ReactElement => {
     serversService,
     defaultServerService,
     globalContextService,
+    workspaceSwitchService,
   } = useServices({
     WorkspacesService,
     GlobalDialogService,
     ServersService,
     DefaultServerService,
     GlobalContextService,
+    WorkspaceSwitchService,
   });
 
   const params = useParams();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const switchState = useLiveData(workspaceSwitchService.state$);
 
   // check if we are in detail doc route, if so, maybe render share page
   const detailDocRoute = useMemo(() => {
@@ -117,36 +119,37 @@ export const Component = (): ReactElement => {
     return workspaces.find(({ id }) => id === params.workspaceId);
   }, [workspaces, params.workspaceId]);
 
-  // if listLoading is false, we can show 404 page, otherwise we should show loading page.
+  const metadataLookupRef = useRef({
+    workspaceId: '',
+    refreshRequested: false,
+  });
   useEffect(() => {
-    if (listLoading === false && meta === undefined) {
-      setWorkspaceNotFound(true);
-    }
-    if (meta) {
-      setWorkspaceNotFound(false);
-    }
-  }, [listLoading, meta, workspacesService]);
+    metadataLookupRef.current = {
+      workspaceId: params.workspaceId ?? '',
+      refreshRequested: false,
+    };
+    setWorkspaceNotFound(false);
+  }, [params.workspaceId]);
 
-  // if workspace is not found, we should retry
-  const retryTimesRef = useRef(3);
+  // Known workspaces open from the current list without a refresh. An unknown
+  // route gets exactly one coalesced metadata refresh before resolving to 404.
   useEffect(() => {
-    if (params.workspaceId) {
-      retryTimesRef.current = 3; // reset retry times
+    if (!params.workspaceId || meta) {
+      setWorkspaceNotFound(false);
+      return;
+    }
+    if (listLoading) {
+      return;
+    }
+
+    const lookup = metadataLookupRef.current;
+    if (lookup.workspaceId === params.workspaceId && !lookup.refreshRequested) {
+      lookup.refreshRequested = true;
       workspacesService.list.revalidate();
+      return;
     }
-  }, [params.workspaceId, workspacesService]);
-  useEffect(() => {
-    if (listLoading === false && meta === undefined) {
-      const timer = setTimeout(() => {
-        if (retryTimesRef.current > 0) {
-          workspacesService.list.revalidate();
-          retryTimesRef.current--;
-        }
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-    return;
-  }, [listLoading, meta, workspaceNotFound, workspacesService]);
+    setWorkspaceNotFound(true);
+  }, [listLoading, meta, params.workspaceId, workspacesService]);
 
   // server search params
   const serverFromSearchParams = useLiveData(
@@ -260,6 +263,13 @@ export const Component = (): ReactElement => {
         <WorkspacePage
           meta={documentScopedMeta}
           documentScope={documentScope}
+          switchRequestId={
+            switchState.phase !== 'idle' &&
+            switchState.source === 'click' &&
+            switchState.targetWorkspaceId === documentScopedMeta.id
+              ? switchState.switchId
+              : undefined
+          }
         />
       </FrameworkScope>
     );
@@ -290,7 +300,16 @@ export const Component = (): ReactElement => {
 
   return (
     <FrameworkScope scope={server?.scope}>
-      <WorkspacePage meta={meta} />
+      <WorkspacePage
+        meta={meta}
+        switchRequestId={
+          switchState.phase !== 'idle' &&
+          switchState.source === 'click' &&
+          switchState.targetWorkspaceId === meta.id
+            ? switchState.switchId
+            : undefined
+        }
+      />
     </FrameworkScope>
   );
 };
@@ -310,6 +329,7 @@ const DNDContextProvider = ({ children }: PropsWithChildren) => {
 
 type WorkspacePageProps = {
   meta: WorkspaceMetadata;
+  switchRequestId?: string;
   documentScope?: {
     docId: string;
     access: DocumentScopeAccess;
@@ -317,42 +337,250 @@ type WorkspacePageProps = {
   };
 };
 
-const WorkspacePage = ({ meta, documentScope }: WorkspacePageProps) => {
-  const { workspacesService, globalContextService } = useServices({
-    WorkspacesService,
-    GlobalContextService,
-  });
+type OpenedWorkspace = {
+  workspace: Workspace;
+  switchId: string;
+  dispose: (options?: { warm?: boolean }) => void;
+  reused: boolean;
+  validateAccess?: (signal?: AbortSignal) => Promise<void>;
+  lastSyncState?: {
+    ready: boolean;
+    synced: boolean;
+    syncing: boolean;
+    syncRetrying: boolean;
+    syncErrorMessage: string | null;
+  };
+  remoteConnectedMarked?: boolean;
+};
 
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+const WorkspacePage = ({
+  meta,
+  documentScope,
+  switchRequestId,
+}: WorkspacePageProps) => {
+  const { workspacesService, globalContextService, workspaceSwitchService } =
+    useServices({
+      WorkspacesService,
+      GlobalContextService,
+      WorkspaceSwitchService,
+    });
+
+  const [active, setActive] = useState<OpenedWorkspace | null>(null);
+  const activeRef = useRef<OpenedWorkspace | null>(null);
+  const pendingRef = useRef<OpenedWorkspace | null>(null);
+  const retiredRef = useRef<OpenedWorkspace[]>([]);
+  const generationRef = useRef(0);
+
+  const openOptions = useMemo(
+    () => ({
+      metadata: {
+        id: meta.id,
+        flavour: meta.flavour,
+        initialized: meta.initialized,
+      },
+      docScopeId: documentScope?.docId,
+      docScopeAccess: documentScope?.access,
+    }),
+    [
+      documentScope?.access,
+      documentScope?.docId,
+      meta.flavour,
+      meta.id,
+      meta.initialized,
+    ]
+  );
 
   useLayoutEffect(() => {
-    const ref = workspacesService.open(
-      {
-        metadata: meta,
-        docScopeId: documentScope?.docId,
-        docScopeAccess: documentScope?.access,
-      },
-      documentScope?.workerInitOptions
+    const switchId = workspaceSwitchService.routeCommitted(
+      openOptions.metadata.id
     );
-    setWorkspace(ref.workspace);
-    return () => {
-      ref.dispose();
-    };
-  }, [documentScope, meta, workspacesService]);
+    workspaceSwitchService.phase(switchId, 'preparing');
+    workspaceSwitchService.engineStarted(switchId);
+    const generation = ++generationRef.current;
+    let committed = false;
+    let failed = false;
+    let candidate: OpenedWorkspace;
+    try {
+      const ref = workspacesService.open(
+        openOptions,
+        documentScope?.workerInitOptions
+      );
+      candidate = { ...ref, switchId };
+      pendingRef.current = candidate;
+    } catch (error) {
+      workspaceSwitchService.fail(switchId, 'open', error);
+      return;
+    }
 
-  const rootDocReady$ = useMemo(
-    () =>
-      workspace
-        ? LiveData.from(
-            workspace.engine.doc
-              .docState$(workspace.id)
-              .pipe(map(v => v.ready)),
-            false
-          )
-        : null,
-    [workspace]
+    const accessAbort = new AbortController();
+    let accessValidated = !candidate.reused || !candidate.validateAccess;
+    const failBeforeCommit = (failurePhase: string, error: unknown) => {
+      if (committed || failed) {
+        return;
+      }
+      failed = true;
+      accessAbort.abort(error);
+      if (pendingRef.current === candidate) {
+        pendingRef.current = null;
+      }
+      candidate.dispose({ warm: false });
+      workspaceSwitchService.fail(switchId, failurePhase, error);
+    };
+    const commitIfReady = () => {
+      if (
+        committed ||
+        failed ||
+        !accessValidated ||
+        !(
+          candidate.workspace.localRootReady || candidate.lastSyncState?.ready
+        ) ||
+        generation !== generationRef.current ||
+        !workspaceSwitchService.isCurrent(switchId)
+      ) {
+        return;
+      }
+
+      committed = true;
+      pendingRef.current = null;
+      workspaceSwitchService.phase(switchId, 'local-ready');
+      const previous = activeRef.current;
+      activeRef.current = candidate;
+      if (previous && previous !== candidate) {
+        retiredRef.current.push(previous);
+      }
+      setActive(candidate);
+    };
+
+    const subscription = candidate.workspace.engine.doc
+      .docState$(candidate.workspace.id)
+      .subscribe({
+        next: state => {
+          candidate.lastSyncState = state;
+          if (state.ready) {
+            candidate.workspace.markLocalRootReady();
+          }
+          if (
+            generation !== generationRef.current ||
+            !workspaceSwitchService.isCurrent(switchId)
+          ) {
+            return;
+          }
+
+          if (
+            !candidate.remoteConnectedMarked &&
+            candidate.workspace.flavour !== 'local' &&
+            (state.syncing || state.synced)
+          ) {
+            candidate.remoteConnectedMarked = true;
+            workspaceSwitchService.remoteConnected(switchId);
+          }
+
+          if (!committed && state.syncErrorMessage && !state.ready) {
+            failBeforeCommit(
+              'local-root',
+              new Error('Workspace root is unavailable')
+            );
+            return;
+          }
+
+          if (!committed) {
+            commitIfReady();
+            return;
+          }
+
+          if (!committed || activeRef.current !== candidate) {
+            return;
+          }
+          if (state.syncErrorMessage) {
+            workspaceSwitchService.fail(
+              switchId,
+              'remote-sync',
+              new Error('Workspace remote sync failed')
+            );
+          } else if (state.synced) {
+            workspaceSwitchService.phase(switchId, 'ready');
+          } else if (state.syncing || state.syncRetrying) {
+            workspaceSwitchService.phase(switchId, 'syncing');
+          }
+        },
+        error: error => {
+          if (generation !== generationRef.current || committed) {
+            return;
+          }
+          failBeforeCommit('local-root', error);
+        },
+      });
+
+    commitIfReady();
+
+    if (!accessValidated) {
+      void candidate.validateAccess?.(accessAbort.signal).then(
+        () => {
+          accessValidated = true;
+          commitIfReady();
+        },
+        error => {
+          if (generation === generationRef.current) {
+            failBeforeCommit('access-check', error);
+          }
+        }
+      );
+    }
+
+    return () => {
+      accessAbort.abort(new Error('Workspace switch superseded'));
+      subscription.unsubscribe();
+      if (!committed && !failed) {
+        if (pendingRef.current === candidate) {
+          pendingRef.current = null;
+        }
+        candidate.dispose({ warm: false });
+      }
+    };
+  }, [
+    documentScope?.workerInitOptions,
+    openOptions,
+    switchRequestId,
+    workspacesService,
+    workspaceSwitchService,
+  ]);
+
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    for (const retired of retiredRef.current.splice(0)) {
+      retired.dispose();
+    }
+    workspaceSwitchService.phase(active.switchId, 'committed');
+    if (active.lastSyncState?.syncErrorMessage) {
+      workspaceSwitchService.fail(
+        active.switchId,
+        'remote-sync',
+        new Error('Workspace remote sync failed')
+      );
+    } else if (active.lastSyncState?.synced) {
+      workspaceSwitchService.phase(active.switchId, 'ready');
+    } else {
+      workspaceSwitchService.phase(active.switchId, 'syncing');
+    }
+  }, [active, workspaceSwitchService]);
+
+  useEffect(
+    () => () => {
+      generationRef.current++;
+      pendingRef.current?.dispose({ warm: false });
+      pendingRef.current = null;
+      activeRef.current?.dispose();
+      activeRef.current = null;
+      for (const retired of retiredRef.current.splice(0)) {
+        retired.dispose();
+      }
+    },
+    []
   );
-  const isRootDocReady = useLiveData(rootDocReady$) ?? false;
+
+  const workspace = active?.workspace ?? null;
 
   useEffect(() => {
     if (workspace) {
@@ -417,19 +645,7 @@ const WorkspacePage = ({ meta, documentScope }: WorkspacePageProps) => {
   }, [globalContextService, workspace]);
 
   if (!workspace) {
-    return null; // skip this, workspace will be set in layout effect
-  }
-
-  if (!isRootDocReady) {
-    return (
-      <FrameworkScope scope={workspace.scope}>
-        <DNDContextProvider>
-          <OpenInAppGuard>
-            <AppContainer fallback />
-          </OpenInAppGuard>
-        </DNDContextProvider>
-      </FrameworkScope>
-    );
+    return <AppContainer fallback />;
   }
 
   return (

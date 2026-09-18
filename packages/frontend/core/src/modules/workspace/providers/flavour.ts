@@ -55,6 +55,11 @@ export interface WorkspaceFlavourProvider {
 
   getEngineWorkerInitOptions(workspaceId: string): WorkerInitOptions;
 
+  validateWorkspaceAccess?(
+    workspaceId: string,
+    signal?: AbortSignal
+  ): Promise<void>;
+
   onWorkspaceInitialized?(workspace: Workspace): void;
 }
 

@@ -222,6 +222,9 @@ export class DocFrontend {
       throw new Error('doc frontend can only start once');
     }
     this.mainLoop(this.abort.signal).catch(error => {
+      if (error === MANUALLY_STOP) {
+        return;
+      }
       console.error(error);
     });
   }

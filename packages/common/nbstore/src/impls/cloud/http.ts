@@ -14,20 +14,32 @@ export class HttpConnection extends DummyConnection {
     }
 
     const abortController = new AbortController();
-    externalSignal?.addEventListener('abort', reason => {
-      abortController.abort(reason);
-    });
+    const onExternalAbort = () => {
+      abortController.abort(externalSignal?.reason);
+    };
+    externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
 
     const timeout = init?.timeout ?? 15000;
+    const startedAt = Date.now();
+    const requestUrl = new URL(input, this.serverBaseUrl);
+    const routeSegments = requestUrl.pathname.split('/').filter(Boolean);
+    const [routeRoot] = routeSegments;
+    const routeTemplate =
+      routeSegments.length > 1 ? `/${routeRoot}/…` : requestUrl.pathname;
+    let timedOut = false;
     const timeoutId =
       timeout > 0
         ? setTimeout(() => {
-            abortController.abort(new Error('request timeout'));
+            timedOut = true;
+            abortController.abort(
+              new Error(`request timeout after ${timeout}ms`)
+            );
           }, timeout)
         : undefined;
 
-    const res = await globalThis
-      .fetch(new URL(input, this.serverBaseUrl), {
+    let res: Response;
+    try {
+      res = await globalThis.fetch(requestUrl, {
         ...init,
         signal: abortController.signal,
         headers: {
@@ -35,19 +47,31 @@ export class HttpConnection extends DummyConnection {
           ...init?.headers,
           'x-affine-version': BUILD_CONFIG.appVersion,
         },
-      })
-      .catch(err => {
-        throw new UserFriendlyError({
-          status: 504,
-          code: 'NETWORK_ERROR',
-          type: 'NETWORK_ERROR',
-          name: 'NETWORK_ERROR',
-          message: `Network error: ${err.message}`,
-          stacktrace: err.stack,
-        });
       });
-    if (timeoutId) {
-      clearTimeout(timeoutId);
+    } catch (error) {
+      const cause = error instanceof Error ? error : new Error(String(error));
+      throw new UserFriendlyError({
+        status: 504,
+        code: 'NETWORK_ERROR',
+        type: 'NETWORK_ERROR',
+        name: 'NETWORK_ERROR',
+        message: timedOut
+          ? `Network error: timeout after ${timeout}ms`
+          : `Network error: ${cause.message}`,
+        data: {
+          phase: 'http-request',
+          durationMs: Date.now() - startedAt,
+          operation: (init?.method ?? 'GET').toUpperCase(),
+          routeTemplate,
+          timeout: timedOut,
+        },
+        stacktrace: cause.stack,
+      });
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      externalSignal?.removeEventListener('abort', onExternalAbort);
     }
     if (!res.ok && res.status !== 404) {
       if (res.status === 413) {

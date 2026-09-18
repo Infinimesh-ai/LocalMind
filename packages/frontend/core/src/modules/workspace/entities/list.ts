@@ -5,6 +5,8 @@ import type { WorkspaceMetadata } from '../metadata';
 import type { WorkspaceFlavoursService } from '../services/flavours';
 
 export class WorkspaceList extends Entity {
+  private revalidationInFlight = false;
+
   workspaces$ = LiveData.from<WorkspaceMetadata[]>(
     this.flavoursService.flavours$.pipe(
       switchMap(flavours =>
@@ -38,8 +40,35 @@ export class WorkspaceList extends Entity {
   }
 
   revalidate() {
-    this.flavoursService.flavours$.value.forEach(provider => {
-      provider.revalidate?.();
+    if (this.revalidationInFlight || this.isRevalidating$.value) {
+      return;
+    }
+
+    this.revalidationInFlight = true;
+    try {
+      this.flavoursService.flavours$.value.forEach(provider => {
+        provider.revalidate?.();
+      });
+    } catch (error) {
+      this.revalidationInFlight = false;
+      throw error;
+    }
+
+    queueMicrotask(() => {
+      if (!this.isRevalidating$.value) {
+        this.revalidationInFlight = false;
+        return;
+      }
+      void this.isRevalidating$
+        .waitFor(isLoading => !isLoading)
+        .then(
+          () => {
+            this.revalidationInFlight = false;
+          },
+          () => {
+            this.revalidationInFlight = false;
+          }
+        );
     });
   }
 

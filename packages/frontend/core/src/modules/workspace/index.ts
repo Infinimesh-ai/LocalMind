@@ -10,6 +10,10 @@ export type { WorkspaceFlavourProvider } from './providers/flavour';
 export { WorkspaceFlavoursProvider } from './providers/flavour';
 export { WorkspaceLocalCache, WorkspaceLocalState } from './providers/storage';
 export { WorkspaceScope } from './scopes/workspace';
+export {
+  WorkspaceSwitchService,
+  type WorkspaceSwitchState,
+} from './services/switch';
 export { WorkspaceService } from './services/workspace';
 export { WorkspacesService } from './services/workspaces';
 
@@ -34,6 +38,7 @@ import { WorkspaceFlavoursService } from './services/flavours';
 import { WorkspaceListService } from './services/list';
 import { WorkspaceProfileService } from './services/profile';
 import { WorkspaceRepositoryService } from './services/repo';
+import { WorkspaceSwitchService } from './services/switch';
 import { WorkspaceTransformService } from './services/transform';
 import { WorkspaceService } from './services/workspace';
 import { WorkspacesService } from './services/workspaces';
@@ -53,6 +58,7 @@ export function configureWorkspaceModule(framework: Framework) {
     .service(WorkspaceFlavoursService, [[WorkspaceFlavoursProvider]])
     .service(WorkspaceDestroyService, [WorkspaceFlavoursService])
     .service(WorkspaceListService)
+    .service(WorkspaceSwitchService)
     .entity(WorkspaceList, [WorkspaceFlavoursService])
     .service(WorkspaceProfileService)
     .store(WorkspaceProfileCacheStore, [GlobalCache])
