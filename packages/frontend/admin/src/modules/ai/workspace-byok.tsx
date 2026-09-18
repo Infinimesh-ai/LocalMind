@@ -52,6 +52,7 @@ import {
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { formatByokError } from './byok-feedback';
 import { WorkspaceAiProfilesEditor } from './workspace-ai-profiles';
 
 type WorkspaceScope = QueryResponse<
@@ -218,10 +219,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
         setTestedFingerprint(null);
         setAvailableModels([]);
         await mutate();
-        toast.error(
-          result.testWorkspaceByokConfig.message ??
-            i18n['com.affine.admin.provider-test-failed']()
-        );
+        toast.error(formatByokError(result.testWorkspaceByokConfig.message));
         return;
       }
       setAvailableModels(result.testWorkspaceByokConfig.models ?? []);
@@ -425,7 +423,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                     </Badge>
                     {key.lastTestError ? (
                       <div className="mt-1 max-w-[260px] text-xs text-destructive">
-                        {key.lastTestError}
+                        {formatByokError(key.lastTestError)}
                       </div>
                     ) : null}
                   </TableCell>

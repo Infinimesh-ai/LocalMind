@@ -16,7 +16,7 @@ import { resolveByokApiStyle } from '../../../models/copilot-byok-protocol';
 import type { CopilotModelDefinition, CopilotProviderProfile } from '../config';
 import { ModelInputType, ModelOutputType } from '../providers/types';
 import { ByokEntitlementPolicy } from './policy';
-import { runProviderProbe } from './probe';
+import { ProviderProbeError, runProviderProbe } from './probe';
 import { AiProfileService } from './profile-service';
 import {
   BYOK_ALLOWED_PROVIDERS,
@@ -230,7 +230,11 @@ export class ByokService {
     };
   }
 
-  private async prepareProjectConfig(input: ProjectByokInput, userId: string) {
+  private async prepareProjectConfig(
+    input: ProjectByokInput,
+    userId: string,
+    requireModel = true
+  ) {
     await this.entitlement.assertInstanceManagementAccess(userId);
     this.assertProvider(input.provider);
     if (input.provider === ByokProvider.fal) {
@@ -285,13 +289,16 @@ export class ByokService {
         );
       }
     }
-    const modelId = this.normalizeModelId(input.modelId);
-    if (!modelId) throw new BadRequestException('Model ID is required.');
+    const modelId = this.normalizeModelId(
+      !requireModel && !input.modelId.trim() ? null : input.modelId
+    );
+    if (requireModel && !modelId)
+      throw new BadRequestException('Model ID is required.');
     return {
       current,
       encryptedApiKey,
       endpoint,
-      modelId,
+      modelId: modelId ?? '',
       credentialChanged: Boolean(apiKey),
       apiStyle,
     };
@@ -305,7 +312,7 @@ export class ByokService {
     apiStyle?: string | null;
   }) {
     try {
-      await runProviderProbe(
+      return await runProviderProbe(
         this.probeFetch,
         input.provider,
         this.crypto.decrypt(input.encryptedApiKey),
@@ -314,8 +321,9 @@ export class ByokService {
         input.modelId,
         input.apiStyle
       );
-    } catch {
-      // Provider errors can contain authorization headers or response bodies.
+    } catch (error) {
+      // Only expose messages constructed locally; transport errors can contain secrets.
+      if (error instanceof ProviderProbeError) throw error;
       throw new BadRequestException(
         'Project provider test failed. Check the endpoint, model and API key.'
       );
@@ -323,15 +331,47 @@ export class ByokService {
   }
 
   async testProjectConfig(input: ProjectByokInput, userId: string) {
-    const prepared = await this.prepareProjectConfig(input, userId);
+    const prepared = await this.prepareProjectConfig(input, userId, false);
+    const probeInput = { ...prepared, provider: input.provider };
     try {
-      await this.probeProjectConfig({ ...prepared, provider: input.provider });
-      return { ok: true, message: null };
-    } catch {
+      const result = await this.probeProjectConfig(probeInput);
+      if (!prepared.modelId) {
+        return {
+          ok: true,
+          message: null,
+          models: result.modelIds,
+          modelListError: null,
+        };
+      }
+      // A gateway can support chat without exposing a model catalog.
+      try {
+        const catalog = await this.probeProjectConfig({
+          ...probeInput,
+          modelId: '',
+        });
+        return {
+          ok: true,
+          message: null,
+          models: catalog.modelIds,
+          modelListError: null,
+        };
+      } catch {
+        return {
+          ok: true,
+          message: null,
+          models: [],
+          modelListError: 'model_catalog_unavailable',
+        };
+      }
+    } catch (error) {
       return {
         ok: false,
         message:
-          'Project provider test failed. Check the endpoint, model and API key.',
+          error instanceof ProviderProbeError
+            ? error.message
+            : 'Project provider test failed. Check the endpoint, model and API key.',
+        models: [],
+        modelListError: null,
       };
     }
   }

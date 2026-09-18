@@ -4,6 +4,7 @@ import Sinon from 'sinon';
 import type { safeFetch } from '../../base';
 import {
   PROVIDER_PROBE_MAX_BYTES,
+  ProviderProbeError,
   runProviderProbe,
 } from '../../plugins/copilot/byok/probe';
 import { ByokProvider } from '../../plugins/copilot/byok/types';
@@ -273,4 +274,24 @@ test('invalid protocol values and provider combinations never dispatch', async t
     );
     t.false(fetch.called);
   }
+});
+
+test('provider HTTP errors expose only locally defined diagnostics', async t => {
+  const fetch = Sinon.stub<
+    Parameters<typeof safeFetch>,
+    ReturnType<typeof safeFetch>
+  >().resolves(new Response('private response: secret-key', { status: 404 }));
+  const error = await t.throwsAsync(
+    runProviderProbe(
+      fetch,
+      ByokProvider.anthropic,
+      'secret-key',
+      'https://example.com',
+      false,
+      'model'
+    )
+  );
+  t.true(error instanceof ProviderProbeError);
+  t.is(error?.message, 'Provider probe endpoint was not found.');
+  t.false(error?.message.includes('secret-key'));
 });

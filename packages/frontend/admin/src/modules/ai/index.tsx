@@ -105,8 +105,8 @@ import { Header } from '../header';
 import { ProjectByokAdmin } from './project-byok';
 import { WorkspaceByokAdmin } from './workspace-byok';
 
-const ADMIN_AI_DEFAULT_PROMPT_NAME =
-  I18n['com.affine.admin.chat-with-localmind-ai']();
+// The registry identifier must not change with the display language.
+const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With LocalMind AI';
 const ADMIN_AI_DEFAULT_PROMPT_DISPLAY_NAME = formatAIModelPromptDisplayName(
   ADMIN_AI_DEFAULT_PROMPT_NAME
 );
@@ -12043,14 +12043,21 @@ function AiRuntimePageContent() {
   const activeWorkspaceScope = workspaceId
     ? workspaceScopes.find(workspace => workspace.id === workspaceId)
     : undefined;
-  const { data, isValidating, mutate } = useQuery({
-    query: getPromptModelsQuery,
-    variables: {
-      promptName,
-      workspaceId,
+  const {
+    data,
+    error: modelsError,
+    isValidating,
+    mutate,
+  } = useQuery(
+    {
+      query: getPromptModelsQuery,
+      variables: { promptName, workspaceId },
     },
-  });
-  const modelsPayload = data.currentUser?.copilot?.models;
+    { suspense: false, revalidateOnMount: true, shouldRetryOnError: false }
+  );
+  const modelsPayload = modelsError
+    ? undefined
+    : data?.currentUser?.copilot?.models;
   const models = useMemo(
     () => (modelsPayload ? buildAIModels(modelsPayload) : []),
     [modelsPayload]
@@ -12132,6 +12139,14 @@ function AiRuntimePageContent() {
       <ScrollArea className="h-full">
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-5 sm:px-6">
           <AiPageTabs active="runtime" />
+          {modelsError ? (
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/30 p-4 text-sm"
+            >
+              {i18n['com.affine.admin.runtime-models-unavailable']()}
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px] 2xl:items-start">
             <Card className="order-2 min-w-0 border-border/60 bg-card shadow-1 2xl:order-1">

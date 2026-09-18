@@ -7612,6 +7612,8 @@ export interface ProjectByokSettingsType {
 export interface ProjectByokTestResultType {
   __typename?: 'ProjectByokTestResultType';
   message: Maybe<Scalars['String']['output']>;
+  modelListError: Maybe<Scalars['String']['output']>;
+  models: Array<Scalars['String']['output']>;
   ok: Scalars['Boolean']['output'];
 }
 
@@ -10568,6 +10570,8 @@ export type TestProjectByokConfigMutation = {
     __typename?: 'ProjectByokTestResultType';
     ok: boolean;
     message: string | null;
+    models: Array<string>;
+    modelListError: string | null;
   };
 };
 

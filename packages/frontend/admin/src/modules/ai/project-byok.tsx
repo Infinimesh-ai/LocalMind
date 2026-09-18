@@ -25,6 +25,8 @@ import { FlaskConicalIcon, RefreshCwIcon, SaveIcon } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { toast } from 'sonner';
 
+import { formatByokError } from './byok-feedback';
+
 type Settings = QueryResponse<
   typeof adminProjectByokSettingsQuery
 >['adminProjectByokSettings'];
@@ -48,7 +50,17 @@ function ProjectByokForm({
   const [endpoint, setEndpoint] = useState(settings.endpoint ?? '');
   const [modelId, setModelId] = useState(settings.modelId ?? '');
   const [apiKey, setApiKey] = useState('');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelListUnavailable, setModelListUnavailable] = useState(false);
+  const clearModelList = () => {
+    setAvailableModels([]);
+    setModelListUnavailable(false);
+  };
   const [apiStyle, setApiStyle] = useState(settings.apiStyle ?? 'responses');
+  const modelOptions =
+    modelId && !availableModels.includes(modelId)
+      ? [modelId, ...availableModels]
+      : availableModels;
   const [feedback, setFeedback] = useState<{
     ok: boolean;
     message: string;
@@ -63,10 +75,10 @@ function ProjectByokForm({
     mutation: setProjectByokEnabledMutation,
   });
   const busy = testing || saving || toggling;
-  const canSubmit = Boolean(
-    modelId.trim() &&
-    (apiKey.trim() || (settings.configured && provider === settings.provider))
+  const canTest = Boolean(
+    apiKey.trim() || (settings.configured && provider === settings.provider)
   );
+  const canSubmit = canTest && Boolean(modelId.trim());
   const input = {
     expectedRevision: settings.revision,
     provider,
@@ -77,14 +89,18 @@ function ProjectByokForm({
   };
 
   const handleTest = async () => {
-    if (busy || !canSubmit) return;
+    if (busy || !canTest) return;
     setFeedback(null);
+    clearModelList();
     try {
       const { testProjectByokConfig: result } = await test({ input });
+      setAvailableModels(result.ok ? (result.models ?? []) : []);
+      setModelListUnavailable(result.ok && Boolean(result.modelListError));
       setFeedback({
         ok: result.ok,
-        message:
-          result.message ?? i18n['com.affine.admin.byok-connection-verified'](),
+        message: result.ok
+          ? i18n['com.affine.admin.byok-connection-verified']()
+          : formatByokError(result.message),
       });
     } catch {
       setFeedback({
@@ -182,6 +198,11 @@ function ProjectByokForm({
             : i18n['com.affine.admin.not-configured']()}
         </Badge>
       </div>
+      {!settings.configured ? (
+        <p className="text-sm text-muted-foreground">
+          {i18n['com.affine.admin.project-byok-setup-required']()}
+        </p>
+      ) : null}
       <fieldset disabled={busy} className="grid min-w-0 gap-4 sm:grid-cols-2">
         <div className="min-w-0 space-y-2">
           <Label htmlFor="project-byok-provider">
@@ -192,6 +213,8 @@ function ProjectByokForm({
             disabled={busy}
             onValueChange={value => {
               setProvider(value as ByokProvider);
+              setModelId('');
+              clearModelList();
               setFeedback(null);
             }}
           >
@@ -217,6 +240,8 @@ function ProjectByokForm({
               disabled={busy}
               onValueChange={value => {
                 setApiStyle(value);
+                setModelId('');
+                clearModelList();
                 setFeedback(null);
               }}
             >
@@ -233,19 +258,30 @@ function ProjectByokForm({
           </div>
         ) : null}
         <div className="min-w-0 space-y-2">
-          <Label htmlFor="project-byok-model">
-            {i18n['com.affine.admin.model-id']()}
+          <Label htmlFor="project-byok-available-models">
+            {i18n['com.affine.admin.byok-available-models']()}
           </Label>
-          <Input
-            id="project-byok-model"
+          <Select
             value={modelId}
-            onChange={event => {
-              setModelId(event.target.value);
+            onValueChange={value => {
+              setModelId(value);
               setFeedback(null);
             }}
-            maxLength={255}
-            required
-          />
+            disabled={busy || modelOptions.length === 0}
+          >
+            <SelectTrigger id="project-byok-available-models">
+              <SelectValue
+                placeholder={i18n['com.affine.admin.byok-select-model']()}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {modelOptions.map(model => (
+                <SelectItem key={model} value={model}>
+                  {model}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="min-w-0 space-y-2">
           <Label htmlFor="project-byok-endpoint">
@@ -257,6 +293,8 @@ function ProjectByokForm({
             value={endpoint}
             onChange={event => {
               setEndpoint(event.target.value);
+              setModelId('');
+              clearModelList();
               setFeedback(null);
             }}
             disabled={!settings.customEndpointSupported || busy}
@@ -275,6 +313,8 @@ function ProjectByokForm({
             value={apiKey}
             onChange={event => {
               setApiKey(event.target.value);
+              setModelId('');
+              clearModelList();
               setFeedback(null);
             }}
             maxLength={8192}
@@ -294,9 +334,14 @@ function ProjectByokForm({
           {feedback.message}
         </p>
       ) : null}
+      {modelListUnavailable ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {i18n['com.affine.admin.byok-model-list-unavailable']()}
+        </p>
+      ) : null}
       {settings.lastError ? (
         <p className="text-sm text-destructive" role="status">
-          {settings.lastError}
+          {formatByokError(settings.lastError)}
         </p>
       ) : null}
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -310,7 +355,7 @@ function ProjectByokForm({
               )
             );
           }}
-          disabled={busy || !canSubmit}
+          disabled={busy || !canTest}
           className="gap-2"
         >
           <FlaskConicalIcon className="h-4 w-4" />

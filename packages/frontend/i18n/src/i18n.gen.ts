@@ -19169,6 +19169,54 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.operation-query-hint"](): string;
     /**
+      * `Model routes could not be loaded. Select a workspace with configured AI credentials, or review AI configuration, then retry.`
+      */
+    ["com.affine.admin.runtime-models-unavailable"](): string;
+    /**
+      * `First enter the provider, API protocol, model, endpoint and key, then choose Verify and save. Project AI is enabled automatically after successful verification.`
+      */
+    ["com.affine.admin.project-byok-setup-required"](): string;
+    /**
+      * `The provider rejected the API key. Check that it is correct and active.`
+      */
+    ["com.affine.admin.byok-error-key"](): string;
+    /**
+      * `The API key does not have permission to access this service or model.`
+      */
+    ["com.affine.admin.byok-error-permission"](): string;
+    /**
+      * `The API endpoint or model was not found. Check the address, protocol and model ID.`
+      */
+    ["com.affine.admin.byok-error-endpoint"](): string;
+    /**
+      * `The provider rate limit was reached. Check your quota or try again later.`
+      */
+    ["com.affine.admin.byok-error-rate-limit"](): string;
+    /**
+      * `The provider service is temporarily unavailable. Try again later.`
+      */
+    ["com.affine.admin.byok-error-unavailable"](): string;
+    /**
+      * `The response does not match the selected API protocol. Check the provider, address and protocol.`
+      */
+    ["com.affine.admin.byok-error-response"](): string;
+    /**
+      * `Connection failed. Check the API key, endpoint, model, protocol and server network connectivity.`
+      */
+    ["com.affine.admin.byok-error-generic"](): string;
+    /**
+      * `Available models`
+      */
+    ["com.affine.admin.byok-available-models"](): string;
+    /**
+      * `Test the connection, then select a model`
+      */
+    ["com.affine.admin.byok-select-model"](): string;
+    /**
+      * `The selected model passed the connection test, but the API model list could not be loaded. The current model is retained; try again to load other options.`
+      */
+    ["com.affine.admin.byok-model-list-unavailable"](): string;
+    /**
       * `An internal error occurred.`
       */
     ["error.INTERNAL_SERVER_ERROR"](): string;

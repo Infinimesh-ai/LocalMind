@@ -4253,7 +4253,7 @@
   "com.affine.admin.target": "目标",
   "com.affine.ui.experimental": "实验性",
   "com.affine.admin.embedding-model-alias": "嵌入模型别名",
-  "com.affine.admin.project-ai-enabled": "已启用项目 AI",
+  "com.affine.admin.project-ai-enabled": "启用项目 AI",
   "com.affine.ui.page-not-found-todo": "未找到页面",
   "com.affine.office.orientation": "方向",
   "com.affine.office.move-slide-up": "上移幻灯片",
@@ -4877,5 +4877,17 @@
   "com.affine.integration.mcp-server.group.resources": "直接资源工具",
   "com.affine.integration.mcp-server.group.delegation": "AI 委托工具",
   "com.affine.integration.mcp-server.resources-hint": "直接工具需要管理员启用，并遵守你当前的资源权限，不调用模型。选择直接工具不会授权 AI 委托。",
-  "com.affine.integration.mcp-server.operation-query-hint": "建议同时勾选“查询直接操作结果”，以便连接中断后核对写入是否成功。"
+  "com.affine.integration.mcp-server.operation-query-hint": "建议同时勾选“查询直接操作结果”，以便连接中断后核对写入是否成功。",
+  "com.affine.admin.runtime-models-unavailable": "无法加载模型路由。请选择已配置 AI 凭据的工作区，或检查 AI 配置后重试。",
+  "com.affine.admin.project-byok-setup-required": "请先填写提供商、API 协议、模型、地址和密钥，再点击“验证并保存”。验证成功后会自动启用项目 AI。",
+  "com.affine.admin.byok-error-key": "提供商拒绝了 API 密钥，请检查密钥是否正确且有效。",
+  "com.affine.admin.byok-error-permission": "API 密钥没有访问此服务或模型的权限。",
+  "com.affine.admin.byok-error-endpoint": "未找到 API 接口或模型，请检查地址、协议和模型 ID。",
+  "com.affine.admin.byok-error-rate-limit": "请求触发了提供商限流，请检查额度或稍后重试。",
+  "com.affine.admin.byok-error-unavailable": "提供商服务暂时不可用，请稍后重试。",
+  "com.affine.admin.byok-error-response": "返回内容不符合所选 API 协议，请检查提供商、地址和协议。",
+  "com.affine.admin.byok-error-generic": "连接失败，请检查 API 密钥、地址、模型、协议及服务器网络连接。",
+  "com.affine.admin.byok-available-models": "可选模型",
+  "com.affine.admin.byok-select-model": "请先测试连接，再选择模型",
+  "com.affine.admin.byok-model-list-unavailable": "所选模型连接测试通过，但无法加载该 API 的模型列表。已保留当前模型，请重试以加载其他选项。"
 }

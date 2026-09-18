@@ -96,6 +96,12 @@ class ProjectByokSettingsType {
 
 @ObjectType()
 class ProjectByokTestResultType {
+  @Field(() => [String])
+  models!: string[];
+
+  @Field(() => String, { nullable: true })
+  modelListError!: string | null;
+
   @Field()
   ok!: boolean;
 

@@ -14,6 +14,15 @@ The server probes before saving, encrypts the API key, serializes revision
 updates and appends immutable `ai_project_byok_audit_events` without credentials.
 Provider IDs carry the config revision so rotation cannot reuse a previous
 provider instance or let a late failure overwrite new configuration evidence.
+The administrator connection test accepts a blank model ID to discover the
+provider model catalog. When a model is supplied it probes that model, then
+loads available model IDs; a catalog failure after a successful model probe
+is reported separately and retains the current model selection. The Admin
+form uses a single model selector populated by the API catalog. Saving always
+requires and verifies a concrete model. These draft probes never persist
+configuration or enable Project AI. Admin translates probe failures and
+catalog warnings in the selected display language without rendering upstream
+response bodies.
 Runtime routing reads the persisted conversation Project and rechecks active
 membership. Missing/disabled configuration cannot fall back to another scope.
 Workspace routes remain available to conversations outside Projects; embedding

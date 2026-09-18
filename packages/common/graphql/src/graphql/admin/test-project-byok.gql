@@ -2,5 +2,7 @@ mutation testProjectByokConfig($input: ProjectByokConfigInput!) {
   testProjectByokConfig(input: $input) {
     ok
     message
+    models
+    modelListError
   }
 }

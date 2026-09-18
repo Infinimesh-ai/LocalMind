@@ -6005,6 +6005,8 @@ type ProjectByokSettingsType {
 
 type ProjectByokTestResultType {
   message: String
+  modelListError: String
+  models: [String!]!
   ok: Boolean!
 }
 

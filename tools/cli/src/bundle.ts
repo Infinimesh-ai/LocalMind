@@ -302,6 +302,25 @@ export class BundleCommand extends PackageCommand {
     const config = getRspackBundleConfigs(pkg);
     config.parallelism = cpus().length;
 
+    const pollInterval = process.env.LOCALMIND_DEV_POLL_INTERVAL_MS;
+    if (pollInterval !== undefined) {
+      const poll = Number(pollInterval);
+      if (!Number.isInteger(poll) || poll <= 0) {
+        throw new Error(
+          'LOCALMIND_DEV_POLL_INTERVAL_MS must be a positive integer'
+        );
+      }
+      for (const target of config) {
+        target.watchOptions = {
+          ...target.watchOptions,
+          poll,
+          ignored:
+            target.watchOptions?.ignored ??
+            /[\\/](?:\.git|node_modules|backups|\.docker)[\\/]/,
+        };
+      }
+    }
+
     const compiler = rspack(config);
     if (!compiler) {
       throw new Error('Failed to create rspack compiler');

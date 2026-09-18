@@ -1082,6 +1082,8 @@ export const testProjectByokConfigMutation = {
   testProjectByokConfig(input: $input) {
     ok
     message
+    models
+    modelListError
   }
 }`,
 };

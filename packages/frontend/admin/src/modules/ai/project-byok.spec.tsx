@@ -7,6 +7,7 @@ import {
   setProjectByokEnabledMutation,
   testProjectByokConfigMutation,
 } from '@affine/graphql';
+import { getOrCreateI18n } from '@affine/i18n';
 import {
   cleanup,
   fireEvent,
@@ -15,6 +16,8 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+
+import { formatByokError } from './byok-feedback';
 
 const state = vi.hoisted(() => ({
   configured: false,
@@ -80,9 +83,10 @@ beforeEach(() => {
   state.toggle.mockReset().mockResolvedValue({});
   state.reload.mockReset().mockResolvedValue(undefined);
 });
-afterEach(() => {
+afterEach(async () => {
   cleanup();
   vi.restoreAllMocks();
+  await getOrCreateI18n().changeLanguage('en');
 });
 
 test('saves one global configuration with no workspace or user assignment', async () => {
@@ -95,12 +99,29 @@ test('saves one global configuration with no workspace or user assignment', asyn
       }) as HTMLButtonElement
     ).disabled
   ).toBe(true);
-  fireEvent.change(screen.getByLabelText('Model ID'), {
-    target: { value: 'project-model' },
+  expect(screen.queryByRole('textbox', { name: 'Model ID' })).toBeNull();
+  state.test.mockResolvedValue({
+    testProjectByokConfig: {
+      ok: true,
+      models: ['project-model'],
+      message: null,
+    },
   });
   fireEvent.change(screen.getByLabelText('API key'), {
     target: { value: 'new-key' },
   });
+  fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole('combobox', {
+          name: 'Available models',
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(false)
+  );
+  fireEvent.click(screen.getByRole('combobox', { name: 'Available models' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'project-model' }));
   fireEvent.click(screen.getByRole('button', { name: 'Verify and save' }));
   await waitFor(() =>
     expect(state.save).toHaveBeenCalledWith({
@@ -146,13 +167,16 @@ test('editing retains saved credentials without returning a key to the browser',
 test('failed probes give feedback and do not save or enable the global configuration', async () => {
   state.configured = true;
   state.test.mockResolvedValue({
-    testProjectByokConfig: { ok: false, message: 'Provider rejected the key.' },
+    testProjectByokConfig: {
+      ok: false,
+      message: 'Provider rejected the BYOK key.',
+    },
   });
   render(<ProjectByokAdmin />);
   fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain(
-      'Provider rejected the key.'
+      'The provider rejected the API key.'
     )
   );
   expect(state.save).not.toHaveBeenCalled();
@@ -204,4 +228,98 @@ test('disabling all project conversations requires confirmation', async () => {
       enabled: false,
     })
   );
+});
+
+test('explains why a new project configuration cannot be enabled before verification', () => {
+  render(<ProjectByokAdmin />);
+  expect(
+    (
+      screen.getByRole('switch', {
+        name: 'Project AI enabled',
+      }) as HTMLButtonElement
+    ).disabled
+  ).toBe(true);
+  expect(
+    screen.getByText(
+      /Project AI is enabled automatically after successful verification/
+    )
+  ).not.toBeNull();
+});
+
+test('tests credentials before a model is entered and offers the API model list', async () => {
+  state.test.mockResolvedValue({
+    testProjectByokConfig: {
+      ok: true,
+      message: null,
+      models: ['model-a', 'model-b'],
+      modelListError: null,
+    },
+  });
+  render(<ProjectByokAdmin />);
+  fireEvent.change(screen.getByLabelText('API key'), {
+    target: { value: 'synthetic-key' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+  await waitFor(() =>
+    expect(state.test).toHaveBeenCalledWith({
+      input: expect.objectContaining({ modelId: '' }),
+    })
+  );
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole('combobox', {
+          name: 'Available models',
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(false)
+  );
+  fireEvent.click(screen.getByRole('combobox', { name: 'Available models' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'model-b' }));
+  expect(
+    screen.getByRole('combobox', { name: 'Available models' }).textContent
+  ).toContain('model-b');
+  expect(screen.queryByRole('textbox', { name: 'Model ID' })).toBeNull();
+  fireEvent.change(screen.getByLabelText('Endpoint'), {
+    target: { value: 'https://other.example/v1' },
+  });
+  expect(
+    (
+      screen.getByRole('combobox', {
+        name: 'Available models',
+      }) as HTMLButtonElement
+    ).disabled
+  ).toBe(true);
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Verify and save',
+      }) as HTMLButtonElement
+    ).disabled
+  ).toBe(true);
+});
+
+test('Simplified Chinese renders provider failures and catalog warnings in Chinese', async () => {
+  await getOrCreateI18n().changeLanguage('zh-Hans');
+  expect(formatByokError('Provider rejected the BYOK key.')).toContain(
+    '提供商拒绝'
+  );
+  expect(formatByokError('Provider returned malformed JSON.')).toContain(
+    '返回内容'
+  );
+  expect(formatByokError('unknown upstream secret')).toContain('连接失败');
+  expect(formatByokError('unknown upstream secret')).not.toContain('secret');
+  state.configured = true;
+  state.test.mockResolvedValue({
+    testProjectByokConfig: {
+      ok: true,
+      message: null,
+      models: [],
+      modelListError: 'model_catalog_unavailable',
+    },
+  });
+  render(<ProjectByokAdmin />);
+  fireEvent.click(screen.getByRole('button', { name: '测试连接' }));
+  await screen.findByText(/所选模型连接测试通过，但无法加载/);
+  expect(screen.queryByText('model_catalog_unavailable')).toBeNull();
 });

@@ -1863,7 +1863,10 @@ function expectQueryCall(query: unknown, variables: Record<string, unknown>) {
     expect.objectContaining({
       query,
       variables,
-    })
+    }),
+    ...(query === getPromptModelsQuery
+      ? [expect.objectContaining({ suspense: false })]
+      : [])
   );
 }
 
@@ -10886,6 +10889,30 @@ describe('AiPage', () => {
     });
   });
 
+  test('keeps runtime controls usable when model routes are unavailable', () => {
+    const implementation = useQueryMock.getMockImplementation()!;
+    useQueryMock.mockImplementation((options, config) =>
+      options?.query === getPromptModelsQuery
+        ? {
+            data: undefined,
+            error: new Error('No provider'),
+            isValidating: false,
+            mutate: mutateMock,
+          }
+        : implementation(options, config)
+    );
+    renderAiPage();
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Model routes could not be loaded'
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Workspace ID' })
+    ).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(mutateMock).toHaveBeenCalled();
+    expect(screen.getByText('Support bundles')).not.toBeNull();
+  });
+
   test('queries prompt models for the admin diagnostics page', () => {
     renderAiPage();
 
@@ -10904,7 +10931,8 @@ describe('AiPage', () => {
           promptName: 'Chat With LocalMind AI',
           workspaceId: undefined,
         },
-      })
+      }),
+      expect.objectContaining({ suspense: false })
     );
     expect(useQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -14271,7 +14299,8 @@ describe('AiPage', () => {
             promptName: 'Manual prompt',
             workspaceId: undefined,
           },
-        })
+        }),
+        expect.objectContaining({ suspense: false })
       );
     });
     expect(screen.getByText('Catalog results: 1 / 4')).not.toBeNull();

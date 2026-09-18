@@ -7,6 +7,9 @@ import { ByokProvider } from './types';
 const TEST_TIMEOUT_MS = 10_000;
 export const PROVIDER_PROBE_MAX_BYTES = 1024 * 1024;
 
+// Only errors constructed here contain safe, locally defined probe messages.
+export class ProviderProbeError extends BadRequestException {}
+
 type ProbeFetch = typeof safeFetch;
 type ProbeOperation = 'model_catalog' | 'chat';
 
@@ -58,7 +61,7 @@ export async function runProviderProbe(
     }
   );
   if (!response.ok) {
-    throw new BadRequestException(providerProbeFailureMessage(response.status));
+    throw new ProviderProbeError(providerProbeFailureMessage(response.status));
   }
 
   const payload = await parseProbePayload(response);
@@ -67,7 +70,7 @@ export async function runProviderProbe(
       ? hasValidChatResponse(provider, payload)
       : hasValidModelCatalog(provider, payload);
   if (!valid) {
-    throw new BadRequestException(
+    throw new ProviderProbeError(
       request.operation === 'chat'
         ? 'Provider returned an invalid chat response.'
         : 'Provider returned an invalid model catalog.'
@@ -244,7 +247,7 @@ async function parseProbePayload(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch {
-    throw new BadRequestException('Provider returned malformed JSON.');
+    throw new ProviderProbeError('Provider returned malformed JSON.');
   }
 }
 
