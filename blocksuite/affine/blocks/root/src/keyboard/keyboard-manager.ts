@@ -10,7 +10,10 @@ import {
   draftSelectedModelsCommand,
   getSelectedModelsCommand,
 } from '@blocksuite/affine-shared/commands';
-import { matchModels } from '@blocksuite/affine-shared/utils';
+import {
+  deleteBlockWithListOrder,
+  matchModels,
+} from '@blocksuite/affine-shared/utils';
 import { IS_MAC, IS_WINDOWS } from '@blocksuite/global/env';
 import {
   type BlockComponent,
@@ -61,7 +64,7 @@ export class PageKeyboardManager {
       deletedBlocks.forEach(id => {
         const block = this._doc.getBlock(id);
         if (block) {
-          this._doc.deleteBlock(block.model);
+          deleteBlockWithListOrder(this._doc, block.model);
         }
       });
 

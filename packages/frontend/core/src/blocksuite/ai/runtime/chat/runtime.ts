@@ -10,6 +10,7 @@ import type { AIRequestService } from '../request';
 import type { AIChatAction, AIChatSendOptions } from './actions';
 import type { AIChatSessionStrategy } from './session-strategy';
 import {
+  type AIChatContextCompactionTask,
   type AIChatContextItem,
   type AIChatMessage,
   type AIChatModifiedDocument,
@@ -19,6 +20,7 @@ import {
   type AIChatTab,
   createDraftTab,
   createInitialComposerState,
+  createInitialContextCompactionState,
   sessionToTab,
 } from './state';
 
@@ -76,6 +78,14 @@ type EmbeddingStatus = {
 const DEFAULT_CHAT_PROMPT_NAME = 'Chat With LocalMind AI';
 const CONTEXT_POLLING_MIN_INTERVAL = 10_000;
 const CONTEXT_POLLING_MAX_INTERVAL = 5 * 60_000;
+const CONTEXT_COMPACTION_POLLING_INTERVAL = 750;
+const CONTEXT_COMPACTION_DISCOVERY_ATTEMPTS = 20;
+
+const ACTIVE_CONTEXT_COMPACTION_STATUSES = new Set([
+  'queued',
+  'running',
+  'retry_wait',
+]);
 
 function normalizePromptScope(promptName?: string) {
   const nextPromptName = promptName?.trim();
@@ -90,9 +100,12 @@ export class AIChatRuntime {
   private historyRequestSeq = 0;
   private contextRequestSeq = 0;
   private contextPollingSeq = 0;
+  private contextCompactionPollingSeq = 0;
   private projectScopeRequestSeq = 0;
   private streamAbortController: AbortController | null = null;
   private contextPollingAbortController: AbortController | null = null;
+  private contextCompactionPollingAbortController: AbortController | null =
+    null;
   private embeddingStatusAbortController: AbortController | null = null;
   private createSessionPromiseKey: string | null = null;
   private createSessionPromise: Promise<
@@ -107,7 +120,10 @@ export class AIChatRuntime {
   getSnapshot = () => this.snapshot;
 
   private acceptsSession(session: CopilotChatHistoryFragment) {
-    if (this.snapshot.scope.kind === 'project')
+    if (
+      this.snapshot.scope.kind === 'project' ||
+      this.snapshot.scope.kind === 'work_order'
+    )
       return this.options.strategy.canOpenAsTab(session, this.snapshot.scope);
     return (
       this.options.chatSurface !== 'intelligence_workbench' ||
@@ -149,6 +165,7 @@ export class AIChatRuntime {
     this.createSessionPromiseKey = null;
     this.streamAbortController?.abort();
     this.stopContextPolling();
+    this.stopContextCompactionPolling();
     this.embeddingStatusAbortController?.abort();
     this.listeners.clear();
   }
@@ -230,6 +247,30 @@ export class AIChatRuntime {
       case 'loadContext':
         await this.loadContext();
         return;
+      case 'refreshProjectContext':
+        await this.refreshProjectContext();
+        return;
+      case 'loadProjectMemoryCapture':
+        await this.loadProjectMemoryCapture();
+        return;
+      case 'setProjectMemoryCapture':
+        await this.setProjectMemoryCapture(action.allowMemoryCapture);
+        return;
+      case 'loadContextCompaction':
+        await this.loadContextCompaction();
+        return;
+      case 'requestContextCompaction':
+        await this.requestContextCompaction();
+        return;
+      case 'retryContextCompaction':
+        await this.retryContextCompaction();
+        return;
+      case 'cancelContextCompaction':
+        await this.cancelContextCompaction();
+        return;
+      case 'dismissContextCompaction':
+        this.dismissContextCompaction();
+        return;
       case 'startContextPolling':
         this.startContextPolling();
         return;
@@ -272,6 +313,7 @@ export class AIChatRuntime {
       messages: [],
       status: 'idle',
       error: null,
+      contextCompaction: createInitialContextCompactionState(),
       composer: createInitialComposerState(),
       navigationRequest: null,
       uiPolicy: this.createUiPolicy('idle', [draft], draft.id),
@@ -306,15 +348,24 @@ export class AIChatRuntime {
   ): AIChatSnapshot['uiPolicy'] {
     const activeTab = tabs.find(tab => tab.id === activeTabId);
     const isGenerating = status === 'loading' || status === 'transmitting';
+    // `createUiPolicy` is also used while the initial snapshot itself is being
+    // constructed, before `this.snapshot` has been assigned.
+    const isWorkOrder =
+      (this.snapshot?.scope ?? this.options.scope).kind === 'work_order';
     return {
-      showDraftTab: activeTab?.kind === 'draft',
-      canCreateNewSession: activeTab?.kind === 'session' && !isGenerating,
-      canCloseActiveTab: activeTab?.kind === 'session' && tabs.length > 1,
-      canPinActiveSession: activeTab?.kind === 'session',
+      showDraftTab: !isWorkOrder && activeTab?.kind === 'draft',
+      canCreateNewSession:
+        !isWorkOrder && activeTab?.kind === 'session' && !isGenerating,
+      canCloseActiveTab:
+        !isWorkOrder && activeTab?.kind === 'session' && tabs.length > 1,
+      canPinActiveSession: !isWorkOrder && activeTab?.kind === 'session',
       canSend:
         !isGenerating &&
         (this.options.chatSurface !== 'intelligence_workbench' ||
-          !!this.options.projectId),
+          !!this.options.projectId ||
+          isWorkOrder),
+      canRequestContextCompaction:
+        !isWorkOrder && activeTab?.kind === 'session' && !isGenerating,
     };
   }
 
@@ -324,6 +375,8 @@ export class AIChatRuntime {
     switch (scope.kind) {
       case 'project':
         return `${scope.kind}:${scope.projectId}${promptKey}`;
+      case 'work_order':
+        return `${scope.kind}:${scope.workOrderId}:${scope.sessionId}${promptKey}`;
       case 'doc':
         return `${scope.kind}:${scope.workspaceId}:${scope.docId}${promptKey}`;
       case 'workspace':
@@ -348,6 +401,7 @@ export class AIChatRuntime {
   private async initialize(scope: AIChatScope) {
     this.contextRequestSeq++;
     this.stopContextPolling();
+    this.stopContextCompactionPolling();
     const seq = ++this.requestSeq;
     this.commit({
       ...this.createInitialSnapshot(scope),
@@ -406,6 +460,7 @@ export class AIChatRuntime {
       const pending = createSession
         .then(session =>
           scope.kind === 'project' ||
+          scope.kind === 'work_order' ||
           this.getScopeKey(this.snapshot.scope, promptName) !== scopeKey
             ? session
             : this.persistDraftProjectSelection(
@@ -468,6 +523,8 @@ export class AIChatRuntime {
       if (!this.snapshot.activeSessionId) {
         this.openSessionObject(session, true);
       }
+
+      this.startContextCompactionPolling(session.sessionId, true);
 
       const stream = (await this.options.request.executeAction('chat', {
         workspaceId: this.snapshot.scope.workspaceId,
@@ -541,6 +598,7 @@ export class AIChatRuntime {
       messages: this.resetLastAssistantMessage(this.snapshot.messages),
     });
     try {
+      this.startContextCompactionPolling(this.snapshot.activeSessionId, true);
       const stream = (await this.options.request.executeAction('chat', {
         workspaceId: this.snapshot.scope.workspaceId,
         projectId:
@@ -604,9 +662,17 @@ export class AIChatRuntime {
           ? await this.options.request.getProjectSessions(
               this.snapshot.scope.projectId
             )
-          : await this.options.request.getRecentSessions(
-              this.snapshot.scope.workspaceId
-            )) ?? [];
+          : this.snapshot.scope.kind === 'work_order'
+            ? [
+                await this.options.request.getWorkOrderSession(
+                  this.snapshot.scope.workOrderId
+                ),
+              ].filter(
+                (session): session is CopilotChatHistoryFragment => !!session
+              )
+            : await this.options.request.getRecentSessions(
+                this.snapshot.scope.workspaceId
+              )) ?? [];
       if (seq !== this.historyRequestSeq) return;
       this.commit({
         history: {
@@ -659,7 +725,361 @@ export class AIChatRuntime {
     });
   }
 
+  private updateProjectMemoryCaptureState(
+    patch: Partial<AIChatSnapshot['composer']['projectMemoryCapture']>
+  ) {
+    this.updateComposer({
+      projectMemoryCapture: {
+        ...this.snapshot.composer.projectMemoryCapture,
+        ...patch,
+      },
+    });
+  }
+
+  private updateContextCompactionState(
+    patch: Partial<AIChatSnapshot['contextCompaction']>
+  ) {
+    this.commit({
+      contextCompaction: {
+        ...this.snapshot.contextCompaction,
+        ...patch,
+      },
+    });
+  }
+
+  private stopContextCompactionPolling() {
+    this.contextCompactionPollingSeq++;
+    this.contextCompactionPollingAbortController?.abort();
+    this.contextCompactionPollingAbortController = null;
+    if (this.snapshot.contextCompaction.polling) {
+      this.updateContextCompactionState({ polling: false });
+    }
+  }
+
+  private async waitForContextCompactionPoll(signal: AbortSignal) {
+    await new Promise<void>(resolve => {
+      if (signal.aborted) {
+        resolve();
+        return;
+      }
+      const timer = window.setTimeout(
+        resolve,
+        CONTEXT_COMPACTION_POLLING_INTERVAL
+      );
+      signal.addEventListener(
+        'abort',
+        () => {
+          window.clearTimeout(timer);
+          resolve();
+        },
+        { once: true }
+      );
+    });
+  }
+
+  private mergeContextCompactionEvents(
+    sessionId: string,
+    task: AIChatContextCompactionTask | null,
+    incoming: AIChatSnapshot['contextCompaction']['events']
+  ) {
+    const existing =
+      this.snapshot.contextCompaction.task?.sessionId === sessionId
+        ? this.snapshot.contextCompaction.events
+        : [];
+    const events = new Map(
+      [...existing, ...incoming]
+        .filter(event => event.sessionId === sessionId)
+        .filter(event => !task || event.taskId === task.id)
+        .map(event => [event.sequence, event] as const)
+    );
+    return [...events.values()].sort(
+      (left, right) => left.sequence - right.sequence
+    );
+  }
+
+  private async fetchContextCompaction(sessionId: string) {
+    const current = this.snapshot.contextCompaction;
+    const afterSequence =
+      current.task?.sessionId === sessionId
+        ? current.events.at(-1)?.sequence
+        : undefined;
+    const result = await this.options.request.contextCompaction.get(
+      sessionId,
+      afterSequence
+    );
+    if (this.snapshot.activeSessionId !== sessionId) return null;
+    const task = result.task;
+    if (task && task.sessionId !== sessionId) return null;
+    const events = this.mergeContextCompactionEvents(
+      sessionId,
+      task,
+      result.events
+    );
+    this.updateContextCompactionState({
+      task,
+      events,
+      loading: false,
+      error: null,
+      dismissedTaskId:
+        current.task?.id === task?.id ? current.dismissedTaskId : null,
+    });
+    return task;
+  }
+
+  private startContextCompactionPolling(
+    sessionId: string,
+    waitForTask = false
+  ) {
+    if (this.snapshot.scope.kind === 'work_order') return;
+    this.stopContextCompactionPolling();
+    const seq = this.contextCompactionPollingSeq;
+    const controller = new AbortController();
+    this.contextCompactionPollingAbortController = controller;
+    this.updateContextCompactionState({ polling: true, error: null });
+    (async () => {
+      let discoveryAttempts = waitForTask
+        ? CONTEXT_COMPACTION_DISCOVERY_ATTEMPTS
+        : 0;
+      try {
+        while (!controller.signal.aborted) {
+          if (
+            seq !== this.contextCompactionPollingSeq ||
+            this.snapshot.activeSessionId !== sessionId
+          )
+            return;
+          const task = await this.fetchContextCompaction(sessionId);
+          if (!task) {
+            if (discoveryAttempts-- <= 0) return;
+          } else if (!ACTIVE_CONTEXT_COMPACTION_STATUSES.has(task.status)) {
+            return;
+          }
+          await this.waitForContextCompactionPoll(controller.signal);
+        }
+      } catch (error) {
+        if (
+          !controller.signal.aborted &&
+          seq === this.contextCompactionPollingSeq &&
+          this.snapshot.activeSessionId === sessionId
+        ) {
+          this.updateContextCompactionState({ error: this.toError(error) });
+        }
+      } finally {
+        if (
+          seq === this.contextCompactionPollingSeq &&
+          this.snapshot.activeSessionId === sessionId
+        ) {
+          this.contextCompactionPollingAbortController = null;
+          this.updateContextCompactionState({ polling: false });
+        }
+      }
+    })().catch(error => {
+      if (
+        !controller.signal.aborted &&
+        seq === this.contextCompactionPollingSeq &&
+        this.snapshot.activeSessionId === sessionId
+      ) {
+        this.contextCompactionPollingAbortController = null;
+        this.updateContextCompactionState({
+          polling: false,
+          error: this.toError(error),
+        });
+      }
+    });
+  }
+
+  private async loadContextCompaction() {
+    if (this.snapshot.scope.kind === 'work_order') {
+      this.stopContextCompactionPolling();
+      this.commit({
+        contextCompaction: createInitialContextCompactionState(),
+      });
+      return;
+    }
+    const sessionId = this.snapshot.activeSessionId;
+    if (!sessionId) {
+      this.stopContextCompactionPolling();
+      this.commit({
+        contextCompaction: createInitialContextCompactionState(),
+      });
+      return;
+    }
+    this.updateContextCompactionState({ loading: true, error: null });
+    try {
+      const task = await this.fetchContextCompaction(sessionId);
+      if (task && ACTIVE_CONTEXT_COMPACTION_STATUSES.has(task.status)) {
+        this.startContextCompactionPolling(sessionId);
+      }
+    } catch (error) {
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateContextCompactionState({
+        loading: false,
+        error: this.toError(error),
+      });
+    }
+  }
+
+  private async requestContextCompaction() {
+    if (this.snapshot.scope.kind === 'work_order') return;
+    const session = await this.ensureSession();
+    if (!session) return;
+    const sessionId = session.sessionId;
+    if (!this.snapshot.activeSessionId) this.openSessionObject(session, true);
+    this.updateContextCompactionState({
+      loading: true,
+      error: null,
+      dismissedTaskId: null,
+    });
+    try {
+      const task =
+        await this.options.request.contextCompaction.request(sessionId);
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateContextCompactionState({
+        task,
+        events: task ? this.snapshot.contextCompaction.events : [],
+        loading: false,
+      });
+      if (task && ACTIVE_CONTEXT_COMPACTION_STATUSES.has(task.status)) {
+        this.startContextCompactionPolling(sessionId);
+      }
+    } catch (error) {
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateContextCompactionState({
+        loading: false,
+        error: this.toError(error),
+      });
+    }
+  }
+
+  private async retryContextCompaction() {
+    const task = this.snapshot.contextCompaction.task;
+    const sessionId = this.snapshot.activeSessionId;
+    if (!task || !sessionId || task.sessionId !== sessionId) return;
+    this.updateContextCompactionState({
+      loading: true,
+      error: null,
+      dismissedTaskId: null,
+    });
+    try {
+      const retried = await this.options.request.contextCompaction.retry(
+        task.id
+      );
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateContextCompactionState({
+        task: retried,
+        events: [],
+        loading: false,
+      });
+      this.startContextCompactionPolling(sessionId);
+    } catch (error) {
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateContextCompactionState({
+        loading: false,
+        error: this.toError(error),
+      });
+    }
+  }
+
+  private async cancelContextCompaction() {
+    const task = this.snapshot.contextCompaction.task;
+    const sessionId = this.snapshot.activeSessionId;
+    if (!task || !sessionId || task.sessionId !== sessionId) return;
+    this.updateContextCompactionState({ loading: true, error: null });
+    try {
+      const cancelled = await this.options.request.contextCompaction.cancel(
+        task.id
+      );
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.stopContextCompactionPolling();
+      this.updateContextCompactionState({
+        task: cancelled,
+        loading: false,
+        polling: false,
+      });
+    } catch (error) {
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateContextCompactionState({
+        loading: false,
+        error: this.toError(error),
+      });
+    }
+  }
+
+  private dismissContextCompaction() {
+    const taskId = this.snapshot.contextCompaction.task?.id ?? null;
+    this.updateContextCompactionState({ dismissedTaskId: taskId, error: null });
+  }
+
+  private async loadProjectMemoryCapture() {
+    if (this.snapshot.scope.kind !== 'project') return;
+    const sessionId = this.snapshot.activeSessionId;
+    if (!sessionId) {
+      this.updateProjectMemoryCaptureState({
+        loading: false,
+        error: null,
+        allowMemoryCapture: false,
+        revision: null,
+      });
+      return;
+    }
+    this.updateProjectMemoryCaptureState({ loading: true, error: null });
+    try {
+      const capture =
+        await this.options.request.projectMemoryCapture.get(sessionId);
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateProjectMemoryCaptureState({
+        loading: false,
+        error: null,
+        allowMemoryCapture: capture?.allowMemoryCapture ?? false,
+        revision: capture?.revision ?? null,
+      });
+    } catch (error) {
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateProjectMemoryCaptureState({
+        loading: false,
+        error: this.toError(error),
+      });
+    }
+  }
+
+  private async setProjectMemoryCapture(allowMemoryCapture: boolean) {
+    if (this.snapshot.scope.kind !== 'project') return;
+    const sessionId = this.snapshot.activeSessionId;
+    const revision = this.snapshot.composer.projectMemoryCapture.revision;
+    if (!sessionId || revision === null) return;
+    this.updateProjectMemoryCaptureState({ loading: true, error: null });
+    try {
+      const capture = await this.options.request.projectMemoryCapture.update(
+        sessionId,
+        allowMemoryCapture,
+        revision
+      );
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateProjectMemoryCaptureState({
+        loading: false,
+        error: null,
+        allowMemoryCapture: capture.allowMemoryCapture,
+        revision: capture.revision,
+      });
+    } catch (error) {
+      if (this.snapshot.activeSessionId !== sessionId) return;
+      this.updateProjectMemoryCaptureState({
+        loading: false,
+        error: this.toError(error),
+      });
+      throw error;
+    }
+  }
+
   private async loadProjectScope() {
+    if (this.snapshot.scope.kind === 'work_order') {
+      this.updateProjectScopeState({
+        loading: false,
+        error: null,
+        projectResolution: 'none',
+        selectedProjectId: null,
+      });
+      return;
+    }
     if (this.snapshot.scope.kind === 'project') {
       this.updateProjectScopeState({
         loading: false,
@@ -779,7 +1199,11 @@ export class AIChatRuntime {
   }
 
   private async getContextId(options: { promptName?: string } = {}) {
-    if (this.snapshot.scope.kind === 'project') return null;
+    if (
+      this.snapshot.scope.kind === 'project' ||
+      this.snapshot.scope.kind === 'work_order'
+    )
+      return null;
     const createdSession = this.snapshot.activeSessionId
       ? null
       : await this.ensureSession(options);
@@ -893,6 +1317,12 @@ export class AIChatRuntime {
   }
 
   private async addContextItem(item: AIChatContextItem, promptName?: string) {
+    if (this.snapshot.scope.kind === 'work_order') {
+      this.updateContextState({
+        error: new Error('Work-order chat does not accept context resources'),
+      });
+      return;
+    }
     if (this.snapshot.scope.kind === 'project') {
       const seq = ++this.contextRequestSeq;
       const projectId = this.snapshot.scope.projectId;
@@ -971,6 +1401,7 @@ export class AIChatRuntime {
   }
 
   private async removeContextItem(item: AIChatContextItem) {
+    if (this.snapshot.scope.kind === 'work_order') return;
     if (this.snapshot.scope.kind === 'project') {
       const seq = ++this.contextRequestSeq;
       const projectId = this.snapshot.scope.projectId;
@@ -1045,7 +1476,11 @@ export class AIChatRuntime {
   }
 
   private async pollContext() {
-    if (this.snapshot.scope.kind === 'project') return false;
+    if (
+      this.snapshot.scope.kind === 'project' ||
+      this.snapshot.scope.kind === 'work_order'
+    )
+      return false;
     const seq = this.contextPollingSeq;
     const sessionId = this.snapshot.activeSessionId;
     const contextId = this.snapshot.composer.context.contextId;
@@ -1186,12 +1621,26 @@ export class AIChatRuntime {
   }
 
   private async loadContext() {
+    if (this.snapshot.scope.kind === 'work_order') {
+      this.stopContextPolling();
+      this.updateContextState({
+        contextId: null,
+        loading: false,
+        polling: false,
+        items: [],
+        modifiedDocuments: [],
+        error: null,
+      });
+      await this.loadProjectScope();
+      return;
+    }
     if (this.snapshot.scope.kind === 'project') {
       const projectId = this.snapshot.scope.projectId;
       const sessionId = this.snapshot.activeSessionId;
       const seq = ++this.contextRequestSeq;
       await this.loadProjectScope();
       if (seq !== this.contextRequestSeq || !sessionId) return;
+      await this.loadProjectMemoryCapture();
       this.updateContextState({ loading: true, error: null });
       try {
         const context = await this.options.request.projectContext.get(
@@ -1213,6 +1662,23 @@ export class AIChatRuntime {
                     kind: 'doc',
                     docId: item.resourceId,
                     state: item.available ? 'finished' : 'failed',
+                    tooltip:
+                      item.currentSequence &&
+                      item.sequence &&
+                      item.currentSequence > item.sequence
+                        ? I18n.t(
+                            'com.affine.localmind.project-context.versionStale',
+                            {
+                              frozen: String(item.sequence),
+                              current: String(item.currentSequence),
+                            }
+                          )
+                        : item.sequence
+                          ? I18n.t(
+                              'com.affine.localmind.project-context.versionCurrent',
+                              { version: String(item.sequence) }
+                            )
+                          : undefined,
                   },
                 ]
               : item.kind === 'blob' && item.blobKey
@@ -1234,6 +1700,15 @@ export class AIChatRuntime {
           loading: false,
           error: null,
           items,
+          modifiedDocuments: context.items.flatMap(item =>
+            item.kind === 'resource' &&
+            item.resourceId &&
+            item.sequence &&
+            item.currentSequence &&
+            item.currentSequence > item.sequence
+              ? [{ docId: item.resourceId, updatedAt: item.currentSequence }]
+              : []
+          ),
           embeddingCompleted: true,
           embeddingCount: {
             finished: items.filter(item => item.state === 'finished').length,
@@ -1294,8 +1769,39 @@ export class AIChatRuntime {
     }
   }
 
+  private async refreshProjectContext() {
+    if (this.snapshot.scope.kind !== 'project') return;
+    const projectId = this.snapshot.scope.projectId;
+    const sessionId = this.snapshot.activeSessionId;
+    if (!sessionId) return;
+    const seq = ++this.contextRequestSeq;
+    this.updateContextState({ loading: true, error: null });
+    try {
+      const context = await this.options.request.projectContext.get(
+        projectId,
+        sessionId
+      );
+      if (seq !== this.contextRequestSeq) return;
+      await this.options.request.projectContext.refresh(
+        projectId,
+        sessionId,
+        context.version
+      );
+      if (seq === this.contextRequestSeq) await this.loadContext();
+    } catch (error) {
+      if (seq === this.contextRequestSeq) {
+        this.updateContextState({ loading: false, error: this.toError(error) });
+      }
+      throw error;
+    }
+  }
+
   private pollEmbeddingStatus() {
-    if (this.snapshot.scope.kind === 'project') return;
+    if (
+      this.snapshot.scope.kind === 'project' ||
+      this.snapshot.scope.kind === 'work_order'
+    )
+      return;
     this.embeddingStatusAbortController?.abort();
     this.embeddingStatusAbortController = new AbortController();
     const signal = this.embeddingStatusAbortController.signal;
@@ -1620,7 +2126,9 @@ export class AIChatRuntime {
     const scope = this.snapshot.scope;
     return scope.kind === 'project'
       ? this.options.request.getProjectSession(scope.projectId, sessionId)
-      : this.options.request.getSession(scope.workspaceId, sessionId);
+      : scope.kind === 'work_order'
+        ? this.options.request.getWorkOrderSession(scope.workOrderId)
+        : this.options.request.getSession(scope.workspaceId, sessionId);
   }
 
   private async openSession(sessionId: string) {
@@ -1656,6 +2164,7 @@ export class AIChatRuntime {
     if (result.type === 'navigate') {
       this.contextRequestSeq++;
       this.stopContextPolling();
+      this.stopContextCompactionPolling();
       this.commit({
         navigationRequest: {
           ...result.target,
@@ -1665,6 +2174,7 @@ export class AIChatRuntime {
         sessions: [],
         activeSessionId: null,
         activeTabId: null,
+        contextCompaction: createInitialContextCompactionState(),
         composer: createInitialComposerState(),
       });
       return;
@@ -1676,6 +2186,7 @@ export class AIChatRuntime {
     if (shouldResetComposer) {
       this.contextRequestSeq++;
       this.stopContextPolling();
+      this.stopContextCompactionPolling();
     }
     const tab = sessionToTab(result.session);
     const existing = this.snapshot.tabs.findIndex(item => item.id === tab.id);
@@ -1702,9 +2213,13 @@ export class AIChatRuntime {
         ? this.snapshot.messages
         : ((result.session.messages ?? []) as AIChatMessage[]).slice(),
       ...(shouldResetComposer
-        ? { composer: createInitialComposerState() }
+        ? {
+            composer: createInitialComposerState(),
+            contextCompaction: createInitialContextCompactionState(),
+          }
         : {}),
     });
+    this.startContextCompactionPolling(result.session.sessionId);
   }
 
   private async closeTab(tabId: string) {
@@ -1718,6 +2233,7 @@ export class AIChatRuntime {
     }
     this.contextRequestSeq++;
     this.stopContextPolling();
+    this.stopContextCompactionPolling();
     const fallback =
       tabs.at(-1) ??
       this.options.strategy.createDraftSession(this.snapshot.scope);
@@ -1737,6 +2253,7 @@ export class AIChatRuntime {
       activeTabId: fallback.id,
       activeSessionId: fallback.kind === 'session' ? fallback.sessionId : null,
       messages: [],
+      contextCompaction: createInitialContextCompactionState(),
       composer: createInitialComposerState(),
     });
   }
@@ -1745,6 +2262,7 @@ export class AIChatRuntime {
     if (!this.snapshot.uiPolicy.canCreateNewSession) return;
     this.contextRequestSeq++;
     this.stopContextPolling();
+    this.stopContextCompactionPolling();
     const seq = ++this.requestSeq;
     const draft = this.options.strategy.createDraftSession(this.snapshot.scope);
     const activeTabIndex = this.snapshot.tabs.findIndex(
@@ -1763,6 +2281,7 @@ export class AIChatRuntime {
       activeTabId: draft.id,
       activeSessionId: null,
       messages: [],
+      contextCompaction: createInitialContextCompactionState(),
       composer: createInitialComposerState(),
     });
     if (pinned) {
@@ -1803,6 +2322,9 @@ export class AIChatRuntime {
   }
 
   private async deleteSession(sessionId: string) {
+    if (this.snapshot.scope.kind === 'work_order') {
+      throw new Error('Work-order conversations follow work-order retention');
+    }
     if (this.snapshot.scope.kind === 'project') {
       await this.options.request.cleanupProjectSessions(
         this.snapshot.scope.projectId,
@@ -1950,7 +2472,8 @@ export class AIChatRuntime {
     const last = this.snapshot.messages.at(-1);
     if (!last || last.id) return;
     const historyIds =
-      this.snapshot.scope.kind === 'project'
+      this.snapshot.scope.kind === 'project' ||
+      this.snapshot.scope.kind === 'work_order'
         ? [await this.getSession(sessionId)]
         : await this.options.request.histories.ids(
             this.snapshot.scope.workspaceId,
@@ -1971,7 +2494,8 @@ export class AIChatRuntime {
 
   private toError(error: unknown) {
     if (
-      this.snapshot.scope.kind === 'project' &&
+      (this.snapshot.scope.kind === 'project' ||
+        this.snapshot.scope.kind === 'work_order') &&
       error instanceof ByokNotConfiguredError
     ) {
       return new ByokNotConfiguredError(

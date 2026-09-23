@@ -9,6 +9,7 @@ import {
   Query,
   Resolver,
 } from '@nestjs/graphql';
+import { PrismaClient } from '@prisma/client';
 import { GraphQLJSONObject } from 'graphql-scalars';
 
 import { LocalMindLogService } from '../../base/logger';
@@ -45,7 +46,10 @@ export class LocalMindLogPolicyInput {
 @Admin()
 @Resolver()
 export class ObservabilityResolver {
-  constructor(private readonly logs: LocalMindLogService) {}
+  constructor(
+    private readonly logs: LocalMindLogService,
+    private readonly db: PrismaClient
+  ) {}
 
   @Query(() => [LocalMindLogEventType])
   async localmindLogEvents(
@@ -102,6 +106,58 @@ export class ObservabilityResolver {
     return this.logs.spoolStatus();
   }
 
+  @Query(() => [GraphQLJSONObject])
+  async localmindLogArchiveBatches(
+    @Args('limit', { type: () => Int, nullable: true }) limit?: number
+  ) {
+    const rows = await this.logs.listArchiveBatches(limit);
+    return rows.map(row => ({
+      id: row.id,
+      status: row.status,
+      keyVersion: row.keyVersion,
+      manifestFingerprint: row.manifestFingerprint,
+      itemCount: row.itemCount,
+      fromOccurredAt: row.fromOccurredAt,
+      toOccurredAt: row.toOccurredAt,
+      attempt: row.attempt,
+      maxAttempts: row.maxAttempts,
+      nextAttemptAt: row.nextAttemptAt,
+      failureCode: row.failureCode,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt,
+    }));
+  }
+
+  @Query(() => [GraphQLJSONObject])
+  async localmindSessionDeletionTasks(
+    @Args('status', { nullable: true }) status?: string,
+    @Args('limit', { type: () => Int, nullable: true }) limit?: number
+  ) {
+    const rows = await this.db.aiSessionDeletion.findMany({
+      where: { status: status || undefined },
+      orderBy: { requestedAt: 'desc' },
+      take: Math.min(Math.max(limit ?? 50, 1), 200),
+    });
+    return rows.map(row => ({
+      id: row.id,
+      sessionId: row.sessionId,
+      workspaceId: row.workspaceIdSnapshot,
+      projectId: row.projectIdSnapshot,
+      status: row.status,
+      progress: row.progress,
+      resultCounts: row.resultCounts,
+      attempt: row.attempt,
+      maxAttempts: row.maxAttempts,
+      failureCode: row.failureCode,
+      holdReason: row.holdReason,
+      receiptFingerprint: row.receiptFingerprint,
+      requestedAt: row.requestedAt,
+      updatedAt: row.updatedAt,
+      completedAt: row.completedAt,
+      backupStatus: row.status === 'held' ? 'held' : 'pending_retention_expiry',
+    }));
+  }
+
   @Query(() => GraphQLJSONObject)
   async localmindLogPolicy() {
     const policy = await this.logs.getPolicy();
@@ -149,6 +205,19 @@ export class ObservabilityResolver {
     await this.logs.writeAudit({
       action: 'logs.retention.archive',
       outcome: result.skipped ? 'skipped' : 'success',
+      metadata: result,
+    });
+    return result;
+  }
+
+  @Mutation(() => GraphQLJSONObject)
+  async verifyLocalmindLogArchive(@Args('batchId') batchId: string) {
+    const result = await this.logs.verifyArchiveBatch(batchId);
+    await this.logs.writeAudit({
+      action: 'logs.retention.archive_verify',
+      outcome: 'success',
+      resourceType: 'localmind_log_archive_batch',
+      resourceId: batchId,
       metadata: result,
     });
     return result;

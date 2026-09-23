@@ -87,8 +87,8 @@ export function AboutAFFiNE() {
         </div>
       </div>
       <div className="space-y-3 text-sm font-normal text-muted-foreground">
-        <div>{`App Version: ${appName} ${BUILD_CONFIG.appVersion}`}</div>
-        <div>{`Editor Version: ${BUILD_CONFIG.editorVersion}`}</div>
+        <div>{`${i18n['com.affine.admin.ui.app-version']()}: ${appName} ${BUILD_CONFIG.appVersion}`}</div>
+        <div>{`${i18n['com.affine.admin.ui.editor-version']()}: ${BUILD_CONFIG.editorVersion}`}</div>
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ export type CopilotTool = {
     | 'read'
     | 'workspace_write'
     | 'project_write'
+    | 'work_order_write'
     | 'external_dynamic';
   description?: string;
   jsonSchema?: Record<string, unknown>;

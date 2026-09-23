@@ -1,5 +1,8 @@
 import { RootBlockModel } from '@blocksuite/affine-model';
-import { matchModels } from '@blocksuite/affine-shared/utils';
+import {
+  deleteBlockWithListOrder,
+  matchModels,
+} from '@blocksuite/affine-shared/utils';
 import { type Command, TextSelection } from '@blocksuite/std';
 import type { Text } from '@blocksuite/store';
 
@@ -60,7 +63,7 @@ export const deleteTextCommand: Command<{
   selectedElements
     .filter(el => el.model.id !== fromElement.model.id)
     .forEach(el => {
-      ctx.std.store.deleteBlock(el.model, {
+      deleteBlockWithListOrder(ctx.std.store, el.model, {
         bringChildrenTo:
           el.model.id === toElement.model.id ? fromElement.model : undefined,
       });

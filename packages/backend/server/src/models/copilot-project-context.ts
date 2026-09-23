@@ -113,7 +113,66 @@ export class CopilotProjectContextModel extends BaseModel {
       await this.db.projectChatContext.create({
         data: { sessionId: input.sessionId, projectId: input.projectId, items },
       });
+    await this.db.aiSessionProjectBlobReference.deleteMany({
+      where: { sessionId: input.sessionId },
+    });
+    const blobKeys = items.flatMap(item =>
+      item.kind === 'blob' ? [item.blobKey] : []
+    );
+    if (blobKeys.length) {
+      await this.db.aiSessionProjectBlobReference.createMany({
+        data: blobKeys.map(blobKey => ({
+          sessionId: input.sessionId,
+          projectId: input.projectId,
+          blobKey,
+        })),
+      });
+    }
     return this.get(input);
+  }
+
+  @Transactional()
+  async refresh(
+    input: ProjectActor & { sessionId: string; expectedVersion: number }
+  ) {
+    await this.authorize(input, true);
+    const current = await this.get(input);
+    if (current.version !== input.expectedVersion) {
+      throw new BadRequest('Project context changed; reload before refreshing');
+    }
+    const items: ProjectChatContextItem[] = [];
+    for (const item of current.items) {
+      if (item.kind === 'blob') {
+        await this.describe(input, item);
+        items.push(item);
+        continue;
+      }
+      const description = await this.describe(input, item);
+      if (!description.currentSequence) {
+        throw new BadRequest(
+          'Project context resource has no readable revision'
+        );
+      }
+      items.push({
+        kind: 'resource',
+        resourceId: item.resourceId,
+        sequence: description.currentSequence,
+      });
+    }
+    const refreshed = await this.set({ ...input, items });
+    await this.db.aiSession.updateMany({
+      where: {
+        id: input.sessionId,
+        userId: input.actorId,
+        selectedContextProjectId: input.projectId,
+        deletedAt: null,
+      },
+      data: { contextEpoch: { increment: 1 } },
+    });
+    await this.db.aiContextCheckpoint.deleteMany({
+      where: { sessionId: input.sessionId },
+    });
+    return refreshed;
   }
 
   @Transactional()

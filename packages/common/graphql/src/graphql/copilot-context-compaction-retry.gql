@@ -1,0 +1,7 @@
+#import "./fragments/copilot-context-compaction.gql"
+
+mutation copilotContextCompactionRetry($taskId: ID!) {
+  retryCopilotContextCompaction(taskId: $taskId) {
+    ...CopilotContextCompactionFields
+  }
+}

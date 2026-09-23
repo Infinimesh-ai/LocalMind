@@ -1,0 +1,10 @@
+mutation copilotProjectSessionMemoryCaptureUpdate(
+  $input: UpdateCopilotProjectSessionMemoryCaptureInput!
+) {
+  updateCopilotProjectSessionMemoryCapture(input: $input) {
+    sessionId
+    projectId
+    allowMemoryCapture
+    revision
+  }
+}

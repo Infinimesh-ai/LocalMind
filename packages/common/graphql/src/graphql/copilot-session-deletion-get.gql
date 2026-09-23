@@ -1,0 +1,11 @@
+#import "./fragments/copilot-session-deletion.gql"
+
+query copilotSessionDeletionGet($sessionId: ID!) {
+  currentUser {
+    copilot {
+      sessionDeletion(sessionId: $sessionId) {
+        ...CopilotSessionDeletionFields
+      }
+    }
+  }
+}

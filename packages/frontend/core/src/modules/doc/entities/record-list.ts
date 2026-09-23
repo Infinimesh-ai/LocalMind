@@ -56,6 +56,12 @@ export class DocRecordList extends Entity {
     []
   );
 
+  // Local content stays available while remote synchronization is in progress.
+  public readonly isAvailable$ = LiveData.from(
+    this.store.watchDocListAvailable(),
+    false
+  );
+
   public readonly isReady$ = LiveData.from(
     this.store.watchDocListReady(),
     false

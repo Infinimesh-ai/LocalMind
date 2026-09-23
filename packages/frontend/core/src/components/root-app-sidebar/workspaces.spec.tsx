@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   docs: ['loose', 'filed', 'restricted'],
   linked: new Set(['filed']),
   ready: true,
+  synced: true,
   loading: false,
   jump: vi.fn(),
   close: vi.fn(),
@@ -76,7 +77,8 @@ vi.mock('@toeverything/infra', () => ({
       docs: {
         list: {
           ['nonTrashDocsIds$']: state.docs,
-          ['isReady$']: state.ready,
+          ['isAvailable$']: state.ready,
+          ['isReady$']: state.synced,
         },
       },
       organize: {
@@ -148,6 +150,7 @@ beforeEach(() => {
   state.docs = ['loose', 'filed', 'restricted'];
   state.linked = new Set(['filed']);
   state.ready = true;
+  state.synced = true;
   state.loading = false;
   state.switchState = { phase: 'idle' };
   state.beginSwitch.mockImplementation((workspaceId: string) => {
@@ -228,6 +231,24 @@ describe('workspace sidebar', () => {
     view.rerender(<WorkspaceRootDocs />);
     expect(screen.queryByRole('link', { name: 'loose' })).toBeNull();
     expect(screen.getByRole('link', { name: 'filed' })).not.toBeNull();
+  });
+
+  test('keeps loaded file nodes mounted during background sync', () => {
+    const view = render(<WorkspaceRootDocs />);
+    const link = screen.getByRole('link', { name: 'loose' });
+    state.synced = false;
+    view.rerender(<WorkspaceRootDocs />);
+    expect(screen.getByRole('link', { name: 'loose' })).toBe(link);
+    expect(screen.queryByRole('status')).toBeNull();
+    state.synced = true;
+    view.rerender(<WorkspaceRootDocs />);
+    expect(screen.getByRole('link', { name: 'loose' })).toBe(link);
+
+    // Permission/directory loading still hides the list until it is authorized.
+    state.loading = true;
+    view.rerender(<WorkspaceRootDocs />);
+    expect(screen.queryByRole('link', { name: 'loose' })).toBeNull();
+    expect(screen.getByRole('status')).not.toBeNull();
   });
 
   test('distinguishes loading from an empty workspace', () => {

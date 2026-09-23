@@ -580,6 +580,31 @@ export interface ChatMessage {
   streamObjects: Maybe<Array<StreamObject>>;
 }
 
+export interface CollaborationEdgeType {
+  __typename?: 'CollaborationEdgeType';
+  from: Scalars['ID']['output'];
+  id: Scalars['ID']['output'];
+  label: Scalars['String']['output'];
+  ownSessionId: Maybe<Scalars['ID']['output']>;
+  ownWorkOrderId: Maybe<Scalars['ID']['output']>;
+  status: Scalars['String']['output'];
+  to: Scalars['ID']['output'];
+}
+
+export interface CollaborationGraphType {
+  __typename?: 'CollaborationGraphType';
+  edges: Array<CollaborationEdgeType>;
+  nodes: Array<CollaborationNodeType>;
+  truncated: Scalars['Boolean']['output'];
+}
+
+export interface CollaborationNodeType {
+  __typename?: 'CollaborationNodeType';
+  id: Scalars['ID']['output'];
+  label: Scalars['String']['output'];
+  self: Scalars['Boolean']['output'];
+}
+
 /** Comment change action */
 export enum CommentChangeAction {
   delete = 'delete',
@@ -701,6 +726,57 @@ export interface ContextWorkspaceEmbeddingStatus {
   total: Scalars['SafeInt']['output'];
 }
 
+export interface ConversationCardCountsType {
+  __typename?: 'ConversationCardCountsType';
+  done: Scalars['Int']['output'];
+  progress: Scalars['Int']['output'];
+  todo: Scalars['Int']['output'];
+}
+
+export interface ConversationCardProjectType {
+  __typename?: 'ConversationCardProjectType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+}
+
+export interface ConversationCardType {
+  __typename?: 'ConversationCardType';
+  activeRunCount: Scalars['Int']['output'];
+  attentionReasons: Array<Scalars['String']['output']>;
+  column: Scalars['String']['output'];
+  lastBusinessAt: Scalars['DateTime']['output'];
+  project: Maybe<ConversationCardProjectType>;
+  scopeType: Scalars['String']['output'];
+  sessionId: Scalars['ID']['output'];
+  title: Maybe<Scalars['String']['output']>;
+  titleRevision: Scalars['Int']['output'];
+  version: Scalars['Int']['output'];
+  workOrderId: Maybe<Scalars['ID']['output']>;
+  workOrderStatus: Maybe<Scalars['String']['output']>;
+}
+
+export interface ConversationCardsPageInfoType {
+  __typename?: 'ConversationCardsPageInfoType';
+  endCursor: Maybe<Scalars['String']['output']>;
+  hasNextPage: Scalars['Boolean']['output'];
+}
+
+export interface ConversationCardsType {
+  __typename?: 'ConversationCardsType';
+  counts: ConversationCardCountsType;
+  items: Array<ConversationCardType>;
+  pageInfo: ConversationCardsPageInfoType;
+}
+
+export interface ConversationWorkStateType {
+  __typename?: 'ConversationWorkStateType';
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  completionReason: Maybe<Scalars['String']['output']>;
+  lastBusinessAt: Scalars['DateTime']['output'];
+  sessionId: Scalars['ID']['output'];
+  version: Scalars['Int']['output'];
+}
+
 export interface Copilot {
   __typename?: 'Copilot';
   /** Get sanitized prepared route diagnostics for an action run in the current workspace */
@@ -714,6 +790,10 @@ export interface Copilot {
   /** List registered Agent Runtime workflow adapter capabilities for standalone run diagnostics */
   agentRuntimeWorkflowAdapters: Array<CopilotAgentRuntimeWorkflowAdapterType>;
   chats: PaginatedCopilotHistoriesType;
+  /** Get the latest private context compaction task for an owned conversation */
+  contextCompaction: Maybe<CopilotContextCompactionTaskType>;
+  /** Replay private context compaction status events for an owned conversation */
+  contextCompactionEvents: Array<CopilotContextCompactionEventType>;
   /** List authorized rules, automatic memories, and project summaries */
   contextMemories: Array<CopilotContextMemoryType>;
   /** List Automatic Memory writer and undo events */
@@ -745,8 +825,21 @@ export interface Copilot {
   histories: Array<CopilotHistories>;
   /** List available models for a prompt, with human-readable names */
   models: CopilotModelsType;
+  myCollaborationGraph: CollaborationGraphType;
+  myConversationCards: ConversationCardsType;
+  myWorkOrder: WorkOrderType;
+  myWorkOrderAiModel: WorkOrderAiModelType;
+  myWorkOrderChat: CopilotHistories;
   projectChat: CopilotHistories;
   projectChats: PaginatedCopilotHistoriesType;
+  /** List the current user Automatic Memory events for a Project */
+  projectContextMemoryEvents: Array<CopilotContextMemoryEventType>;
+  /** Get the shared context settings for a Project */
+  projectContextSettings: CopilotContextSettingsType;
+  /** List pending shared Project memory conflicts for the Project Owner */
+  projectMemoryConflicts: Array<CopilotProjectMemoryConflictType>;
+  /** Get whether this private Project conversation may automatically contribute to the shared Project memory */
+  projectSessionMemoryCapture: Maybe<CopilotProjectSessionMemoryCaptureType>;
   /** Evaluate whether the current prompt registry row can pass the publish gate */
   promptRegistryPublishGate: Maybe<CopilotPromptRegistryPublishGateVerdictType>;
   /** Read-only preflight for a prompt registry repair submission contract */
@@ -759,8 +852,11 @@ export interface Copilot {
   quota: CopilotQuota;
   /** List recent persisted repair execution requests for the current workspace */
   repairExecutions: Array<CopilotRepairExecutionRecordType>;
+  resolveWorkOrderRecipient: WorkOrderRecipientType;
   /** Get the session by id */
   session: CopilotSessionType;
+  /** Get content-free purge progress for a deleted conversation owned by the current user */
+  sessionDeletion: Maybe<CopilotSessionDeletionType>;
   /**
    * Get the session list in the workspace
    * @deprecated use `chats` instead
@@ -809,6 +905,15 @@ export interface CopilotChatsArgs {
   docId?: InputMaybe<Scalars['String']['input']>;
   options?: InputMaybe<QueryChatHistoriesInput>;
   pagination: PaginationInput;
+}
+
+export interface CopilotContextCompactionArgs {
+  sessionId: Scalars['ID']['input'];
+}
+
+export interface CopilotContextCompactionEventsArgs {
+  afterSequence?: InputMaybe<Scalars['SafeInt']['input']>;
+  sessionId: Scalars['ID']['input'];
 }
 
 export interface CopilotContextMemoriesArgs {
@@ -873,6 +978,24 @@ export interface CopilotModelsArgs {
   promptName: Scalars['String']['input'];
 }
 
+export interface CopilotMyConversationCardsArgs {
+  after?: InputMaybe<Scalars['String']['input']>;
+  column?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface CopilotMyWorkOrderArgs {
+  workOrderId: Scalars['ID']['input'];
+}
+
+export interface CopilotMyWorkOrderAiModelArgs {
+  workOrderId: Scalars['ID']['input'];
+}
+
+export interface CopilotMyWorkOrderChatArgs {
+  workOrderId: Scalars['ID']['input'];
+}
+
 export interface CopilotProjectChatArgs {
   projectId: Scalars['String']['input'];
   sessionId: Scalars['String']['input'];
@@ -882,6 +1005,23 @@ export interface CopilotProjectChatsArgs {
   options?: InputMaybe<QueryChatHistoriesInput>;
   pagination: PaginationInput;
   projectId: Scalars['String']['input'];
+}
+
+export interface CopilotProjectContextMemoryEventsArgs {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['ID']['input'];
+}
+
+export interface CopilotProjectContextSettingsArgs {
+  projectId: Scalars['ID']['input'];
+}
+
+export interface CopilotProjectMemoryConflictsArgs {
+  projectId: Scalars['ID']['input'];
+}
+
+export interface CopilotProjectSessionMemoryCaptureArgs {
+  sessionId: Scalars['ID']['input'];
 }
 
 export interface CopilotPromptRegistryPublishGateArgs {
@@ -905,8 +1045,16 @@ export interface CopilotRepairExecutionsArgs {
   limit?: InputMaybe<Scalars['SafeInt']['input']>;
 }
 
+export interface CopilotResolveWorkOrderRecipientArgs {
+  exact: Scalars['String']['input'];
+}
+
 export interface CopilotSessionArgs {
   sessionId: Scalars['String']['input'];
+}
+
+export interface CopilotSessionDeletionArgs {
+  sessionId: Scalars['ID']['input'];
 }
 
 export interface CopilotSessionsArgs {
@@ -1430,6 +1578,42 @@ export interface CopilotContextCategory {
   type: ContextCategories;
 }
 
+export interface CopilotContextCompactionEventType {
+  __typename?: 'CopilotContextCompactionEventType';
+  attempt: Scalars['Int']['output'];
+  contextEpoch: Scalars['Int']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  sequence: Scalars['SafeInt']['output'];
+  sessionId: Scalars['ID']['output'];
+  statistics: Scalars['JSON']['output'];
+  status: Scalars['String']['output'];
+  taskId: Scalars['ID']['output'];
+}
+
+export interface CopilotContextCompactionTaskType {
+  __typename?: 'CopilotContextCompactionTaskType';
+  attempt: Scalars['Int']['output'];
+  checkpointId: Maybe<Scalars['ID']['output']>;
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  contextEpoch: Scalars['Int']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  inputBudget: Maybe<Scalars['Int']['output']>;
+  inputTokensEstimated: Maybe<Scalars['Int']['output']>;
+  maxAttempts: Scalars['Int']['output'];
+  outputCharacters: Maybe<Scalars['Int']['output']>;
+  outputTokensEstimated: Maybe<Scalars['Int']['output']>;
+  requestedAt: Scalars['DateTime']['output'];
+  sessionId: Scalars['ID']['output'];
+  status: Scalars['String']['output'];
+  summarizedMessageCount: Scalars['Int']['output'];
+  summary: Maybe<Scalars['String']['output']>;
+  summaryData: Maybe<Scalars['JSON']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+}
+
 export interface CopilotContextDoc {
   __typename?: 'CopilotContextDoc';
   createdAt: Scalars['SafeInt']['output'];
@@ -1501,9 +1685,13 @@ export enum CopilotContextMemoryScopeInput {
 
 export interface CopilotContextMemoryType {
   __typename?: 'CopilotContextMemoryType';
+  canManage: Maybe<Scalars['Boolean']['output']>;
   captureMode: Scalars['String']['output'];
   confidence: Scalars['Float']['output'];
   content: Scalars['String']['output'];
+  contractVersion: Scalars['String']['output'];
+  contributorCount: Maybe<Scalars['Int']['output']>;
+  contributorUserIds: Maybe<Array<Scalars['String']['output']>>;
   createdAt: Scalars['DateTime']['output'];
   docId: Maybe<Scalars['String']['output']>;
   expiresAt: Maybe<Scalars['DateTime']['output']>;
@@ -1512,10 +1700,13 @@ export interface CopilotContextMemoryType {
   importance: Scalars['Float']['output'];
   kind: Scalars['String']['output'];
   lastUsedAt: Maybe<Scalars['DateTime']['output']>;
-  ownerUserId: Scalars['String']['output'];
+  ownerUserId: Maybe<Scalars['String']['output']>;
+  pendingConflictCount: Maybe<Scalars['Int']['output']>;
   projectId: Maybe<Scalars['String']['output']>;
+  revision: Scalars['Int']['output'];
   scope: Scalars['String']['output'];
   sensitivity: Scalars['String']['output'];
+  sharingStatus: Scalars['String']['output'];
   sourceSessionId: Maybe<Scalars['String']['output']>;
   status: Scalars['String']['output'];
   supersedesId: Maybe<Scalars['String']['output']>;
@@ -1626,7 +1817,7 @@ export interface CopilotContextRuleType {
   hits: Array<CopilotContextRuleHitType>;
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
-  ownerUserId: Scalars['String']['output'];
+  ownerUserId: Maybe<Scalars['String']['output']>;
   priority: Scalars['Int']['output'];
   projectId: Maybe<Scalars['String']['output']>;
   revisions: Array<CopilotContextRuleRevisionType>;
@@ -1658,6 +1849,9 @@ export interface CopilotContextSessionScopeType {
 export interface CopilotContextSettingsType {
   __typename?: 'CopilotContextSettingsType';
   autoMemoryEnabled: Scalars['Boolean']['output'];
+  contractVersion: Maybe<Scalars['String']['output']>;
+  projectMemoryRevision: Maybe<Scalars['Int']['output']>;
+  revision: Scalars['Int']['output'];
 }
 
 export interface CopilotContextStrategyType {
@@ -1997,6 +2191,29 @@ export interface CopilotProjectInvitationType {
   status: Scalars['String']['output'];
   updatedAt: Scalars['DateTime']['output'];
   withdrawnAt: Maybe<Scalars['DateTime']['output']>;
+}
+
+export interface CopilotProjectMemoryConflictType {
+  __typename?: 'CopilotProjectMemoryConflictType';
+  baseMemoryId: Scalars['ID']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  expectedMemoryRevision: Scalars['Int']['output'];
+  factKey: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  projectId: Scalars['ID']['output'];
+  proposedByUserId: Maybe<Scalars['String']['output']>;
+  proposedContent: Scalars['String']['output'];
+  resolution: Maybe<Scalars['String']['output']>;
+  resolvedAt: Maybe<Scalars['DateTime']['output']>;
+  status: Scalars['String']['output'];
+}
+
+export interface CopilotProjectSessionMemoryCaptureType {
+  __typename?: 'CopilotProjectSessionMemoryCaptureType';
+  allowMemoryCapture: Scalars['Boolean']['output'];
+  projectId: Scalars['ID']['output'];
+  revision: Scalars['Int']['output'];
+  sessionId: Scalars['ID']['output'];
 }
 
 export interface CopilotPromptCatalogItemType {
@@ -3901,6 +4118,28 @@ export interface CopilotRepairExecutionSideEffectType {
   workerAttempt: Scalars['SafeInt']['output'];
   workerLeaseId: Scalars['String']['output'];
   workspaceId: Scalars['String']['output'];
+}
+
+export interface CopilotSessionDeletionType {
+  __typename?: 'CopilotSessionDeletionType';
+  attempt: Scalars['Int']['output'];
+  backupStatus: Scalars['String']['output'];
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  contextEpoch: Scalars['Int']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  heldAt: Maybe<Scalars['DateTime']['output']>;
+  holdReason: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  maxAttempts: Scalars['Int']['output'];
+  progress: Scalars['JSON']['output'];
+  receiptFingerprint: Maybe<Scalars['String']['output']>;
+  releasedAt: Maybe<Scalars['DateTime']['output']>;
+  requestedAt: Scalars['DateTime']['output'];
+  resultCounts: Scalars['JSON']['output'];
+  sessionId: Scalars['ID']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
 }
 
 export interface CopilotSessionType {
@@ -5835,18 +6074,23 @@ export interface Mutation {
   addWorkspaceEmbeddingFiles: CopilotWorkspaceFile;
   /** Update workspace flags for admin */
   adminUpdateWorkspace: Maybe<AdminWorkspace>;
+  adoptWorkOrderDeliveries: WorkOrderAdoptionType;
+  answerWorkOrderQuestion: WorkOrderMutationResultType;
   approveCopilotAccessRequest: CopilotAccessRequestType;
   approveMember: Scalars['Boolean']['output'];
   approveProjectAgentTask: ProjectAgentTaskType;
   archiveLocalmindLogRetention: Scalars['JSONObject']['output'];
+  askWorkOrderQuestion: WorkOrderMutationResultType;
   /** Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle. */
   authorizeCopilotSupportBundleDownload: CopilotSupportBundleDownloadAuthorizationType;
   /** Ban an user */
   banUser: UserType;
   beginEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
+  cancelCopilotContextCompaction: CopilotContextCompactionTaskType;
   cancelEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
   cancelProjectAgentTask: ProjectAgentTaskType;
   cancelSubscription: SubscriptionType;
+  cancelWorkOrder: WorkOrderMutationResultType;
   changeEmail: UserType;
   changePassword: Scalars['Boolean']['output'];
   changeProjectFileRequest: ProjectFileRequestType;
@@ -5861,9 +6105,11 @@ export interface Mutation {
   cleanupProjectCopilotSessions: Array<Scalars['String']['output']>;
   clearWorkspaceByokConfigs: Scalars['Boolean']['output'];
   completeBlobUpload: Scalars['String']['output'];
+  completeConversation: ConversationWorkStateType;
   confirmCopilotBlockerSuggestion: CopilotBlockerType;
   confirmCopilotDocumentDestination: CopilotDocumentOperationType;
   confirmProjectPublication: ProjectPublicationType;
+  confirmWorkOrderDispatch: WorkOrderDispatchConfirmedType;
   connectExternalMcp: ExternalMcpConnectionType;
   /** Control a standalone persisted Agent Runtime run outside repair execution. */
   controlCopilotAgentRuntimeRun: CopilotAgentRunType;
@@ -5979,6 +6225,7 @@ export interface Mutation {
   mutateWorkspaceDirectory: WorkspaceDirectoryMutationType;
   permanentlyDeleteProjectResource: Scalars['Boolean']['output'];
   prepareProjectPublication: ProjectPublicationType;
+  prepareWorkOrderDispatch: WorkOrderDispatchPreparedType;
   /** Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing. */
   previewCopilotPromptRegistryBodyEdit: CopilotPromptRegistryBodyEditPreviewType;
   previewLicense: AdminLicensePreview;
@@ -6005,9 +6252,11 @@ export interface Mutation {
   recoverDoc: Scalars['DateTime']['output'];
   refreshEnterpriseConnection: EnterpriseConnectionType;
   refreshExternalMcpTools: ExternalMcpConnectionType;
+  refreshProjectChatContext: ProjectChatContextType;
   refreshProjectResourceSource: ProjectResourceType;
   /** Refresh current user subscriptions and return latest. */
   refreshUserSubscriptions: Array<SubscriptionType>;
+  refuseWorkOrder: WorkOrderMutationResultType;
   rejectCopilotAccessRequest: CopilotAccessRequestType;
   releaseDeletedBlobs: Scalars['Boolean']['output'];
   releaseProjectResourceEditLease: Scalars['Boolean']['output'];
@@ -6024,6 +6273,7 @@ export interface Mutation {
   removeCopilotContextProjectMember: Scalars['Boolean']['output'];
   /** Remove workspace embedding files */
   removeWorkspaceEmbeddingFiles: Scalars['Boolean']['output'];
+  renameConversation: ConversationCardType;
   renewProjectResourceEditLease: ProjectEditLeaseResultType;
   reorderWorkspaceByokConfigs: Array<WorkspaceByokKeyConfigType>;
   /** Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence. */
@@ -6034,6 +6284,7 @@ export interface Mutation {
   requestCopilotAgentRuntimeDocUpdate: CopilotAgentRunType;
   /** Preview and persist one native Office AI command as an immutable approval-gated Agent Runtime task. */
   requestCopilotAgentRuntimeOfficeCommand: CopilotAgentRunType;
+  requestCopilotContextCompaction: Maybe<CopilotContextCompactionTaskType>;
   requestCopilotDocumentAccess: CopilotAccessRequestType;
   /** Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval. */
   requestCopilotPromptRegistryRepairExecution: CopilotPromptRegistryRepairExecutionRequestType;
@@ -6041,11 +6292,14 @@ export interface Mutation {
   /** Resolve a comment or not */
   resolveComment: Scalars['Boolean']['output'];
   resolveCopilotBlocker: CopilotBlockerType;
+  resolveCopilotProjectMemoryConflict: CopilotProjectMemoryConflictType;
   resolveOfficeComment: OfficeCommentType;
   resumeSubscription: SubscriptionType;
+  retryCopilotContextCompaction: CopilotContextCompactionTaskType;
   retryCopilotDocumentOperation: CopilotDocumentOperationType;
   /** Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence. */
   retryCopilotProviderHealthProbeAttempt: CopilotProviderHealthProbeAttemptType;
+  retryCopilotSessionDeletion: CopilotSessionDeletionType;
   retryProjectWorkspaceImport: ProjectWorkspaceImportTaskType;
   retryTranscriptTask: Maybe<TranscriptionResultType>;
   revokeCommercialEntitlement: Scalars['Boolean']['output'];
@@ -6071,15 +6325,18 @@ export interface Mutation {
   setBlob: Scalars['String']['output'];
   setCopilotContextProjectAiPolicy: CopilotProjectAiPolicyType;
   setProjectByokEnabled: ProjectByokSettingsType;
+  setWorkOrderByokEnabled: ProjectByokSettingsType;
   settleTranscriptTask: Maybe<TranscriptionResultType>;
   submitProjectFileRequest: ProjectFileRequestType;
   submitProjectWorkspaceImport: ProjectWorkspaceImportTaskType;
   submitTranscriptTask: Maybe<TranscriptionResultType>;
+  submitWorkOrderDelivery: WorkOrderDeliveryResultType;
   testExternalMcpConversation: ExternalMcpToolCallResultType;
   testProjectByokConfig: ProjectByokTestResultType;
   testWorkspaceByokConfig: TestWorkspaceByokConfigResultType;
   transferCopilotContextProjectOwnership: Scalars['Boolean']['output'];
   undoCopilotContextMemoryEvent: CopilotContextMemoryEventType;
+  undoCopilotProjectContextMemoryEvent: CopilotContextMemoryEventType;
   unlinkCalendarAccount: Scalars['Boolean']['output'];
   /** update app configuration */
   updateAppConfig: Scalars['JSONObject']['output'];
@@ -6091,6 +6348,8 @@ export interface Mutation {
   updateCopilotContextProject: CopilotContextProjectType;
   updateCopilotContextRule: CopilotContextRuleType;
   updateCopilotContextSettings: CopilotContextSettingsType;
+  updateCopilotProjectContextSettings: CopilotContextSettingsType;
+  updateCopilotProjectSessionMemoryCapture: CopilotProjectSessionMemoryCaptureType;
   /** Update a chat session */
   updateCopilotSession: Scalars['String']['output'];
   updateDocDefaultRole: Scalars['Boolean']['output'];
@@ -6125,6 +6384,7 @@ export interface Mutation {
   upsertAdminAiProfile: AdminAiProfileType;
   upsertWorkspaceByokConfig: WorkspaceByokKeyConfigType;
   verifyEmail: Scalars['Boolean']['output'];
+  verifyLocalmindLogArchive: Scalars['JSONObject']['output'];
   withdrawCopilotAccessRequest: CopilotAccessRequestType;
   withdrawCopilotDocumentOperation: CopilotDocumentOperationType;
   withdrawCopilotProjectInvitation: CopilotProjectInvitationType;
@@ -6190,6 +6450,20 @@ export interface MutationAdminUpdateWorkspaceArgs {
   input: AdminUpdateWorkspaceInput;
 }
 
+export interface MutationAdoptWorkOrderDeliveriesArgs {
+  expectedContextVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+  revisions: Array<WorkOrderAdoptionRevisionInput>;
+  sourceSessionId: Scalars['ID']['input'];
+}
+
+export interface MutationAnswerWorkOrderQuestionArgs {
+  body: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+  workOrderId: Scalars['ID']['input'];
+}
+
 export interface MutationApproveCopilotAccessRequestArgs {
   input: ResolveCopilotAccessRequestInput;
 }
@@ -6209,6 +6483,13 @@ export interface MutationArchiveLocalmindLogRetentionArgs {
   dryRun?: InputMaybe<Scalars['Boolean']['input']>;
 }
 
+export interface MutationAskWorkOrderQuestionArgs {
+  body: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+  workOrderId: Scalars['ID']['input'];
+}
+
 export interface MutationAuthorizeCopilotSupportBundleDownloadArgs {
   input: CopilotSupportBundleDownloadAuthorizeInput;
 }
@@ -6220,6 +6501,10 @@ export interface MutationBanUserArgs {
 export interface MutationBeginEnterpriseAuthorizationArgs {
   connectionId: Scalars['ID']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationCancelCopilotContextCompactionArgs {
+  taskId: Scalars['ID']['input'];
 }
 
 export interface MutationCancelEnterpriseAuthorizationArgs {
@@ -6236,6 +6521,13 @@ export interface MutationCancelSubscriptionArgs {
   idempotencyKey?: InputMaybe<Scalars['String']['input']>;
   plan?: InputMaybe<SubscriptionPlan>;
   workspaceId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface MutationCancelWorkOrderArgs {
+  expectedVersion: Scalars['Int']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+  requestKey: Scalars['String']['input'];
+  workOrderId: Scalars['ID']['input'];
 }
 
 export interface MutationChangeEmailArgs {
@@ -6304,6 +6596,13 @@ export interface MutationCompleteBlobUploadArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationCompleteConversationArgs {
+  expectedVersion: Scalars['Int']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+  requestKey: Scalars['String']['input'];
+  sessionId: Scalars['ID']['input'];
+}
+
 export interface MutationConfirmCopilotBlockerSuggestionArgs {
   input: ConfirmCopilotBlockerSuggestionInput;
 }
@@ -6317,6 +6616,13 @@ export interface MutationConfirmProjectPublicationArgs {
   projectId: Scalars['String']['input'];
   publicationId: Scalars['String']['input'];
   targetFingerprint: Scalars['String']['input'];
+}
+
+export interface MutationConfirmWorkOrderDispatchArgs {
+  confirmationToken: Scalars['String']['input'];
+  dispatchId: Scalars['ID']['input'];
+  expectedDraftVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
 }
 
 export interface MutationConnectExternalMcpArgs {
@@ -6493,6 +6799,7 @@ export interface MutationDeleteCommentArgs {
 }
 
 export interface MutationDeleteCopilotContextMemoryArgs {
+  expectedRevision?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
 }
 
@@ -6671,6 +6978,12 @@ export interface MutationPrepareProjectPublicationArgs {
   sessionId?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface MutationPrepareWorkOrderDispatchArgs {
+  recipients: Array<WorkOrderRecipientDraftInput>;
+  requestKey: Scalars['String']['input'];
+  sourceSessionId: Scalars['ID']['input'];
+}
+
 export interface MutationPreviewCopilotPromptRegistryBodyEditArgs {
   input: CopilotPromptRegistryBodyEditPreviewInput;
 }
@@ -6742,6 +7055,12 @@ export interface MutationRefreshExternalMcpToolsArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationRefreshProjectChatContextArgs {
+  expectedVersion: Scalars['Int']['input'];
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+}
+
 export interface MutationRefreshProjectResourceSourceArgs {
   editLease: ProjectEditLeaseProofInput;
   expectedContentVersion: Scalars['Int']['input'];
@@ -6751,6 +7070,13 @@ export interface MutationRefreshProjectResourceSourceArgs {
   resourceId: Scalars['String']['input'];
   sourceResourceId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRefuseWorkOrderArgs {
+  expectedVersion: Scalars['Int']['input'];
+  reason: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+  workOrderId: Scalars['ID']['input'];
 }
 
 export interface MutationRejectCopilotAccessRequestArgs {
@@ -6790,6 +7116,12 @@ export interface MutationRemoveWorkspaceEmbeddingFilesArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationRenameConversationArgs {
+  expectedRevision: Scalars['Int']['input'];
+  sessionId: Scalars['ID']['input'];
+  title: Scalars['String']['input'];
+}
+
 export interface MutationRenewProjectResourceEditLeaseArgs {
   input: ProjectEditLeaseChangeInput;
 }
@@ -6812,6 +7144,10 @@ export interface MutationRequestCopilotAgentRuntimeDocUpdateArgs {
 
 export interface MutationRequestCopilotAgentRuntimeOfficeCommandArgs {
   input: CopilotAgentRuntimeOfficeCommandRequestInput;
+}
+
+export interface MutationRequestCopilotContextCompactionArgs {
+  sessionId: Scalars['ID']['input'];
 }
 
 export interface MutationRequestCopilotDocumentAccessArgs {
@@ -6837,6 +7173,10 @@ export interface MutationResolveCopilotBlockerArgs {
   blockerId: Scalars['ID']['input'];
 }
 
+export interface MutationResolveCopilotProjectMemoryConflictArgs {
+  input: ResolveCopilotProjectMemoryConflictInput;
+}
+
 export interface MutationResolveOfficeCommentArgs {
   input: OfficeCommentResolveInput;
 }
@@ -6847,6 +7187,10 @@ export interface MutationResumeSubscriptionArgs {
   workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface MutationRetryCopilotContextCompactionArgs {
+  taskId: Scalars['ID']['input'];
+}
+
 export interface MutationRetryCopilotDocumentOperationArgs {
   expectedRevision: Scalars['Int']['input'];
   operationId: Scalars['ID']['input'];
@@ -6854,6 +7198,10 @@ export interface MutationRetryCopilotDocumentOperationArgs {
 
 export interface MutationRetryCopilotProviderHealthProbeAttemptArgs {
   input: CopilotProviderHealthProbeAttemptRetryInput;
+}
+
+export interface MutationRetryCopilotSessionDeletionArgs {
+  sessionId: Scalars['ID']['input'];
 }
 
 export interface MutationRetryProjectWorkspaceImportArgs {
@@ -6975,6 +7323,11 @@ export interface MutationSetProjectByokEnabledArgs {
   expectedRevision: Scalars['SafeInt']['input'];
 }
 
+export interface MutationSetWorkOrderByokEnabledArgs {
+  enabled: Scalars['Boolean']['input'];
+  expectedRevision: Scalars['SafeInt']['input'];
+}
+
 export interface MutationSettleTranscriptTaskArgs {
   taskId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
@@ -6999,6 +7352,13 @@ export interface MutationSubmitTranscriptTaskArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationSubmitWorkOrderDeliveryArgs {
+  expectedVersion: Scalars['Int']['input'];
+  items: Array<WorkOrderDeliveryItemInput>;
+  requestKey: Scalars['String']['input'];
+  workOrderId: Scalars['ID']['input'];
+}
+
 export interface MutationTestExternalMcpConversationArgs {
   query: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
@@ -7019,6 +7379,11 @@ export interface MutationTransferCopilotContextProjectOwnershipArgs {
 export interface MutationUndoCopilotContextMemoryEventArgs {
   eventId: Scalars['ID']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationUndoCopilotProjectContextMemoryEventArgs {
+  eventId: Scalars['ID']['input'];
+  projectId: Scalars['String']['input'];
 }
 
 export interface MutationUnlinkCalendarAccountArgs {
@@ -7056,6 +7421,14 @@ export interface MutationUpdateCopilotContextRuleArgs {
 
 export interface MutationUpdateCopilotContextSettingsArgs {
   input: UpdateCopilotContextSettingsInput;
+}
+
+export interface MutationUpdateCopilotProjectContextSettingsArgs {
+  input: UpdateCopilotProjectContextSettingsInput;
+}
+
+export interface MutationUpdateCopilotProjectSessionMemoryCaptureArgs {
+  input: UpdateCopilotProjectSessionMemoryCaptureInput;
 }
 
 export interface MutationUpdateCopilotSessionArgs {
@@ -7177,6 +7550,10 @@ export interface MutationVerifyEmailArgs {
   token: Scalars['String']['input'];
 }
 
+export interface MutationVerifyLocalmindLogArchiveArgs {
+  batchId: Scalars['String']['input'];
+}
+
 export interface MutationWithdrawCopilotAccessRequestArgs {
   input: ResolveCopilotAccessRequestInput;
 }
@@ -7264,6 +7641,7 @@ export enum NotificationType {
   InvitationReviewRequest = 'InvitationReviewRequest',
   Mention = 'Mention',
   ProjectFileRequest = 'ProjectFileRequest',
+  WorkOrder = 'WorkOrder',
 }
 
 export interface NotificationWorkspaceType {
@@ -7326,7 +7704,14 @@ export interface OfficeCommandPreviewType {
 export interface OfficeCommentCreateInput {
   artifactId: Scalars['ID']['input'];
   content: Scalars['JSON']['input'];
-  workspaceId: Scalars['ID']['input'];
+  owner?: InputMaybe<OfficeCommentOwnerInput>;
+  /** @deprecated Use owner.workspaceId */
+  workspaceId?: InputMaybe<Scalars['ID']['input']>;
+}
+
+export interface OfficeCommentOwnerInput {
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  workspaceId?: InputMaybe<Scalars['ID']['input']>;
 }
 
 export interface OfficeCommentReplyCreateInput {
@@ -7579,6 +7964,7 @@ export interface ProjectByokAuditEventType {
   modelId: Scalars['String']['output'];
   provider: ByokProvider;
   revision: Scalars['SafeInt']['output'];
+  workOrderEnabled: Scalars['Boolean']['output'];
 }
 
 export interface ProjectByokConfigInput {
@@ -7607,6 +7993,7 @@ export interface ProjectByokSettingsType {
   revision: Scalars['SafeInt']['output'];
   updatedAt: Maybe<Scalars['DateTime']['output']>;
   updatedBy: Maybe<Scalars['String']['output']>;
+  workOrderEnabled: Scalars['Boolean']['output'];
 }
 
 export interface ProjectByokTestResultType {
@@ -8051,9 +8438,11 @@ export interface Query {
   getInviteInfo: InvitationType;
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   localmindAuditEnvelopes: Array<Scalars['JSONObject']['output']>;
+  localmindLogArchiveBatches: Array<Scalars['JSONObject']['output']>;
   localmindLogEvents: Array<LocalMindLogEventType>;
   localmindLogIngestionStatus: Scalars['JSONObject']['output'];
   localmindLogPolicy: Scalars['JSONObject']['output'];
+  localmindSessionDeletionTasks: Array<Scalars['JSONObject']['output']>;
   mcpCredentialReadWriteAvailable: Scalars['Boolean']['output'];
   mcpCredentials: Array<McpCredentialType>;
   /** Get one native Office resource and its current revision */
@@ -8212,6 +8601,10 @@ export interface QueryLocalmindAuditEnvelopesArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface QueryLocalmindLogArchiveBatchesArgs {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+}
+
 export interface QueryLocalmindLogEventsArgs {
   component?: InputMaybe<Scalars['String']['input']>;
   errorCode?: InputMaybe<Scalars['String']['input']>;
@@ -8231,6 +8624,11 @@ export interface QueryLocalmindLogEventsArgs {
   workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface QueryLocalmindSessionDeletionTasksArgs {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
+}
+
 export interface QueryMcpCredentialsArgs {
   workspaceId: Scalars['String']['input'];
 }
@@ -8248,12 +8646,14 @@ export interface QueryOfficeArtifactsArgs {
 
 export interface QueryOfficeCollaboratorsArgs {
   artifactId: Scalars['String']['input'];
-  workspaceId: Scalars['String']['input'];
+  owner?: InputMaybe<OfficeCommentOwnerInput>;
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
 export interface QueryOfficeCommentsArgs {
   artifactId: Scalars['String']['input'];
-  workspaceId: Scalars['String']['input'];
+  owner?: InputMaybe<OfficeCommentOwnerInput>;
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
 export interface QueryOfficeRevisionArgs {
@@ -8589,6 +8989,12 @@ export interface RequestCopilotDocumentAccessInput {
 export interface ResolveCopilotAccessRequestInput {
   reason?: InputMaybe<Scalars['String']['input']>;
   requestId: Scalars['ID']['input'];
+}
+
+export interface ResolveCopilotProjectMemoryConflictInput {
+  conflictId: Scalars['ID']['input'];
+  projectId: Scalars['ID']['input'];
+  resolution: Scalars['String']['input'];
 }
 
 export interface ResponseTooLargeErrorDataType {
@@ -9034,7 +9440,8 @@ export type UnionNotificationBodyType =
   | InvitationReviewDeclinedNotificationBodyType
   | InvitationReviewRequestNotificationBodyType
   | MentionNotificationBodyType
-  | ProjectFileRequestNotificationBodyType;
+  | ProjectFileRequestNotificationBodyType
+  | WorkOrderNotificationBodyType;
 
 export interface UnknownOauthProviderDataType {
   __typename?: 'UnknownOauthProviderDataType';
@@ -9077,6 +9484,7 @@ export interface UpdateChatSessionInput {
 
 export interface UpdateCopilotContextMemoryInput {
   content?: InputMaybe<Scalars['String']['input']>;
+  expectedRevision?: InputMaybe<Scalars['Int']['input']>;
   id: Scalars['ID']['input'];
   status?: InputMaybe<CopilotContextMemoryMutableStatusInput>;
 }
@@ -9114,6 +9522,18 @@ export interface UpdateCopilotContextRuleInput {
 export interface UpdateCopilotContextSettingsInput {
   autoMemoryEnabled: Scalars['Boolean']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface UpdateCopilotProjectContextSettingsInput {
+  autoMemoryEnabled: Scalars['Boolean']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  projectId: Scalars['String']['input'];
+}
+
+export interface UpdateCopilotProjectSessionMemoryCaptureInput {
+  allowMemoryCapture: Scalars['Boolean']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  sessionId: Scalars['ID']['input'];
 }
 
 export interface UpdateDocDefaultRoleInput {
@@ -9303,6 +9723,184 @@ export interface VersionRejectedDataType {
   __typename?: 'VersionRejectedDataType';
   serverVersion: Scalars['String']['output'];
   version: Scalars['String']['output'];
+}
+
+export interface WorkOrderAdoptionRevisionInput {
+  deliveryRevisionId: Scalars['ID']['input'];
+  workOrderId: Scalars['ID']['input'];
+}
+
+export interface WorkOrderAdoptionType {
+  __typename?: 'WorkOrderAdoptionType';
+  contextVersion: Scalars['Int']['output'];
+  id: Scalars['ID']['output'];
+  revisionSetFingerprint: Scalars['String']['output'];
+}
+
+export interface WorkOrderAiModelType {
+  __typename?: 'WorkOrderAiModelType';
+  configured: Scalars['Boolean']['output'];
+  modelId: Maybe<Scalars['String']['output']>;
+  provider: Maybe<Scalars['String']['output']>;
+}
+
+export interface WorkOrderDeliveryItemInput {
+  blobIds?: Array<Scalars['ID']['input']>;
+  requirementId: Scalars['ID']['input'];
+  text?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface WorkOrderDeliveryItemType {
+  __typename?: 'WorkOrderDeliveryItemType';
+  blobId: Maybe<Scalars['ID']['output']>;
+  byteSize: Maybe<Scalars['Int']['output']>;
+  fileName: Maybe<Scalars['String']['output']>;
+  mimeType: Maybe<Scalars['String']['output']>;
+  requirementId: Scalars['ID']['output'];
+  textValue: Maybe<Scalars['String']['output']>;
+}
+
+export interface WorkOrderDeliveryResultType {
+  __typename?: 'WorkOrderDeliveryResultType';
+  deliveryRevisionId: Scalars['ID']['output'];
+  receiptFingerprint: Scalars['String']['output'];
+  revision: Scalars['Int']['output'];
+  status: Scalars['String']['output'];
+  version: Scalars['Int']['output'];
+  workOrderId: Scalars['ID']['output'];
+}
+
+export interface WorkOrderDeliveryRevisionType {
+  __typename?: 'WorkOrderDeliveryRevisionType';
+  id: Scalars['ID']['output'];
+  items: Array<WorkOrderDeliveryItemType>;
+  receiptFingerprint: Scalars['String']['output'];
+  revision: Scalars['Int']['output'];
+  submittedAt: Scalars['DateTime']['output'];
+}
+
+export interface WorkOrderDispatchConfirmedType {
+  __typename?: 'WorkOrderDispatchConfirmedType';
+  dispatchId: Scalars['ID']['output'];
+  recipientSessionIds: Array<Scalars['ID']['output']>;
+  workOrderIds: Array<Scalars['ID']['output']>;
+}
+
+export interface WorkOrderDispatchPreparedType {
+  __typename?: 'WorkOrderDispatchPreparedType';
+  confirmationRequired: Scalars['Boolean']['output'];
+  confirmationToken: Maybe<Scalars['String']['output']>;
+  dispatchId: Scalars['ID']['output'];
+  draftFingerprint: Scalars['String']['output'];
+  draftVersion: Scalars['Int']['output'];
+  expiresAt: Scalars['DateTime']['output'];
+}
+
+export interface WorkOrderExchangeType {
+  __typename?: 'WorkOrderExchangeType';
+  body: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+}
+
+export interface WorkOrderMutationResultType {
+  __typename?: 'WorkOrderMutationResultType';
+  status: Scalars['String']['output'];
+  version: Scalars['Int']['output'];
+  workOrderId: Scalars['ID']['output'];
+}
+
+export interface WorkOrderNotificationBodyType {
+  __typename?: 'WorkOrderNotificationBodyType';
+  /** The user who created the notification, maybe null when user is deleted or sent by system */
+  createdByUser: Maybe<PublicUserType>;
+  ownSessionId: Maybe<Scalars['ID']['output']>;
+  sourceProjectId: Maybe<Scalars['ID']['output']>;
+  sourceSessionId: Maybe<Scalars['ID']['output']>;
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  /** The type of the notification */
+  type: NotificationType;
+  viewerRole: Scalars['String']['output'];
+  workOrderId: Scalars['ID']['output'];
+  workspace: Maybe<NotificationWorkspaceType>;
+}
+
+export interface WorkOrderRecipientDraftInput {
+  backgroundLabel?: InputMaybe<Scalars['String']['input']>;
+  purpose: Scalars['String']['input'];
+  recipientId: Scalars['ID']['input'];
+  relatedWorkOrderId?: InputMaybe<Scalars['ID']['input']>;
+  relationKind?: Scalars['String']['input'];
+  requirements: Array<WorkOrderRequirementInput>;
+  sharedMaterialIds?: Array<Scalars['ID']['input']>;
+  title: Scalars['String']['input'];
+}
+
+export interface WorkOrderRecipientType {
+  __typename?: 'WorkOrderRecipientType';
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+}
+
+export interface WorkOrderRequirementInput {
+  acceptedMimeTypes?: Array<Scalars['String']['input']>;
+  instructions: Scalars['String']['input'];
+  itemKey: Scalars['String']['input'];
+  kind: Scalars['String']['input'];
+  maxCount?: Scalars['Int']['input'];
+  minCount?: Scalars['Int']['input'];
+  required?: Scalars['Boolean']['input'];
+  title: Scalars['String']['input'];
+  validationMode: Scalars['String']['input'];
+}
+
+export interface WorkOrderRequirementType {
+  __typename?: 'WorkOrderRequirementType';
+  acceptedMimeTypes: Array<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  instructions: Scalars['String']['output'];
+  itemKey: Scalars['String']['output'];
+  kind: Scalars['String']['output'];
+  maxCount: Scalars['Int']['output'];
+  minCount: Scalars['Int']['output'];
+  required: Scalars['Boolean']['output'];
+  title: Scalars['String']['output'];
+  validationMode: Scalars['String']['output'];
+}
+
+export interface WorkOrderStagedBlobType {
+  __typename?: 'WorkOrderStagedBlobType';
+  byteSize: Scalars['Int']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  fileName: Scalars['String']['output'];
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  mimeType: Scalars['String']['output'];
+  requirementId: Scalars['ID']['output'];
+}
+
+export interface WorkOrderType {
+  __typename?: 'WorkOrderType';
+  createdAt: Scalars['DateTime']['output'];
+  deliveries: Array<WorkOrderDeliveryRevisionType>;
+  deliveriesReleased: Scalars['Boolean']['output'];
+  exchanges: Array<WorkOrderExchangeType>;
+  id: Scalars['ID']['output'];
+  ownSessionId: Maybe<Scalars['ID']['output']>;
+  purpose: Scalars['String']['output'];
+  relationKind: Scalars['String']['output'];
+  requirements: Array<WorkOrderRequirementType>;
+  sourceContextVersion: Maybe<Scalars['Int']['output']>;
+  sourceSessionId: Maybe<Scalars['ID']['output']>;
+  stagedBlobs: Array<WorkOrderStagedBlobType>;
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  version: Scalars['Int']['output'];
+  viewerRole: Scalars['String']['output'];
 }
 
 export interface WorkspaceByokCapabilityWarningType {
@@ -10405,6 +11003,7 @@ export type AdminProjectByokSettingsQuery = {
     modelId: string | null;
     apiStyle: string | null;
     enabled: boolean;
+    workOrderEnabled: boolean;
     lastValidatedAt: string | null;
     lastUsedAt: string | null;
     lastError: string | null;
@@ -10421,6 +11020,7 @@ export type AdminProjectByokSettingsQuery = {
       modelId: string;
       apiStyle: string | null;
       enabled: boolean;
+      workOrderEnabled: boolean;
       credentialChanged: boolean;
       createdAt: string;
     }>;
@@ -10442,6 +11042,7 @@ export type SaveProjectByokConfigMutation = {
     modelId: string | null;
     apiStyle: string | null;
     enabled: boolean;
+    workOrderEnabled: boolean;
     lastValidatedAt: string | null;
     lastUsedAt: string | null;
     lastError: string | null;
@@ -10458,6 +11059,7 @@ export type SaveProjectByokConfigMutation = {
       modelId: string;
       apiStyle: string | null;
       enabled: boolean;
+      workOrderEnabled: boolean;
       credentialChanged: boolean;
       createdAt: string;
     }>;
@@ -10480,6 +11082,7 @@ export type SetProjectByokEnabledMutation = {
     modelId: string | null;
     apiStyle: string | null;
     enabled: boolean;
+    workOrderEnabled: boolean;
     lastValidatedAt: string | null;
     lastUsedAt: string | null;
     lastError: string | null;
@@ -10496,6 +11099,47 @@ export type SetProjectByokEnabledMutation = {
       modelId: string;
       apiStyle: string | null;
       enabled: boolean;
+      workOrderEnabled: boolean;
+      credentialChanged: boolean;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type SetWorkOrderByokEnabledMutationVariables = Exact<{
+  expectedRevision: Scalars['SafeInt']['input'];
+  enabled: Scalars['Boolean']['input'];
+}>;
+
+export type SetWorkOrderByokEnabledMutation = {
+  __typename?: 'Mutation';
+  setWorkOrderByokEnabled: {
+    __typename?: 'ProjectByokSettingsType';
+    configured: boolean;
+    revision: number;
+    provider: ByokProvider;
+    endpoint: string | null;
+    modelId: string | null;
+    apiStyle: string | null;
+    enabled: boolean;
+    workOrderEnabled: boolean;
+    lastValidatedAt: string | null;
+    lastUsedAt: string | null;
+    lastError: string | null;
+    updatedAt: string | null;
+    updatedBy: string | null;
+    allowedProviders: Array<ByokProvider>;
+    customEndpointSupported: boolean;
+    auditEvents: Array<{
+      __typename?: 'ProjectByokAuditEventType';
+      revision: number;
+      actorId: string;
+      provider: ByokProvider;
+      endpoint: string | null;
+      modelId: string;
+      apiStyle: string | null;
+      enabled: boolean;
+      workOrderEnabled: boolean;
       credentialChanged: boolean;
       createdAt: string;
     }>;
@@ -12163,6 +12807,40 @@ export type ConfirmCopilotBlockerSuggestionMutation = {
   };
 };
 
+export type CopilotCollaborationGraphGetQueryVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type CopilotCollaborationGraphGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      myCollaborationGraph: {
+        __typename?: 'CollaborationGraphType';
+        truncated: boolean;
+        nodes: Array<{
+          __typename?: 'CollaborationNodeType';
+          id: string;
+          label: string;
+          self: boolean;
+        }>;
+        edges: Array<{
+          __typename?: 'CollaborationEdgeType';
+          id: string;
+          from: string;
+          to: string;
+          status: string;
+          label: string;
+          ownSessionId: string | null;
+          ownWorkOrderId: string | null;
+        }>;
+      };
+    };
+  } | null;
+};
+
 export type AddContextBlobMutationVariables = Exact<{
   options: AddContextBlobInput;
 }>;
@@ -12218,6 +12896,145 @@ export type RemoveContextCategoryMutation = {
   removeContextCategory: boolean;
 };
 
+export type CopilotContextCompactionCancelMutationVariables = Exact<{
+  taskId: Scalars['ID']['input'];
+}>;
+
+export type CopilotContextCompactionCancelMutation = {
+  __typename?: 'Mutation';
+  cancelCopilotContextCompaction: {
+    __typename?: 'CopilotContextCompactionTaskType';
+    id: string;
+    sessionId: string;
+    contextEpoch: number;
+    status: string;
+    summarizedMessageCount: number;
+    attempt: number;
+    maxAttempts: number;
+    inputBudget: number | null;
+    inputTokensEstimated: number | null;
+    outputTokensEstimated: number | null;
+    outputCharacters: number | null;
+    failureCode: string | null;
+    failureMessage: string | null;
+    checkpointId: string | null;
+    summary: string | null;
+    summaryData: unknown | null;
+    requestedAt: string;
+    updatedAt: string;
+    completedAt: string | null;
+  };
+};
+
+export type CopilotContextCompactionGetQueryVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+  afterSequence?: InputMaybe<Scalars['SafeInt']['input']>;
+}>;
+
+export type CopilotContextCompactionGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      contextCompaction: {
+        __typename?: 'CopilotContextCompactionTaskType';
+        id: string;
+        sessionId: string;
+        contextEpoch: number;
+        status: string;
+        summarizedMessageCount: number;
+        attempt: number;
+        maxAttempts: number;
+        inputBudget: number | null;
+        inputTokensEstimated: number | null;
+        outputTokensEstimated: number | null;
+        outputCharacters: number | null;
+        failureCode: string | null;
+        failureMessage: string | null;
+        checkpointId: string | null;
+        summary: string | null;
+        summaryData: unknown | null;
+        requestedAt: string;
+        updatedAt: string;
+        completedAt: string | null;
+      } | null;
+      contextCompactionEvents: Array<{
+        __typename?: 'CopilotContextCompactionEventType';
+        id: string;
+        sequence: number;
+        taskId: string;
+        sessionId: string;
+        contextEpoch: number;
+        status: string;
+        attempt: number;
+        statistics: unknown;
+        createdAt: string;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotContextCompactionRequestMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+export type CopilotContextCompactionRequestMutation = {
+  __typename?: 'Mutation';
+  requestCopilotContextCompaction: {
+    __typename?: 'CopilotContextCompactionTaskType';
+    id: string;
+    sessionId: string;
+    contextEpoch: number;
+    status: string;
+    summarizedMessageCount: number;
+    attempt: number;
+    maxAttempts: number;
+    inputBudget: number | null;
+    inputTokensEstimated: number | null;
+    outputTokensEstimated: number | null;
+    outputCharacters: number | null;
+    failureCode: string | null;
+    failureMessage: string | null;
+    checkpointId: string | null;
+    summary: string | null;
+    summaryData: unknown | null;
+    requestedAt: string;
+    updatedAt: string;
+    completedAt: string | null;
+  } | null;
+};
+
+export type CopilotContextCompactionRetryMutationVariables = Exact<{
+  taskId: Scalars['ID']['input'];
+}>;
+
+export type CopilotContextCompactionRetryMutation = {
+  __typename?: 'Mutation';
+  retryCopilotContextCompaction: {
+    __typename?: 'CopilotContextCompactionTaskType';
+    id: string;
+    sessionId: string;
+    contextEpoch: number;
+    status: string;
+    summarizedMessageCount: number;
+    attempt: number;
+    maxAttempts: number;
+    inputBudget: number | null;
+    inputTokensEstimated: number | null;
+    outputTokensEstimated: number | null;
+    outputCharacters: number | null;
+    failureCode: string | null;
+    failureMessage: string | null;
+    checkpointId: string | null;
+    summary: string | null;
+    summaryData: unknown | null;
+    requestedAt: string;
+    updatedAt: string;
+    completedAt: string | null;
+  };
+};
+
 export type CreateCopilotContextMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   sessionId: Scalars['String']['input'];
@@ -12242,6 +13059,7 @@ export type CopilotContextDashboardGetQuery = {
       contextSettings: {
         __typename?: 'CopilotContextSettingsType';
         autoMemoryEnabled: boolean;
+        revision: number;
       };
       contextPlannerStrategies: Array<{
         __typename?: 'CopilotContextStrategyType';
@@ -12269,7 +13087,7 @@ export type CopilotContextDashboardGetQuery = {
       contextMemories: Array<{
         __typename?: 'CopilotContextMemoryType';
         id: string;
-        ownerUserId: string;
+        ownerUserId: string | null;
         workspaceId: string | null;
         docId: string | null;
         projectId: string | null;
@@ -12290,6 +13108,7 @@ export type CopilotContextDashboardGetQuery = {
         supersedesId: string | null;
         lastUsedAt: string | null;
         useCount: number;
+        revision: number;
         createdAt: string;
         updatedAt: string;
       }>;
@@ -12313,7 +13132,7 @@ export type CopilotContextDashboardGetQuery = {
       contextRules: Array<{
         __typename?: 'CopilotContextRuleType';
         id: string;
-        ownerUserId: string;
+        ownerUserId: string | null;
         workspaceId: string | null;
         projectId: string | null;
         scope: string;
@@ -12647,7 +13466,7 @@ export type CopilotContextMemoriesGetQuery = {
       contextMemories: Array<{
         __typename?: 'CopilotContextMemoryType';
         id: string;
-        ownerUserId: string;
+        ownerUserId: string | null;
         workspaceId: string | null;
         docId: string | null;
         projectId: string | null;
@@ -12672,7 +13491,7 @@ export type CopilotContextMemoryCreateMutation = {
   createCopilotContextMemory: {
     __typename?: 'CopilotContextMemoryType';
     id: string;
-    ownerUserId: string;
+    ownerUserId: string | null;
     workspaceId: string | null;
     docId: string | null;
     projectId: string | null;
@@ -12688,6 +13507,7 @@ export type CopilotContextMemoryCreateMutation = {
 
 export type CopilotContextMemoryDeleteMutationVariables = Exact<{
   id: Scalars['ID']['input'];
+  expectedRevision?: InputMaybe<Scalars['Int']['input']>;
 }>;
 
 export type CopilotContextMemoryDeleteMutation = {
@@ -12704,7 +13524,7 @@ export type CopilotContextMemoryUpdateMutation = {
   updateCopilotContextMemory: {
     __typename?: 'CopilotContextMemoryType';
     id: string;
-    ownerUserId: string;
+    ownerUserId: string | null;
     workspaceId: string | null;
     docId: string | null;
     projectId: string | null;
@@ -12713,6 +13533,7 @@ export type CopilotContextMemoryUpdateMutation = {
     kind: string;
     status: string;
     content: string;
+    revision: number;
     createdAt: string;
     updatedAt: string;
   };
@@ -12838,6 +13659,7 @@ export type CopilotContextSettingsUpdateMutation = {
   updateCopilotContextSettings: {
     __typename?: 'CopilotContextSettingsType';
     autoMemoryEnabled: boolean;
+    revision: number;
   };
 };
 
@@ -14408,6 +15230,100 @@ export type GetPromptModelsQuery = {
   } | null;
 };
 
+export type CopilotProjectContextDashboardGetQueryVariables = Exact<{
+  projectId: Scalars['ID']['input'];
+  includeDisabled?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+export type CopilotProjectContextDashboardGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    id: string;
+    copilot: {
+      __typename?: 'Copilot';
+      contextProject: {
+        __typename?: 'CopilotContextProjectType';
+        id: string;
+        role: string;
+        canManage: boolean;
+        members: Array<{
+          __typename?: 'CopilotContextProjectMemberType';
+          userId: string;
+          name: string;
+          role: string;
+        }>;
+      };
+      projectContextSettings: {
+        __typename?: 'CopilotContextSettingsType';
+        autoMemoryEnabled: boolean;
+        revision: number;
+        projectMemoryRevision: number | null;
+        contractVersion: string | null;
+      };
+      contextMemories: Array<{
+        __typename?: 'CopilotContextMemoryType';
+        id: string;
+        ownerUserId: string | null;
+        projectId: string | null;
+        kind: string;
+        status: string;
+        content: string;
+        captureMode: string;
+        revision: number;
+        sharingStatus: string;
+        contractVersion: string;
+        contributorUserIds: Array<string> | null;
+        contributorCount: number | null;
+        pendingConflictCount: number | null;
+        canManage: boolean | null;
+        updatedAt: string;
+      }>;
+      projectContextMemoryEvents: Array<{
+        __typename?: 'CopilotContextMemoryEventType';
+        id: string;
+        operation: string;
+        memoryId: string | null;
+        previousMemoryId: string | null;
+        factKey: string | null;
+        explicit: boolean;
+        reasonCode: string;
+        writerVersion: string;
+        undoneAt: string | null;
+        canUndo: boolean;
+        createdAt: string;
+      }>;
+      projectMemoryConflicts: Array<{
+        __typename?: 'CopilotProjectMemoryConflictType';
+        id: string;
+        projectId: string;
+        baseMemoryId: string;
+        proposedByUserId: string | null;
+        factKey: string;
+        proposedContent: string;
+        status: string;
+        expectedMemoryRevision: number;
+        resolution: string | null;
+        createdAt: string;
+        resolvedAt: string | null;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotProjectContextSettingsUpdateMutationVariables = Exact<{
+  input: UpdateCopilotProjectContextSettingsInput;
+}>;
+
+export type CopilotProjectContextSettingsUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotProjectContextSettings: {
+    __typename?: 'CopilotContextSettingsType';
+    autoMemoryEnabled: boolean;
+    revision: number;
+  };
+};
+
 export type AcceptCopilotProjectInvitationMutationVariables = Exact<{
   invitationId: Scalars['ID']['input'];
 }>;
@@ -14474,6 +15390,64 @@ export type WithdrawCopilotProjectInvitationMutation = {
     status: string;
     withdrawnAt: string | null;
     updatedAt: string;
+  };
+};
+
+export type CopilotProjectMemoryConflictResolveMutationVariables = Exact<{
+  input: ResolveCopilotProjectMemoryConflictInput;
+}>;
+
+export type CopilotProjectMemoryConflictResolveMutation = {
+  __typename?: 'Mutation';
+  resolveCopilotProjectMemoryConflict: {
+    __typename?: 'CopilotProjectMemoryConflictType';
+    id: string;
+    projectId: string;
+    baseMemoryId: string;
+    proposedByUserId: string | null;
+    factKey: string;
+    proposedContent: string;
+    status: string;
+    expectedMemoryRevision: number;
+    resolution: string | null;
+    createdAt: string;
+    resolvedAt: string | null;
+  };
+};
+
+export type CopilotProjectSessionMemoryCaptureGetQueryVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+export type CopilotProjectSessionMemoryCaptureGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      projectSessionMemoryCapture: {
+        __typename?: 'CopilotProjectSessionMemoryCaptureType';
+        sessionId: string;
+        projectId: string;
+        allowMemoryCapture: boolean;
+        revision: number;
+      } | null;
+    };
+  } | null;
+};
+
+export type CopilotProjectSessionMemoryCaptureUpdateMutationVariables = Exact<{
+  input: UpdateCopilotProjectSessionMemoryCaptureInput;
+}>;
+
+export type CopilotProjectSessionMemoryCaptureUpdateMutation = {
+  __typename?: 'Mutation';
+  updateCopilotProjectSessionMemoryCapture: {
+    __typename?: 'CopilotProjectSessionMemoryCaptureType';
+    sessionId: string;
+    projectId: string;
+    allowMemoryCapture: boolean;
+    revision: number;
   };
 };
 
@@ -17442,6 +18416,70 @@ export type CreateCopilotSessionMutation = {
   createCopilotSession: string;
 };
 
+export type CopilotSessionDeletionGetQueryVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+export type CopilotSessionDeletionGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      sessionDeletion: {
+        __typename?: 'CopilotSessionDeletionType';
+        id: string;
+        sessionId: string;
+        status: string;
+        contextEpoch: number;
+        attempt: number;
+        maxAttempts: number;
+        progress: unknown;
+        resultCounts: unknown;
+        failureCode: string | null;
+        failureMessage: string | null;
+        holdReason: string | null;
+        backupStatus: string;
+        receiptFingerprint: string | null;
+        requestedAt: string;
+        updatedAt: string;
+        heldAt: string | null;
+        releasedAt: string | null;
+        completedAt: string | null;
+      } | null;
+    };
+  } | null;
+};
+
+export type RetryCopilotSessionDeletionMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+export type RetryCopilotSessionDeletionMutation = {
+  __typename?: 'Mutation';
+  retryCopilotSessionDeletion: {
+    __typename?: 'CopilotSessionDeletionType';
+    id: string;
+    sessionId: string;
+    status: string;
+    contextEpoch: number;
+    attempt: number;
+    maxAttempts: number;
+    progress: unknown;
+    resultCounts: unknown;
+    failureCode: string | null;
+    failureMessage: string | null;
+    holdReason: string | null;
+    backupStatus: string;
+    receiptFingerprint: string | null;
+    requestedAt: string;
+    updatedAt: string;
+    heldAt: string | null;
+    releasedAt: string | null;
+    completedAt: string | null;
+  };
+};
+
 export type ForkCopilotSessionMutationVariables = Exact<{
   options: ForkChatSessionInput;
 }>;
@@ -18632,6 +19670,301 @@ export type SubmitTranscriptTaskMutation = {
   } | null;
 };
 
+export type AskWorkOrderQuestionMutationVariables = Exact<{
+  workOrderId: Scalars['ID']['input'];
+  body: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type AskWorkOrderQuestionMutation = {
+  __typename?: 'Mutation';
+  askWorkOrderQuestion: {
+    __typename?: 'WorkOrderMutationResultType';
+    workOrderId: string;
+    status: string;
+    version: number;
+  };
+};
+
+export type AnswerWorkOrderQuestionMutationVariables = Exact<{
+  workOrderId: Scalars['ID']['input'];
+  body: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type AnswerWorkOrderQuestionMutation = {
+  __typename?: 'Mutation';
+  answerWorkOrderQuestion: {
+    __typename?: 'WorkOrderMutationResultType';
+    workOrderId: string;
+    status: string;
+    version: number;
+  };
+};
+
+export type RefuseWorkOrderMutationVariables = Exact<{
+  workOrderId: Scalars['ID']['input'];
+  reason: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type RefuseWorkOrderMutation = {
+  __typename?: 'Mutation';
+  refuseWorkOrder: {
+    __typename?: 'WorkOrderMutationResultType';
+    workOrderId: string;
+    status: string;
+    version: number;
+  };
+};
+
+export type CancelWorkOrderMutationVariables = Exact<{
+  workOrderId: Scalars['ID']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type CancelWorkOrderMutation = {
+  __typename?: 'Mutation';
+  cancelWorkOrder: {
+    __typename?: 'WorkOrderMutationResultType';
+    workOrderId: string;
+    status: string;
+    version: number;
+  };
+};
+
+export type SubmitWorkOrderDeliveryMutationVariables = Exact<{
+  workOrderId: Scalars['ID']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+  items: Array<WorkOrderDeliveryItemInput> | WorkOrderDeliveryItemInput;
+}>;
+
+export type SubmitWorkOrderDeliveryMutation = {
+  __typename?: 'Mutation';
+  submitWorkOrderDelivery: {
+    __typename?: 'WorkOrderDeliveryResultType';
+    workOrderId: string;
+    status: string;
+    version: number;
+    deliveryRevisionId: string;
+    revision: number;
+    receiptFingerprint: string;
+  };
+};
+
+export type AdoptWorkOrderDeliveriesMutationVariables = Exact<{
+  sourceSessionId: Scalars['ID']['input'];
+  expectedContextVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+  revisions:
+    | Array<WorkOrderAdoptionRevisionInput>
+    | WorkOrderAdoptionRevisionInput;
+}>;
+
+export type AdoptWorkOrderDeliveriesMutation = {
+  __typename?: 'Mutation';
+  adoptWorkOrderDeliveries: {
+    __typename?: 'WorkOrderAdoptionType';
+    id: string;
+    contextVersion: number;
+    revisionSetFingerprint: string;
+  };
+};
+
+export type CopilotWorkOrderChatGetQueryVariables = Exact<{
+  workOrderId: Scalars['ID']['input'];
+}>;
+
+export type CopilotWorkOrderChatGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      myWorkOrderChat: {
+        __typename?: 'CopilotHistories';
+        sessionId: string;
+        workspaceId: string | null;
+        docId: string | null;
+        selectedContextProjectId: string | null;
+        parentSessionId: string | null;
+        promptName: string;
+        model: string;
+        optionalModels: Array<string>;
+        action: string | null;
+        pinned: boolean;
+        title: string | null;
+        tokens: number;
+        createdAt: string;
+        updatedAt: string;
+        messages: Array<{
+          __typename?: 'ChatMessage';
+          id: string | null;
+          role: string;
+          content: string;
+          attachments: Array<string> | null;
+          createdAt: string;
+          streamObjects: Array<{
+            __typename?: 'StreamObject';
+            type: string;
+            textDelta: string | null;
+            toolCallId: string | null;
+            toolName: string | null;
+            args: unknown | null;
+            result: unknown | null;
+          }> | null;
+        }>;
+      };
+      myWorkOrderAiModel: {
+        __typename?: 'WorkOrderAiModelType';
+        configured: boolean;
+        modelId: string | null;
+        provider: string | null;
+      };
+    };
+  } | null;
+};
+
+export type PrepareWorkOrderDispatchMutationVariables = Exact<{
+  sourceSessionId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+  recipients:
+    | Array<WorkOrderRecipientDraftInput>
+    | WorkOrderRecipientDraftInput;
+}>;
+
+export type PrepareWorkOrderDispatchMutation = {
+  __typename?: 'Mutation';
+  prepareWorkOrderDispatch: {
+    __typename?: 'WorkOrderDispatchPreparedType';
+    dispatchId: string;
+    draftVersion: number;
+    draftFingerprint: string;
+    confirmationToken: string | null;
+    confirmationRequired: boolean;
+    expiresAt: string;
+  };
+};
+
+export type ConfirmWorkOrderDispatchMutationVariables = Exact<{
+  dispatchId: Scalars['ID']['input'];
+  confirmationToken: Scalars['String']['input'];
+  expectedDraftVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type ConfirmWorkOrderDispatchMutation = {
+  __typename?: 'Mutation';
+  confirmWorkOrderDispatch: {
+    __typename?: 'WorkOrderDispatchConfirmedType';
+    dispatchId: string;
+    workOrderIds: Array<string>;
+    recipientSessionIds: Array<string>;
+  };
+};
+
+export type CopilotWorkOrderGetQueryVariables = Exact<{
+  workOrderId: Scalars['ID']['input'];
+}>;
+
+export type CopilotWorkOrderGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      myWorkOrder: {
+        __typename?: 'WorkOrderType';
+        id: string;
+        sourceSessionId: string | null;
+        ownSessionId: string | null;
+        sourceContextVersion: number | null;
+        viewerRole: string;
+        title: string;
+        purpose: string;
+        relationKind: string;
+        status: string;
+        version: number;
+        deliveriesReleased: boolean;
+        createdAt: string;
+        updatedAt: string;
+        requirements: Array<{
+          __typename?: 'WorkOrderRequirementType';
+          id: string;
+          itemKey: string;
+          kind: string;
+          title: string;
+          instructions: string;
+          required: boolean;
+          acceptedMimeTypes: Array<string>;
+          minCount: number;
+          maxCount: number;
+          validationMode: string;
+        }>;
+        exchanges: Array<{
+          __typename?: 'WorkOrderExchangeType';
+          id: string;
+          kind: string;
+          body: string;
+          createdAt: string;
+        }>;
+        deliveries: Array<{
+          __typename?: 'WorkOrderDeliveryRevisionType';
+          id: string;
+          revision: number;
+          receiptFingerprint: string;
+          submittedAt: string;
+          items: Array<{
+            __typename?: 'WorkOrderDeliveryItemType';
+            requirementId: string;
+            blobId: string | null;
+            textValue: string | null;
+            fileName: string | null;
+            mimeType: string | null;
+            byteSize: number | null;
+          }>;
+        }>;
+        stagedBlobs: Array<{
+          __typename?: 'WorkOrderStagedBlobType';
+          id: string;
+          requirementId: string;
+          fileName: string;
+          mimeType: string;
+          byteSize: number;
+          fingerprint: string;
+          createdAt: string;
+        }>;
+      };
+    };
+  } | null;
+};
+
+export type CopilotWorkOrderRecipientResolveQueryVariables = Exact<{
+  exact: Scalars['String']['input'];
+}>;
+
+export type CopilotWorkOrderRecipientResolveQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      resolveWorkOrderRecipient: {
+        __typename?: 'WorkOrderRecipientType';
+        id: string;
+        name: string;
+        email: string;
+      };
+    };
+  } | null;
+};
+
 export type CopilotWorkbenchBlockersGetQueryVariables = Exact<{
   projectId?: InputMaybe<Scalars['ID']['input']>;
   statuses?: InputMaybe<
@@ -18663,6 +19996,103 @@ export type CopilotWorkbenchBlockersGetQuery = {
         createdAt: string;
         updatedAt: string;
       }>;
+    };
+  } | null;
+};
+
+export type CompleteConversationMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestKey: Scalars['String']['input'];
+  reason?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type CompleteConversationMutation = {
+  __typename?: 'Mutation';
+  completeConversation: {
+    __typename?: 'ConversationWorkStateType';
+    sessionId: string;
+    version: number;
+    completedAt: string | null;
+    completionReason: string | null;
+    lastBusinessAt: string;
+  };
+};
+
+export type RenameConversationMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+  title: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+}>;
+
+export type RenameConversationMutation = {
+  __typename?: 'Mutation';
+  renameConversation: {
+    __typename?: 'ConversationCardType';
+    sessionId: string;
+    scopeType: string;
+    title: string | null;
+    titleRevision: number;
+    column: string;
+    attentionReasons: Array<string>;
+    activeRunCount: number;
+    workOrderId: string | null;
+    workOrderStatus: string | null;
+    lastBusinessAt: string;
+    version: number;
+    project: {
+      __typename?: 'ConversationCardProjectType';
+      id: string;
+      name: string;
+    } | null;
+  };
+};
+
+export type CopilotWorkbenchConversationsGetQueryVariables = Exact<{
+  column?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  after?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type CopilotWorkbenchConversationsGetQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      myConversationCards: {
+        __typename?: 'ConversationCardsType';
+        items: Array<{
+          __typename?: 'ConversationCardType';
+          sessionId: string;
+          scopeType: string;
+          title: string | null;
+          titleRevision: number;
+          column: string;
+          attentionReasons: Array<string>;
+          activeRunCount: number;
+          workOrderId: string | null;
+          workOrderStatus: string | null;
+          lastBusinessAt: string;
+          version: number;
+          project: {
+            __typename?: 'ConversationCardProjectType';
+            id: string;
+            name: string;
+          } | null;
+        }>;
+        counts: {
+          __typename?: 'ConversationCardCountsType';
+          todo: number;
+          progress: number;
+          done: number;
+        };
+        pageInfo: {
+          __typename?: 'ConversationCardsPageInfoType';
+          hasNextPage: boolean;
+          endCursor: string | null;
+        };
+      };
     };
   } | null;
 };
@@ -20190,6 +21620,29 @@ export type CopilotChatHistoryFragment = {
   }>;
 };
 
+export type CopilotContextCompactionFieldsFragment = {
+  __typename?: 'CopilotContextCompactionTaskType';
+  id: string;
+  sessionId: string;
+  contextEpoch: number;
+  status: string;
+  summarizedMessageCount: number;
+  attempt: number;
+  maxAttempts: number;
+  inputBudget: number | null;
+  inputTokensEstimated: number | null;
+  outputTokensEstimated: number | null;
+  outputCharacters: number | null;
+  failureCode: string | null;
+  failureMessage: string | null;
+  checkpointId: string | null;
+  summary: string | null;
+  summaryData: unknown | null;
+  requestedAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
 export type CopilotDocumentOperationFieldsFragment = {
   __typename?: 'CopilotDocumentOperationType';
   id: string;
@@ -20208,6 +21661,28 @@ export type CopilotDocumentOperationFieldsFragment = {
   placedDocumentAt: string | null;
   failureCode: string | null;
   accessRequestId: string | null;
+};
+
+export type CopilotSessionDeletionFieldsFragment = {
+  __typename?: 'CopilotSessionDeletionType';
+  id: string;
+  sessionId: string;
+  status: string;
+  contextEpoch: number;
+  attempt: number;
+  maxAttempts: number;
+  progress: unknown;
+  resultCounts: unknown;
+  failureCode: string | null;
+  failureMessage: string | null;
+  holdReason: string | null;
+  backupStatus: string;
+  receiptFingerprint: string | null;
+  requestedAt: string;
+  updatedAt: string;
+  heldAt: string | null;
+  releasedAt: string | null;
+  completedAt: string | null;
 };
 
 export type CopilotWorkbenchTaskItemFieldsFragment = {
@@ -20448,6 +21923,7 @@ export type ProjectByokSettingsFragment = {
   modelId: string | null;
   apiStyle: string | null;
   enabled: boolean;
+  workOrderEnabled: boolean;
   lastValidatedAt: string | null;
   lastUsedAt: string | null;
   lastError: string | null;
@@ -20464,6 +21940,7 @@ export type ProjectByokSettingsFragment = {
     modelId: string;
     apiStyle: string | null;
     enabled: boolean;
+    workOrderEnabled: boolean;
     credentialChanged: boolean;
     createdAt: string;
   }>;
@@ -21690,8 +23167,9 @@ export type OfficeArtifactsQuery = {
 };
 
 export type OfficeCollaboratorsQueryVariables = Exact<{
-  workspaceId: Scalars['String']['input'];
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
   artifactId: Scalars['String']['input'];
+  owner?: InputMaybe<OfficeCommentOwnerInput>;
 }>;
 
 export type OfficeCollaboratorsQuery = {
@@ -21961,8 +23439,9 @@ export type UpdateOfficeCommentMutation = {
 };
 
 export type OfficeCommentsQueryVariables = Exact<{
-  workspaceId: Scalars['String']['input'];
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
   artifactId: Scalars['String']['input'];
+  owner?: InputMaybe<OfficeCommentOwnerInput>;
 }>;
 
 export type OfficeCommentsQuery = {
@@ -23073,6 +24552,7 @@ export type ProjectSummariesQuery = {
   __typename?: 'Query';
   currentUser: {
     __typename?: 'UserType';
+    id: string;
     copilot: {
       __typename?: 'Copilot';
       contextMemories: Array<{
@@ -23082,6 +24562,8 @@ export type ProjectSummariesQuery = {
         kind: string;
         content: string;
         updatedAt: string;
+        ownerUserId: string | null;
+        revision: number;
       }>;
     };
   } | null;
@@ -23175,6 +24657,36 @@ export type RecoverDocMutationVariables = Exact<{
 export type RecoverDocMutation = {
   __typename?: 'Mutation';
   recoverDoc: string;
+};
+
+export type RefreshProjectChatContextMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+}>;
+
+export type RefreshProjectChatContextMutation = {
+  __typename?: 'Mutation';
+  refreshProjectChatContext: {
+    __typename?: 'ProjectChatContextType';
+    projectId: string;
+    sessionId: string;
+    version: number;
+    items: Array<{
+      __typename?: 'ProjectChatContextItemType';
+      kind: string;
+      title: string;
+      available: boolean;
+      resourceId: string | null;
+      sequence: number | null;
+      currentSequence: number | null;
+      resourceKind: string | null;
+      blobKey: string | null;
+      name: string | null;
+      mimeType: string | null;
+      byteSize: number | null;
+    }>;
+  };
 };
 
 export type RefreshProjectResourceSourceMutationVariables = Exact<{
@@ -24314,6 +25826,16 @@ export type Queries =
       response: GetCopilotAgentRunsQuery;
     }
   | {
+      name: 'copilotCollaborationGraphGetQuery';
+      variables: CopilotCollaborationGraphGetQueryVariables;
+      response: CopilotCollaborationGraphGetQuery;
+    }
+  | {
+      name: 'copilotContextCompactionGetQuery';
+      variables: CopilotContextCompactionGetQueryVariables;
+      response: CopilotContextCompactionGetQuery;
+    }
+  | {
       name: 'copilotContextDashboardGetQuery';
       variables: CopilotContextDashboardGetQueryVariables;
       response: CopilotContextDashboardGetQuery;
@@ -24399,6 +25921,16 @@ export type Queries =
       response: GetPromptModelsQuery;
     }
   | {
+      name: 'copilotProjectContextDashboardGetQuery';
+      variables: CopilotProjectContextDashboardGetQueryVariables;
+      response: CopilotProjectContextDashboardGetQuery;
+    }
+  | {
+      name: 'copilotProjectSessionMemoryCaptureGetQuery';
+      variables: CopilotProjectSessionMemoryCaptureGetQueryVariables;
+      response: CopilotProjectSessionMemoryCaptureGetQuery;
+    }
+  | {
       name: 'getCopilotPromptRegistryPublishGateQuery';
       variables: GetCopilotPromptRegistryPublishGateQueryVariables;
       response: GetCopilotPromptRegistryPublishGateQuery;
@@ -24427,6 +25959,11 @@ export type Queries =
       name: 'getCopilotRepairExecutionsQuery';
       variables: GetCopilotRepairExecutionsQueryVariables;
       response: GetCopilotRepairExecutionsQuery;
+    }
+  | {
+      name: 'copilotSessionDeletionGetQuery';
+      variables: CopilotSessionDeletionGetQueryVariables;
+      response: CopilotSessionDeletionGetQuery;
     }
   | {
       name: 'getCopilotLatestDocSessionQuery';
@@ -24474,9 +26011,29 @@ export type Queries =
       response: GetTranscriptTaskQuery;
     }
   | {
+      name: 'copilotWorkOrderChatGetQuery';
+      variables: CopilotWorkOrderChatGetQueryVariables;
+      response: CopilotWorkOrderChatGetQuery;
+    }
+  | {
+      name: 'copilotWorkOrderGetQuery';
+      variables: CopilotWorkOrderGetQueryVariables;
+      response: CopilotWorkOrderGetQuery;
+    }
+  | {
+      name: 'copilotWorkOrderRecipientResolveQuery';
+      variables: CopilotWorkOrderRecipientResolveQueryVariables;
+      response: CopilotWorkOrderRecipientResolveQuery;
+    }
+  | {
       name: 'copilotWorkbenchBlockersGetQuery';
       variables: CopilotWorkbenchBlockersGetQueryVariables;
       response: CopilotWorkbenchBlockersGetQuery;
+    }
+  | {
+      name: 'copilotWorkbenchConversationsGetQuery';
+      variables: CopilotWorkbenchConversationsGetQueryVariables;
+      response: CopilotWorkbenchConversationsGetQuery;
     }
   | {
       name: 'copilotWorkbenchProjectsGetQuery';
@@ -24991,6 +26548,11 @@ export type Mutations =
       response: SetProjectByokEnabledMutation;
     }
   | {
+      name: 'setWorkOrderByokEnabledMutation';
+      variables: SetWorkOrderByokEnabledMutationVariables;
+      response: SetWorkOrderByokEnabledMutation;
+    }
+  | {
       name: 'rotateAuthSigningKeyMutation';
       variables: RotateAuthSigningKeyMutationVariables;
       response: RotateAuthSigningKeyMutation;
@@ -25246,6 +26808,21 @@ export type Mutations =
       response: RemoveContextCategoryMutation;
     }
   | {
+      name: 'copilotContextCompactionCancelMutation';
+      variables: CopilotContextCompactionCancelMutationVariables;
+      response: CopilotContextCompactionCancelMutation;
+    }
+  | {
+      name: 'copilotContextCompactionRequestMutation';
+      variables: CopilotContextCompactionRequestMutationVariables;
+      response: CopilotContextCompactionRequestMutation;
+    }
+  | {
+      name: 'copilotContextCompactionRetryMutation';
+      variables: CopilotContextCompactionRetryMutationVariables;
+      response: CopilotContextCompactionRetryMutation;
+    }
+  | {
       name: 'createCopilotContextMutation';
       variables: CreateCopilotContextMutationVariables;
       response: CreateCopilotContextMutation;
@@ -25401,6 +26978,11 @@ export type Mutations =
       response: CreateCopilotMessageMutation;
     }
   | {
+      name: 'copilotProjectContextSettingsUpdateMutation';
+      variables: CopilotProjectContextSettingsUpdateMutationVariables;
+      response: CopilotProjectContextSettingsUpdateMutation;
+    }
+  | {
       name: 'acceptCopilotProjectInvitationMutation';
       variables: AcceptCopilotProjectInvitationMutationVariables;
       response: AcceptCopilotProjectInvitationMutation;
@@ -25419,6 +27001,16 @@ export type Mutations =
       name: 'withdrawCopilotProjectInvitationMutation';
       variables: WithdrawCopilotProjectInvitationMutationVariables;
       response: WithdrawCopilotProjectInvitationMutation;
+    }
+  | {
+      name: 'copilotProjectMemoryConflictResolveMutation';
+      variables: CopilotProjectMemoryConflictResolveMutationVariables;
+      response: CopilotProjectMemoryConflictResolveMutation;
+    }
+  | {
+      name: 'copilotProjectSessionMemoryCaptureUpdateMutation';
+      variables: CopilotProjectSessionMemoryCaptureUpdateMutationVariables;
+      response: CopilotProjectSessionMemoryCaptureUpdateMutation;
     }
   | {
       name: 'requestCopilotPromptRegistryRepairExecutionMutation';
@@ -25454,6 +27046,11 @@ export type Mutations =
       name: 'createCopilotSessionMutation';
       variables: CreateCopilotSessionMutationVariables;
       response: CreateCopilotSessionMutation;
+    }
+  | {
+      name: 'retryCopilotSessionDeletionMutation';
+      variables: RetryCopilotSessionDeletionMutationVariables;
+      response: RetryCopilotSessionDeletionMutation;
     }
   | {
       name: 'forkCopilotSessionMutation';
@@ -25509,6 +27106,56 @@ export type Mutations =
       name: 'submitTranscriptTaskMutation';
       variables: SubmitTranscriptTaskMutationVariables;
       response: SubmitTranscriptTaskMutation;
+    }
+  | {
+      name: 'askWorkOrderQuestionMutation';
+      variables: AskWorkOrderQuestionMutationVariables;
+      response: AskWorkOrderQuestionMutation;
+    }
+  | {
+      name: 'answerWorkOrderQuestionMutation';
+      variables: AnswerWorkOrderQuestionMutationVariables;
+      response: AnswerWorkOrderQuestionMutation;
+    }
+  | {
+      name: 'refuseWorkOrderMutation';
+      variables: RefuseWorkOrderMutationVariables;
+      response: RefuseWorkOrderMutation;
+    }
+  | {
+      name: 'cancelWorkOrderMutation';
+      variables: CancelWorkOrderMutationVariables;
+      response: CancelWorkOrderMutation;
+    }
+  | {
+      name: 'submitWorkOrderDeliveryMutation';
+      variables: SubmitWorkOrderDeliveryMutationVariables;
+      response: SubmitWorkOrderDeliveryMutation;
+    }
+  | {
+      name: 'adoptWorkOrderDeliveriesMutation';
+      variables: AdoptWorkOrderDeliveriesMutationVariables;
+      response: AdoptWorkOrderDeliveriesMutation;
+    }
+  | {
+      name: 'prepareWorkOrderDispatchMutation';
+      variables: PrepareWorkOrderDispatchMutationVariables;
+      response: PrepareWorkOrderDispatchMutation;
+    }
+  | {
+      name: 'confirmWorkOrderDispatchMutation';
+      variables: ConfirmWorkOrderDispatchMutationVariables;
+      response: ConfirmWorkOrderDispatchMutation;
+    }
+  | {
+      name: 'completeConversationMutation';
+      variables: CompleteConversationMutationVariables;
+      response: CompleteConversationMutation;
+    }
+  | {
+      name: 'renameConversationMutation';
+      variables: RenameConversationMutationVariables;
+      response: RenameConversationMutation;
     }
   | {
       name: 'addWorkspaceEmbeddingFilesMutation';
@@ -25834,6 +27481,11 @@ export type Mutations =
       name: 'recoverDocMutation';
       variables: RecoverDocMutationVariables;
       response: RecoverDocMutation;
+    }
+  | {
+      name: 'refreshProjectChatContextMutation';
+      variables: RefreshProjectChatContextMutationVariables;
+      response: RefreshProjectChatContextMutation;
     }
   | {
       name: 'refreshProjectResourceSourceMutation';

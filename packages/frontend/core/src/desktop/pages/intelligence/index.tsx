@@ -5,7 +5,12 @@ import { ProjectFileRequestModal } from '@affine/core/components/project-file-re
 import { SWRConfigProvider } from '@affine/core/components/providers/swr-config-provider';
 import { NotificationButton } from '@affine/core/components/root-app-sidebar/notification-button';
 import UserInfo from '@affine/core/components/root-app-sidebar/user-info';
-import { getProjectPath } from '@affine/core/desktop/route-paths';
+import {
+  getProjectConversationPath,
+  getProjectPath,
+  getWorkOrderPath,
+  PROJECT_NEW_CONVERSATION_PATH,
+} from '@affine/core/desktop/route-paths';
 import { MenuItem as SidebarMenuItem } from '@affine/core/modules/app-sidebar/views';
 import {
   DefaultServerService,
@@ -23,6 +28,7 @@ import {
   QuickSearchService,
 } from '@affine/core/modules/quicksearch';
 import {
+  completeConversationMutation,
   confirmCopilotBlockerSuggestionMutation,
   copilotContextProjectCreateMutation,
   copilotContextProjectUpdateMutation,
@@ -33,6 +39,7 @@ import {
   projectResourcePathQuery,
   projectResourceQuery,
   removeCopilotContextProjectMemberMutation,
+  renameConversationMutation,
   sendCopilotProjectInvitationMutation,
   setCopilotContextProjectAiPolicyMutation,
   transferCopilotContextProjectOwnershipMutation,
@@ -49,7 +56,8 @@ import {
 } from '@blocksuite/icons/rc';
 import type { OfficeAiContext } from '@localmind/office';
 import { FrameworkScope, useFramework, useService } from '@toeverything/infra';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { nanoid } from 'nanoid';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useLocation,
   useNavigate,
@@ -57,13 +65,15 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 
+import { ConversationBoard } from './conversation-board';
 import * as styles from './index.css';
+import { NewConversation } from './new-conversation';
 import {
   ProjectCollaboration,
   type ProjectCollaborationPendingKey,
 } from './project-collaboration';
+import { ProjectContextPanel } from './project-context-panel';
 import { ProjectFiles } from './project-files';
-import { ProjectOverview } from './project-overview';
 import { ProjectResourcePreview } from './project-resource-preview';
 import { ProjectShellSettings } from './project-shell-settings';
 import { ProjectSummary } from './project-summary';
@@ -72,13 +82,18 @@ import { TaskPanel } from './task-panel';
 import {
   EMPTY_TASK_PANEL,
   type WorkbenchBlockerDraft,
+  type WorkbenchConversationCard,
   type WorkbenchPanelTaskAction,
   type WorkbenchProject,
   type WorkbenchProjectMember,
   type WorkbenchTask,
 } from './types';
 import { useAccessRequestConfirmation } from './use-access-request-confirmation';
+import { useConversationCards } from './use-conversation-cards';
 import { useProjectTaskDecision } from './use-project-task-decision';
+import { WorkOrderConversation } from './work-order-conversation';
+import { type WorkOrder, WorkOrderPanel } from './work-order-panel';
+import type { WorkbenchContextPanelState } from './workbench-conversation';
 import { WorkbenchConversation } from './workbench-conversation';
 import { executeWorkbenchTaskAction } from './workbench-task-action';
 
@@ -93,7 +108,10 @@ export const Component = () => {
   const {
     projectId: selectedProjectId = null,
     resourceId: selectedResourceId = null,
+    sessionId: selectedSessionId = null,
+    workOrderId = null,
   } = useParams();
+  const newConversation = location.pathname === PROJECT_NEW_CONVERSATION_PATH;
 
   useEffect(() => {
     if (
@@ -154,6 +172,9 @@ export const Component = () => {
         <IntelligenceWorkbench
           selectedProjectId={selectedProjectId}
           selectedResourceId={selectedResourceId}
+          selectedSessionId={selectedSessionId}
+          workOrderId={workOrderId}
+          newConversation={newConversation}
           onSelectResource={selectResource}
           onSelectProject={selectProject}
         />
@@ -165,28 +186,58 @@ export const Component = () => {
 type IntelligenceWorkbenchProps = {
   selectedProjectId: string | null;
   selectedResourceId: string | null;
+  selectedSessionId: string | null;
+  workOrderId: string | null;
+  newConversation: boolean;
   onSelectResource: (projectId: string, resourceId: string | null) => void;
   onSelectProject: (projectId: string | null) => void;
 };
 
+type ProjectRightPanelState =
+  | { kind: 'context' }
+  | { kind: 'projectTree' }
+  | {
+      kind: 'resource';
+      resourceId: string;
+      openedFrom: 'context' | 'projectTree';
+      treeOpen: boolean;
+    };
+
 const IntelligenceWorkbench = ({
   selectedProjectId,
   selectedResourceId,
+  selectedSessionId,
+  workOrderId,
+  newConversation,
   onSelectResource,
   onSelectProject,
 }: IntelligenceWorkbenchProps) => {
   const t = useI18n();
   const navigate = useNavigate();
+  const [workbenchSearchParams] = useSearchParams();
   const framework = useFramework();
   const quickSearch = useService(QuickSearchService).quickSearch;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [officeContext, setOfficeContext] = useState<OfficeAiContext>();
   const [mobileView, setMobileView] = useState<'files' | 'chat'>('files');
+  const [rightPanel, setRightPanel] = useState<ProjectRightPanelState>(() =>
+    selectedResourceId
+      ? {
+          kind: 'resource',
+          resourceId: selectedResourceId,
+          openedFrom: 'projectTree',
+          treeOpen: false,
+        }
+      : { kind: 'context' }
+  );
+  const [contextPanel, setContextPanel] =
+    useState<WorkbenchContextPanelState | null>(null);
+  const rightPanelTrigger = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setFullscreen(false);
-    setMobileView('files');
-  }, [selectedProjectId, selectedResourceId]);
+    setMobileView(selectedResourceId ? 'files' : 'chat');
+  }, [selectedProjectId, selectedResourceId, workOrderId]);
   const openSearch = useCallback(() => {
     quickSearch.show(
       [framework.createEntity(ProjectsQuickSearchSession)],
@@ -216,6 +267,35 @@ const IntelligenceWorkbench = ({
     action: WorkbenchPanelTaskAction;
   } | null>(null);
   const blockerCreatePending = useRef(false);
+  const conversationCards = useConversationCards();
+  const [loadedWorkOrder, setLoadedWorkOrder] = useState<WorkOrder | null>(
+    null
+  );
+  useEffect(() => setLoadedWorkOrder(null), [workOrderId]);
+  const allConversationCards = useMemo(() => {
+    // Realtime column transitions can briefly leave the same session in a
+    // stale column response and its new column response. The project tree is a
+    // single list, so collapse that overlap by the stable session identity.
+    const seen = new Set<string>();
+    return [
+      ...conversationCards.todo.items,
+      ...conversationCards.progress.items,
+      ...conversationCards.done.items,
+    ].filter(card => {
+      if (seen.has(card.sessionId)) return false;
+      seen.add(card.sessionId);
+      return true;
+    });
+  }, [
+    conversationCards.done.items,
+    conversationCards.progress.items,
+    conversationCards.todo.items,
+  ]);
+  const selectedConversationCard = selectedSessionId
+    ? (allConversationCards.find(
+        card => card.sessionId === selectedSessionId
+      ) ?? null)
+    : null;
 
   useEffect(() => {
     if (!mobileNavigationOpen) return;
@@ -300,6 +380,40 @@ const IntelligenceWorkbench = ({
   const directoryId = resourceIsFolder
     ? resource.id
     : (resource?.parentId ?? null);
+
+  useEffect(() => {
+    setContextPanel(null);
+  }, [selectedProjectId, selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setRightPanel({ kind: 'context' });
+      return;
+    }
+    if (selectedResourceId && resource && !resourceIsFolder) {
+      setRightPanel(current =>
+        current.kind === 'resource' && current.resourceId === selectedResourceId
+          ? current
+          : {
+              kind: 'resource',
+              resourceId: selectedResourceId,
+              openedFrom:
+                current.kind === 'projectTree' ? 'projectTree' : 'context',
+              treeOpen: false,
+            }
+      );
+      return;
+    }
+    if (selectedResourceId && resourceIsFolder) {
+      setRightPanel({ kind: 'projectTree' });
+      return;
+    }
+    if (!selectedResourceId) {
+      setRightPanel(current =>
+        current.kind === 'resource' ? { kind: current.openedFrom } : current
+      );
+    }
+  }, [resource, resourceIsFolder, selectedProjectId, selectedResourceId]);
   const collaborationProject =
     projects.find(project => project.id === collaborationProjectId) ?? null;
 
@@ -323,6 +437,10 @@ const IntelligenceWorkbench = ({
 
   useProjectRefresh(null, 'list', refreshProjects);
   useProjectRefresh(selectedProjectId, 'task', refreshTaskPanel);
+  const refreshWorkbench = useCallback(
+    () => Promise.all([refreshProjects(), conversationCards.refresh()]),
+    [conversationCards, refreshProjects]
+  );
 
   useEffect(() => {
     if (
@@ -354,6 +472,70 @@ const IntelligenceWorkbench = ({
     });
   }, []);
 
+  const openConversationCard = useCallback(
+    (card: WorkbenchConversationCard) => {
+      if (card.scopeType === 'work_order' && card.workOrderId) {
+        navigate(getWorkOrderPath(card.workOrderId));
+      } else if (card.project) {
+        navigate(getProjectConversationPath(card.project.id, card.sessionId));
+      }
+      setMobileNavigationOpen(false);
+    },
+    [navigate]
+  );
+
+  const renameConversation = useCallback(
+    async (card: WorkbenchConversationCard, title: string) => {
+      setPendingMutationKey(`conversation:rename:${card.sessionId}`);
+      try {
+        await graphqlService.gql({
+          query: renameConversationMutation,
+          variables: {
+            sessionId: card.sessionId,
+            title,
+            expectedRevision: card.titleRevision,
+          },
+        });
+        await conversationCards.refresh();
+      } catch (caught) {
+        reportMutationError(
+          caught,
+          t['com.affine.localmind.workbench.v9.renameFailed']()
+        );
+        throw caught;
+      } finally {
+        setPendingMutationKey(null);
+      }
+    },
+    [conversationCards, graphqlService, reportMutationError, t]
+  );
+
+  const completeConversation = useCallback(
+    async (card: WorkbenchConversationCard) => {
+      setPendingMutationKey(`conversation:complete:${card.sessionId}`);
+      try {
+        await graphqlService.gql({
+          query: completeConversationMutation,
+          variables: {
+            sessionId: card.sessionId,
+            expectedVersion: card.version,
+            requestKey: nanoid(),
+          },
+        });
+        await conversationCards.refresh();
+      } catch (caught) {
+        reportMutationError(
+          caught,
+          t['com.affine.localmind.workbench.v9.completeFailed']()
+        );
+        throw caught;
+      } finally {
+        setPendingMutationKey(null);
+      }
+    },
+    [conversationCards, graphqlService, reportMutationError, t]
+  );
+
   const createProject = useCallback(
     async (name: string) => {
       setPendingMutationKey('project:create');
@@ -363,7 +545,9 @@ const IntelligenceWorkbench = ({
           variables: { input: { name } },
         });
         await refreshProjects();
-        onSelectProject(result.createCopilotContextProject.id);
+        navigate(
+          `${PROJECT_NEW_CONVERSATION_PATH}?projectId=${encodeURIComponent(result.createCopilotContextProject.id)}`
+        );
         notify.success({
           title: t['com.affine.localmind.workbench.project.created'](),
         });
@@ -376,7 +560,7 @@ const IntelligenceWorkbench = ({
         setPendingMutationKey(null);
       }
     },
-    [graphqlService, onSelectProject, refreshProjects, reportMutationError, t]
+    [graphqlService, navigate, refreshProjects, reportMutationError, t]
   );
 
   const renameProject = useCallback(
@@ -816,6 +1000,56 @@ const IntelligenceWorkbench = ({
     [navigate]
   );
 
+  const openProjectResource = useCallback(
+    (resourceId: string, openedFrom?: 'context' | 'projectTree') => {
+      if (!selectedProject) return;
+      setRightPanel(current => ({
+        kind: 'resource',
+        resourceId,
+        openedFrom:
+          openedFrom ??
+          (current.kind === 'projectTree' ? 'projectTree' : 'context'),
+        treeOpen: current.kind === 'resource' ? current.treeOpen : false,
+      }));
+      onSelectResource(selectedProject.id, resourceId);
+    },
+    [onSelectResource, selectedProject]
+  );
+
+  const closeProjectResource = useCallback(() => {
+    if (!selectedProject || rightPanel.kind !== 'resource') return;
+    const next = rightPanel.openedFrom;
+    const resourceId = rightPanel.resourceId;
+    setRightPanel({ kind: next });
+    onSelectResource(
+      selectedProject.id,
+      next === 'projectTree' ? directoryId : null
+    );
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const attribute =
+          next === 'projectTree'
+            ? 'data-project-resource-id'
+            : 'data-project-context-resource-id';
+        const opener = Array.from(
+          document.querySelectorAll<HTMLButtonElement>(`button[${attribute}]`)
+        ).find(element => element.getAttribute(attribute) === resourceId);
+        (opener ?? rightPanelTrigger.current?.querySelector('button'))?.focus();
+      })
+    );
+  }, [directoryId, onSelectResource, rightPanel, selectedProject]);
+
+  const toggleRightPanel = useCallback(() => {
+    setRightPanel(current =>
+      current.kind === 'resource'
+        ? { ...current, treeOpen: !current.treeOpen }
+        : current.kind === 'context'
+          ? { kind: 'projectTree' }
+          : { kind: 'context' }
+    );
+    setMobileView('files');
+  }, []);
+
   return (
     <main className={styles.root} data-testid="intelligence-workbench">
       <aside
@@ -859,14 +1093,62 @@ const IntelligenceWorkbench = ({
         <ProjectTree
           projects={projects}
           selectedProjectId={selectedProjectId}
+          selectedSessionId={
+            selectedSessionId ?? loadedWorkOrder?.ownSessionId ?? null
+          }
+          conversations={allConversationCards}
           loading={projectsLoading}
           error={projectsError ? projectErrorMessage(projectsError) : undefined}
+          conversationsLoading={
+            conversationCards.todo.loading ||
+            conversationCards.progress.loading ||
+            conversationCards.done.loading
+          }
+          conversationsLoadingMore={
+            conversationCards.todo.loadingMore ||
+            conversationCards.progress.loadingMore ||
+            conversationCards.done.loadingMore
+          }
+          conversationsError={
+            conversationCards.todo.error ||
+            conversationCards.progress.error ||
+            conversationCards.done.error
+              ? projectErrorMessage(
+                  conversationCards.todo.error ??
+                    conversationCards.progress.error ??
+                    conversationCards.done.error
+                )
+              : undefined
+          }
+          conversationsHasMore={
+            conversationCards.todo.hasNextPage ||
+            conversationCards.progress.hasNextPage ||
+            conversationCards.done.hasNextPage
+          }
           mutationsPending={pendingMutationKey !== null}
           onRefresh={() => void refreshProjects()}
+          onRefreshConversations={() => void conversationCards.refresh()}
+          onLoadMoreConversations={() => {
+            Promise.all([
+              conversationCards.todo.loadMore(),
+              conversationCards.progress.loadMore(),
+              conversationCards.done.loadMore(),
+            ]).catch(caught =>
+              reportMutationError(
+                caught,
+                t[
+                  'com.affine.localmind.workbench.v9.loadMoreConversationsFailed'
+                ]()
+              )
+            );
+          }}
           onSelectProject={projectId => {
             onSelectProject(projectId);
             setMobileNavigationOpen(false);
           }}
+          onOpenConversation={openConversationCard}
+          onNewConversation={() => navigate(PROJECT_NEW_CONVERSATION_PATH)}
+          onRenameConversation={renameConversation}
           onCreate={createProject}
           onRename={renameProject}
           onArchive={archiveProject}
@@ -903,12 +1185,19 @@ const IntelligenceWorkbench = ({
             aria-label={t['com.affine.localmind.project-files.root']()}
           >
             <button
-              onClick={() =>
-                selectedProject && onSelectResource(selectedProject.id, null)
-              }
+              onClick={() => {
+                if (!selectedProject) return;
+                setRightPanel({ kind: 'projectTree' });
+                onSelectResource(selectedProject.id, null);
+              }}
             >
-              {selectedProject?.name ??
-                t['com.affine.localmind.workbench.projects.all']()}
+              {workOrderId
+                ? (loadedWorkOrder?.title ??
+                  t['com.affine.localmind.workbench.v9.personalWorkOrder']())
+                : newConversation
+                  ? t['com.affine.localmind.workbench.v9.newConversation']()
+                  : (selectedProject?.name ??
+                    t['com.affine.localmind.workbench.projects.all']())}
             </button>
             {resourcePath.data?.projectResourcePath.map(part => (
               <button
@@ -917,8 +1206,7 @@ const IntelligenceWorkbench = ({
                   part.id === selectedResourceId ? 'page' : undefined
                 }
                 onClick={() =>
-                  selectedProject &&
-                  onSelectResource(selectedProject.id, part.id)
+                  selectedProject && openProjectResource(part.id, 'projectTree')
                 }
               >
                 {part.title}
@@ -942,6 +1230,33 @@ const IntelligenceWorkbench = ({
             />
           ) : null}
           {selectedProject ? (
+            <div ref={rightPanelTrigger} className={styles.rightPanelTrigger}>
+              <IconButton
+                size="20"
+                icon={<FolderIcon />}
+                tooltip={
+                  rightPanel.kind === 'resource'
+                    ? t['com.affine.localmind.workbench.v9.toggleFileTree']()
+                    : rightPanel.kind === 'projectTree'
+                      ? t['com.affine.localmind.workbench.v9.showContext']()
+                      : t['com.affine.localmind.workbench.v9.showFileTree']()
+                }
+                aria-label={
+                  rightPanel.kind === 'resource'
+                    ? t['com.affine.localmind.workbench.v9.toggleFileTree']()
+                    : rightPanel.kind === 'projectTree'
+                      ? t['com.affine.localmind.workbench.v9.showContext']()
+                      : t['com.affine.localmind.workbench.v9.showFileTree']()
+                }
+                aria-pressed={
+                  rightPanel.kind === 'projectTree' ||
+                  (rightPanel.kind === 'resource' && rightPanel.treeOpen)
+                }
+                onClick={toggleRightPanel}
+              />
+            </div>
+          ) : null}
+          {selectedProject || workOrderId ? (
             <div role="tablist" className={styles.mobileViewTabs}>
               <IconButton
                 role="tab"
@@ -964,56 +1279,37 @@ const IntelligenceWorkbench = ({
         </header>
         <div
           className={styles.conversationAndPeek}
-          data-project={!!selectedProject}
+          data-project={!!selectedProject || !!workOrderId}
           data-fullscreen={fullscreen}
           data-view={mobileView}
         >
-          {!selectedProjectId ? (
-            <ProjectOverview
+          {!selectedProjectId && !workOrderId && !newConversation ? (
+            <ConversationBoard
+              cards={conversationCards}
               projects={projects}
-              loading={projectsLoading}
-              error={
-                projectsError ? projectErrorMessage(projectsError) : undefined
-              }
-              onRefresh={() => void refreshProjects()}
+              onOpenCard={openConversationCard}
+              onNewConversation={() => navigate(PROJECT_NEW_CONVERSATION_PATH)}
             />
           ) : null}
-          {selectedProject ? (
-            <div className={styles.resourcePane}>
-              <div
-                className={styles.filesPane}
-                hidden={!!selectedResourceId && !resourceIsFolder}
-              >
-                <ProjectFiles
-                  key={selectedProject.id}
-                  projectId={selectedProject.id}
-                  parentId={directoryId}
-                  selectedResourceId={selectedResourceId}
-                  onOpen={resourceId =>
-                    onSelectResource(selectedProject.id, resourceId)
-                  }
-                />
-              </div>
-              {selectedResourceId && !resourceIsFolder ? (
-                <ProjectResourcePreview
-                  key={`${selectedProject.id}:${selectedResourceId}`}
-                  projectId={selectedProject.id}
-                  resourceId={selectedResourceId}
-                  fullscreen={fullscreen}
-                  onToggleFullscreen={() => setFullscreen(value => !value)}
-                  onOfficeContextChange={setOfficeContext}
-                  onClose={() =>
-                    onSelectResource(selectedProject.id, directoryId)
-                  }
-                />
-              ) : null}
-            </div>
+          {newConversation ? (
+            <NewConversation
+              projects={projects}
+              initialProjectId={
+                workbenchSearchParams.get('projectId') ?? undefined
+              }
+              onChanged={refreshWorkbench}
+              onCreated={(projectId, sessionId) =>
+                navigate(getProjectConversationPath(projectId, sessionId), {
+                  replace: true,
+                })
+              }
+            />
           ) : null}
           {selectedProject ? (
             <div className={styles.conversationPane} hidden={fullscreen}>
               <WorkbenchConversation
                 key={selectedProject.id}
-                onDocumentsChanged={refreshProjects}
+                onDocumentsChanged={refreshWorkbench}
                 selectedProjectId={selectedProject.id}
                 selectedProjectName={selectedProject.name}
                 officeContext={
@@ -1023,15 +1319,115 @@ const IntelligenceWorkbench = ({
                     ? officeContext
                     : undefined
                 }
-                onOpenResource={resourceId =>
-                  onSelectResource(selectedProject.id, resourceId)
-                }
+                onOpenResource={resourceId => openProjectResource(resourceId)}
+                onContextPanelChange={setContextPanel}
                 onConfirmBlockerSuggestion={confirmBlockerSuggestion}
+                selectedSessionId={selectedSessionId ?? undefined}
+                selectedCard={selectedConversationCard ?? undefined}
+                onCompleteConversation={completeConversation}
               />
             </div>
           ) : null}
+          {selectedProject ? (
+            <div className={styles.resourcePane}>
+              {rightPanel.kind === 'context' ? (
+                <ProjectContextPanel
+                  projectId={selectedProject.id}
+                  sessionId={selectedSessionId}
+                  state={contextPanel}
+                  onOpenResource={resourceId =>
+                    openProjectResource(resourceId, 'context')
+                  }
+                />
+              ) : rightPanel.kind === 'projectTree' ? (
+                <div className={styles.filesPane}>
+                  <ProjectFiles
+                    key={selectedProject.id}
+                    projectId={selectedProject.id}
+                    parentId={directoryId}
+                    selectedResourceId={selectedResourceId}
+                    onOpen={resourceId =>
+                      openProjectResource(resourceId, 'projectTree')
+                    }
+                  />
+                </div>
+              ) : (
+                <div
+                  className={styles.resourceWorkspace}
+                  data-tree-open={rightPanel.treeOpen && !fullscreen}
+                >
+                  {rightPanel.treeOpen && !fullscreen ? (
+                    <div className={styles.narrowTree}>
+                      <ProjectFiles
+                        key={`${selectedProject.id}:narrow`}
+                        projectId={selectedProject.id}
+                        parentId={directoryId}
+                        selectedResourceId={rightPanel.resourceId}
+                        onOpen={resourceId =>
+                          openProjectResource(resourceId, rightPanel.openedFrom)
+                        }
+                      />
+                    </div>
+                  ) : null}
+                  <ProjectResourcePreview
+                    key={`${selectedProject.id}:${rightPanel.resourceId}`}
+                    projectId={selectedProject.id}
+                    resourceId={rightPanel.resourceId}
+                    fullscreen={fullscreen}
+                    onToggleFullscreen={() => setFullscreen(value => !value)}
+                    onOfficeContextChange={setOfficeContext}
+                    referenced={
+                      contextPanel?.resourceIds.includes(
+                        rightPanel.resourceId
+                      ) ?? false
+                    }
+                    onReference={
+                      contextPanel
+                        ? () =>
+                            contextPanel.referenceResource(
+                              rightPanel.resourceId
+                            )
+                        : undefined
+                    }
+                    onClose={closeProjectResource}
+                  />
+                </div>
+              )}
+            </div>
+          ) : null}
+          {workOrderId ? (
+            <>
+              <div className={styles.conversationPane}>
+                {loadedWorkOrder?.viewerRole === 'recipient' &&
+                loadedWorkOrder.ownSessionId ? (
+                  <WorkOrderConversation
+                    key={workOrderId}
+                    workOrderId={workOrderId}
+                    sessionId={loadedWorkOrder.ownSessionId}
+                    title={loadedWorkOrder.title}
+                    status={loadedWorkOrder.status}
+                  />
+                ) : (
+                  <div className={styles.workOrderSenderState}>
+                    {t['com.affine.localmind.workbench.v9.senderUsesSource']()}
+                  </div>
+                )}
+              </div>
+              <div className={styles.resourcePane}>
+                <WorkOrderPanel
+                  key={workOrderId}
+                  workOrderId={workOrderId}
+                  onLoaded={setLoadedWorkOrder}
+                  onChanged={conversationCards.refresh}
+                />
+              </div>
+            </>
+          ) : null}
         </div>
-        <div className={styles.taskArea}>
+        <div
+          className={styles.taskArea}
+          hidden={!!workOrderId || newConversation}
+        >
           <TaskPanel
             panel={taskPanel}
             loading={taskPanelLoading}
@@ -1068,6 +1464,7 @@ const IntelligenceWorkbench = ({
       <ProjectShellSettings
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+        projectId={selectedProject?.id}
       />
     </main>
   );

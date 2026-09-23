@@ -1,6 +1,8 @@
 import { Field, ID, InputType, ObjectType } from '@nestjs/graphql';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
+import { BadRequest } from '../../base';
+import type { OfficeOwner } from '../../models/office-owner';
 import { PublicUserType } from '../user';
 
 @ObjectType()
@@ -49,9 +51,43 @@ export class OfficeCommentType {
 }
 
 @InputType()
+export class OfficeCommentOwnerInput {
+  @Field(() => ID, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => ID, { nullable: true })
+  projectId?: string;
+}
+
+export function resolveOfficeCommentOwner(
+  workspaceId?: string | null,
+  owner?: OfficeCommentOwnerInput | null
+): OfficeOwner {
+  if (workspaceId != null && owner != null)
+    throw new BadRequest('Supply exactly one Office comment owner');
+  const scope: OfficeCommentOwnerInput = owner ?? {
+    workspaceId: workspaceId ?? undefined,
+  };
+  const hasWorkspace = scope.workspaceId != null;
+  const hasProject = scope.projectId != null;
+  if (hasWorkspace === hasProject)
+    throw new BadRequest('Office comments require exactly one owner');
+  const id = scope.projectId ?? scope.workspaceId;
+  if (typeof id !== 'string' || !id.trim() || id.length > 512)
+    throw new BadRequest('Invalid Office comment owner');
+  return hasProject ? { projectId: id } : id;
+}
+
+@InputType()
 export class OfficeCommentCreateInput {
-  @Field(() => ID)
-  workspaceId!: string;
+  @Field(() => ID, {
+    nullable: true,
+    deprecationReason: 'Use owner.workspaceId',
+  })
+  workspaceId?: string;
+
+  @Field(() => OfficeCommentOwnerInput, { nullable: true })
+  owner?: OfficeCommentOwnerInput;
 
   @Field(() => ID)
   artifactId!: string;

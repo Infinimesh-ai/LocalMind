@@ -19,6 +19,10 @@ export const root = style({
   padding: '0 8px',
   borderRadius: 4,
   selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
     [`&[data-collapsible="true"]`]: {
       cursor: 'pointer',
     },
@@ -35,7 +39,7 @@ export const actions = style([
   baseAction,
   {
     selectors: {
-      [`${root}:hover &`]: {
+      [`${root}:hover &, ${root}:focus-within &`]: {
         opacity: 1,
       },
     },

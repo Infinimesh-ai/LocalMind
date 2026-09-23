@@ -40,6 +40,9 @@ class ProjectByokAuditEventType {
   enabled!: boolean;
 
   @Field()
+  workOrderEnabled!: boolean;
+
+  @Field()
   credentialChanged!: boolean;
 
   @Field()
@@ -68,6 +71,9 @@ class ProjectByokSettingsType {
 
   @Field()
   enabled!: boolean;
+
+  @Field()
+  workOrderEnabled!: boolean;
 
   @Field(() => Date, { nullable: true })
   lastValidatedAt!: Date | null;
@@ -167,6 +173,21 @@ export class ProjectByokResolver {
     @Args('enabled') enabled: boolean
   ) {
     return this.byok.setProjectConfigEnabled(
+      expectedRevision,
+      enabled,
+      user.id
+    );
+  }
+
+  @Throttle('strict')
+  @Mutation(() => ProjectByokSettingsType)
+  setWorkOrderByokEnabled(
+    @CurrentUser() user: CurrentUser,
+    @Args('expectedRevision', { type: () => SafeIntResolver })
+    expectedRevision: number,
+    @Args('enabled') enabled: boolean
+  ) {
+    return this.byok.setWorkOrderConfigEnabled(
       expectedRevision,
       enabled,
       user.id

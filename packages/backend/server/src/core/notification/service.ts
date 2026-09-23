@@ -729,6 +729,30 @@ export class NotificationService {
                   isRecipient: false,
                 }))
             : {}),
+          ...(n.type === NotificationType.WorkOrder &&
+          'workOrderId' in n.body &&
+          typeof n.body.workOrderId === 'string'
+            ? await this.models.copilotWorkOrder
+                .getOwned(n.body.workOrderId, userId)
+                .then(order => ({
+                  workOrderId: order.id,
+                  title: order.title,
+                  status: order.status,
+                  viewerRole: order.viewerRole,
+                  ownSessionId: order.sessionBinding?.sessionId ?? null,
+                  sourceSessionId: order.sourceSessionId,
+                  sourceProjectId:
+                    order.sourceSession?.selectedContextProjectId ?? null,
+                }))
+                .catch(() => ({
+                  title: '',
+                  status: 'unavailable',
+                  viewerRole: 'unavailable',
+                  ownSessionId: null,
+                  sourceSessionId: null,
+                  sourceProjectId: null,
+                }))
+            : {}),
           ...((n.type === NotificationType.AccessRequest ||
             n.type === NotificationType.AccessRequestResolved) &&
           'requestId' in n.body &&

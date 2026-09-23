@@ -1,0 +1,23 @@
+query copilotCollaborationGraphGet {
+  currentUser {
+    copilot {
+      myCollaborationGraph {
+        nodes {
+          id
+          label
+          self
+        }
+        edges {
+          id
+          from
+          to
+          status
+          label
+          ownSessionId
+          ownWorkOrderId
+        }
+        truncated
+      }
+    }
+  }
+}

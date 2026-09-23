@@ -87,9 +87,10 @@ export function officeAssetUrl(url: string) {
   if (!BUILD_CONFIG.debug || !BUILD_CONFIG.isWeb) return url;
   const page = new URL(window.location.href);
   const asset = new URL(url, page);
+  const localHosts = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0']);
   if (
-    ['localhost', '127.0.0.1', '[::1]'].includes(page.hostname) &&
-    asset.hostname === page.hostname &&
+    localHosts.has(page.hostname) &&
+    localHosts.has(asset.hostname) &&
     asset.protocol === page.protocol &&
     ['http:', 'https:'].includes(page.protocol) &&
     !asset.username &&

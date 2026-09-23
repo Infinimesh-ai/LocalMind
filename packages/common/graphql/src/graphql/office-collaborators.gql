@@ -1,5 +1,5 @@
-query officeCollaborators($workspaceId: String!, $artifactId: String!) {
-  officeCollaborators(workspaceId: $workspaceId, artifactId: $artifactId) {
+query officeCollaborators($workspaceId: String, $artifactId: String!, $owner: OfficeCommentOwnerInput) {
+  officeCollaborators(workspaceId: $workspaceId, artifactId: $artifactId, owner: $owner) {
     id
     name
     avatarUrl

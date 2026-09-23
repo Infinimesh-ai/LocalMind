@@ -6,7 +6,13 @@ import { useI18n } from '@affine/i18n';
 import { TodayIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 
-export const AppSidebarJournalButton = () => {
+import { SidebarShortcutLink } from './shortcut';
+
+export const AppSidebarJournalButton = ({
+  compact = false,
+}: {
+  compact?: boolean;
+}) => {
   const t = useI18n();
   const docDisplayMetaService = useService(DocDisplayMetaService);
   const journalService = useService(JournalService);
@@ -17,6 +23,18 @@ export const AppSidebarJournalButton = () => {
 
   const JournalIcon = useLiveData(docDisplayMetaService.icon$(maybeDocId));
   const Icon = isJournal ? JournalIcon : TodayIcon;
+
+  if (compact) {
+    return (
+      <SidebarShortcutLink
+        label={t['com.affine.journal.app-sidebar-title']()}
+        icon={<Icon />}
+        to="/journals"
+        active={isJournal || location.pathname.startsWith('/journals')}
+        testId="slider-bar-journals-button"
+      />
+    );
+  }
 
   return (
     <MenuLinkItem

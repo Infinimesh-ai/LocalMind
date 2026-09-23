@@ -1,0 +1,20 @@
+fragment CopilotSessionDeletionFields on CopilotSessionDeletionType {
+  id
+  sessionId
+  status
+  contextEpoch
+  attempt
+  maxAttempts
+  progress
+  resultCounts
+  failureCode
+  failureMessage
+  holdReason
+  backupStatus
+  receiptFingerprint
+  requestedAt
+  updatedAt
+  heldAt
+  releasedAt
+  completedAt
+}

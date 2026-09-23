@@ -215,6 +215,7 @@ export class ByokService {
       modelId: current?.modelId ?? null,
       apiStyle: current?.apiStyle ?? null,
       enabled: current?.enabled ?? false,
+      workOrderEnabled: current?.workOrderEnabled ?? false,
       lastValidatedAt: current?.lastValidatedAt ?? null,
       lastUsedAt: current?.lastUsedAt ?? null,
       lastError: current?.lastError ?? null,
@@ -415,6 +416,20 @@ export class ByokService {
       lastValidatedAt: enabled ? new Date() : current.lastValidatedAt,
       actorId: userId,
       credentialChanged: false,
+    });
+    return this.getAdminProjectSettings(userId);
+  }
+
+  async setWorkOrderConfigEnabled(
+    expectedRevision: number,
+    enabled: boolean,
+    userId: string
+  ) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    await this.models.copilotProjectByok.setWorkOrderEnabled({
+      expectedRevision,
+      enabled,
+      actorId: userId,
     });
     return this.getAdminProjectSettings(userId);
   }
@@ -877,6 +892,7 @@ export class ByokService {
   ): Promise<CopilotProviderProfile[]> {
     if (!sources.local && !sources.server) return [];
     let projectId = context.projectId;
+    let workOrderId: string | undefined;
     if (context.sessionId) {
       const session = await this.models.copilotSession.getMeta(
         context.sessionId
@@ -891,6 +907,48 @@ export class ByokService {
         throw new CopilotSessionNotFound();
       }
       projectId = session.selectedContextProjectId ?? undefined;
+      if (session.scopeType === 'work_order') {
+        workOrderId = session.workOrderBinding?.workOrderId;
+        if (!workOrderId) throw new CopilotSessionNotFound();
+        const binding = await this.models.copilotWorkOrder.getOwned(
+          workOrderId,
+          context.userId
+        );
+        if (
+          binding.viewerRole !== 'recipient' ||
+          binding.sessionBinding?.sessionId !== session.id
+        ) {
+          throw new CopilotSessionNotFound();
+        }
+      }
+    }
+    if (workOrderId) {
+      const row = await this.models.copilotProjectByok.get();
+      if (
+        !row?.enabled ||
+        !row.workOrderEnabled ||
+        !isByokProvider(row.provider)
+      ) {
+        return [];
+      }
+      return [
+        {
+          id: `byok-work-order-global-${row.provider}-r${row.revision}`,
+          type: byokProviderToCopilotType(row.provider),
+          source: ByokProviderSource.ProjectGlobal,
+          priority: BYOK_PROFILE_PRIORITY_BASE,
+          models: [row.modelId],
+          modelDefinitions: [
+            this.modelDefinition(row.provider, row.modelId, row.apiStyle),
+          ],
+          config: this.providerConfig(
+            row.provider,
+            row.encryptedApiKey,
+            row.endpoint,
+            row.apiStyle
+          ),
+        } as CopilotProviderProfile,
+      ];
     }
     if (projectId) {
       await this.models.copilotProjectByok.assertProjectMember(
@@ -954,33 +1012,36 @@ export class ByokService {
       cached_tokens?: number;
     };
   }) {
-    if (!input.workspaceId || !input.providerId) return;
+    if (!input.providerId) return;
     const meta = this.parseProfileMeta(input.providerId, input.workspaceId);
     if (!meta) return;
 
     metrics.ai.counter('byok_usage').add(1, {
-      workspace: input.workspaceId,
+      workspace: input.workspaceId ?? 'project-global',
       provider: meta.provider,
       source: meta.source,
       feature: input.featureKind,
     });
-    await this.models.copilotUsage.create({
-      workspaceId: input.workspaceId,
-      userId: input.userId,
-      provider: meta.provider,
-      providerSource: meta.source,
-      featureKind: input.featureKind,
-      model: input.model ?? null,
-      sessionId: input.sessionId,
-      taskId: input.taskId,
-      actionId: input.actionId,
-      billingUnitId: input.billingUnitId,
-      promptTokens: input.usage?.prompt_tokens ?? 0,
-      completionTokens: input.usage?.completion_tokens ?? 0,
-      totalTokens: input.usage?.total_tokens ?? 0,
-      cachedTokens: input.usage?.cached_tokens ?? 0,
-    });
+    if (input.workspaceId) {
+      await this.models.copilotUsage.create({
+        workspaceId: input.workspaceId,
+        userId: input.userId,
+        provider: meta.provider,
+        providerSource: meta.source,
+        featureKind: input.featureKind,
+        model: input.model ?? null,
+        sessionId: input.sessionId,
+        taskId: input.taskId,
+        actionId: input.actionId,
+        billingUnitId: input.billingUnitId,
+        promptTokens: input.usage?.prompt_tokens ?? 0,
+        completionTokens: input.usage?.completion_tokens ?? 0,
+        totalTokens: input.usage?.total_tokens ?? 0,
+        cachedTokens: input.usage?.cached_tokens ?? 0,
+      });
+    }
     if (meta.source === ByokProviderSource.Server && meta.keyId) {
+      if (!input.workspaceId) return;
       await this.models.copilotWorkspaceByokConfig.touchUsed(
         input.workspaceId,
         meta.keyId
@@ -997,7 +1058,7 @@ export class ByokService {
     featureKind: ByokFeatureKind;
     error: unknown;
   }) {
-    if (!input.workspaceId || !input.providerId) return;
+    if (!input.providerId) return;
     const meta = this.parseProfileMeta(input.providerId, input.workspaceId);
     if (!meta) return;
 
@@ -1018,12 +1079,13 @@ export class ByokService {
       return;
     const message = this.sanitizeError(input.error);
     metrics.ai.counter('byok_route_failure').add(1, {
-      workspace: input.workspaceId,
+      workspace: input.workspaceId ?? 'project-global',
       provider: meta.provider,
       source: meta.source,
       feature: input.featureKind,
     });
     if (meta.source === ByokProviderSource.Server && meta.keyId) {
+      if (!input.workspaceId) return;
       await this.models.copilotWorkspaceByokConfig.markFailure(
         input.workspaceId,
         meta.keyId,
@@ -1187,7 +1249,7 @@ export class ByokService {
     workspaceId?: string
   ): ByokProfileMeta | null {
     const globalMatch =
-      /^byok-project-global-(openai|anthropic|gemini)-r([1-9][0-9]*)$/.exec(
+      /^byok-(?:project|work-order)-global-(openai|anthropic|gemini)-r([1-9][0-9]*)$/.exec(
         providerId
       );
     if (globalMatch) {

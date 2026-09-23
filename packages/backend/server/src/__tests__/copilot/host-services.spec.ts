@@ -289,6 +289,87 @@ test('ConversationHost should return access decision for empty no-message stream
   Sinon.assert.calledOnce(resolveTurnRouteAccess);
 });
 
+test('ConversationHost should allow a bound personal work-order conversation without Project membership', async t => {
+  const session = {
+    ...stubConversationSession(),
+    config: {
+      sessionId: 'session-1',
+      userId: 'user-1',
+      workspaceId: null,
+      selectedContextProjectId: null,
+      scopeType: 'work_order',
+      workOrderId: 'work-order-1',
+    },
+    contextScope: null,
+  };
+  const resolveTurnRouteAccess = Sinon.stub().resolves({
+    byokProfiles: [{ id: 'project-global-profile-1' }],
+    quotaBackedRoutesAllowed: false,
+  });
+  const host = new ConversationHost(
+    {
+      get: Sinon.stub().resolves(session),
+      assertOwnedSession: Sinon.stub().resolves(),
+      revertLatestMessage: Sinon.stub().resolves(undefined),
+    } as any,
+    {} as any,
+    {} as any,
+    { resolveTurnRouteAccess } as any
+  );
+
+  const prepared = await host.prepareTurn('user-1', 'session-1', {
+    chatSurface: 'intelligence_workbench',
+  });
+
+  t.false(prepared.quotaBackedRoutesAllowed);
+  Sinon.assert.calledOnceWithMatch(resolveTurnRouteAccess, {
+    userId: 'user-1',
+    sessionId: 'session-1',
+    workspaceId: undefined,
+    projectId: undefined,
+    featureKind: 'chat',
+  });
+});
+
+test('ConversationHost should still reject an unscoped Intelligence conversation', async t => {
+  const session = {
+    ...stubConversationSession(),
+    config: {
+      sessionId: 'session-1',
+      userId: 'user-1',
+      workspaceId: null,
+      selectedContextProjectId: null,
+      scopeType: 'project',
+      workOrderId: null,
+    },
+    contextScope: null,
+  };
+  const resolveTurnRouteAccess = Sinon.stub().resolves({
+    byokProfiles: [{ id: 'project-global-profile-1' }],
+    quotaBackedRoutesAllowed: false,
+  });
+  const host = new ConversationHost(
+    {
+      get: Sinon.stub().resolves(session),
+      assertOwnedSession: Sinon.stub().resolves(),
+    } as any,
+    {} as any,
+    {} as any,
+    { resolveTurnRouteAccess } as any
+  );
+
+  await t.throwsAsync(
+    host.prepareTurn('user-1', 'session-1', {
+      chatSurface: 'intelligence_workbench',
+    }),
+    {
+      message:
+        'Select an active project you belong to before sending an Intelligence message.',
+    }
+  );
+  Sinon.assert.notCalled(resolveTurnRouteAccess);
+});
+
 test('ConversationHost should replay accepted tokens without enabling quota-backed routes', async t => {
   const acceptedTurn: Turn = {
     id: 'turn-1',
@@ -2721,7 +2802,7 @@ test('ActionStreamHost should cap session-backed action prompt by selected model
       promptName: 'custom.action',
       promptConfig: {},
     },
-    finish: Sinon.stub().returns([
+    finishAsync: Sinon.stub().resolves([
       { role: 'user', content: 'make an outline' },
     ]),
   };
@@ -2794,12 +2875,16 @@ test('ActionStreamHost should cap session-backed action prompt by selected model
     }
   );
   Sinon.assert.calledOnceWithExactly(
-    session.finish,
+    session.finishAsync,
     {
       topic: 'planning',
       content: 'make an outline',
     },
-    { contextWindow: 4096 }
+    {
+      contextWindow: 4096,
+      modelId: 'local/office-fast',
+      signal: undefined,
+    }
   );
   t.like(
     (bridgeInputs[0] as { prepareStructuredRoutes: Record<string, unknown> })

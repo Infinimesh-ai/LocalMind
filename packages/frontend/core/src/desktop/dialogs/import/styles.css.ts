@@ -98,7 +98,7 @@ export const importItem = style({
   width: '100%',
   height: 'auto',
   gap: '4px',
-  padding: '8px 12px',
+  padding: '0 12px 0 0',
   borderRadius: '8px',
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   background: cssVarV2('button/secondary'),
@@ -108,6 +108,26 @@ export const importItem = style({
       cursor: 'pointer',
       transition: 'background .30s',
     },
+  },
+});
+
+export const importItemAction = style({
+  display: 'flex',
+  alignItems: 'center',
+  flex: 1,
+  minWidth: 0,
+  gap: 4,
+  padding: '8px 0 8px 12px',
+  border: 0,
+  borderRadius: 8,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  cursor: 'pointer',
+  ':disabled': { cursor: 'not-allowed' },
+  ':focus-visible': {
+    outline: `2px solid ${cssVar('primaryColor')}`,
+    outlineOffset: 2,
   },
 });
 

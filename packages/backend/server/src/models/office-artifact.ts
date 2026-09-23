@@ -446,6 +446,15 @@ export class OfficeArtifactModel extends BaseModel {
     });
   }
 
+  async listFilePage(workspaceId: string, cursor?: string) {
+    return this.db.officeArtifact.findMany({
+      where: { workspaceId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 101,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+  }
+
   async getRevisionBySequence(
     owner: OfficeOwner,
     artifactId: string,

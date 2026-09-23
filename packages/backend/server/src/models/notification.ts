@@ -128,6 +128,7 @@ export const CommentMentionNotificationCreateSchema =
 
 export type UnionNotificationBody =
   | ProjectFileRequestNotificationBody
+  | WorkOrderNotificationBody
   | AccessRequestNotificationBody
   | MentionNotificationBody
   | InvitationNotificationBody
@@ -138,6 +139,14 @@ export type ProjectFileRequestNotificationBody = {
   workspaceId?: never;
   createdByUserId: string;
   requestId: string;
+};
+
+export type WorkOrderNotificationBody = {
+  workspaceId?: never;
+  createdByUserId: string;
+  workOrderId: string;
+  eventId: string;
+  topic: string;
 };
 
 export type AccessRequestNotificationBody = {
@@ -164,6 +173,7 @@ export type CommentNotification = Notification &
 
 export type UnionNotification =
   | (Notification & { body: ProjectFileRequestNotificationBody })
+  | (Notification & { body: WorkOrderNotificationBody })
   | (Notification & { body: AccessRequestNotificationBody })
   | MentionNotification
   | InvitationNotification

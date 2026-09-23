@@ -53,6 +53,7 @@ import {
 } from './cleanup-actions';
 import * as styles from './list.style.css';
 import { ProjectFileRequestNotificationItem } from './project-file-request';
+import { WorkOrderNotificationItem } from './work-order';
 
 export const NotificationList = () => {
   const t = useI18n();
@@ -294,6 +295,8 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
 
   return type === NotificationType.ProjectFileRequest ? (
     <ProjectFileRequestNotificationItem notification={notification} />
+  ) : type === NotificationType.WorkOrder ? (
+    <WorkOrderNotificationItem notification={notification} />
   ) : type === NotificationType.AccessRequest ||
     type === NotificationType.AccessRequestResolved ? (
     <AccessRequestNotificationItem notification={notification} />

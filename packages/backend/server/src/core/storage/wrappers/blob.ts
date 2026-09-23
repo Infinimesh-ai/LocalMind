@@ -20,7 +20,10 @@ import {
   URLHelper,
 } from '../../../base';
 import { Models } from '../../../models';
-import { COPILOT_COPY_BLOB_PREFIX } from '../../../models/blob';
+import {
+  COPILOT_COPY_BLOB_PREFIX,
+  GENERATED_FILE_BLOB_PREFIX,
+} from '../../../models/blob';
 import type { StorageProviderCapabilities } from '../../../native';
 import { StorageRuntimeProvider } from '../../storage-runtime';
 import { MULTIPART_PART_SIZE } from '../constants';
@@ -175,7 +178,10 @@ export class WorkspaceBlobStorage {
     key: string,
     signedUrl?: boolean
   ): Promise<BlobGetResult> {
-    if (key.startsWith(COPILOT_COPY_BLOB_PREFIX)) {
+    if (
+      key.startsWith(COPILOT_COPY_BLOB_PREFIX) ||
+      key.startsWith(GENERATED_FILE_BLOB_PREFIX)
+    ) {
       const record = await this.models.blob.get(workspaceId, key);
       if (!record || record.status !== 'completed' || record.deletedAt)
         return {};

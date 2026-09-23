@@ -1,7 +1,5 @@
 import { Button, IconButton, Loading } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
-import { ServerService } from '@affine/core/modules/cloud';
-import { downloadOfficePackage } from '@affine/core/modules/office';
 import { ProjectEditorGuard } from '@affine/core/modules/project-resources/edit-guard';
 import { ProjectResourceEditLeaseProvider } from '@affine/core/modules/project-resources/edit-lease';
 import {
@@ -15,17 +13,12 @@ import {
   projectResourceQuery,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import {
-  AiIcon,
-  CloseIcon,
-  DownloadIcon,
-  ExpandFullIcon,
-} from '@blocksuite/icons/rc';
+import { AiIcon, CloseIcon, ExpandFullIcon } from '@blocksuite/icons/rc';
 import type { OfficeAiContext } from '@localmind/office';
-import { useService } from '@toeverything/infra';
 import { useState } from 'react';
 
 import { ProjectDocument } from './project-document';
+import { ProjectFile } from './project-file';
 import * as styles from './project-files.css';
 import { ProjectOffice } from './project-office';
 import { ProjectPublicationActions } from './project-publications';
@@ -38,6 +31,8 @@ export function ProjectResourcePreview({
   onOfficeContextChange,
   fullscreen,
   onToggleFullscreen,
+  referenced = false,
+  onReference,
 }: {
   projectId: string;
   resourceId: string;
@@ -45,9 +40,10 @@ export function ProjectResourcePreview({
   onOfficeContextChange: (context: OfficeAiContext | undefined) => void;
   fullscreen: boolean;
   onToggleFullscreen: () => void;
+  referenced?: boolean;
+  onReference?: () => Promise<void> | void;
 }) {
   const t = useI18n();
-  const server = useService(ServerService).server;
   const query = useQuery(
     { query: projectResourceQuery, variables: { projectId, resourceId } },
     { suspense: false, shouldRetryOnError: false }
@@ -59,8 +55,6 @@ export function ProjectResourcePreview({
   useProjectRefresh(projectId, 'resource', () =>
     Promise.all([query.mutate(), path.mutate()])
   );
-  const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const resource = query.data?.projectResource;
   const queryError = query.error ?? path.error;
@@ -106,6 +100,15 @@ export function ProjectResourcePreview({
                   void query.mutate().catch(reportProjectError);
                 }}
               />
+            ) : null}
+            {resource && !queryError && onReference ? (
+              <Button disabled={referenced} onClick={() => void onReference()}>
+                {t[
+                  referenced
+                    ? 'com.affine.localmind.workbench.v9.referenced'
+                    : 'com.affine.localmind.workbench.v9.referenceResource'
+                ]()}
+              </Button>
             ) : null}
             <IconButton
               size="20"
@@ -172,27 +175,12 @@ export function ProjectResourcePreview({
               }
             />
           ) : (
-            <div className={styles.state}>
-              <Button
-                prefix={<DownloadIcon />}
-                loading={downloading}
-                disabled={downloading}
-                onClick={() => {
-                  setDownloading(true);
-                  setError(null);
-                  const url = new URL(
-                    `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(resourceId)}`,
-                    server.serverMetadata.baseUrl
-                  );
-                  void downloadOfficePackage(url.toString(), resource.title)
-                    .catch(caught => setError(projectErrorMessage(caught)))
-                    .finally(() => setDownloading(false));
-                }}
-              >
-                {t['com.affine.localmind.project-files.download']()}
-              </Button>
-              {error ? <span role="alert">{error}</span> : null}
-            </div>
+            <ProjectFile
+              key={`${resourceId}:${resource.contentVersion}`}
+              projectId={projectId}
+              resourceId={resourceId}
+              title={resource.title}
+            />
           )}
         </section>
       </ProjectResourceEditLeaseProvider>

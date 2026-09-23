@@ -1,0 +1,47 @@
+mutation completeConversation(
+  $sessionId: ID!
+  $expectedVersion: Int!
+  $requestKey: String!
+  $reason: String
+) {
+  completeConversation(
+    sessionId: $sessionId
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+    reason: $reason
+  ) {
+    sessionId
+    version
+    completedAt
+    completionReason
+    lastBusinessAt
+  }
+}
+
+mutation renameConversation(
+  $sessionId: ID!
+  $title: String!
+  $expectedRevision: Int!
+) {
+  renameConversation(
+    sessionId: $sessionId
+    title: $title
+    expectedRevision: $expectedRevision
+  ) {
+    sessionId
+    scopeType
+    title
+    titleRevision
+    column
+    attentionReasons
+    activeRunCount
+    project {
+      id
+      name
+    }
+    workOrderId
+    workOrderStatus
+    lastBusinessAt
+    version
+  }
+}

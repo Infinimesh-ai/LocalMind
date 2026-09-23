@@ -90,6 +90,9 @@ export function WorkspaceAiProfilesEditor({
   });
   const profiles = profileData.adminAiProfiles;
   const credentials = settingsData.adminWorkspaceByokSettings.keys;
+  const enabledCredentials = credentials.filter(
+    credential => credential.enabled
+  );
   const [draft, setDraft] = useState<ProfileDraft>(emptyDraft);
   const { trigger: upsertProfile, isMutating: isSaving } = useMutation({
     mutation: upsertAdminAiProfileMutation,
@@ -280,11 +283,42 @@ export function WorkspaceAiProfilesEditor({
                     colSpan={4}
                     className="h-24 text-center text-sm text-muted-foreground"
                   >
-                    {profilesValidating
-                      ? i18n['com.affine.admin.loading-workspace-ai-profiles']()
-                      : i18n[
-                          'com.affine.admin.no-ai-profiles-configured-existing-enabled-credentials-remain-the-compatibility-fallback'
-                        ]()}
+                    {profilesValidating ? (
+                      i18n['com.affine.admin.loading-workspace-ai-profiles']()
+                    ) : (
+                      <div className="space-y-2 py-3">
+                        <p>
+                          {i18n[
+                            'com.affine.admin.ai-profiles-empty-explanation'
+                          ]()}
+                        </p>
+                        {enabledCredentials.length ? (
+                          <>
+                            <p>
+                              {i18n[
+                                'com.affine.admin.ai-profiles-fallback-credentials'
+                              ]()}
+                            </p>
+                            <ul className="space-y-1 text-foreground">
+                              {enabledCredentials.map(credential => (
+                                <li key={credential.id} className="break-words">
+                                  {credential.name} · {credential.provider}
+                                  {credential.modelId
+                                    ? ` / ${credential.modelId}`
+                                    : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        ) : (
+                          <p>
+                            {i18n[
+                              'com.affine.admin.ai-profiles-no-enabled-credentials'
+                            ]()}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : null}

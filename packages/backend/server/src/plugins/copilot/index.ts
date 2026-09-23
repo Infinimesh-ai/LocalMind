@@ -26,6 +26,7 @@ import {
   COPILOT_KERNEL_PROVIDERS,
   COPILOT_TRANSCRIPT_REALTIME_PROVIDERS,
 } from './module-providers';
+import { WorkOrderController } from './work-order-controller';
 
 const COPILOT_SHARED_IMPORTS = [
   DocStorageModule,
@@ -91,6 +92,7 @@ export class CopilotApiModule {}
     CopilotController,
     WorkspaceMcpController,
     EnterpriseAuthorizationController,
+    WorkOrderController,
   ],
 })
 export class CopilotModule {}

@@ -1,6 +1,8 @@
 import type { Command } from '@blocksuite/std';
 import type { BlockModel } from '@blocksuite/store';
 
+import { deleteBlockWithListOrder } from '../../utils/model/list.js';
+
 export const deleteSelectedModelsCommand: Command<{
   selectedModels?: BlockModel[];
 }> = (ctx, next) => {
@@ -13,8 +15,10 @@ export const deleteSelectedModelsCommand: Command<{
     return;
   }
 
-  models.forEach(model => {
-    ctx.std.store.deleteBlock(model);
+  ctx.std.store.transact(() => {
+    models.forEach(model => {
+      deleteBlockWithListOrder(ctx.std.store, model);
+    });
   });
 
   return next();

@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+
 import serverNativeModule from '@affine/server-native';
 import test from 'ava';
 import Sinon from 'sinon';
@@ -849,3 +851,143 @@ test('workspace_blob_read should return explicit error when attachment context i
       'Missing workspace, user, blob id, or copilot context for workspace_blob_read.',
   });
 });
+
+test('tool loop stops repeated failures across changed arguments and intervening tools', async t => {
+  let executions = 0;
+  const callback = createToolExecutionCallback({
+    write: defineTool({
+      inputSchema: z.object({ content: z.object({ text: z.string() }) }),
+      execute: async () => {
+        executions++;
+        return { saved: true };
+      },
+    }),
+    read: defineTool({
+      inputSchema: z.object({}),
+      execute: async () => ({ ok: true }),
+    }),
+  });
+  for (let i = 0; i < 2; i++) {
+    const result = await callback({
+      callId: `bad-${i}`,
+      name: 'write',
+      args: { content: `changed-${i}` },
+    });
+    t.true(result.isError);
+    await callback({ callId: `read-${i}`, name: 'read', args: {} });
+  }
+  await t.throwsAsync(
+    callback({
+      callId: 'bad-3',
+      name: 'write',
+      args: { content: 'changed-again' },
+    }),
+    { message: /same error 3 times/ }
+  );
+  await t.throwsAsync(
+    callback({
+      callId: 'valid-after-stop',
+      name: 'write',
+      args: { content: { text: 'valid' } },
+    }),
+    { message: /stopped/ }
+  );
+  t.is(executions, 0);
+});
+
+test('successful correction resets the tool failure streak and new turns start clean', async t => {
+  const tools = {
+    write: defineTool({
+      inputSchema: z.object({ text: z.string() }),
+      execute: async () => ({ saved: true }),
+    }),
+  };
+  const callback = createToolExecutionCallback(tools);
+  const bad = { callId: 'bad', name: 'write', args: { text: 1 } };
+  await callback(bad);
+  await callback(bad);
+  const good = await callback({
+    callId: 'good',
+    name: 'write',
+    args: { text: 'ok' },
+  });
+  t.falsy(good.isError);
+  t.true((await callback(bad)).isError);
+  t.true((await createToolExecutionCallback(tools)(bad)).isError);
+});
+
+test.serial(
+  'native streaming loop terminates after three identical tool failures',
+  async t => {
+    let rounds = 0;
+    const server = createServer((_request, response) => {
+      rounds++;
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.end(
+        `data: ${JSON.stringify({
+          id: `round-${rounds}`,
+          object: 'chat.completion.chunk',
+          created: 1,
+          model: 'test',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call-${rounds}`,
+                    type: 'function',
+                    function: {
+                      name: 'write',
+                      arguments: JSON.stringify({ content: `bad-${rounds}` }),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        })}\n\ndata: ${JSON.stringify({ id: `round-${rounds}`, object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+      );
+    });
+    await new Promise<void>(resolve => server.listen(0, '0.0.0.0', resolve));
+    t.teardown(() => {
+      server.closeAllConnections();
+      server.close();
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Missing test server port');
+    const bridge = createToolLoopBridge(
+      {
+        protocol: 'openai_chat',
+        backendConfig: {
+          base_url: `http://127.0.0.1:${address.port}`,
+          auth_token: 'test',
+        },
+      },
+      {
+        write: defineTool({
+          inputSchema: z.object({ content: z.object({ text: z.string() }) }),
+          execute: async () => {
+            t.fail('invalid arguments must not execute');
+          },
+        }),
+      }
+    );
+    const errors: string[] = [];
+    try {
+      for await (const event of bridge({
+        model: 'test',
+        messages: nativeMessages(nativeUserText('test')),
+      })) {
+        if (event.type === 'error') errors.push(event.message);
+      }
+    } catch (error) {
+      errors.push(String(error));
+    }
+    t.is(rounds, 3);
+    t.true(errors.some(message => message.includes('same error 3 times')));
+  }
+);

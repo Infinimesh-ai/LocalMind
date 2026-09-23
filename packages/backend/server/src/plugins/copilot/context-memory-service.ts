@@ -51,7 +51,7 @@ import {
 } from './runtime/context-planner';
 import { buildStructuredResponseContract } from './runtime/contracts';
 
-const MEMORY_WRITER_VERSION = 'structured-memory-writer/v1';
+const MEMORY_WRITER_VERSION = 'structured-memory-writer/v3-shared-project';
 const SECRET_PATTERN = new RegExp(
   [
     '\\b(password|passwd|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|private[_ -]?key|client[_ -]?secret|bearer)\\b\\s*(?:[:=]|\\bis\\b|是)',
@@ -401,6 +401,23 @@ export class ContextMemoryService implements OnModuleInit {
     );
     return {
       autoMemoryEnabled: preference?.autoMemoryEnabled ?? true,
+      revision: 1,
+    };
+  }
+
+  async getProjectSettings(userId: string, projectId: string) {
+    const preference =
+      await this.models.copilotContextMemory.getProjectPreference(
+        userId,
+        projectId
+      );
+    return {
+      // Projects created before the shared-memory contract require an Owner to
+      // opt in. New projects receive an explicit enabled settings row.
+      autoMemoryEnabled: preference?.autoMemoryEnabled ?? false,
+      revision: preference?.revision ?? 0,
+      projectMemoryRevision: preference?.projectMemoryRevision ?? 0,
+      contractVersion: preference?.contractVersion ?? 'unconfigured',
     };
   }
 
@@ -413,7 +430,40 @@ export class ContextMemoryService implements OnModuleInit {
       await this.models.copilotContextMemory.putPreference(input);
     return {
       autoMemoryEnabled: preference.autoMemoryEnabled,
+      revision: 1,
     };
+  }
+
+  async updateProjectSettings(input: {
+    userId: string;
+    projectId: string;
+    autoMemoryEnabled: boolean;
+    expectedRevision: number;
+  }) {
+    const preference =
+      await this.models.copilotContextMemory.putProjectPreference(input);
+    return {
+      autoMemoryEnabled: preference.autoMemoryEnabled,
+      revision: preference.revision,
+      projectMemoryRevision: preference.projectMemoryRevision,
+      contractVersion: preference.contractVersion,
+    };
+  }
+
+  async getProjectSessionMemoryCapture(userId: string, sessionId: string) {
+    return await this.models.copilotSession.getProjectMemoryCapture(
+      userId,
+      sessionId
+    );
+  }
+
+  async updateProjectSessionMemoryCapture(input: {
+    userId: string;
+    sessionId: string;
+    allowMemoryCapture: boolean;
+    expectedRevision: number;
+  }) {
+    return await this.models.copilotSession.updateProjectMemoryCapture(input);
   }
 
   async listPlannerStrategies(userId: string, workspaceId: string) {
@@ -684,12 +734,14 @@ export class ContextMemoryService implements OnModuleInit {
     );
     if (!checkpoint) return null;
     return {
+      id: checkpoint.id,
       strategyVersion: checkpoint.strategyVersion,
       strategyFingerprint: checkpoint.strategyFingerprint,
       summary: checkpoint.summary,
       summarizedMessageCount: checkpoint.summarizedMessageCount,
       sourceFingerprint: checkpoint.sourceFingerprint,
       diagnostics: checkpoint.diagnostics as Record<string, unknown>,
+      summaryData: checkpoint.summaryData as Record<string, unknown>,
     } satisfies ContextPlannerCheckpoint;
   }
 
@@ -700,6 +752,23 @@ export class ContextMemoryService implements OnModuleInit {
     includeDisabled?: boolean;
   }) {
     return await this.models.copilotContextMemory.listManageable(input);
+  }
+
+  async listProjectMemoryConflicts(projectId: string) {
+    return await this.models.copilotContextMemory.listProjectMemoryConflicts(
+      projectId
+    );
+  }
+
+  async resolveProjectMemoryConflict(input: {
+    projectId: string;
+    conflictId: string;
+    actorUserId: string;
+    resolution: 'accept' | 'reject';
+  }) {
+    return await this.models.copilotContextMemory.resolveProjectMemoryConflict(
+      input
+    );
   }
 
   async saveCheckpoint(
@@ -873,15 +942,25 @@ export class ContextMemoryService implements OnModuleInit {
       ) {
         return [];
       }
-      if (!explicitDecisions.length && input.workspaceId) {
-        const settings = await this.getSettings(
-          input.userId,
-          input.workspaceId
-        );
-        if (!settings.autoMemoryEnabled) return [];
-      }
       const projectIds = input.docId ? [] : (input.scope?.projectIds ?? []);
       if (!workspaceId && projectIds.length !== 1) return [];
+      const session = await this.models.copilotSession.getMeta(input.sessionId);
+      if (
+        !session ||
+        session.userId !== input.userId ||
+        session.workspaceId !== workspaceId ||
+        (projectIds.length === 1 &&
+          session.selectedContextProjectId !== projectIds[0])
+      ) {
+        return [];
+      }
+      if (!explicitDecisions.length) {
+        if (projectIds.length === 1 && !session.allowMemoryCapture) return [];
+        const settings = input.workspaceId
+          ? await this.getSettings(input.userId, input.workspaceId)
+          : await this.getProjectSettings(input.userId, projectIds[0]);
+        if (!settings.autoMemoryEnabled) return [];
+      }
       // A rejected project scope must never become a broader memory target.
       if (
         input.scope &&
@@ -1087,7 +1166,11 @@ export class ContextMemoryService implements OnModuleInit {
 
   async update(
     id: string,
-    input: { content?: string; status?: CopilotContextMemoryStatus },
+    input: {
+      content?: string;
+      status?: CopilotContextMemoryStatus;
+      expectedRevision?: number;
+    },
     actorUserId?: string
   ) {
     const current = await this.models.copilotContextMemory.get(id);
@@ -1246,22 +1329,38 @@ export class ContextMemoryService implements OnModuleInit {
     return memory;
   }
 
-  async delete(id: string, actorUserId?: string) {
-    return await this.models.copilotContextMemory.delete(id, actorUserId);
+  async delete(id: string, actorUserId?: string, expectedRevision?: number) {
+    return await this.models.copilotContextMemory.delete(
+      id,
+      actorUserId,
+      expectedRevision
+    );
   }
 
-  async listWriterEvents(userId: string, workspaceId: string, limit?: number) {
+  async listWriterEvents(
+    userId: string,
+    workspaceId: string | null,
+    limit?: number,
+    projectId?: string
+  ) {
     return await this.models.copilotContextMemory.listWriterEvents({
       ownerUserId: userId,
       workspaceId,
+      projectId,
       limit,
     });
   }
 
-  async undoWriterEvent(userId: string, workspaceId: string, eventId: string) {
+  async undoWriterEvent(
+    userId: string,
+    workspaceId: string | null,
+    eventId: string,
+    projectId?: string
+  ) {
     return await this.models.copilotContextMemory.undoWriterEvent({
       ownerUserId: userId,
       workspaceId,
+      projectId,
       eventId,
     });
   }

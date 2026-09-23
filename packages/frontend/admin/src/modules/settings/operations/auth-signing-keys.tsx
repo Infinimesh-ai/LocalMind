@@ -19,6 +19,7 @@ import { useI18n } from '@affine/i18n';
 import { useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '../../../components/shared/confirm-dialog';
+import { translateAdminText } from '../../../localized-text';
 
 type PendingAction =
   | { type: 'rotate'; keyId: string }
@@ -135,10 +136,10 @@ export function AuthSigningKeys() {
                     {i18n['com.affine.integration.readwise-prop.created']()}{' '}
                     {formatDate(key.createdAt)}
                     {key.verifyUntil
-                      ? ` · Verifiable until ${formatDate(key.verifyUntil)}`
+                      ? ` · ${i18n['com.affine.admin.ui.verifiable-until']({ time: formatDate(key.verifyUntil) })}`
                       : ''}
                     {key.retiredAt
-                      ? ` · Retired ${formatDate(key.retiredAt)}`
+                      ? ` · ${i18n['com.affine.admin.ui.retired-at']({ time: formatDate(key.retiredAt) })}`
                       : ''}
                   </div>
                 </div>
@@ -204,5 +205,7 @@ export function AuthSigningKeys() {
 }
 
 function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : 'Unknown';
+  return value
+    ? new Date(value).toLocaleString()
+    : translateAdminText('Unknown');
 }

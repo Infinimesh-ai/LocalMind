@@ -142,7 +142,7 @@ export const conversationAndPeek = style({
     },
   },
   '@media': {
-    'screen and (max-width: 760px)': {
+    'screen and (max-width: 1040px)': {
       selectors: {
         '&[data-project="true"][data-fullscreen="false"]': {
           gridTemplateColumns: 'minmax(0, 1fr)',
@@ -156,10 +156,9 @@ export const conversationPane = style({
   minWidth: 0,
   minHeight: 0,
   height: '100%',
-  borderLeft: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
   selectors: { '&[hidden]': { display: 'none' } },
   '@media': {
-    'screen and (max-width: 760px)': {
+    'screen and (max-width: 1040px)': {
       selectors: {
         [`${conversationAndPeek}[data-view="files"] &`]: { display: 'none' },
       },
@@ -172,14 +171,45 @@ export const resourcePane = style({
   minHeight: 0,
   height: '100%',
   overflow: 'hidden',
+  borderLeft: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
   '@media': {
-    'screen and (max-width: 760px)': {
+    'screen and (max-width: 1040px)': {
+      borderLeft: 0,
       selectors: {
         [`${conversationAndPeek}[data-view="chat"][data-fullscreen="false"] &`]:
           { display: 'none' },
       },
     },
   },
+});
+export const resourceWorkspace = style({
+  width: '100%',
+  height: '100%',
+  minWidth: 0,
+  minHeight: 0,
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  overflow: 'hidden',
+  selectors: {
+    '&[data-tree-open="true"]': {
+      gridTemplateColumns: 'minmax(180px, 232px) minmax(0, 1fr)',
+    },
+  },
+  '@media': {
+    'screen and (max-width: 1040px)': {
+      selectors: {
+        '&[data-tree-open="true"]': {
+          gridTemplateColumns: 'minmax(160px, 204px) minmax(0, 1fr)',
+        },
+      },
+    },
+  },
+});
+export const narrowTree = style({
+  minWidth: 0,
+  minHeight: 0,
+  overflow: 'hidden',
+  borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 export const filesPane = style({
   height: '100%',
@@ -222,9 +252,23 @@ globalStyle(`${projectBreadcrumbs} button + button::before`, {
 });
 export const mobileViewTabs = style({
   display: 'none',
-  '@media': { 'screen and (max-width: 760px)': { display: 'flex', gap: 4 } },
+  '@media': { 'screen and (max-width: 1040px)': { display: 'flex', gap: 4 } },
+});
+export const rightPanelTrigger = style({
+  flexShrink: 0,
+  display: 'inline-flex',
 });
 export const taskArea = style({ order: 3, flexShrink: 0, minWidth: 0 });
+
+export const workOrderSenderState = style({
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 24,
+  color: cssVarV2('text/secondary'),
+  textAlign: 'center',
+});
 
 export const peekPane = style({
   minWidth: 0,

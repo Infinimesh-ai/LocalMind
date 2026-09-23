@@ -503,6 +503,52 @@ describe('Global Tasks page', () => {
 
   afterEach(cleanup);
 
+  test('returns to the originating Workspace home when requested', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/tasks?returnTo=%2Fworkspace%2Fworkspace-a%2Fall']}
+      >
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.returnToWorkspace',
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/workspace/workspace-a/all'
+      );
+    });
+  });
+
+  test('rejects an external return target and falls back to Projects', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/tasks?returnTo=https%3A%2F%2Fevil.example%2Fworkspace%2Fx%2Fall',
+        ]}
+      >
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.projects',
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/project');
+    });
+  });
+
   test('loads user-level history and operates a non-run authorization item', async () => {
     render(
       <MemoryRouter

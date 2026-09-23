@@ -143,13 +143,26 @@ export type ContextPlannerMemory = {
 };
 
 export type ContextPlannerCheckpoint = {
+  id?: string;
   strategyVersion: string;
   strategyFingerprint: string;
   summary: string;
   summarizedMessageCount: number;
   sourceFingerprint: string;
   diagnostics: Record<string, unknown>;
+  summaryData?: Record<string, unknown>;
 };
+
+export class ContextCompactionUnavailableError extends Error {
+  readonly code = 'CONTEXT_COMPACTION_UNAVAILABLE';
+
+  constructor() {
+    super(
+      'The conversation exceeds the context budget and no faithful rolling summary could be produced'
+    );
+    this.name = 'ContextCompactionUnavailableError';
+  }
+}
 
 export type ContextPlanResult = {
   messages: PromptMessage[];
@@ -794,6 +807,54 @@ function buildPlannerTrace(input: {
 
 @Injectable()
 export class ContextPlanner {
+  createManualCheckpoint(input: {
+    turns: PromptMessage[];
+    checkpoint?: ContextPlannerCheckpoint | null;
+    retainRecentMessages?: number;
+  }): ContextPlannerCheckpoint | null {
+    const retainRecentMessages = Math.min(
+      20,
+      Math.max(2, input.retainRecentMessages ?? 4)
+    );
+    const summarizedMessageCount = Math.max(
+      input.checkpoint?.summarizedMessageCount ?? 0,
+      input.turns.length - retainRecentMessages
+    );
+    if (
+      summarizedMessageCount <= 0 ||
+      summarizedMessageCount <= (input.checkpoint?.summarizedMessageCount ?? 0)
+    ) {
+      return null;
+    }
+    const prefix = input.turns.slice(0, summarizedMessageCount);
+    const summary =
+      buildValidatedRollingSummary(
+        input.checkpoint ?? null,
+        input.turns,
+        summarizedMessageCount,
+        CONTEXT_PLANNER_STRATEGY_VERSION,
+        CONTEXT_PLANNER_STRATEGY_FINGERPRINT
+      ) || 'Earlier conversation selected for structured compaction.';
+    return {
+      strategyVersion: CONTEXT_PLANNER_STRATEGY_VERSION,
+      strategyFingerprint: CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+      summary,
+      summarizedMessageCount,
+      sourceFingerprint: fingerprintTurns(prefix),
+      diagnostics: {
+        strategyVersion: CONTEXT_PLANNER_STRATEGY_VERSION,
+        strategyFingerprint: CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+        inputMessageCount: input.turns.length,
+        retainedMessageCount: input.turns.length - summarizedMessageCount,
+        omittedMessageCount: summarizedMessageCount,
+        injectedMemoryCount: 0,
+        summaryInjected: true,
+        planningPasses: 1,
+        trigger: 'manual',
+      },
+    };
+  }
+
   plan(
     input: ContextPlanInput,
     strategyVersion: ContextPlannerStrategyVersion = CONTEXT_PLANNER_STRATEGY_VERSION
@@ -948,6 +1009,9 @@ export class ContextPlanner {
     }
 
     const retainedMessageCount = input.turns.length - omittedCount;
+    if (omittedCount > 0 && !summary) {
+      throw new ContextCompactionUnavailableError();
+    }
     const diagnostics = {
       strategyVersion: CONTEXT_PLANNER_STRATEGY_VERSION,
       strategyFingerprint: CONTEXT_PLANNER_STRATEGY_FINGERPRINT,

@@ -22,6 +22,7 @@ declare interface BUILD_CONFIG_TYPE {
   isAdmin: boolean;
 
   appVersion: string;
+  workerBuildId: string;
   editorVersion: string;
   appBuildType: 'stable' | 'beta' | 'internal' | 'canary';
 

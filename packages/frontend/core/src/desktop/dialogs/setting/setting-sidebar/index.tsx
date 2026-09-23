@@ -11,16 +11,14 @@ import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
-import {
-  type HTMLAttributes,
-  type ReactNode,
-  Suspense,
-  useCallback,
-  useMemo,
-} from 'react';
+import { Suspense, useCallback, useMemo } from 'react';
 
 import { useGeneralSettingList } from '../general-setting';
 import { useWorkspaceSettingList } from '../workspace-setting';
+import {
+  SettingSidebarItem,
+  type SettingSidebarItemProps,
+} from './setting-sidebar-item';
 import * as style from './style.css';
 
 export type UserInfoProps = {
@@ -102,44 +100,6 @@ export const SignInButton = () => {
           {t['com.affine.setting.sign.message']()}
         </div>
       </div>
-    </div>
-  );
-};
-
-type SettingSidebarItemProps = {
-  isActive: boolean;
-  icon: ReactNode;
-  title: string;
-  key: string;
-  testId?: string;
-  beta?: boolean;
-} & HTMLAttributes<HTMLDivElement>;
-
-const SettingSidebarItem = ({
-  isActive,
-  icon,
-  title,
-  testId,
-  beta,
-  ...props
-}: SettingSidebarItemProps) => {
-  const i18n = useI18n();
-  return (
-    <div
-      {...props}
-      title={title}
-      data-testid={testId}
-      className={clsx(style.sidebarSelectItem, {
-        active: isActive,
-      })}
-    >
-      <div className={style.sidebarSelectItemIcon}>{icon}</div>
-      <div className={style.sidebarSelectItemName}>{title}</div>
-      {beta ? (
-        <div className={style.sidebarSelectItemBeta}>
-          {i18n['com.affine.ui.beta']()}
-        </div>
-      ) : null}
     </div>
   );
 };

@@ -11,6 +11,7 @@ import {
   ForkAIChatSessionStrategy,
   PlaygroundAIChatSessionStrategy,
   ProjectAIChatSessionStrategy,
+  WorkOrderAIChatSessionStrategy,
   WorkspaceAIChatSessionStrategy,
 } from './session-strategy';
 import type { AIChatScope } from './state';
@@ -40,6 +41,31 @@ function session(
     tokens: 0,
     ...overrides,
   } as CopilotChatHistoryFragment;
+}
+
+function compactionTask(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'compaction-1',
+    sessionId: 'session-1',
+    contextEpoch: 0,
+    status: 'queued',
+    summarizedMessageCount: 8,
+    attempt: 0,
+    maxAttempts: 3,
+    inputBudget: 4096,
+    inputTokensEstimated: null,
+    outputTokensEstimated: null,
+    outputCharacters: null,
+    failureCode: null,
+    failureMessage: null,
+    checkpointId: null,
+    summary: null,
+    summaryData: null,
+    requestedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    completedAt: null,
+    ...overrides,
+  } as never;
 }
 
 async function* stream(chunks: string[]) {
@@ -76,8 +102,33 @@ function createRequest(
         items: [],
       }),
       set: vi.fn(),
+      refresh: vi.fn(),
       upload: vi.fn(),
       resource: vi.fn(),
+    },
+    projectMemoryCapture: {
+      get: vi.fn().mockResolvedValue({
+        sessionId: 'session-1',
+        projectId: 'project-1',
+        allowMemoryCapture: false,
+        revision: 1,
+      }),
+      update: vi
+        .fn()
+        .mockImplementation(
+          async (sessionId, allowMemoryCapture, expectedRevision) => ({
+            sessionId,
+            projectId: 'project-1',
+            allowMemoryCapture,
+            revision: expectedRevision + 1,
+          })
+        ),
+    },
+    contextCompaction: {
+      get: vi.fn().mockResolvedValue({ task: null, events: [] }),
+      request: vi.fn().mockResolvedValue(null),
+      retry: vi.fn(),
+      cancel: vi.fn(),
     },
     getRecentSessions: vi.fn().mockResolvedValue([]),
     getSession: vi.fn().mockResolvedValue(null),
@@ -124,6 +175,38 @@ function createRuntime(request = createRequest()) {
 }
 
 describe('AIChatRuntime', () => {
+  test('creates the initial Project and work-order UI policies before snapshot assignment', () => {
+    const projectRuntime = new AIChatRuntime({
+      request: createRequest(),
+      scope: { kind: 'project', projectId: 'project-1' },
+      strategy: new ProjectAIChatSessionStrategy(),
+      chatSurface: 'intelligence_workbench',
+      projectId: 'project-1',
+    });
+    expect(projectRuntime.getSnapshot().uiPolicy.showDraftTab).toBe(true);
+
+    const workOrderRuntime = new AIChatRuntime({
+      request: createRequest(),
+      scope: {
+        kind: 'work_order',
+        workOrderId: 'work-order-1',
+        sessionId: 'session-1',
+      },
+      strategy: new WorkOrderAIChatSessionStrategy(),
+      chatSurface: 'intelligence_workbench',
+    });
+    expect(workOrderRuntime.getSnapshot().uiPolicy).toEqual(
+      expect.objectContaining({
+        showDraftTab: false,
+        canCreateNewSession: false,
+        canCloseActiveTab: false,
+        canPinActiveSession: false,
+        canSend: true,
+        canRequestContextCompaction: false,
+      })
+    );
+  });
+
   test('Project sessions create, send, reopen and delete without any Workspace API', async () => {
     const projectSession = session({
       workspaceId: null,
@@ -179,6 +262,49 @@ describe('AIChatRuntime', () => {
     expect(request.cleanupSessions).not.toHaveBeenCalled();
     expect(request.context.getContextId).not.toHaveBeenCalled();
     expect(request.context.getSessionScope).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  test('Project conversation memory contribution is disabled by default and updated with revision CAS', async () => {
+    const projectSession = session({
+      workspaceId: null,
+      docId: null,
+      selectedContextProjectId: 'project-1',
+    });
+    const request = createRequest({
+      createSessionWithHistory: vi.fn().mockResolvedValue(projectSession),
+    });
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'project', projectId: 'project-1' },
+      strategy: new ProjectAIChatSessionStrategy(),
+    });
+
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: projectSession,
+    });
+    await runtime.dispatch({ type: 'loadProjectMemoryCapture' });
+    expect(
+      runtime.getSnapshot().composer.projectMemoryCapture.allowMemoryCapture
+    ).toBe(false);
+    await runtime.dispatch({
+      type: 'setProjectMemoryCapture',
+      allowMemoryCapture: true,
+    });
+
+    expect(request.projectMemoryCapture.update).toHaveBeenCalledWith(
+      'session-1',
+      true,
+      1
+    );
+    expect(runtime.getSnapshot().composer.projectMemoryCapture).toMatchObject({
+      allowMemoryCapture: true,
+      revision: 2,
+      loading: false,
+      error: null,
+    });
     runtime.dispose();
   });
 
@@ -549,6 +675,110 @@ describe('AIChatRuntime', () => {
     expect(request.executeAction).toHaveBeenCalledTimes(1);
     expect(runtime.getSnapshot().messages.at(-1)?.content).toBe('done');
     expect(runtime.getSnapshot().uiPolicy.canCreateNewSession).toBe(true);
+  });
+
+  test('manual context organization exposes durable progress and retry without changing the draft', async () => {
+    const queued = compactionTask();
+    const failed = compactionTask({
+      status: 'failed',
+      attempt: 1,
+      failureCode: 'MODEL_OUTPUT_INVALID',
+      failureMessage: 'The structured summary was invalid',
+      completedAt: new Date().toISOString(),
+    });
+    const retried = compactionTask({ status: 'queued', attempt: 2 });
+    const request = createRequest({
+      contextCompaction: {
+        get: vi.fn().mockResolvedValue({ task: failed, events: [] }),
+        request: vi.fn().mockResolvedValue(queued),
+        retry: vi.fn().mockResolvedValue(retried),
+        cancel: vi.fn(),
+      },
+    } as Partial<AIRequestService>);
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({ type: 'openSessionObject', session: session() });
+    await runtime.dispatch({
+      type: 'setComposerText',
+      text: 'keep this draft',
+    });
+    await waitUntil(() => {
+      expect(runtime.getSnapshot().contextCompaction.task?.status).toBe(
+        'failed'
+      );
+    });
+
+    await runtime.dispatch({ type: 'requestContextCompaction' });
+    expect(request.contextCompaction.request).toHaveBeenCalledWith('session-1');
+    expect(runtime.getSnapshot().composer.text).toBe('keep this draft');
+
+    await waitUntil(() => {
+      expect(runtime.getSnapshot().contextCompaction.task?.status).toBe(
+        'failed'
+      );
+    });
+    await runtime.dispatch({ type: 'retryContextCompaction' });
+    expect(request.contextCompaction.retry).toHaveBeenCalledWith(
+      'compaction-1'
+    );
+    expect(runtime.getSnapshot().composer.text).toBe('keep this draft');
+    runtime.dispose();
+  });
+
+  test('late context organization results are ignored after switching Project', async () => {
+    const pending = Promise.withResolvers<{
+      task: ReturnType<typeof compactionTask>;
+      events: never[];
+    }>();
+    const request = createRequest({
+      getProjectSession: vi.fn().mockResolvedValue(null),
+      contextCompaction: {
+        get: vi
+          .fn()
+          .mockReturnValueOnce(pending.promise)
+          .mockResolvedValue({ task: null, events: [] }),
+        request: vi.fn(),
+        retry: vi.fn(),
+        cancel: vi.fn(),
+      },
+    } as Partial<AIRequestService>);
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'project', projectId: 'project-1' },
+      strategy: new ProjectAIChatSessionStrategy(),
+    });
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: session({
+        workspaceId: null,
+        docId: null,
+        selectedContextProjectId: 'project-1',
+      }),
+    });
+    await vi.waitFor(() =>
+      expect(request.contextCompaction.get).toHaveBeenCalledWith(
+        'session-1',
+        undefined
+      )
+    );
+    await runtime.dispatch({
+      type: 'setScope',
+      scope: { kind: 'project', projectId: 'project-2' },
+    });
+    pending.resolve({
+      task: compactionTask({ status: 'succeeded' }),
+      events: [],
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.getSnapshot().scope).toEqual({
+      kind: 'project',
+      projectId: 'project-2',
+    });
+    expect(runtime.getSnapshot().contextCompaction.task).toBeNull();
+    runtime.dispose();
   });
 
   test('send creates a new session with the provided prompt scope', async () => {

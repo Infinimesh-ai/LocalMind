@@ -18,6 +18,7 @@ import {
   type QueryResponse,
   saveProjectByokConfigMutation,
   setProjectByokEnabledMutation,
+  setWorkOrderByokEnabledMutation,
   testProjectByokConfigMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
@@ -74,7 +75,11 @@ function ProjectByokForm({
   const { trigger: setEnabled, isMutating: toggling } = useMutation({
     mutation: setProjectByokEnabledMutation,
   });
-  const busy = testing || saving || toggling;
+  const { trigger: setWorkOrderEnabled, isMutating: togglingWorkOrders } =
+    useMutation({
+      mutation: setWorkOrderByokEnabledMutation,
+    });
+  const busy = testing || saving || toggling || togglingWorkOrders;
   const canTest = Boolean(
     apiKey.trim() || (settings.configured && provider === settings.provider)
   );
@@ -164,6 +169,31 @@ function ProjectByokForm({
     }
   };
 
+  const handleWorkOrderEnabled = async (enabled: boolean) => {
+    if (busy || !settings.configured || !settings.enabled) return;
+    setFeedback(null);
+    try {
+      await setWorkOrderEnabled({
+        expectedRevision: settings.revision,
+        enabled,
+      });
+      toast.success(
+        enabled
+          ? i18n['com.affine.admin.work-order-ai-enabled']()
+          : i18n['com.affine.admin.work-order-ai-disabled']()
+      );
+      await onSaved();
+    } catch {
+      setFeedback({
+        ok: false,
+        message:
+          i18n[
+            'com.affine.admin.update-failed-reload-the-settings-and-check-the-provider-connection'
+          ](),
+      });
+    }
+  };
+
   return (
     <form
       onSubmit={event => {
@@ -197,6 +227,28 @@ function ProjectByokForm({
               })
             : i18n['com.affine.admin.not-configured']()}
         </Badge>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-border p-3">
+        <Switch
+          id="project-byok-work-order-enabled"
+          checked={settings.workOrderEnabled}
+          disabled={!settings.configured || !settings.enabled || busy}
+          onCheckedChange={enabled => {
+            handleWorkOrderEnabled(enabled).catch(() =>
+              toast.error(
+                i18n['com.affine.admin.could-not-update-project-byok']()
+              )
+            );
+          }}
+        />
+        <div className="min-w-0 space-y-1">
+          <Label htmlFor="project-byok-work-order-enabled">
+            {i18n['com.affine.admin.work-order-ai-enabled-label']()}
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            {i18n['com.affine.admin.work-order-ai-enabled-help']()}
+          </p>
+        </div>
       </div>
       {!settings.configured ? (
         <p className="text-sm text-muted-foreground">
@@ -454,7 +506,9 @@ export function ProjectByokAdmin() {
                     : i18n[
                         'com.affine.integration.external-mcp.status.disabled'
                       ]()}
-                  {event.credentialChanged ? ' / Key updated' : ''}
+                  {event.credentialChanged
+                    ? ` / ${i18n['com.affine.admin.ui.key-updated']()}`
+                    : ''}
                 </span>
                 <span className="min-w-0 break-all text-muted-foreground">
                   {event.actorId}

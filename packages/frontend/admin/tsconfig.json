@@ -9,26 +9,12 @@
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "references": [
-    {
-      "path": "../component"
-    },
-    {
-      "path": "../core"
-    },
-    {
-      "path": "../../common/error"
-    },
-    {
-      "path": "../../common/graphql"
-    },
-    {
-      "path": "../routes"
-    },
-    {
-      "path": "../i18n"
-    },
-    {
-      "path": "../../common/infra"
-    }
+    { "path": "../component" },
+    { "path": "../core" },
+    { "path": "../../common/error" },
+    { "path": "../../common/graphql" },
+    { "path": "../i18n" },
+    { "path": "../routes" },
+    { "path": "../../common/infra" }
   ]
 }

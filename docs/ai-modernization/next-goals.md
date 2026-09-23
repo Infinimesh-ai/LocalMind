@@ -77,6 +77,34 @@ Implemented outcome:
   pause, bounded retry, and authorization rechecks, while GraphQL memory APIs
   enforce throttling, enum validation, scope isolation, quotas, and bounded
   user-facing persistence errors.
+- Project Memory now has one shared identity per Project rather than per-user
+  shadow libraries; current members recall the same active facts while source
+  conversations, private attachments and rolling checkpoints remain private;
+- contribution and conflict records preserve real actors, ordinary members cannot
+  rewrite multi-author facts, and Owners resolve conflicts with revision checks;
+- Project and per-session automatic-contribution switches use independent revisions,
+  and native Project context refresh preserves frozen historical versions;
+- session deletion immediately revokes reads, then a leased durable task purges
+  private messages/context/checkpoints and redacts runtime payloads while preserving
+  lawful shared Project Memory and a minimal receipt;
+- checkpoint summaries are immutable revisions behind a current pointer and are
+  invalidated by session epoch and shared Project Memory revision changes.
+- checkpoint publication now runs through a persisted compaction task before the
+  model request, with stable request identity, lease takeover, bounded retry,
+  cancellation, source-prefix/dependency/pointer CAS and stale-result rejection.
+- rolling compaction now requires a provider-neutral structured summary with
+  source/receipt validation, conservative budget accounting, oversized-message
+  splitting and explicit long-material coverage/omission evidence;
+- chat surfaces durable compaction progress, manual start, cancel/retry, token
+  evidence and reconnect-safe Project/session isolation;
+- session cleanup records normalized Project Blob references, physically removes
+  only unreferenced objects after final database recheck, and exposes content-free
+  user/Admin status including hold and backup-retention state;
+- long-term log retention writes a signed, versioned private archive, verifies it
+  before hot deletion, retains persistent batch state, and detects tampering across
+  key rotation;
+- signed recovery barriers replay session deletion, Memory isolation and grant
+  revocation before AppModule/worker startup after a restore.
 
 Remaining follow-up:
 
@@ -86,8 +114,11 @@ Remaining follow-up:
   with deployment-specific policy controls;
 - run real Sparkclaw embedding/reranker shadow evaluation and production-scale
   retrieval/load tests before enabling model-backed ranking broadly;
-- replace heuristic rolling summaries with structured model summaries carrying
-  provenance and conflict-safe refresh semantics;
+- evaluate the strict structured compaction path with an authorized real Project
+  BYOK, then tune quality, cost and latency without weakening provenance or budgets;
+- complete production migration classification, a real database/object-store
+  backup restore, full privacy scan, browser matrix and the remaining A01-A40
+  deployment acceptance before runtime cutover;
 - join planner traces to correction/undo, answer-quality, cost, and latency
   outcomes, then add staged rollout and online A/B controls without retaining
   sensitive prompt text.

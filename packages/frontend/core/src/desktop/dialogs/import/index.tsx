@@ -1,9 +1,4 @@
-import {
-  Button,
-  IconButton,
-  Modal,
-  startSafeViewTransition,
-} from '@affine/component';
+import { Button, Modal, startSafeViewTransition } from '@affine/component';
 import { getStoreManager } from '@affine/core/blocksuite/manager/store';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
@@ -56,15 +51,9 @@ import {
 import { useService } from '@toeverything/infra';
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
-import {
-  type ReactElement,
-  type SVGAttributes,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { ImportOptionItem } from './import-option-item';
 import { requestPdfPageOcr } from './pdf-ocr';
 import * as style from './styles.css';
 
@@ -695,47 +684,6 @@ const importConfigs: Record<ImportType, ImportConfig> = {
   },
 };
 
-const ImportOptionItem = ({
-  label,
-  labelText,
-  prefixIcon,
-  suffixIcon,
-  suffixTooltip,
-  type,
-  onImport,
-  disabled,
-  ...props
-}: {
-  label: string;
-  labelText?: string;
-  prefixIcon: ReactElement<SVGAttributes<SVGElement>>;
-  suffixIcon?: ReactElement<SVGAttributes<SVGElement>>;
-  suffixTooltip?: string;
-  type: ImportType;
-  onImport: (type: ImportType) => void;
-  disabled?: boolean;
-}) => {
-  const t = useI18n();
-  return (
-    <div
-      className={disabled ? style.importItemDisabled : style.importItem}
-      onClick={() => onImport(type)}
-      aria-disabled={disabled}
-      {...props}
-    >
-      {prefixIcon}
-      <div className={style.importItemLabel}>{labelText ?? t[label]()}</div>
-      {suffixIcon && (
-        <IconButton
-          className={style.importItemSuffix}
-          icon={suffixIcon}
-          tooltip={suffixTooltip ? t[suffixTooltip]() : undefined}
-        />
-      )}
-    </div>
-  );
-};
-
 const ImportOptions = ({
   onImport,
 }: {
@@ -769,8 +717,7 @@ const ImportOptions = ({
                 suffixTooltip={suffixTooltip}
                 label={label}
                 labelText={labelText}
-                type={type}
-                onImport={onImport}
+                onImport={() => onImport(type)}
                 disabled={disabled}
                 data-testid={testId}
               />

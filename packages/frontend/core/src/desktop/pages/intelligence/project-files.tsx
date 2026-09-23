@@ -40,6 +40,7 @@ import {
   UploadIcon,
 } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
+import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 
 import {
@@ -178,6 +179,7 @@ function FileBranch(props: BranchProps) {
                 <button
                   className={styles.open}
                   type="button"
+                  data-project-resource-id={file.id}
                   disabled={props.trash || selectionDisabled}
                   aria-current={props.selectedResourceId === file.id}
                   onClick={() =>
@@ -232,7 +234,7 @@ function FileBranch(props: BranchProps) {
                                     parentId: file.id,
                                     resourceKind: ProjectResourceKind.page,
                                     name: '',
-                                    requestKey: crypto.randomUUID(),
+                                    requestKey: nanoid(),
                                   })
                                 }
                               >
@@ -249,7 +251,7 @@ function FileBranch(props: BranchProps) {
                                     parentId: file.id,
                                     resourceKind: ProjectResourceKind.folder,
                                     name: '',
-                                    requestKey: crypto.randomUUID(),
+                                    requestKey: nanoid(),
                                   })
                                 }
                               >
@@ -267,7 +269,7 @@ function FileBranch(props: BranchProps) {
                                 kind: 'rename',
                                 file,
                                 name: file.title,
-                                requestKey: crypto.randomUUID(),
+                                requestKey: nanoid(),
                               })
                             }
                           >
@@ -281,7 +283,7 @@ function FileBranch(props: BranchProps) {
                                 kind: 'move',
                                 file,
                                 name: file.title,
-                                requestKey: crypto.randomUUID(),
+                                requestKey: nanoid(),
                               })
                             }
                           >
@@ -592,7 +594,7 @@ export function ProjectFiles(props: FileTreeProps) {
     });
 
   const permanentlyDelete = (file: ProjectFile) => {
-    const requestKey = crypto.randomUUID();
+    const requestKey = nanoid();
     openConfirmModal({
       title: t['com.affine.localmind.project-files.permanentlyDelete'](),
       description: t[
@@ -655,7 +657,7 @@ export function ProjectFiles(props: FileTreeProps) {
             projectId: props.projectId,
             resourceId: file.id,
             expectedVersion: file.version,
-            requestKey: crypto.randomUUID(),
+            requestKey: nanoid(),
             ...change,
           },
         },
@@ -697,7 +699,7 @@ export function ProjectFiles(props: FileTreeProps) {
     const queue: Upload[] = files.map(file => ({
       file,
       parentId: directoryId,
-      requestKey: crypto.randomUUID(),
+      requestKey: nanoid(),
       status: 'queued',
     }));
     setUploads(current => [...current, ...queue]);
@@ -805,7 +807,7 @@ export function ProjectFiles(props: FileTreeProps) {
                       parentId,
                       resourceKind: kind as ProjectResourceKind,
                       name: '',
-                      requestKey: crypto.randomUUID(),
+                      requestKey: nanoid(),
                     });
                   }}
                 >
@@ -976,9 +978,7 @@ export function ProjectFiles(props: FileTreeProps) {
                 disabled={pending}
                 onChange={name =>
                   setAction(current =>
-                    current
-                      ? { ...current, name, requestKey: crypto.randomUUID() }
-                      : null
+                    current ? { ...current, name, requestKey: nanoid() } : null
                   )
                 }
               />

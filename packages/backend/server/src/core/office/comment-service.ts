@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import type { OfficeArtifactKind } from '@prisma/client';
 import { z } from 'zod';
 
 import { Models } from '../../models';
+import {
+  type OfficeOwner,
+  officeOwnerFromInput,
+  type OfficeOwnerInput,
+} from '../../models/office-owner';
 import { PermissionAccess } from '../permission';
 
 const id = z.string().trim().min(1).max(512);
@@ -92,9 +98,9 @@ export class OfficeCommentService {
     private readonly ac: PermissionAccess
   ) {}
 
-  async list(workspaceId: string, actorId: string, artifactId: string) {
-    await this.assertRead(workspaceId, actorId, artifactId);
-    const comments = await this.models.comment.list(workspaceId, artifactId, {
+  async list(owner: OfficeOwner, actorId: string, artifactId: string) {
+    await this.assertRead(owner, actorId, artifactId);
+    const comments = await this.models.officeComment.list(owner, artifactId, {
       take: 100,
     });
     const users = await this.models.user.getPublicUsersMap([
@@ -111,15 +117,11 @@ export class OfficeCommentService {
     }));
   }
 
-  async collaborators(
-    workspaceId: string,
-    actorId: string,
-    artifactId: string
-  ) {
-    const artifact = await this.assertRead(workspaceId, actorId, artifactId);
+  async collaborators(owner: OfficeOwner, actorId: string, artifactId: string) {
+    const artifact = await this.assertRead(owner, actorId, artifactId);
     const [revisions, comments] = await Promise.all([
-      this.models.officeArtifact.listRevisions(workspaceId, artifactId, 100),
-      this.models.comment.list(workspaceId, artifactId, { take: 100 }),
+      this.models.officeArtifact.listRevisions(owner, artifactId, 100),
+      this.models.officeComment.list(owner, artifactId, { take: 100 }),
     ]);
     const userIds = new Set([
       artifact.createdBy,
@@ -137,21 +139,20 @@ export class OfficeCommentService {
       .filter(user => user !== undefined);
   }
 
-  async create(input: {
-    workspaceId: string;
-    artifactId: string;
-    actorId: string;
-    content: unknown;
-  }) {
-    await this.assertWrite(input.workspaceId, input.actorId, input.artifactId);
+  @Transactional()
+  async create(
+    input: OfficeOwnerInput & {
+      artifactId: string;
+      actorId: string;
+      content: unknown;
+    }
+  ) {
+    const owner = officeOwnerFromInput(input);
+    await this.assertWrite(owner, input.actorId, input.artifactId);
     const content = OfficeCommentContentSchema.parse(input.content);
-    await this.assertAnchor(
-      input.workspaceId,
-      input.artifactId,
-      content.anchor
-    );
-    const comment = await this.models.comment.create({
-      workspaceId: input.workspaceId,
+    await this.assertAnchor(owner, input.artifactId, content.anchor);
+    const comment = await this.models.officeComment.create({
+      owner,
       docId: input.artifactId,
       userId: input.actorId,
       content,
@@ -159,44 +160,52 @@ export class OfficeCommentService {
     return await this.projectComment(comment);
   }
 
+  @Transactional()
   async update(input: { actorId: string; id: string; content: unknown }) {
     const comment = await this.requireComment(input.id);
-    await this.assertWrite(comment.workspaceId, input.actorId, comment.docId);
+    await this.assertWrite(this.ownerOf(comment), input.actorId, comment.docId);
     const content = OfficeCommentContentSchema.parse(input.content);
-    await this.assertAnchor(comment.workspaceId, comment.docId, content.anchor);
-    const updated = await this.models.comment.update({
+    await this.assertAnchor(
+      this.ownerOf(comment),
+      comment.docId,
+      content.anchor
+    );
+    const updated = await this.models.officeComment.update({
       id: comment.id,
       content,
     });
     return await this.projectComment(updated);
   }
 
+  @Transactional()
   async resolve(input: { actorId: string; id: string; resolved: boolean }) {
     const comment = await this.requireComment(input.id);
-    await this.assertWrite(comment.workspaceId, input.actorId, comment.docId);
-    const updated = await this.models.comment.resolve({
+    await this.assertWrite(this.ownerOf(comment), input.actorId, comment.docId);
+    const updated = await this.models.officeComment.resolve({
       id: comment.id,
       resolved: input.resolved,
     });
     return await this.projectComment(updated);
   }
 
+  @Transactional()
   async delete(input: { actorId: string; id: string }) {
     const comment = await this.requireComment(input.id);
-    await this.assertWrite(comment.workspaceId, input.actorId, comment.docId);
-    await this.models.comment.delete(comment.id);
+    await this.assertWrite(this.ownerOf(comment), input.actorId, comment.docId);
+    await this.models.officeComment.delete(comment.id);
     return comment;
   }
 
+  @Transactional()
   async createReply(input: {
     actorId: string;
     commentId: string;
     content: unknown;
   }) {
     const comment = await this.requireComment(input.commentId);
-    await this.assertWrite(comment.workspaceId, input.actorId, comment.docId);
+    await this.assertWrite(this.ownerOf(comment), input.actorId, comment.docId);
     const content = OfficeCommentReplyContentSchema.parse(input.content);
-    const reply = await this.models.comment.createReply({
+    const reply = await this.models.officeComment.createReply({
       commentId: comment.id,
       userId: input.actorId,
       content,
@@ -204,38 +213,37 @@ export class OfficeCommentService {
     return await this.projectReply(reply);
   }
 
+  @Transactional()
   async updateReply(input: { actorId: string; id: string; content: unknown }) {
     const reply = await this.requireReply(input.id);
-    await this.assertWrite(reply.workspaceId, input.actorId, reply.docId);
+    await this.assertWrite(this.ownerOf(reply), input.actorId, reply.docId);
     const content = OfficeCommentReplyContentSchema.parse(input.content);
-    const updated = await this.models.comment.updateReply({
+    const updated = await this.models.officeComment.updateReply({
       id: reply.id,
       content,
     });
     return await this.projectReply(updated);
   }
 
+  @Transactional()
   async deleteReply(input: { actorId: string; id: string }) {
     const reply = await this.requireReply(input.id);
-    await this.assertWrite(reply.workspaceId, input.actorId, reply.docId);
-    await this.models.comment.deleteReply(reply.id);
+    await this.assertWrite(this.ownerOf(reply), input.actorId, reply.docId);
+    await this.models.officeComment.deleteReply(reply.id);
     return reply;
   }
 
   private async assertAnchor(
-    workspaceId: string,
+    owner: OfficeOwner,
     artifactId: string,
     anchor: z.infer<typeof OfficeCommentContentSchema>['anchor']
   ) {
-    const artifact = await this.models.officeArtifact.get(
-      workspaceId,
-      artifactId
-    );
+    const artifact = await this.models.officeArtifact.get(owner, artifactId);
     if (!artifact || artifact.kind !== ARTIFACT_KIND_BY_ANCHOR[anchor.kind]) {
       throw new Error('Office comment anchor does not match artifact kind');
     }
     const revision = await this.models.officeArtifact.getRevision(
-      workspaceId,
+      owner,
       artifactId,
       anchor.revisionId
     );
@@ -253,42 +261,52 @@ export class OfficeCommentService {
     }
   }
 
-  private async assertRead(
-    workspaceId: string,
-    actorId: string,
-    artifactId: string
-  ) {
-    await this.ac
-      .user(actorId)
-      .workspace(workspaceId)
-      .assert('Workspace.Blobs.Read');
-    const artifact = await this.models.officeArtifact.get(
-      workspaceId,
-      artifactId
-    );
+  async assertRead(owner: OfficeOwner, actorId: string, artifactId: string) {
+    if (typeof owner !== 'string') {
+      await this.models.projectResource.assertOfficeResource({
+        projectId: owner.projectId,
+        actorId,
+        artifactId,
+      });
+    } else {
+      await this.ac
+        .user(actorId)
+        .workspace(owner)
+        .assert('Workspace.Blobs.Read');
+    }
+    const artifact = await this.models.officeArtifact.get(owner, artifactId);
     if (!artifact) throw new Error(`Office artifact not found: ${artifactId}`);
     return artifact;
   }
 
   private async assertWrite(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string
   ) {
-    await Promise.all([
-      this.assertRead(workspaceId, actorId, artifactId),
-      this.ac
+    await this.assertRead(owner, actorId, artifactId);
+    if (typeof owner === 'string')
+      await this.ac
         .user(actorId)
-        .workspace(workspaceId)
-        .assert('Workspace.Blobs.Write'),
-    ]);
+        .workspace(owner)
+        .assert('Workspace.Blobs.Write');
+  }
+
+  private ownerOf(record: {
+    workspaceId: string | null;
+    projectId: string | null;
+  }): OfficeOwner {
+    if (record.projectId && !record.workspaceId)
+      return { projectId: record.projectId };
+    if (record.workspaceId && !record.projectId) return record.workspaceId;
+    throw new Error('Office comments have exactly one owner');
   }
 
   private async requireComment(id: string) {
-    const comment = await this.models.comment.get(id);
+    const comment = await this.models.officeComment.get(id);
     if (!comment) throw new Error(`Office comment not found: ${id}`);
     const artifact = await this.models.officeArtifact.get(
-      comment.workspaceId,
+      this.ownerOf(comment),
       comment.docId
     );
     if (!artifact) throw new Error(`Office comment not found: ${id}`);
@@ -297,10 +315,10 @@ export class OfficeCommentService {
   }
 
   private async requireReply(id: string) {
-    const reply = await this.models.comment.getReply(id);
+    const reply = await this.models.officeComment.getReply(id);
     if (!reply) throw new Error(`Office comment reply not found: ${id}`);
     const artifact = await this.models.officeArtifact.get(
-      reply.workspaceId,
+      this.ownerOf(reply),
       reply.docId
     );
     if (!artifact) throw new Error(`Office comment reply not found: ${id}`);
@@ -311,13 +329,14 @@ export class OfficeCommentService {
   private async projectComment<
     T extends {
       id: string;
-      workspaceId: string;
+      workspaceId: string | null;
+      projectId: string | null;
       docId: string;
       userId: string;
     },
   >(comment: T) {
-    const replies = await this.models.comment.listReplies(
-      comment.workspaceId,
+    const replies = await this.models.officeComment.listReplies(
+      this.ownerOf(comment),
       comment.docId,
       comment.id
     );

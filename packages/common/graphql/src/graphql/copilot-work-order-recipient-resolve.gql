@@ -1,0 +1,11 @@
+query copilotWorkOrderRecipientResolve($exact: String!) {
+  currentUser {
+    copilot {
+      resolveWorkOrderRecipient(exact: $exact) {
+        id
+        name
+        email
+      }
+    }
+  }
+}

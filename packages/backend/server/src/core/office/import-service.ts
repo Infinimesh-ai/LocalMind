@@ -31,6 +31,7 @@ export type ImportOfficeArtifactInput = OfficeOwnerInput & {
   parentId?: string | null;
   projectRequestKey?: string;
   projectRequestHash?: string;
+  generation?: { sessionId: string; requestKey: string };
   editLease?: ProjectEditLeaseProof;
   replaceProjectArtifact?: {
     artifactId: string;
@@ -201,7 +202,8 @@ export class OfficeImportService {
       semanticState
     ) satisfies Prisma.InputJsonObject;
     const operationSummary = {
-      type: 'import',
+      type: input.generation ? 'ai_create' : 'import',
+      ...(input.generation ? { generation: input.generation } : {}),
       engine: policy.engine,
       modelVersion: policy.modelVersion,
       stats: officeStateStats(semanticState),
@@ -213,6 +215,7 @@ export class OfficeImportService {
       actorId,
       title,
       sourceFileName,
+      ...(input.generation ? { generation: input.generation } : {}),
       importSourceBlobKey: sourceBlobKey,
       packageBlobKey,
       sourceMimeType: sourceBlob.mime,
@@ -329,7 +332,7 @@ export class OfficeImportService {
                   input.projectRequestKey ??
                   `office:${officeJsonFingerprint({ importIdempotencyKey })}`,
                 requestHash: input.projectRequestHash,
-                origin: 'import',
+                origin: input.generation ? 'ai' : 'import',
               });
               await this.models.projectResource.assertOfficeResource({
                 projectId: owner.projectId,

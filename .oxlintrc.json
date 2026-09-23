@@ -25,6 +25,7 @@
     ".vscode",
     ".context",
     ".codex",
+    ".codex-artifacts",
     ".yarnrc.yml",
     ".docker",
     "**/.storybook",

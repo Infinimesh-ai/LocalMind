@@ -1,8 +1,13 @@
 import { getOrCreateI18n, I18n } from '@affine/i18n';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
-import { CloseIcon, PlusIcon, WarningIcon } from '@blocksuite/icons/lit';
+import {
+  CloseIcon,
+  PlusIcon,
+  ResetIcon,
+  WarningIcon,
+} from '@blocksuite/icons/lit';
 import { css, html, LitElement, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 
 import type { AIChatModifiedDocument } from '../../runtime/chat';
 import type { DocDisplayConfig } from '../ai-chat-chips';
@@ -206,7 +211,7 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       font: inherit;
     }
 
-    .new-chat {
+    .primary-action {
       gap: 4px;
       padding: 0 8px;
       background: ${unsafeCSSVarV2('button/primary')};
@@ -214,6 +219,15 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       font-size: 12px;
       font-weight: 500;
       white-space: nowrap;
+    }
+
+    .primary-action:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .primary-action[aria-busy='true'] svg {
+      animation: refresh-spin 800ms linear infinite;
     }
 
     .dismiss {
@@ -237,7 +251,7 @@ export class AIChatDocumentUpdateAlert extends LitElement {
         grid-template-columns: 20px minmax(0, 1fr) 28px;
       }
 
-      .new-chat {
+      .primary-action {
         grid-column: 2;
         justify-self: start;
       }
@@ -245,6 +259,18 @@ export class AIChatDocumentUpdateAlert extends LitElement {
       .dismiss {
         grid-column: 3;
         grid-row: 1;
+      }
+    }
+
+    @keyframes refresh-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .primary-action[aria-busy='true'] svg {
+        animation: none;
       }
     }
   `;
@@ -263,6 +289,12 @@ export class AIChatDocumentUpdateAlert extends LitElement {
 
   @property({ attribute: false })
   accessor onNewChat: (() => void | Promise<void>) | undefined;
+
+  @property({ attribute: false })
+  accessor onRefresh: (() => void | Promise<void>) | undefined;
+
+  @state()
+  accessor refreshing = false;
 
   private dismissedSignature: string | null = null;
   private dismissedStorageKey: string | null = null;
@@ -344,6 +376,18 @@ export class AIChatDocumentUpdateAlert extends LitElement {
     Promise.resolve(this.onNewChat?.()).catch(console.error);
   }
 
+  private async refreshReferences() {
+    if (!this.onRefresh || this.refreshing) return;
+    this.refreshing = true;
+    try {
+      await this.onRefresh();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      this.refreshing = false;
+    }
+  }
+
   override render() {
     if (
       !this.sessionId ||
@@ -377,13 +421,23 @@ export class AIChatDocumentUpdateAlert extends LitElement {
           <div class="description">${description}</div>
         </div>
         <button
-          class="new-chat"
+          class="primary-action"
           type="button"
-          data-testid="ai-chat-document-update-new-chat"
-          @click=${() => this.createNewChat()}
+          ?disabled=${this.refreshing}
+          aria-busy=${this.refreshing ? 'true' : 'false'}
+          data-testid=${this.onRefresh
+            ? 'ai-chat-document-update-refresh'
+            : 'ai-chat-document-update-new-chat'}
+          @click=${this.onRefresh
+            ? () => this.refreshReferences()
+            : () => this.createNewChat()}
         >
-          ${PlusIcon()}
-          <span>${I18n['com.affine.localmind.documentUpdate.newChat']()}</span>
+          ${this.onRefresh ? ResetIcon() : PlusIcon()}
+          <span
+            >${this.onRefresh
+              ? I18n['com.affine.localmind.project-context.refresh']()
+              : I18n['com.affine.localmind.documentUpdate.newChat']()}</span
+          >
         </button>
         <button
           class="dismiss"

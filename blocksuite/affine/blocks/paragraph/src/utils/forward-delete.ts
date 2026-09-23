@@ -11,6 +11,7 @@ import {
 } from '@blocksuite/affine-model';
 import { EMBED_BLOCK_MODEL_LIST } from '@blocksuite/affine-shared/consts';
 import {
+  deleteBlockWithListOrder,
   getNextContentBlock,
   matchModels,
 } from '@blocksuite/affine-shared/utils';
@@ -64,7 +65,7 @@ export function forwardDelete(std: BlockStdScope) {
       store.moveBlocks(nextSibling.children, parent, model, false);
     }
 
-    store.deleteBlock(nextSibling);
+    deleteBlockWithListOrder(store, nextSibling);
     return true;
   }
 
@@ -81,7 +82,7 @@ export function forwardDelete(std: BlockStdScope) {
         false
       );
     }
-    store.deleteBlock(nextBlock);
+    deleteBlockWithListOrder(store, nextBlock);
     return true;
   }
 

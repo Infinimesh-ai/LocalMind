@@ -1,4 +1,4 @@
-import { Menu } from '@affine/component';
+import { IconButton, Menu } from '@affine/component';
 import { MenuItem } from '@affine/core/modules/app-sidebar/views';
 import { NotificationCountService } from '@affine/core/modules/notification';
 import { useI18n } from '@affine/i18n';
@@ -8,6 +8,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useState } from 'react';
 
 import { NotificationList } from '../notification/list';
+import { shortcut } from './index.css';
 import * as styles from './notification-button.style.css';
 
 const Badge = ({ count, onClick }: { count: number; onClick?: () => void }) => {
@@ -21,7 +22,11 @@ const Badge = ({ count, onClick }: { count: number; onClick?: () => void }) => {
   );
 };
 
-export const NotificationButton = () => {
+export const NotificationButton = ({
+  iconOnly = false,
+}: {
+  iconOnly?: boolean;
+}) => {
   const notificationCountService = useService(NotificationCountService);
   const notificationCount = useLiveData(notificationCountService.count$);
 
@@ -65,16 +70,33 @@ export const NotificationButton = () => {
       }}
       items={<NotificationList />}
     >
-      <MenuItem
-        icon={<NotificationIcon />}
-        postfix={<Badge count={notificationCount} />}
-        active={notificationListOpen}
-        postfixDisplay="always"
-      >
-        <span data-testid="notification-button">
-          {t['com.affine.rootAppSidebar.notifications']()}
-        </span>
-      </MenuItem>
+      {iconOnly ? (
+        <div style={{ position: 'relative' }}>
+          <IconButton
+            className={shortcut}
+            aria-label={t['com.affine.rootAppSidebar.notifications']()}
+            tooltip={t['com.affine.rootAppSidebar.notifications']()}
+            data-testid="notification-button"
+            data-active={String(notificationListOpen)}
+          >
+            <NotificationIcon />
+          </IconButton>
+          <div className={styles.iconBadge}>
+            <Badge count={notificationCount} />
+          </div>
+        </div>
+      ) : (
+        <MenuItem
+          icon={<NotificationIcon />}
+          postfix={<Badge count={notificationCount} />}
+          active={notificationListOpen}
+          postfixDisplay="always"
+        >
+          <span data-testid="notification-button">
+            {t['com.affine.rootAppSidebar.notifications']()}
+          </span>
+        </MenuItem>
+      )}
     </Menu>
   );
 };

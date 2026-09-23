@@ -66,6 +66,7 @@ export class CopilotProjectByokModel extends BaseModel {
       endpoint: input.endpoint,
       modelId: input.modelId,
       enabled: input.enabled,
+      workOrderEnabled: current?.workOrderEnabled ?? false,
       lastValidatedAt: input.lastValidatedAt,
       lastError: null,
       lastErrorAt: null,
@@ -85,6 +86,7 @@ export class CopilotProjectByokModel extends BaseModel {
         endpoint: saved.endpoint,
         modelId: saved.modelId,
         enabled: saved.enabled,
+        workOrderEnabled: saved.workOrderEnabled,
         credentialChanged: input.credentialChanged,
       },
     });
@@ -103,5 +105,48 @@ export class CopilotProjectByokModel extends BaseModel {
       where: { id: 'global', revision },
       data: { lastError: message.slice(0, 300), lastErrorAt: new Date() },
     });
+  }
+
+  @Transactional()
+  async setWorkOrderEnabled(input: {
+    expectedRevision: number;
+    enabled: boolean;
+    actorId: string;
+  }) {
+    await this.db
+      .$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended('project-global-byok', 0))::text`;
+    const current = await this.get();
+    if (!current || current.revision !== input.expectedRevision) {
+      throw new BadRequest(
+        'Project BYOK changed. Reload the settings and try again.'
+      );
+    }
+    if (!current.enabled && input.enabled) {
+      throw new BadRequest(
+        'Enable and validate global Project BYOK before enabling personal work orders.'
+      );
+    }
+    const saved = await this.db.aiProjectByokConfig.update({
+      where: { id: current.id, revision: current.revision },
+      data: {
+        workOrderEnabled: input.enabled,
+        revision: { increment: 1 },
+        updatedBy: input.actorId,
+      },
+    });
+    await this.db.aiProjectByokAuditEvent.create({
+      data: {
+        revision: saved.revision,
+        actorId: input.actorId,
+        provider: saved.provider,
+        apiStyle: saved.apiStyle,
+        endpoint: saved.endpoint,
+        modelId: saved.modelId,
+        enabled: saved.enabled,
+        workOrderEnabled: saved.workOrderEnabled,
+        credentialChanged: false,
+      },
+    });
+    return saved;
   }
 }

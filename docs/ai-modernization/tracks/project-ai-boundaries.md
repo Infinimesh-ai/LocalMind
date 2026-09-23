@@ -24,6 +24,27 @@ Workbench, Context Memory, and user-guide descriptions. This document tracks
 implementation separately from the product contract; a design is not evidence
 that a capability is implemented.
 
+## Shared Memory Remediation
+
+The corrected 2026-09-21 [context and session implementation plan](../workspace-project-context-session-remediation.zh-CN.md)
+defines one shared Memory library per Project for current active members, replacing
+the intermediate per-user Project Memory target. Conversation histories, private
+attachments and rolling summaries remain session-private. Memory sharing does not
+grant access to another member's source conversation.
+
+Members manage their independent contributions; Owners manage all shared records.
+Multi-author facts require version-safe conflict handling, and automatic capture
+must preserve source-sharing authorization. Project-level capture settings are
+independent of Workspace; removing a member stops recall without deleting lawful
+Project knowledge. Existing private-contract records must not be automatically
+published during migration.
+
+The current source implements these core ownership, recall, contribution,
+conflict, settings, session-binding, reference-refresh and cleanup boundaries.
+It has isolated Linux database and focused test evidence, but has not been
+deployed to the business runtime and does not yet claim the plan's full A01-A40,
+long-term archive/backup replay or asynchronous model-compaction acceptance.
+
 ## Earlier Product Contract
 
 Resource creation, shared references and write-grant rules in this historical

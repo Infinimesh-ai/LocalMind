@@ -9,6 +9,7 @@ import {
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useService } from '@toeverything/infra';
+import { nanoid } from 'nanoid';
 import { useCallback, useRef } from 'react';
 
 export function useProjectTaskDecision() {
@@ -129,7 +130,7 @@ export function useProjectTaskDecision() {
         ]);
         let requestKey = keys.current.get(identity);
         if (!requestKey) {
-          requestKey = crypto.randomUUID();
+          requestKey = nanoid();
           keys.current.set(identity, requestKey);
         }
         const currentEditor =

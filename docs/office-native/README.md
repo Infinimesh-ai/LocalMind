@@ -2,6 +2,50 @@
 
 This directory is the source of truth for LocalMind's native Office subsystem.
 
+## AI file creation
+
+The `workspace_file_create` and `project_file_create` tools generate real DOCX,
+XLSX, PPTX, TXT, Markdown, CSV and JSON files from bounded structured input.
+They are exposed through the existing `docCreate` capability in direct user
+conversations. Existing delegated/MCP capability snapshots do not acquire these
+tools automatically. Workspace and Project tools remain mutually exclusive.
+
+- DOCX generation supports paragraphs and heading levels 1–6; XLSX supports
+  named sheets and typed rows; PPTX supports editable slide titles and body text.
+  Advanced layouts, images, charts, tables in DOCX and formulas at creation time
+  are not part of this initial generator. XLSX strings beginning with `=` remain
+  literal strings. Further Office changes use the existing read/command tools.
+- Generated Office packages enter the existing import/semantic-state pipeline.
+  The first Office revision retains the required `import` origin; its immutable
+  operation summary records `type=ai_create`, the session and request identity.
+  Project resource revisions record AI origin. No OOXML state is stored inside
+  a BlockSuite document.
+- Plain files in a Workspace use independent `WorkspaceFile` records, immutable
+  blob evidence and authenticated download routes. They appear alongside native
+  Office files in the Files section of All pages. Office files open their native
+  editor; plain files download in their original format. The initial Workspace
+  entrypoint saves at the root and rejects a specified parent folder. These
+  plain files do not yet have an in-app text editor, rename/trash controls, tags,
+  favorites or collection filtering.
+- Project files use the existing internal file tree, including `parent_id`, and
+  the persisted Project agent workflow. Creating a file never publishes it to
+  a Workspace. Ordinary Workspace calls save synchronously with live ACL and
+  a transactional source audit; they do not create background agent runs.
+- Stable per-call request keys prevent duplicate resources on replay. Different
+  content under the same key is rejected. Generation input is limited to 1 MiB,
+  with additional paragraph, sheet, cell and slide bounds. Invalid JSON and
+  invalid OOXML text fail before storage. Unknown file formats are rejected.
+- MIME-aware blob identities allow identical bytes in TXT and Markdown without
+  changing either file's MIME type. Existing Project blob keys remain valid.
+
+Apply migrations `20260920000000_workspace_files`,
+`20260920000100_project_blob_mime_identity`, and
+`20260920000200_workspace_file_evidence` before enabling this code. The focused
+integration test is `src/__tests__/copilot/native-file-create.e2e.ts` in the
+backend package; it must run against an isolated database because the testing
+app truncates its database. Generation round trips are covered by
+`packages/common/office/src/create.spec.ts`.
+
 LocalMind Native Office does not embed, proxy, or depend on a third-party
 Office editor runtime. It owns the resource model, editing model,
 collaboration, authorization, revisions, audit evidence, UI, and AI command

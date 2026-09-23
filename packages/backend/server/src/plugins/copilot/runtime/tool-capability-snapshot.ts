@@ -8,6 +8,7 @@ export type ToolSideEffectType =
   | 'read'
   | 'workspace_write'
   | 'project_write'
+  | 'work_order_write'
   | 'external_dynamic';
 
 export type ToolCapabilitySnapshot = {
@@ -18,6 +19,7 @@ export type ToolCapabilitySnapshot = {
 
 const WORKSPACE_WRITE_TOOLS = new Set([
   'workspace_doc_create',
+  'workspace_file_create',
   'workspace_doc_copy',
   'workspace_doc_update',
   'workspace_doc_update_meta',
@@ -54,9 +56,11 @@ export function toolSchemaFingerprint(
 
 export function toolSideEffectType(name: string): ToolSideEffectType {
   if (WORKSPACE_WRITE_TOOLS.has(name)) return 'workspace_write';
+  if (name === 'work_order_file_create') return 'work_order_write';
   if (
     [
       'project_doc_create',
+      'project_file_create',
       'project_doc_update',
       'project_resource_update_meta',
       'project_folder_create',

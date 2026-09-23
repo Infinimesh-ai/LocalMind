@@ -264,9 +264,13 @@ function requireToolAgentStep(run: CopilotAgentRunRecord) {
           return name &&
             name.length <= 256 &&
             isFingerprint(schemaFingerprint) &&
-            ['read', 'workspace_write', 'external_dynamic'].includes(
-              String(sideEffectType)
-            )
+            [
+              'read',
+              'workspace_write',
+              'project_write',
+              'work_order_write',
+              'external_dynamic',
+            ].includes(String(sideEffectType))
             ? [
                 {
                   name,

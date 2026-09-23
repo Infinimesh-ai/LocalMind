@@ -95,6 +95,23 @@ const filterForTask = (task: WorkbenchTask): WorkbenchTaskFilter => {
   return 'all';
 };
 
+const resolveTasksReturnPath = (value: string | null) => {
+  if (!value) return null;
+  try {
+    const baseUrl = 'https://localmind.invalid';
+    const url = new URL(value, baseUrl);
+    if (
+      url.origin !== baseUrl ||
+      !/^\/workspace\/[^/]+\/all$/.test(url.pathname)
+    ) {
+      return null;
+    }
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
+};
+
 export const GlobalWorkbenchTasks = () => {
   const t = useI18n();
   const fileRequestStatus = useFileRequestStatus();
@@ -106,6 +123,10 @@ export const GlobalWorkbenchTasks = () => {
   const filter = filterSet.has(requestedFilter as WorkbenchTaskFilter)
     ? (requestedFilter as WorkbenchTaskFilter)
     : 'active';
+  const returnPath = resolveTasksReturnPath(searchParams.get('returnTo'));
+  const returnLabel = returnPath
+    ? t['com.affine.localmind.workbench.returnToWorkspace']()
+    : t['com.affine.localmind.workbench.projects']();
   const routedTaskId = searchParams.get('taskId');
   const [pages, setPages] = useState<{
     filter: WorkbenchTaskFilter;
@@ -361,9 +382,9 @@ export const GlobalWorkbenchTasks = () => {
           <IconButton
             size="20"
             icon={<ArrowLeftSmallIcon />}
-            tooltip={t['com.affine.localmind.workbench.projects']()}
-            aria-label={t['com.affine.localmind.workbench.projects']()}
-            onClick={() => navigate('/project')}
+            tooltip={returnLabel}
+            aria-label={returnLabel}
+            onClick={() => navigate(returnPath ?? '/project')}
           />
           <h1 className={styles.globalTitle}>
             {t['com.affine.workspaceSubPath.tasks']()}

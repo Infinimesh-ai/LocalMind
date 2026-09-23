@@ -17,6 +17,10 @@ LocalMind 从当前仓库的 `main` 源码构建，不使用 AFFiNE 上游的通
 模型密钥不是启动必需项。即使暂时不配置 AI provider，文档、白板、同步和管理界面
 仍可使用；AI 对话、embedding 和 rerank 等能力需要后续配置可用的模型服务。
 
+当前基础 Compose 关闭 Workspace 服务端全文索引。已有部署需要补齐搜索服务、
+初始化并回填历史文档时，参考
+[Workspace 全文索引 SSH 恢复手册](./localmind-indexer-recovery.zh-CN.md)。
+
 ISCP 主动通知是可选功能，不属于基础部署。需要时再参考
 [SparkClaw 主动通知指南](./sparkclaw-notifications.zh-CN.md)。
 
@@ -85,20 +89,42 @@ openssl rand -hex 32
 
 打开 `.docker/selfhost/.env`，至少检查下面这些值：
 
-| 配置                           | 本机部署示例                    | 公网部署要求                         |
-| ------------------------------ | ------------------------------- | ------------------------------------ |
-| `AFFINE_SERVER_EXTERNAL_URL`   | `http://localhost:3011`         | 实际的 `https://` 域名               |
-| `AFFINE_SERVER_HTTPS`          | `false`                         | HTTPS 反向代理后设为 `true`          |
-| `BIND_ADDRESS`                 | `0.0.0.0`                       | 反向代理同机时建议 `127.0.0.1`       |
-| `PORT`                         | `3011`                          | 未被占用的本机端口                   |
-| `DB_PASSWORD`                  | 刚生成的随机值                  | 必须替换模板中的 `CHANGE_ME`         |
-| `UPLOAD_LOCATION`              | `./data/localmind/storage`      | 需要持久化和备份                     |
-| `CONFIG_LOCATION`              | `./data/localmind/config`       | 需要持久化和备份                     |
-| `DB_DATA_LOCATION`             | `./data/localmind/postgres/...` | 需要持久化和备份，不要直接手工修改   |
-| `ENTERPRISE_CLI_DATA_LOCATION` | 模板默认值                      | 使用企业连接器时需要持久化和严格保护 |
+| 配置                           | 本机部署示例                        | 公网部署要求                         |
+| ------------------------------ | ----------------------------------- | ------------------------------------ |
+| `AFFINE_SERVER_EXTERNAL_URL`   | `http://localhost:3011`             | 实际的 `https://` 域名               |
+| `AFFINE_SERVER_HTTPS`          | `false`                             | HTTPS 反向代理后设为 `true`          |
+| `BIND_ADDRESS`                 | `0.0.0.0`                           | 反向代理同机时建议 `127.0.0.1`       |
+| `PORT`                         | `3011`                              | 未被占用的本机端口                   |
+| `DB_PASSWORD`                  | 刚生成的随机值                      | 必须替换模板中的 `CHANGE_ME`         |
+| `UPLOAD_LOCATION`              | `./data/localmind/storage`          | 需要持久化和备份                     |
+| `CONFIG_LOCATION`              | `./data/localmind/config`           | 需要持久化和备份                     |
+| `DB_DATA_LOCATION`             | `./data/localmind/postgres/...`     | 需要持久化和备份，不要直接手工修改   |
+| `ENTERPRISE_CLI_DATA_LOCATION` | 模板默认值                          | 使用企业连接器时需要持久化和严格保护 |
+| `AUDIT_ARCHIVE_LOCATION`       | `./data/localmind/audit-archive`    | 私有签名审计归档，必须持久化和备份   |
+| `RECOVERY_BARRIER_LOCATION`    | `./data/localmind/recovery-barrier` | 生产环境应改为备份故障域外的绝对路径 |
 
 `.env` 已被 Git 忽略。不要把数据库密码、模型密钥、MCP token 或企业连接器凭据提交到
 仓库。
+
+### 审计归档与恢复屏障
+
+生产环境必须为签名审计归档配置独立密钥。归档目录通过 Compose 挂载为
+`/var/lib/localmind/audit-archive`；系统只有在归档写入、回读及签名校验都成功后，
+才允许清理数据库中的热审计记录。
+
+```dotenv
+LOCALMIND_AUDIT_ARCHIVE_ACTIVE_KEY_VERSION=2026-09
+LOCALMIND_AUDIT_ARCHIVE_KEYS={"2026-09":"至少32字符的独立随机密钥"}
+```
+
+密钥不要写入仓库、数据库 dump 或 Blob 备份。轮换时先在 keyring 中保留旧版本，
+再切换 active version；仍有对应归档需要校验时不能删除旧 key。归档批次、校验结果、
+会话删除进度、保全状态和备份状态可在 Admin 的 Observability 页面查看。
+
+恢复屏障用于阻止旧备份恢复已经删除的会话、已隔离的 Memory 或已撤销的 grant。
+屏障文件不含正文，应在每次一致性备份完成后生成并复制到数据库、Blob 与配置备份
+故障域之外的受控位置；其签名 keyring 同样独立保管。日常运行不要设置
+`LOCALMIND_RECOVERY_BARRIER_FILE`。
 
 ### 模型服务
 
@@ -261,8 +287,9 @@ test -s "$LOCALMIND_BACKUP_FILE"
 ```
 
 还需要备份 `.docker/selfhost/.env`、`UPLOAD_LOCATION`、`CONFIG_LOCATION` 和
-`ENTERPRISE_CLI_DATA_LOCATION` 对应目录。`DB_DATA_LOCATION` 可以进入整机灾备，但不能
-代替一致的 `pg_dump`。数据库 dump 成功且文件非空后再更新：
+`ENTERPRISE_CLI_DATA_LOCATION`、`AUDIT_ARCHIVE_LOCATION` 对应目录。
+`DB_DATA_LOCATION` 可以进入整机灾备，但不能代替一致的 `pg_dump`。数据库 dump
+成功且文件非空后，先更新代码、检查配置并构建新镜像：
 
 ```sh
 git status --short --branch
@@ -276,6 +303,42 @@ docker compose \
   --env-file .docker/selfhost/.env \
   -f .docker/selfhost/compose.localmind.yml \
   build affine
+```
+
+进入维护窗口，停止主服务，先单独完成 migration。此时 PostgreSQL 和 Redis 保持运行：
+
+```sh
+docker compose \
+  --env-file .docker/selfhost/.env \
+  -f .docker/selfhost/compose.localmind.yml \
+  stop affine
+docker compose \
+  --env-file .docker/selfhost/.env \
+  -f .docker/selfhost/compose.localmind.yml \
+  run --rm affine_migration
+```
+
+确认 `.env` 已配置独立的 `LOCALMIND_RECOVERY_BARRIER_*` keyring 后，使用新镜像中
+已经编译的 CLI 生成并校验屏障。`affine_migration` 对该目录有写权限，主服务只有
+只读挂载：
+
+```sh
+docker compose \
+  --env-file .docker/selfhost/.env \
+  -f .docker/selfhost/compose.localmind.yml \
+  run --rm --no-deps affine_migration \
+  sh -lc 'SERVER_FLAVOR=script node ./dist/main.js context-session-recovery-barrier export --file /var/lib/localmind/recovery-barrier/context-session-barrier.json'
+docker compose \
+  --env-file .docker/selfhost/.env \
+  -f .docker/selfhost/compose.localmind.yml \
+  run --rm --no-deps affine_migration \
+  sh -lc 'SERVER_FLAVOR=script node ./dist/main.js context-session-recovery-barrier verify --file /var/lib/localmind/recovery-barrier/context-session-barrier.json'
+```
+
+`RECOVERY_BARRIER_LOCATION` 必须位于本次数据库、Blob 与配置备份之外，文件需要
+受限权限并纳入单独的完整性监控。校验成功后启动服务：
+
+```sh
 docker compose \
   --env-file .docker/selfhost/.env \
   -f .docker/selfhost/compose.localmind.yml \
@@ -283,6 +346,25 @@ docker compose \
 ```
 
 最后重复“验证部署”中的状态、网页和日志检查。
+
+### 8.1 从备份恢复
+
+恢复必须在隔离环境或维护窗口中进行，并遵循以下顺序：
+
+1. 保持主服务和所有 worker 停止，恢复匹配时点的 PostgreSQL、Blob 与配置备份。
+2. 使用新版本 migration job 完成数据库迁移，但不要开放用户流量。
+3. 将备份时生成的签名屏障放入 `RECOVERY_BARRIER_LOCATION`，使用上面的
+   `affine_migration` 一次性 CLI 以 `verify` 模式校验。
+4. 在 `.env` 中配置相同的 `LOCALMIND_RECOVERY_BARRIER_*` keyring，并设置
+   `LOCALMIND_RECOVERY_BARRIER_FILE=/var/lib/localmind/recovery-barrier/context-session-barrier.json`。
+5. 启动主服务。它会在加载应用模块、读取入口和 worker 之前重放屏障；签名、指纹、
+   schema 或 keyVersion 不匹配时启动失败，不能绕过后继续开放服务。
+6. 在 Admin 确认删除任务、Memory 隔离、grant 撤销及屏障回执后，才逐步恢复 worker
+   和用户流量。重复应用同一屏障应得到幂等回执。
+
+完成隔离恢复验收后可以移除 `LOCALMIND_RECOVERY_BARRIER_FILE` 并重启；签名屏障和
+对应 key 在覆盖的备份仍可能被恢复期间必须继续保留。不要仅恢复数据库而遗漏匹配的
+Blob，也不要把“在线清理完成”表述为备份已物理到期。
 
 ## 9. 停止和故障处理
 

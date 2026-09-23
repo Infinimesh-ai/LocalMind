@@ -12,6 +12,7 @@ mutation copilotContextMemoryUpdate(
     kind
     status
     content
+    revision
     createdAt
     updatedAt
   }

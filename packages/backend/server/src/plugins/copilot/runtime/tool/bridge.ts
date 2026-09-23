@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { z } from 'zod';
 
 import {
@@ -60,8 +62,33 @@ export function createToolExecutionCallback(
   tools: CopilotToolSet,
   options: CopilotToolExecuteOptions = {}
 ) {
+  const failures = new Map<string, { fingerprint: string; count: number }>();
+  let stopped = false;
   return async (request: LlmToolCallbackRequest) => {
-    return await executeToolCall(tools, request, options);
+    if (stopped)
+      throw new Error('Tool execution stopped after repeated failures');
+    const result = await executeToolCall(tools, request, options);
+    if (!result.isError) {
+      failures.delete(request.name);
+      return result;
+    }
+    // Count the error rather than the arguments: changing the document text or
+    // call ID does not fix a repeated schema/permission failure. Other tools
+    // cannot reset this tool's failure streak.
+    const fingerprint = createHash('sha256')
+      .update(JSON.stringify(result.output) ?? 'null')
+      .digest('hex');
+    const previous = failures.get(request.name);
+    const count =
+      previous?.fingerprint === fingerprint ? previous.count + 1 : 1;
+    failures.set(request.name, { fingerprint, count });
+    if (count >= 3) {
+      stopped = true;
+      throw new Error(
+        `Tool ${request.name} failed with the same error 3 times; execution stopped. Check tool arguments or configuration before retrying.`
+      );
+    }
+    return result;
   };
 }
 

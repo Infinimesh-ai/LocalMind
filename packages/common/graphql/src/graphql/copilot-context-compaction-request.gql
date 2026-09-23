@@ -1,0 +1,7 @@
+#import "./fragments/copilot-context-compaction.gql"
+
+mutation copilotContextCompactionRequest($sessionId: ID!) {
+  requestCopilotContextCompaction(sessionId: $sessionId) {
+    ...CopilotContextCompactionFields
+  }
+}

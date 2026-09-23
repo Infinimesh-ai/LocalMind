@@ -1,6 +1,9 @@
 import { Framework, LiveData } from '@toeverything/infra';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import { WorkspaceFlavoursService } from './flavours';
+import { WorkspaceListService } from './list';
+import { WorkspaceProfileService } from './profile';
 import { WorkspaceRepositoryService } from './repo';
 
 const createListService = () => ({
@@ -22,14 +25,16 @@ const createRepository = (
   const framework = new Framework();
   const listService = createListService();
   const flavoursService = { flavours$: new LiveData(flavours) };
+  class ConfiguredRepository extends WorkspaceRepositoryService {
+    protected override readonly warmCacheOptions = options;
+  }
   framework.service(
     WorkspaceRepositoryService,
     () =>
-      new WorkspaceRepositoryService(
+      new ConfiguredRepository(
         flavoursService as never,
         {} as never,
-        listService as never,
-        options
+        listService as never
       )
   );
   return {
@@ -85,6 +90,39 @@ describe('WorkspaceRepositoryService document scope', () => {
 });
 
 describe('WorkspaceRepositoryService warm cache', () => {
+  test('retains the default warm lease when constructed by the framework', () => {
+    vi.useFakeTimers();
+    const framework = new Framework();
+    framework
+      .service(
+        WorkspaceFlavoursService,
+        () => ({ flavours$: new LiveData([]) }) as never
+      )
+      .service(WorkspaceProfileService, () => ({}) as never)
+      .service(WorkspaceListService, () => createListService() as never)
+      .service(WorkspaceRepositoryService, [
+        WorkspaceFlavoursService,
+        WorkspaceProfileService,
+        WorkspaceListService,
+      ]);
+    const repository = framework.provider().get(WorkspaceRepositoryService);
+    const workspace = createWorkspaceMock('workspace-1', 'server-1');
+    vi.spyOn(repository, 'instantiate').mockReturnValue(workspace as never);
+    const options = { metadata: { id: 'workspace-1', flavour: 'server-1' } };
+
+    repository.open(options).dispose();
+    vi.advanceTimersByTime(5_000);
+    const resumed = repository.open(options);
+    expect(resumed.reused).toBe(true);
+    expect(repository.instantiate).toHaveBeenCalledTimes(1);
+    expect(workspace.scope.dispose).not.toHaveBeenCalled();
+
+    resumed.dispose();
+    vi.advanceTimersByTime(61_000);
+    expect(workspace.scope.dispose).toHaveBeenCalledTimes(1);
+    repository.dispose();
+  });
+
   test('reuses a recently released workspace and resumes background work', () => {
     const { repository } = createRepository();
     const workspace = createWorkspaceMock('workspace-1', 'server-1');

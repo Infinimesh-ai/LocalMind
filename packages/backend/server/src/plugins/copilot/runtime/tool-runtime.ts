@@ -9,6 +9,7 @@ import {
   DocWriter,
   WorkspaceOrganizationService,
 } from '../../../core/doc';
+import { NativeFileCreateService } from '../../../core/office/create-service';
 import { PermissionAccess, PermissionService } from '../../../core/permission';
 import { ProjectResourceService } from '../../../core/project';
 import { Models } from '../../../models';
@@ -68,11 +69,15 @@ import {
   defineTool,
 } from '../tools';
 import { createDocCopyRequestTool } from '../tools/doc-write';
+import { createWorkspaceFileTool } from '../tools/file-create';
 import {
   createProjectResourceTools,
   PROJECT_NATIVE_TOOL_NAMES,
 } from '../tools/project-doc';
 import { createProjectFileRequestTools } from '../tools/project-file-request';
+import { createWorkOrderDraftTools } from '../tools/work-order';
+import { createWorkOrderFileTool } from '../tools/work-order-file-create';
+import { WorkOrderStorage } from '../work-order-storage';
 import { PromptRuntime } from './prompt-runtime';
 import type { ToolLoopBackend } from './tool/bridge';
 import { createNativeToolLoopAdapter } from './tool/native-adapter';
@@ -103,6 +108,8 @@ const PROJECT_SESSION_DIRECT_READ_TOOLS = new Set([
   'doc_compose',
   'section_edit',
   'blocker_suggest',
+  'work_order_recipient_resolve',
+  'work_order_draft',
 ]);
 
 const PROJECT_DERIVED_RESULT_TOOLS = new Set([
@@ -147,7 +154,9 @@ export class ToolRuntime {
     private readonly documentOperations?: CopilotDocumentOperationService,
     @Optional() private readonly projectResources?: ProjectResourceService,
     @Optional()
-    private readonly projectOffice?: ProjectOfficeAgentCommandService
+    private readonly projectOffice?: ProjectOfficeAgentCommandService,
+    @Optional() private readonly nativeFiles?: NativeFileCreateService,
+    @Optional() private readonly workOrderStorage?: WorkOrderStorage
   ) {}
 
   async getTools(
@@ -187,6 +196,8 @@ export class ToolRuntime {
           workspaceId: string | null;
           docId: string | null;
           selectedContextProjectId: string | null;
+          scopeType: string;
+          workOrderBinding: { workOrderId: string } | null;
         }
       | null
       | undefined;
@@ -207,8 +218,36 @@ export class ToolRuntime {
     if (options.session) {
       await resolveSelectedProjectId();
     }
+    if (sessionMeta?.scopeType === 'work_order') {
+      if (
+        sessionMeta.userId !== options.user ||
+        sessionMeta.workspaceId !== null ||
+        sessionMeta.selectedContextProjectId !== null ||
+        !sessionMeta.workOrderBinding
+      ) {
+        throw new Error('Work-order conversation authorization is invalid.');
+      }
+      if (
+        !options.session ||
+        !options.user ||
+        !this.nativeFiles ||
+        !this.workOrderStorage ||
+        !options.tools.includes('workOrder')
+      ) {
+        return tools;
+      }
+      return this.applyExecutionGuards(
+        createWorkOrderFileTool(this.workOrderStorage, {
+          actorId: options.user,
+          sessionId: options.session,
+          workOrderId: sessionMeta.workOrderBinding.workOrderId,
+        }),
+        options,
+        null
+      );
+    }
     const nativeProjectId =
-      sessionMeta?.workspaceId === null ? selectedProjectId : null;
+      sessionMeta?.scopeType === 'project' ? selectedProjectId : null;
     if (selectedProjectId && !nativeProjectId) {
       throw new Error(
         'Start a native Project conversation to use Project tools.'
@@ -221,7 +260,9 @@ export class ToolRuntime {
         this.models,
         this.projectResources,
         options,
-        nativeProjectId
+        nativeProjectId,
+        undefined,
+        this.nativeFiles
       );
       Object.assign(
         tools,
@@ -364,6 +405,15 @@ export class ToolRuntime {
           break;
         }
         case 'docCreate': {
+          if (
+            this.nativeFiles &&
+            !options.taskId &&
+            !options.delegatedExecution
+          )
+            tools.workspace_file_create = createWorkspaceFileTool(
+              this.nativeFiles,
+              options
+            );
           if (options.session && this.documentCopies)
             tools.workspace_doc_copy = createDocCopyRequestTool(
               this.documentCopies,
@@ -516,6 +566,13 @@ export class ToolRuntime {
                 turnId: options.billingUnitId,
               })
             );
+            Object.assign(
+              tools,
+              createWorkOrderDraftTools(this.models, {
+                actorId: options.user,
+                sourceSessionId: options.session,
+              })
+            );
           }
           break;
         }
@@ -662,6 +719,7 @@ export class ToolRuntime {
       guarded[name] = {
         ...tool,
         execute: async (args, executeOptions) => {
+          const workOrderTool = name === 'work_order_file_create';
           executeOptions.signal?.throwIfAborted();
           if (
             isRetiredResourceTool(name) ||
@@ -689,7 +747,29 @@ export class ToolRuntime {
                 'Conversation authorization changed. Reload this conversation.'
               );
             }
-            if (
+            if (workOrderTool) {
+              if (
+                session.scopeType !== 'work_order' ||
+                !session.workOrderBinding ||
+                session.docId
+              ) {
+                throw new Error(
+                  "This tool requires the recipient's personal work-order conversation."
+                );
+              }
+              const order = await this.models.copilotWorkOrder.getOwned(
+                session.workOrderBinding.workOrderId,
+                options.user as string
+              );
+              if (
+                order.viewerRole !== 'recipient' ||
+                order.sessionBinding?.sessionId !== session.id
+              ) {
+                throw new Error(
+                  'Work-order ownership changed. Reload this conversation.'
+                );
+              }
+            } else if (
               options.chatSurface === 'intelligence_workbench' &&
               (!expectedProjectId || session.docId)
             ) {

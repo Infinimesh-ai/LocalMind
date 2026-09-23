@@ -411,6 +411,8 @@ export class ProjectResourceModel extends BaseModel {
     const existing = await this.db.projectBlob.findUnique({
       where: { projectId_key: { projectId: input.projectId, key: input.key } },
     });
+    if (existing?.pendingDeletionId)
+      throw new BadRequest('Project Blob is pending deletion');
     const blob = await this.registerBlob(input);
     if (!existing) await store();
     return blob;
@@ -421,7 +423,9 @@ export class ProjectResourceModel extends BaseModel {
     await this.assertMember(input);
     if (
       !/^[a-f0-9]{64}$/.test(input.fingerprint) ||
-      input.key !== `sha256-${input.fingerprint}` ||
+      (input.key !== `sha256-${input.fingerprint}` &&
+        input.key !==
+          `sha256-${input.fingerprint}-${createHash('sha256').update(input.mimeType).digest('hex').slice(0, 16)}`) ||
       !Number.isSafeInteger(input.byteSize) ||
       input.byteSize < 0 ||
       input.byteSize > PROJECT_BLOB_MAX_BYTES
@@ -452,6 +456,8 @@ export class ProjectResourceModel extends BaseModel {
       throw new BadRequest(
         'Project Blob evidence differs from the existing object'
       );
+    if (blob.pendingDeletionId)
+      throw new BadRequest('Project Blob is pending deletion');
     return blob;
   }
 
@@ -492,8 +498,49 @@ export class ProjectResourceModel extends BaseModel {
     const blob = await this.db.projectBlob.findUnique({
       where: { projectId_key: { projectId: input.projectId, key: input.key } },
     });
-    if (!blob) throw new BadRequest('Project Blob is unavailable');
+    if (!blob || blob.pendingDeletionId)
+      throw new BadRequest('Project Blob is unavailable');
     return blob;
+  }
+
+  async listPendingSessionBlobDeletions(deletionId: string) {
+    return await this.db.projectBlob.findMany({
+      where: { pendingDeletionId: deletionId },
+      select: { projectId: true, key: true },
+      orderBy: [{ projectId: 'asc' }, { key: 'asc' }],
+    });
+  }
+
+  @Transactional()
+  async completePendingSessionBlobDeletion(input: {
+    deletionId: string;
+    projectId: string;
+    key: string;
+  }) {
+    await this.db.$executeRaw`
+      SELECT set_config(
+        'localmind.ai_session_blob_delete_id',
+        ${input.deletionId},
+        true
+      )
+    `;
+    const deleted = await this.db.projectBlob.deleteMany({
+      where: {
+        projectId: input.projectId,
+        key: input.key,
+        pendingDeletionId: input.deletionId,
+        sessionContextReferences: { none: {} },
+        revisions: { none: {} },
+        attachments: { none: {} },
+        officeSources: { none: {} },
+        officePackages: { none: {} },
+        officeStates: { none: {} },
+        officeCommands: { none: {} },
+      },
+    });
+    if (deleted.count !== 1) {
+      throw new Error('SESSION_DELETE_PROJECT_BLOB_REFERENCE_CHANGED');
+    }
   }
 
   @Transactional()

@@ -381,3 +381,64 @@ Workspace、可交互主区域和网络请求数量。只测截图或只测 URL 
 - 离线、权限撤销、快速连续切换、目标失败和未同步写入均有自动化覆盖。
 - 第 7.3 节性能门槛在目标 Web 与 Electron 环境通过。
 - 发布说明记录开关、观测结果、回滚方式和剩余风险。
+
+## 11. 2026-09-20 热缓存立即失效修复
+
+在当前源码热开发环境复现：侧栏连续切换两个 Workspace，点击到目标 Workspace
+标题显示正常状态的工具端测量分别为 3255、4406 毫秒，日志显示短时间切回也重新
+instantiate。该测量包含浏览器工具调用开销，是少量本机样本，不代表 p95。
+
+确定根因为 `WorkspaceRepositoryService` 的第四个可选构造参数：框架会在声明的
+依赖后追加 resolver，该对象覆盖了原本的 `warmCacheOptions` 默认值。因此实际
+`ttlMs` 为 `undefined`，`setTimeout` 立即逐出缓存，容量上限也未按默认值生效。
+这属于共用源码问题，不限于开发构建。
+
+本次将配置移至实例字段，保留 60 秒、最多 3 个 Workspace 的既有策略。新增使用
+实际 framework 依赖数组注册方式的回归测试，证明 5 秒后仍复用，60 秒后正常逐出；
+该测试在修复前失败。原测试通过直接构造并传入配置，未覆盖真实注入路径。
+
+修复后的同一浏览器样本：首次打开 1398 毫秒，缓存切回 394 毫秒；随后连续往返为
+293、282 毫秒，日志没有再次 instantiate，最终停留在原 Workspace 全部文档页，
+本轮浏览器错误日志为空。未改动文档内容、数据库或权限；未重建镜像。
+
+验证使用现有 `localmind_hot_web` 容器（`localmind-affine:dev-base`），命令：
+
+```sh
+docker exec -w /workspace localmind_hot_web sh -c 'unset NODE_OPTIONS; yarn vitest run packages/frontend/core/src/modules/workspace/services/repo.spec.ts packages/frontend/core/src/modules/workspace/services/switch.spec.ts packages/frontend/core/src/components/root-app-sidebar/workspaces.spec.tsx'
+yarn lint:ox packages/frontend/core/src/modules/workspace/services/repo.ts packages/frontend/core/src/modules/workspace/services/repo.spec.ts
+yarn prettier --check packages/frontend/core/src/modules/workspace/services/repo.ts packages/frontend/core/src/modules/workspace/services/repo.spec.ts docs/workspace-switch-performance-remediation.zh-CN.md
+git diff --check
+```
+
+上述 3 个测试文件共 17 项通过，oxlint、Prettier 和差异空白检查通过。
+
+此次只修复已证实的缓存注入缺陷，不代表本文所有阶段验收完成。排查时还观察到
+`StaticCloudDocStorage.getDocSnapshot` / `getWorkspaceProfile` 15 秒超时；修复后
+该小样本未重现，但尚未证明与缓存缺陷具有完整因果关系。正式镜像冷启动、Electron、
+长时间运行和统计性能门槛仍需独立验证。
+
+## 12. 2026-09-20 文件列表重复加载修复
+
+在切换后的文件区域复现已显示的文档重新变成 loading。临时诊断显示目录加载状态
+保持完成，但文档列表的 `isReady$` 随后台同步反复变成 false/true。
+`DocsStore.watchDocListReady()` 实际返回 `state.synced`，而侧栏把它用作内容显示条件。
+因此 root 文档的新一轮同步会卸载已经显示的文件节点，并在同步完成后重新挂载。
+
+本次增加独立的本地可用状态 `isAvailable$`（root `ready || synced`），仅替换侧栏
+文件列表的展示条件。原 `isReady$` 保持远端同步语义，避免目录删除判断在同步未完成时
+把尚未拉取的文档错误当作已删除；目录授权加载状态和每个文档的 Guard 继续生效。
+未读取到本地内容时仍显示 loading，完全同步的空 Workspace 正常显示空状态。
+
+验证新增本地可用/同步分离测试与文件节点保持挂载测试，覆盖后台同步、重试对应的未同步
+状态、空 Workspace、断开后的不可用状态，以及目录权限加载时继续隐藏文件。
+复用 `localmind_hot_web`（`localmind-affine:dev-base`）运行：
+
+```sh
+docker exec -w /workspace localmind_hot_web sh -c 'unset NODE_OPTIONS; yarn vitest run packages/frontend/core/src/modules/doc/stores/docs.spec.ts packages/frontend/core/src/components/root-app-sidebar/workspaces.spec.tsx packages/frontend/core/src/modules/organize/stores/folder.spec.ts'
+```
+
+数据层 2 项、目录 19 项和最终侧栏 8 项测试通过（共 29 项）；oxlint、Prettier、
+差异空白检查通过，界面机械检查未发现问题。
+
+浏览器复查 11 → 22，目标文件树正常显示，随后复查仍可见且错误日志为空。只修改展示 readiness 及其数据来源，未重建
+镜像或修改业务数据；未改变第 11 节记录的独立网络超时问题的验证结论。

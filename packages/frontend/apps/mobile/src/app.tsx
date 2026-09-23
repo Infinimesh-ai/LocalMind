@@ -26,7 +26,9 @@ let storeManagerClient: StoreManagerClient;
 
 const workerUrl = getWorkerUrl('nbstore');
 if (window.SharedWorker) {
-  const worker = new SharedWorker(workerUrl, { name: 'affine-shared-worker' });
+  const worker = new SharedWorker(workerUrl, {
+    name: `affine-shared-worker-${BUILD_CONFIG.workerBuildId}`,
+  });
   storeManagerClient = new StoreManagerClient(new OpClient(worker.port));
 } else {
   const worker = new Worker(workerUrl);

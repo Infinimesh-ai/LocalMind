@@ -1,0 +1,12 @@
+query copilotProjectSessionMemoryCaptureGet($sessionId: ID!) {
+  currentUser {
+    copilot {
+      projectSessionMemoryCapture(sessionId: $sessionId) {
+        sessionId
+        projectId
+        allowMemoryCapture
+        revision
+      }
+    }
+  }
+}

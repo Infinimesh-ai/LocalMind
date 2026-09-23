@@ -35,6 +35,23 @@ function resolvePosition(
   };
 }
 
+export function resolveOfficeTextPosition(
+  root: HTMLElement,
+  selection: Selection | null
+): OfficeTextPosition | null {
+  if (!selection || selection.rangeCount === 0 || !selection.anchorNode) {
+    return null;
+  }
+  const position = resolvePosition(
+    root,
+    selection.anchorNode,
+    selection.anchorOffset
+  );
+  return position
+    ? { blockId: position.blockId, offset: position.offset }
+    : null;
+}
+
 export function resolveOfficeTextRange(
   root: HTMLElement,
   selection: Selection | null

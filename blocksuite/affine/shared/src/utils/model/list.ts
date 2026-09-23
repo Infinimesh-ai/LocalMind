@@ -4,6 +4,56 @@ import type { BlockModel, Store } from '@blocksuite/store';
 
 import { matchModels } from './checker.js';
 
+/** Delete a block and keep the following sibling numbered list continuous. */
+export function deleteBlockWithListOrder(
+  doc: Store,
+  model: BlockModel,
+  options?: Parameters<Store['deleteBlock']>[1]
+) {
+  if (doc.readonly) return;
+
+  const parent = doc.getParent(model);
+  if (!parent) return;
+
+  // Read Yjs directly: children signals are only refreshed after the outer
+  // transaction, so they can still contain items already deleted in a batch.
+  const children = parent.yBlock.get('sys:children');
+  const index = children.toArray().indexOf(model.id);
+  if (index === -1) return;
+  const deletedOrder =
+    matchModels(model, [ListBlockModel]) && model.props.type === 'numbered'
+      ? model.props.order
+      : null;
+
+  doc.transact(() => {
+    doc.deleteBlock(model, options);
+
+    const siblings = children.toArray();
+    const previous =
+      index > 0 ? doc.getBlock(siblings[index - 1])?.model : null;
+    let order =
+      matchModels(previous, [ListBlockModel]) &&
+      previous.props.type === 'numbered'
+        ? (previous.props.order ?? 1) + 1
+        : deletedOrder;
+
+    for (const id of siblings.slice(index)) {
+      const sibling = doc.getBlock(id)?.model;
+      if (
+        !matchModels(sibling, [ListBlockModel]) ||
+        sibling.props.type !== 'numbered'
+      )
+        break;
+
+      // Preserve an independent list's starting number when removing a
+      // paragraph before it, or the deleted first item's custom start.
+      order ??= sibling.props.order ?? 1;
+      if (sibling.props.order !== order) sibling.props.order = order;
+      order++;
+    }
+  });
+}
+
 /**
  * Pass in a list model, and this function will look forward to find continuous sibling numbered lists,
  * typically used for updating list numbers. The result not contains the list passed in.

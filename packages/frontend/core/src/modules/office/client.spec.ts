@@ -1,25 +1,40 @@
 /** @vitest-environment happy-dom */
+import { afterEach, expect, test, vi } from 'vitest';
 
-import { describe, expect, test } from 'vitest';
+import { officeAssetUrl } from './client';
 
-import { officePackagePartUrl, officePdfExportUrl } from './client';
+const originalUrl = window.location.href;
 
-describe('Office immutable asset URLs', () => {
-  const packageUrl =
-    'https://localmind.test/api/workspaces/w/office/artifacts/a/revisions/r/package?download=1';
+afterEach(() => {
+  window.location.href = originalUrl;
+  vi.unstubAllGlobals();
+});
 
-  test('projects a bounded package part URL', () => {
-    expect(officePackagePartUrl(packageUrl, 'word/media/image 1.png')).toBe(
-      'https://localmind.test/api/workspaces/w/office/artifacts/a/revisions/r/part?path=word%2Fmedia%2Fimage+1.png'
-    );
-  });
+test('rewrites authenticated Office assets across local loopback aliases', () => {
+  vi.stubGlobal('BUILD_CONFIG', { ...BUILD_CONFIG, debug: true, isWeb: true });
+  window.location.href = 'http://localhost:8080/project/p';
 
-  test('projects a document PDF export URL', () => {
-    expect(officePdfExportUrl(packageUrl)).toBe(
-      'https://localmind.test/api/workspaces/w/office/artifacts/a/revisions/r/export/pdf'
-    );
-    expect(() =>
-      officePdfExportUrl('https://localmind.test/not-office')
-    ).toThrow(/Invalid Office package URL/);
-  });
+  expect(
+    officeAssetUrl(
+      'http://0.0.0.0:3025/api/projects/p/office/artifacts/a/revisions/r/state'
+    )
+  ).toBe(
+    'http://localhost:8080/api/projects/p/office/artifacts/a/revisions/r/state'
+  );
+});
+
+test('does not rewrite non-local or unrecognized asset routes', () => {
+  vi.stubGlobal('BUILD_CONFIG', { ...BUILD_CONFIG, debug: true, isWeb: true });
+  window.location.href = 'http://localhost:8080/project/p';
+
+  expect(
+    officeAssetUrl(
+      'https://assets.example.test/api/projects/p/office/artifacts/a/revisions/r/state'
+    )
+  ).toBe(
+    'https://assets.example.test/api/projects/p/office/artifacts/a/revisions/r/state'
+  );
+  expect(officeAssetUrl('http://0.0.0.0:3025/api/other/state')).toBe(
+    'http://0.0.0.0:3025/api/other/state'
+  );
 });

@@ -97,10 +97,12 @@ export class PromptRuntime {
         sessionId: session.id,
         actorId: session.userId,
         projectId: session.selectedContextProjectId,
+        workOrderId: session.workOrderBinding?.workOrderId ?? null,
         sources: [
           {
             workspaceId: session.workspaceId,
-            kind: 'workspace',
+            kind:
+              session.scopeType === 'work_order' ? 'work_order' : 'workspace',
             sourceId: `system-prompt:${createHash('sha256').update(JSON.stringify(prompt)).digest('hex')}`,
           },
         ],

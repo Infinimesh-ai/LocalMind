@@ -2,14 +2,18 @@
  * @vitest-environment happy-dom
  */
 
+import type * as AffineComponentModule from '@affine/component';
+import type * as AffineGraphQLModule from '@affine/graphql';
+import type * as AffineI18nModule from '@affine/i18n';
+import type * as BlockSuiteIconsModule from '@blocksuite/icons/rc';
 import {
   cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react';
+import type * as InfraModule from '@toeverything/infra';
 import type {
   ButtonHTMLAttributes,
   PropsWithChildren,
@@ -95,7 +99,8 @@ const tokens = vi.hoisted(() => ({
   /* eslint-enable rxjs/finnish */
 }));
 
-vi.mock('@affine/component', () => ({
+vi.mock('@affine/component', async importOriginal => ({
+  ...(await importOriginal<typeof AffineComponentModule>()),
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props} />
   ),
@@ -287,7 +292,8 @@ vi.mock('@affine/error', () => ({
   UserFriendlyError: { fromAny: (error: Error) => error },
 }));
 
-vi.mock('@affine/graphql', () => ({
+vi.mock('@affine/graphql', async importOriginal => ({
+  ...(await importOriginal<typeof AffineGraphQLModule>()),
   projectResourceQuery: tokens.resourceQuery,
   projectResourcePathQuery: tokens.resourcePathQuery,
   acceptCopilotProjectInvitationMutation: Symbol('acceptInvitation'),
@@ -311,7 +317,8 @@ vi.mock('@affine/graphql', () => ({
   withdrawCopilotProjectInvitationMutation: Symbol('withdrawInvitation'),
 }));
 
-vi.mock('@affine/i18n', () => ({
+vi.mock('@affine/i18n', async importOriginal => ({
+  ...(await importOriginal<typeof AffineI18nModule>()),
   getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () =>
     new Proxy(
@@ -322,7 +329,8 @@ vi.mock('@affine/i18n', () => ({
     ),
 }));
 
-vi.mock('@blocksuite/icons/rc', () => ({
+vi.mock('@blocksuite/icons/rc', async importOriginal => ({
+  ...(await importOriginal<typeof BlockSuiteIconsModule>()),
   AiIcon: () => <svg />,
   FolderIcon: () => <svg />,
   ArrowLeftSmallIcon: () => <svg />,
@@ -334,7 +342,8 @@ vi.mock('@blocksuite/icons/rc', () => ({
   WarningIcon: () => <svg />,
 }));
 
-vi.mock('@toeverything/infra', () => ({
+vi.mock('@toeverything/infra', async importOriginal => ({
+  ...(await importOriginal<typeof InfraModule>()),
   useFramework: () => ({ createEntity: vi.fn() }),
   FrameworkScope: ({
     children,
@@ -409,7 +418,12 @@ vi.mock('./project-resource-preview', () => ({
 vi.mock('./project-files', () => ({
   ProjectFiles: ({ onOpen }: { onOpen: (id: string) => void }) => (
     <div data-testid="project-main-files">
-      <button onClick={() => onOpen('native-doc')}>Open native resource</button>
+      <button
+        data-project-resource-id="native-doc"
+        onClick={() => onOpen('native-doc')}
+      >
+        Open native resource
+      </button>
     </div>
   ),
 }));
@@ -420,19 +434,46 @@ vi.mock('@affine/core/components/project-file-request/detail', () => ({
 
 vi.mock('./project-tree', () => ({
   ProjectTree: ({
+    projects,
+    loading,
+    error,
+    onRefresh,
     onSelectProject,
   }: {
+    projects: Array<{ id: string; status: string }>;
+    loading: boolean;
+    error?: string;
+    onRefresh: () => void;
     onSelectProject: (projectId: string | null) => void;
-  }) => (
-    <>
-      <button type="button" onClick={() => onSelectProject(null)}>
-        All projects
-      </button>
-      <button type="button" onClick={() => onSelectProject('project-1')}>
-        Select project
-      </button>
-    </>
-  ),
+  }) => {
+    const activeProjects = projects.filter(
+      project => project.status === 'active'
+    );
+    return (
+      <>
+        <button type="button" onClick={() => onSelectProject(null)}>
+          All projects
+        </button>
+        {loading ? <div role="status">Project tree loading</div> : null}
+        {error ? (
+          <div role="alert">
+            <span>{error}</span>
+            <button type="button" onClick={onRefresh}>
+              com.affine.localmind.workbench.retry
+            </button>
+          </div>
+        ) : null}
+        {!loading && !error && activeProjects.length === 0 ? (
+          <span>com.affine.localmind.workbench.projects.emptyTitle</span>
+        ) : null}
+        {activeProjects.length ? (
+          <button type="button" onClick={() => onSelectProject('project-1')}>
+            Select project
+          </button>
+        ) : null}
+      </>
+    );
+  },
 }));
 
 vi.mock('./task-panel', () => ({
@@ -688,7 +729,7 @@ describe('Intelligence workbench shell', () => {
     }
   });
 
-  test('lists projects above aggregate tasks and opens a project from the overview', () => {
+  test('shows the personal board and opens a project from the navigation', () => {
     renderWorkbench('/project');
 
     expect(screen.queryByTestId('conversation')).toBeNull();
@@ -703,70 +744,66 @@ describe('Intelligence workbench shell', () => {
     expect(
       screen.getByRole('button', { name: 'View all Todo' })
     ).not.toBeNull();
-
-    const overview = within(screen.getByTestId('project-overview'));
-    const projectLink = overview.getByRole('link', { name: 'Project one' });
-    expect(projectLink.getAttribute('href')).toBe('/project/project-1');
     expect(
-      projectLink.compareDocumentPosition(
-        screen.getByRole('button', { name: 'View all Todo' })
-      ) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    fireEvent.click(projectLink);
+      screen.getByRole('heading', {
+        name: 'com.affine.localmind.workbench.v9.overview',
+      })
+    ).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select project' }));
     expect(screen.getByTestId('location').textContent).toBe(
       '/project/project-1'
     );
-    expect(screen.queryByTestId('project-overview')).toBeNull();
-    expect(screen.getByTestId('project-main-files')).not.toBeNull();
     expect(screen.queryByTestId('conversation')).not.toBeNull();
     expect(state.conversationMounts).toBe(1);
+    expect(
+      screen.getByRole('region', {
+        name: 'com.affine.localmind.workbench.v9.contextPanel',
+      })
+    ).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'All projects' }));
     expect(screen.queryByTestId('conversation')).toBeNull();
     expect(state.conversationUnmounts).toBe(1);
     expect(screen.getByTestId('location').textContent).toBe('/project');
     expect(
-      within(screen.getByTestId('project-overview')).getByRole('link', {
-        name: 'Project one',
+      screen.getByRole('heading', {
+        name: 'com.affine.localmind.workbench.v9.overview',
       })
     ).not.toBeNull();
   });
 
-  test('shows project overview loading before an empty result is available', () => {
+  test('shows project navigation loading before an empty result is available', () => {
     state.projectAvailable = false;
     state.projectsLoading = true;
     renderWorkbench('/project');
-    const overview = within(screen.getByTestId('project-overview'));
-    expect(overview.getByRole('status').textContent).toContain(
-      'com.affine.loading'
-    );
+    expect(screen.getByText('Project tree loading')).not.toBeNull();
     expect(
-      overview.queryByText('com.affine.localmind.workbench.projects.emptyTitle')
+      screen.queryByText('com.affine.localmind.workbench.projects.emptyTitle')
     ).toBeNull();
   });
 
   test.each(['empty', 'archived'])(
-    'shows the empty project overview for %s results',
+    'shows the empty project navigation for %s results',
     stateName => {
       state.projectAvailable = stateName !== 'empty';
       if (stateName === 'archived') state.project.status = 'archived';
       renderWorkbench('/project');
-      const overview = within(screen.getByTestId('project-overview'));
       expect(
-        overview.getByText('com.affine.localmind.workbench.projects.emptyTitle')
+        screen.getByText('com.affine.localmind.workbench.projects.emptyTitle')
       ).not.toBeNull();
-      expect(overview.queryByRole('link')).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: 'Select project' })
+      ).toBeNull();
     }
   );
 
-  test('retries a failed project query from the main overview', () => {
+  test('retries a failed project query from the navigation', () => {
     state.projectsError = new Error('Network unavailable');
     renderWorkbench('/project');
-    const overview = within(screen.getByTestId('project-overview'));
-    expect(overview.getByRole('alert')).not.toBeNull();
-    expect(overview.queryByRole('link')).toBeNull();
+    expect(screen.getByRole('alert')).not.toBeNull();
     fireEvent.click(
-      overview.getByRole('button', {
+      screen.getByRole('button', {
         name: 'com.affine.localmind.workbench.retry',
       })
     );
@@ -792,8 +829,13 @@ describe('Intelligence workbench shell', () => {
     expect(screen.queryByTestId('conversation')).not.toBeNull();
   });
 
-  test('opens native resources in the main area with chat mounted and fullscreen as a UI action', () => {
+  test('opens native resources in the main area and restores the tree opener on close', async () => {
     renderWorkbench();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.showFileTree',
+      })
+    );
     fireEvent.click(
       screen.getByRole('button', { name: 'Open native resource' })
     );
@@ -815,6 +857,11 @@ describe('Intelligence workbench shell', () => {
       '/project/project-1'
     );
     expect(state.conversationMounts).toBe(1);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Open native resource' })
+      )
+    );
   });
 
   test('preserves the Project and resource URL while a suspended query has no resolved data', () => {

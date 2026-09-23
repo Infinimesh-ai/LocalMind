@@ -11,6 +11,7 @@ import {
 import { useI18n } from '@affine/i18n';
 import { ArrowRightSmallIcon, FolderIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
+import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 
 import * as styles from './project-files.css';
@@ -200,7 +201,7 @@ export function ProjectWorkspaceImportPicker({
                       onChange={() => {
                         setSelected({
                           ...source,
-                          requestKey: crypto.randomUUID(),
+                          requestKey: nanoid(),
                         });
                         setError(false);
                       }}

@@ -694,6 +694,7 @@ export class DocSyncPeer {
 
       // reset retrying flag after connected with server
       this.status.retrying = false;
+      this.status.errorMessage = null;
       this.statusUpdatedSubject$.next(true);
 
       // subscribe local doc updates

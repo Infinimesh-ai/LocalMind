@@ -2,7 +2,7 @@ import { Checkbox } from '@affine/admin/components/ui/checkbox';
 import { Label } from '@affine/admin/components/ui/label';
 import { Separator } from '@affine/admin/components/ui/separator';
 import { Switch } from '@affine/admin/components/ui/switch';
-import type { FeatureType } from '@affine/graphql';
+import { FeatureType } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useCallback } from 'react';
 
@@ -67,12 +67,25 @@ export const FeatureToggleList = ({
                   checked={selected.includes(feature)}
                   onCheckedChange={checked => handleToggle(feature, !!checked)}
                 />
-                <span className="truncate">{feature}</span>
+                <span className="truncate">
+                  {feature === FeatureType.Admin
+                    ? i18n['com.affine.admin.admin']()
+                    : feature}
+                </span>
               </>
             ) : (
               <>
-                <span className="overflow-hidden text-ellipsis" title={feature}>
-                  {feature}
+                <span
+                  className="overflow-hidden text-ellipsis"
+                  title={
+                    feature === FeatureType.Admin
+                      ? i18n['com.affine.admin.admin']()
+                      : feature
+                  }
+                >
+                  {feature === FeatureType.Admin
+                    ? i18n['com.affine.admin.admin']()
+                    : feature}
                 </span>
                 <Control
                   checked={selected.includes(feature)}

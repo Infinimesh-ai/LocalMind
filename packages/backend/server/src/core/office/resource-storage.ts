@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 
 import { Injectable } from '@nestjs/common';
@@ -13,6 +14,34 @@ export class OfficeResourceStorage {
     private readonly workspaces: WorkspaceBlobStorage,
     private readonly projects: ProjectBlobStorage
   ) {}
+
+  async putGenerated(
+    owner: OfficeOwner,
+    actorId: string,
+    bytes: Buffer,
+    mimeType: string,
+    authorize: () => Promise<void>
+  ) {
+    if (typeof owner !== 'string') {
+      const blob = await this.projects.put({
+        projectId: owner.projectId,
+        actorId,
+        bytes,
+        mimeType,
+        mimeIdentity: true,
+      });
+      return blob.key;
+    }
+    const key = `ai-file-${createHash('sha256').update(mimeType).digest('hex').slice(0, 16)}-${createHash('sha256').update(bytes).digest('base64url')}`;
+    await this.workspaces.putCopyAttachment(
+      owner,
+      key,
+      bytes,
+      { uploadId: key, contentType: mimeType, deferQuotaInvalidation: true },
+      authorize
+    );
+    return key;
+  }
 
   async get(owner: OfficeOwner, actorId: string, key: string) {
     if (typeof owner === 'string') return this.workspaces.get(owner, key);

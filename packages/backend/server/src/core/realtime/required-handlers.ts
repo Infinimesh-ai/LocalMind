@@ -35,6 +35,7 @@ export const REALTIME_GATEWAY_REQUIRED_TOPICS = [
   'user.settings.changed',
   'notification.count.changed',
   'comment.changed',
+  'office.comment.changed',
   'workspace.embedding.progress.changed',
   'copilot.transcript.task.changed',
   'user.quota-state.changed',

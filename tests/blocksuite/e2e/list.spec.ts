@@ -5,6 +5,7 @@ import {
   enterPlaygroundRoom,
   enterPlaygroundWithList,
   focusRichText,
+  focusRichTextEnd,
   getPageSnapshot,
   initEmptyEdgelessState,
   initEmptyParagraphState,
@@ -321,6 +322,85 @@ test('update numbered list block prefix', async ({ page }) => {
 
   await page.keyboard.press('Tab');
   await assertListPrefix(page, ['1', '2', 'a', '3']);
+});
+
+test('numbered list IME confirmation does not split the item', async ({
+  page,
+}) => {
+  await enterPlaygroundRoom(page);
+  await initEmptyParagraphState(page);
+  await focusRichText(page);
+  await type(page, '1.');
+  await pressSpace(page);
+  await type(page, 'first');
+  await assertBlockCount(page, 'list', 1);
+
+  const prevented = await page.evaluate(() => {
+    document.dispatchEvent(new CompositionEvent('compositionstart'));
+    document.dispatchEvent(new CompositionEvent('compositionend'));
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      isComposing: false,
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'keyCode', { value: 229 });
+    document.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(prevented).toBe(false);
+  await assertRichTexts(page, ['first']);
+  await assertBlockCount(page, 'list', 1);
+
+  await pressEnter(page);
+  await assertRichTexts(page, ['first', '']);
+  await assertListPrefix(page, ['1', '2']);
+});
+
+test('numbered list renumbers after removing an inserted item with Backspace', async ({
+  page,
+}) => {
+  await enterPlaygroundWithList(page, ['first', 'last'], 'numbered');
+  await focusRichText(page, 0);
+  await focusRichTextEnd(page, 0);
+  await pressEnter(page);
+  await assertRichTexts(page, ['first', '', 'last']);
+  await assertListPrefix(page, ['1', '2', '3']);
+
+  // The first Backspace removes the list marker; the second removes the paragraph.
+  await pressBackspace(page);
+  await pressBackspace(page);
+  await assertRichTexts(page, ['first', 'last']);
+  await assertListPrefix(page, ['1', '2']);
+});
+
+test('numbered list renumbers after forward Delete and undo/redo', async ({
+  page,
+}) => {
+  await enterPlaygroundWithList(page, ['first', '', 'last'], 'numbered');
+  await focusRichText(page, 0);
+  await focusRichTextEnd(page, 0);
+  await page.evaluate(() => window.doc.resetHistory());
+  await page.keyboard.press('Delete');
+  await assertRichTexts(page, ['first', 'last']);
+  await assertListPrefix(page, ['1', '2']);
+
+  await undoByClick(page);
+  await assertRichTexts(page, ['first', '', 'last']);
+  await assertListPrefix(page, ['1', '2', '3']);
+  await redoByClick(page);
+  await assertRichTexts(page, ['first', 'last']);
+  await assertListPrefix(page, ['1', '2']);
+});
+
+test('numbered list renumbers after deleting a selected block', async ({
+  page,
+}) => {
+  await enterPlaygroundWithList(page, ['first', 'middle', 'last'], 'numbered');
+  await page.locator('.affine-list-block__prefix').nth(1).click();
+  await page.keyboard.press('Backspace');
+  await assertRichTexts(page, ['first', 'last']);
+  await assertListPrefix(page, ['1', '2']);
 });
 
 test('basic indent and unindent', async ({ page }, testInfo) => {

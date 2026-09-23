@@ -33,7 +33,20 @@ export const CategoryDivider = forwardRef(
       <div
         className={clsx(styles.root, className)}
         ref={ref}
-        role="switch"
+        role={collapsible ? 'button' : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        aria-expanded={collapsible ? !collapsed : undefined}
+        aria-label={label}
+        onKeyDown={event => {
+          if (
+            collapsible &&
+            event.target === event.currentTarget &&
+            (event.key === 'Enter' || event.key === ' ')
+          ) {
+            event.preventDefault();
+            setCollapsed?.(!collapsed);
+          }
+        }}
         onClick={() => setCollapsed?.(!collapsed)}
         data-collapsed={collapsed}
         data-collapsible={collapsible}

@@ -1285,7 +1285,7 @@ test('context memories should stay private to their owner and scope', async t =>
       visibility: 'private',
       content: 'NON_MEMBER_PROJECT_MEMORY',
     }),
-    { message: /requires active project membership/ }
+    { message: /Project memory is unavailable/ }
   );
   t.false(
     (
@@ -1417,15 +1417,12 @@ test('context memories should stay private to their owner and scope', async t =>
   );
   const crossAuthorSessionId = await session.create({
     userId: otherUser.id,
-    workspaceId: otherWorkspace.id,
+    workspaceId: null,
     docId: null,
+    selectedContextProjectId: projectA.id,
     promptName,
     pinned: false,
     reuseLatestChat: false,
-  });
-  await db.aiSession.update({
-    where: { id: crossAuthorSessionId },
-    data: { selectedContextProjectId: projectA.id },
   });
   t.deepEqual(
     await models.copilotContextRule.recordHits({
@@ -1446,15 +1443,30 @@ test('context memories should stay private to their owner and scope', async t =>
 
   const primaryProjectSessionId = await session.create({
     userId,
-    workspaceId: primaryWorkspace.id,
-    docId: 'doc-a',
+    workspaceId: null,
+    docId: null,
+    selectedContextProjectId: projectA.id,
     promptName,
     pinned: false,
     reuseLatestChat: false,
   });
-  await db.aiSession.update({
-    where: { id: primaryProjectSessionId },
-    data: { selectedContextProjectId: projectA.id },
+  const primaryProjectTurnId = `turn-${randomUUID()}`;
+  const crossAuthorTurnId = `turn-${randomUUID()}`;
+  await db.aiSessionMessage.createMany({
+    data: [
+      {
+        id: primaryProjectTurnId,
+        sessionId: primaryProjectSessionId,
+        role: 'user',
+        content: 'The project deployment region is us-west-1.',
+      },
+      {
+        id: crossAuthorTurnId,
+        sessionId: crossAuthorSessionId,
+        role: 'user',
+        content: 'The project deployment region is us-west-2.',
+      },
+    ],
   });
   const projectFactKey = `project:cross-host:${randomUUID()}`;
   const projectDecision = (content: string) => ({
@@ -1471,50 +1483,58 @@ test('context memories should stay private to their owner and scope', async t =>
   });
   const projectWriter = (
     ownerUserId: string,
-    workspaceId: string,
     sourceSessionId: string,
+    sourceTurnId: string,
     content: string
   ) =>
     memory.applyWriterDecision({
       ownerUserId,
-      workspaceId,
+      workspaceId: null,
       projectId: projectA.id,
       sourceSessionId,
-      sourceTurnId: `turn-${workspaceId}`,
+      sourceTurnId,
       scope: 'project',
       explicit: true,
       writerVersion: 'structured-memory-writer/test',
       decisionFingerprint: `project-writer-${randomUUID()}`,
       decision: projectDecision(content),
     });
-  const projectEvents = await Promise.all([
-    projectWriter(
+  const projectEvents = [
+    await projectWriter(
       userId,
-      primaryWorkspace.id,
       primaryProjectSessionId,
+      primaryProjectTurnId,
       'The project deployment region is us-west-1.'
     ),
-    projectWriter(
+    await projectWriter(
       otherUser.id,
-      otherWorkspace.id,
       crossAuthorSessionId,
+      crossAuthorTurnId,
       'The project deployment region is us-west-2.'
     ),
-  ]);
+  ];
   t.deepEqual(
-    projectEvents
-      .map(event => event.operation)
-      .toSorted((left, right) => left.localeCompare(right)),
-    ['ADD', 'UPDATE']
+    projectEvents.map(event => event.operation),
+    ['ADD', 'PENDING_CONFLICT']
   );
-  t.deepEqual(
-    projectEvents
-      .map(event => event.workspaceId)
-      .toSorted((left, right) => (left ?? '').localeCompare(right ?? '')),
-    [primaryWorkspace.id, otherWorkspace.id].toSorted((left, right) =>
-      left.localeCompare(right)
-    ),
-    'writer events retain their execution host workspace'
+  const [pendingConflict] = await memory.listProjectMemoryConflicts(
+    projectA.id
+  );
+  t.truthy(pendingConflict);
+  t.is(
+    (
+      await memory.resolveProjectMemoryConflict({
+        projectId: projectA.id,
+        conflictId: pendingConflict!.id,
+        actorUserId: userId,
+        resolution: 'accept',
+      })
+    )?.status,
+    'accepted'
+  );
+  t.true(
+    projectEvents.every(event => event.workspaceId === null),
+    'native Project writer events do not depend on an execution Workspace'
   );
   const projectMemoryChain = await db.aiContextMemory.findMany({
     where: {
@@ -1525,12 +1545,28 @@ test('context memories should stay private to their owner and scope', async t =>
   });
   t.is(projectMemoryChain.length, 2);
   t.true(projectMemoryChain.every(item => item.workspaceId === null));
+  t.true(
+    projectMemoryChain.every(item => item.ownerUserId === userId),
+    'the immutable chain retains its original authorship instead of reassigning ownership'
+  );
+  const activeProjectMemory = projectMemoryChain.find(
+    item => item.status === 'active'
+  );
+  t.truthy(activeProjectMemory);
   t.deepEqual(
-    projectMemoryChain
-      .map(item => item.ownerUserId)
-      .toSorted((left, right) => left.localeCompare(right)),
-    [userId, otherUser.id].toSorted((left, right) => left.localeCompare(right)),
-    'each memory version retains its writing actor as audit provenance'
+    [
+      ...new Set(
+        (
+          await db.aiContextMemoryContribution.findMany({
+            where: { memoryId: activeProjectMemory!.id, status: 'active' },
+            select: { contributorUserId: true },
+          })
+        ).flatMap(item =>
+          item.contributorUserId ? [item.contributorUserId] : []
+        )
+      ),
+    ].toSorted((left, right) => left.localeCompare(right)),
+    [otherUser.id, userId].toSorted((left, right) => left.localeCompare(right))
   );
   t.is(
     projectMemoryChain.filter(item => item.status === 'active').length,
@@ -1551,7 +1587,7 @@ test('context memories should stay private to their owner and scope', async t =>
     ).some(item => item.factKey === projectFactKey),
     'a Project member sees the active version written by another member'
   );
-  t.false(
+  t.true(
     (
       await memory.listManageable({
         userId: otherUser.id,
@@ -1559,7 +1595,11 @@ test('context memories should stay private to their owner and scope', async t =>
         includeDisabled: true,
       })
     ).some(item => item.factKey === projectFactKey),
-    'a Project member cannot manage the shared Project memory chain'
+    'a Project member sees the same shared-memory management list'
+  );
+  t.false(
+    await memory.canManageProjectMemory(otherUser.id, activeProjectMemory!.id),
+    'a contributor cannot rewrite a multi-contributor shared fact'
   );
 
   const nonMemberUser = await auth.signUp(
@@ -1607,24 +1647,8 @@ test('context memories should stay private to their owner and scope', async t =>
       visibility: 'private',
       content: 'OTHER_USER_RULE_HIDDEN',
     }),
-    memory.put({
-      ownerUserId: userId,
-      workspaceId: primaryWorkspace.id,
-      projectId: projectA.id,
-      scope: 'project',
-      kind: 'project_summary',
-      visibility: 'private',
-      content: 'PROJECT_A_VISIBLE',
-    }),
-    memory.put({
-      ownerUserId: userId,
-      workspaceId: primaryWorkspace.id,
-      projectId: projectB.id,
-      scope: 'project',
-      kind: 'auto_memory',
-      visibility: 'private',
-      content: 'PROJECT_B_HIDDEN',
-    }),
+    memory.createProjectSummary(userId, projectA.id, 'PROJECT_A_VISIBLE'),
+    memory.createProjectSummary(userId, projectB.id, 'PROJECT_B_HIDDEN'),
     memory.put({
       ownerUserId: otherUser.id,
       workspaceId: primaryWorkspace.id,
@@ -1720,7 +1744,8 @@ test('context memories should stay private to their owner and scope', async t =>
   t.is(
     (await db.aiSession.findUnique({ where: { id: memberSessionId } }))
       ?.selectedContextProjectId,
-    null
+    projectA.id,
+    'archiving preserves the immutable session owner binding while access checks reject the inactive Project'
   );
   await t.throwsAsync(
     db.aiContextProject.delete({
@@ -1772,12 +1797,30 @@ test('context memories should stay private to their owner and scope', async t =>
     pinned: false,
     reuseLatestChat: false,
   });
+  const auditProjectSessionId = await session.create({
+    userId: auditUser.id,
+    workspaceId: null,
+    docId: null,
+    selectedContextProjectId: auditProject.id,
+    promptName,
+    pinned: false,
+    reuseLatestChat: false,
+  });
+  const auditProjectTurnId = `turn-${randomUUID()}`;
+  await db.aiSessionMessage.create({
+    data: {
+      id: auditProjectTurnId,
+      sessionId: auditProjectSessionId,
+      role: 'user',
+      content: 'Retain this Project memory after its author is deleted.',
+    },
+  });
   const retainedEvent = await memory.applyWriterDecision({
     ownerUserId: auditUser.id,
-    workspaceId: auditWorkspace.id,
+    workspaceId: null,
     projectId: auditProject.id,
-    sourceSessionId: auditSessionId,
-    sourceTurnId: 'audit-project-turn',
+    sourceSessionId: auditProjectSessionId,
+    sourceTurnId: auditProjectTurnId,
     scope: 'project',
     explicit: true,
     writerVersion: 'structured-memory-writer/test',
@@ -1804,6 +1847,15 @@ test('context memories should stay private to their owner and scope', async t =>
     priority: 1,
     conditions: {},
     content: 'Retain this Project rule after its author is deleted.',
+  });
+  const privateCheckpoint = await memory.putCheckpoint({
+    sessionId: auditProjectSessionId,
+    strategyVersion: 'account-deletion-test/v1',
+    strategyFingerprint: 'account-deletion-strategy',
+    summary: '- private summary must be deleted with its account',
+    summarizedMessageCount: 1,
+    sourceFingerprint: 'account-deletion-source',
+    diagnostics: {},
   });
   const personalEvent = await memory.applyWriterDecision({
     ownerUserId: auditUser.id,
@@ -1849,7 +1901,7 @@ test('context memories should stay private to their owner and scope', async t =>
         where: { id: retainedEvent.memoryId! },
       })
     )?.ownerUserId,
-    userId
+    null
   );
   t.like(
     await db.aiContextMemoryEvent.findUnique({
@@ -1860,7 +1912,7 @@ test('context memories should stay private to their owner and scope', async t =>
   t.is(
     (await db.aiContextRule.findUnique({ where: { id: retainedRule.id } }))
       ?.ownerUserId,
-    userId
+    null
   );
   t.is(
     (
@@ -1875,6 +1927,12 @@ test('context memories should stay private to their owner and scope', async t =>
     0
   );
   t.is(await db.aiContextRule.count({ where: { id: personalRule.id } }), 0);
+  t.is(
+    await db.aiContextCheckpoint.count({
+      where: { id: privateCheckpoint.id },
+    }),
+    0
+  );
 
   const soleOwner = await auth.signUp(
     `memory-sole-owner-${randomUUID()}@affine.pro`,
@@ -2139,7 +2197,7 @@ test('context memory quota keeps the most recently used automatic memories', asy
       visibility: 'private',
       content,
       factKey: `quota:test:${index}`,
-      captureMode: 'explicit',
+      captureMode: 'implicit',
       writerVersion: 'structured-memory-writer/test',
     });
     await db.aiContextMemory.update({
@@ -2148,6 +2206,17 @@ test('context memory quota keeps the most recently used automatic memories', asy
     });
     created.push(row);
   }
+  const protectedWorkspaceMemory = await memory.put({
+    ownerUserId: userId,
+    workspaceId: targetWorkspace.id,
+    scope: 'workspace',
+    kind: 'auto_memory',
+    visibility: 'private',
+    content: 'Always preserve this explicitly saved fact.',
+    factKey: 'quota:test:protected',
+    captureMode: 'explicit',
+    writerVersion: 'structured-memory-writer/test',
+  });
 
   const cleanup = await memory.enforceAutoMemoryQuota(
     {
@@ -2159,9 +2228,10 @@ test('context memory quota keeps the most recently used automatic memories', asy
   );
 
   t.is(cleanup.count, 1);
-  t.is(await memory.get(created[0].id), null);
+  t.is((await memory.get(created[0].id))?.status, 'expired');
   t.truthy(await memory.get(created[1].id));
   t.truthy(await memory.get(created[2].id));
+  t.is((await memory.get(protectedWorkspaceMemory.id))?.status, 'active');
 
   const secondaryWorkspace = await workspace.create(userId);
   const project = await memory.createProject({
@@ -2204,7 +2274,7 @@ test('context memory quota keeps the most recently used automatic memories', asy
       visibility: 'private',
       content: `Cross-host quota fact ${index}.`,
       factKey: `quota:project:${index}`,
-      captureMode: 'explicit',
+      captureMode: 'implicit',
       writerVersion: 'structured-memory-writer/test',
     });
     await db.aiContextMemory.update({
@@ -2213,6 +2283,30 @@ test('context memory quota keeps the most recently used automatic memories', asy
     });
     projectMemories.push(row);
   }
+  await db.aiProjectMemoryConflict.create({
+    data: {
+      projectId: project.id,
+      baseMemoryId: projectMemories[0].id,
+      proposedByUserId: userId,
+      factKey: projectMemories[0].factKey!,
+      proposedContent: 'Conflicting value pending Owner review.',
+      proposedFingerprint: `quota-conflict-${randomUUID()}`,
+      expectedMemoryRevision: projectMemories[0].revision,
+      requestFingerprint: `quota-conflict-request-${randomUUID()}`,
+    },
+  });
+  const protectedProjectMemory = await memory.put({
+    ownerUserId: userId,
+    projectId: project.id,
+    sourceDocuments: [source],
+    scope: 'project',
+    kind: 'auto_memory',
+    visibility: 'private',
+    content: 'Explicitly pinned Project fact.',
+    factKey: 'quota:project:protected',
+    captureMode: 'explicit',
+    writerVersion: 'structured-memory-writer/test',
+  });
   t.true(projectMemories.every(item => item.workspaceId === null));
   const projectCleanup = await memory.enforceAutoMemoryQuota(
     {
@@ -2224,9 +2318,10 @@ test('context memory quota keeps the most recently used automatic memories', asy
     2
   );
   t.is(projectCleanup.count, 1);
-  t.is(await memory.get(projectMemories[0].id), null);
-  t.truthy(await memory.get(projectMemories[1].id));
+  t.is((await memory.get(projectMemories[0].id))?.status, 'active');
+  t.is((await memory.get(projectMemories[1].id))?.status, 'expired');
   t.truthy(await memory.get(projectMemories[2].id));
+  t.is((await memory.get(protectedProjectMemory.id))?.status, 'active');
 });
 
 test('context memory update maps identity conflicts and concurrent deletion', async t => {
@@ -2649,6 +2744,7 @@ test('chat session should cap prompt render budget by model context window', t =
       userId,
       sessionId: randomUUID(),
       workspaceId: 'workspace-1',
+      scopeType: 'workspace',
       docId: 'doc-1',
       turns: [],
       prompt,
@@ -3506,7 +3602,7 @@ test('turn orchestrator should persist generated image links through image resul
   const session = {
     latestUserTurn: { attachments: ['https://example.com/source.png'] },
     config: { sessionId: 'session-1' },
-    finish: Sinon.stub().returns([
+    finishAsync: Sinon.stub().resolves([
       {
         role: 'system',
         content: 'generate image',

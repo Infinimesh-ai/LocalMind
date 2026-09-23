@@ -1,18 +1,21 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 
+import { officeOwnerToInput } from '../../models/office-owner';
 import { CurrentUser, type CurrentUser as CurrentUserType } from '../auth';
-import { publishCommentChanged } from '../comment/realtime';
 import { RealtimePublisher } from '../realtime';
 import { PublicUserType } from '../user';
+import { publishOfficeCommentChanged } from './comment-realtime';
 import { OfficeCommentService } from './comment-service';
 import {
   OfficeCommentCreateInput,
+  OfficeCommentOwnerInput,
   OfficeCommentReplyCreateInput,
   OfficeCommentReplyType,
   OfficeCommentReplyUpdateInput,
   OfficeCommentResolveInput,
   OfficeCommentType,
   OfficeCommentUpdateInput,
+  resolveOfficeCommentOwner,
 } from './comment-types';
 
 @Resolver()
@@ -27,10 +30,17 @@ export class OfficeCommentResolver {
   })
   async officeComments(
     @CurrentUser() user: CurrentUserType,
-    @Args('workspaceId') workspaceId: string,
-    @Args('artifactId') artifactId: string
+    @Args('artifactId') artifactId: string,
+    @Args('workspaceId', { type: () => String, nullable: true })
+    workspaceId?: string,
+    @Args('owner', { type: () => OfficeCommentOwnerInput, nullable: true })
+    owner?: OfficeCommentOwnerInput
   ) {
-    return await this.comments.list(workspaceId, user.id, artifactId);
+    return await this.comments.list(
+      resolveOfficeCommentOwner(workspaceId, owner),
+      user.id,
+      artifactId
+    );
   }
 
   @Query(() => [PublicUserType], {
@@ -39,10 +49,17 @@ export class OfficeCommentResolver {
   })
   async officeCollaborators(
     @CurrentUser() user: CurrentUserType,
-    @Args('workspaceId') workspaceId: string,
-    @Args('artifactId') artifactId: string
+    @Args('artifactId') artifactId: string,
+    @Args('workspaceId', { type: () => String, nullable: true })
+    workspaceId?: string,
+    @Args('owner', { type: () => OfficeCommentOwnerInput, nullable: true })
+    owner?: OfficeCommentOwnerInput
   ) {
-    return await this.comments.collaborators(workspaceId, user.id, artifactId);
+    return await this.comments.collaborators(
+      resolveOfficeCommentOwner(workspaceId, owner),
+      user.id,
+      artifactId
+    );
   }
 
   @Mutation(() => OfficeCommentType)
@@ -51,10 +68,14 @@ export class OfficeCommentResolver {
     @Args('input') input: OfficeCommentCreateInput
   ) {
     const comment = await this.comments.create({
-      ...input,
+      ...officeOwnerToInput(
+        resolveOfficeCommentOwner(input.workspaceId, input.owner)
+      ),
+      artifactId: input.artifactId,
+      content: input.content,
       actorId: user.id,
     });
-    publishCommentChanged(this.realtime, input.workspaceId, input.artifactId);
+    publishOfficeCommentChanged(this.realtime, comment);
     return comment;
   }
 
@@ -64,7 +85,7 @@ export class OfficeCommentResolver {
     @Args('input') input: OfficeCommentUpdateInput
   ) {
     const comment = await this.comments.update({ ...input, actorId: user.id });
-    publishCommentChanged(this.realtime, comment.workspaceId, comment.docId);
+    publishOfficeCommentChanged(this.realtime, comment);
     return comment;
   }
 
@@ -77,7 +98,7 @@ export class OfficeCommentResolver {
       ...input,
       actorId: user.id,
     });
-    publishCommentChanged(this.realtime, comment.workspaceId, comment.docId);
+    publishOfficeCommentChanged(this.realtime, comment);
     return comment;
   }
 
@@ -87,7 +108,7 @@ export class OfficeCommentResolver {
     @Args('id') id: string
   ) {
     const comment = await this.comments.delete({ actorId: user.id, id });
-    publishCommentChanged(this.realtime, comment.workspaceId, comment.docId);
+    publishOfficeCommentChanged(this.realtime, comment);
     return true;
   }
 
@@ -100,7 +121,7 @@ export class OfficeCommentResolver {
       ...input,
       actorId: user.id,
     });
-    publishCommentChanged(this.realtime, reply.workspaceId, reply.docId);
+    publishOfficeCommentChanged(this.realtime, reply);
     return reply;
   }
 
@@ -113,7 +134,7 @@ export class OfficeCommentResolver {
       ...input,
       actorId: user.id,
     });
-    publishCommentChanged(this.realtime, reply.workspaceId, reply.docId);
+    publishOfficeCommentChanged(this.realtime, reply);
     return reply;
   }
 
@@ -123,7 +144,7 @@ export class OfficeCommentResolver {
     @Args('id') id: string
   ) {
     const reply = await this.comments.deleteReply({ actorId: user.id, id });
-    publishCommentChanged(this.realtime, reply.workspaceId, reply.docId);
+    publishOfficeCommentChanged(this.realtime, reply);
     return true;
   }
 }

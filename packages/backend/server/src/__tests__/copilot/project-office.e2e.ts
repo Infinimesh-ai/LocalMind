@@ -824,3 +824,138 @@ test.serial(
     );
   }
 );
+
+test.serial(
+  'Project Office comments and replies retain owner isolation across membership revocation',
+  async t => {
+    const { db, ...scope } = await fixture();
+    const source = await app.get(ProjectBlobStorage).put({
+      ...scope,
+      bytes: Buffer.from(createMinimalXlsxFixture()),
+      mimeType: OFFICE_FORMATS.xlsx.mimeType,
+    });
+    const imported = await app.get(OfficeImportService).import({
+      ...scope,
+      title: 'Comment fixture',
+      sourceFileName: 'comments.xlsx',
+      sourceBlobKey: source.key,
+      importIdempotencyKey: 'comments',
+    });
+    const content = {
+      version: 'localmind-office-comment/v1',
+      text: 'Synthetic project review',
+      anchor: {
+        kind: 'workbook',
+        revisionId: imported.revision.id,
+        sheetId: '7',
+        address: 'A1',
+      },
+    };
+    const created = await app.gql<{ createOfficeComment: { id: string } }>(
+      `mutation($input: OfficeCommentCreateInput!) { createOfficeComment(input: $input) {id} }`,
+      {
+        input: {
+          owner: { projectId: scope.projectId },
+          artifactId: imported.artifact.id,
+          content,
+        },
+      }
+    );
+    const comment = await db.officeComment.findUniqueOrThrow({
+      where: { id: created.createOfficeComment.id },
+    });
+    t.is(comment.workspaceId, null);
+    t.is(comment.projectId, scope.projectId);
+    t.is(
+      await db.workspaceMember.count({ where: { userId: scope.actorId } }),
+      0
+    );
+    const reply = await app.gql<{ createOfficeCommentReply: { id: string } }>(
+      `mutation($input: OfficeCommentReplyCreateInput!) {createOfficeCommentReply(input: $input) {id}}`,
+      {
+        input: {
+          commentId: comment.id,
+          content: {
+            version: 'localmind-office-comment-reply/v1',
+            text: 'Synthetic reply',
+          },
+        },
+      }
+    );
+    const listed = await app.gql<{
+      officeComments: { id: string; replies: { id: string }[] }[];
+    }>(
+      `query($owner: OfficeCommentOwnerInput!, $artifactId: String!) {officeComments(owner: $owner, artifactId: $artifactId) {id replies {id}}}`,
+      {
+        owner: { projectId: scope.projectId },
+        artifactId: imported.artifact.id,
+      }
+    );
+    t.is(
+      listed.officeComments[0].replies[0].id,
+      reply.createOfficeCommentReply.id
+    );
+    await t.throwsAsync(
+      app.gql(
+        `query($owner: OfficeCommentOwnerInput!, $artifactId: String!) {officeComments(owner: $owner, artifactId: $artifactId) {id}}`,
+        {
+          owner: { projectId: 'other-project' },
+          artifactId: imported.artifact.id,
+        }
+      )
+    );
+    await t.throwsAsync(
+      db.officeComment.create({
+        data: {
+          docId: imported.artifact.id,
+          projectId: 'other-project',
+          userId: scope.actorId,
+          content,
+        },
+      })
+    );
+    await t.throwsAsync(
+      db.officeComment.create({
+        data: { docId: imported.artifact.id, userId: scope.actorId, content },
+      })
+    );
+    await db.aiContextProjectMember.delete({
+      where: {
+        projectId_userId: { projectId: scope.projectId, userId: scope.actorId },
+      },
+    });
+    for (const mutation of [
+      {
+        query: `mutation($input: OfficeCommentUpdateInput!) {updateOfficeComment(input: $input) {id}}`,
+        variables: {
+          input: {
+            id: comment.id,
+            content: { ...content, text: 'Forbidden edit' },
+          },
+        },
+      },
+      {
+        query: `mutation($input: OfficeCommentReplyUpdateInput!) {updateOfficeCommentReply(input: $input) {id}}`,
+        variables: {
+          input: {
+            id: reply.createOfficeCommentReply.id,
+            content: {
+              version: 'localmind-office-comment-reply/v1',
+              text: 'Forbidden reply',
+            },
+          },
+        },
+      },
+      {
+        query: `mutation($id: String!) {deleteOfficeComment(id: $id)}`,
+        variables: { id: comment.id },
+      },
+    ])
+      await t.throwsAsync(app.gql(mutation.query, mutation.variables));
+    t.deepEqual(
+      (await db.officeComment.findUniqueOrThrow({ where: { id: comment.id } }))
+        .content,
+      content
+    );
+  }
+);

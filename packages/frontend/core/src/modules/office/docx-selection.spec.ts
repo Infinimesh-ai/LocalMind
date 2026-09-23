@@ -2,7 +2,10 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { resolveOfficeTextRange } from './docx-selection';
+import {
+  resolveOfficeTextPosition,
+  resolveOfficeTextRange,
+} from './docx-selection';
 
 describe('resolveOfficeTextRange', () => {
   test('maps a forward DOM selection to stable paragraph offsets', () => {
@@ -69,5 +72,28 @@ describe('resolveOfficeTextRange', () => {
         focusOffset: 2,
       } as unknown as Selection)
     ).toBeNull();
+  });
+
+  test('maps a collapsed caret to an insertion position', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<p data-office-block-id="paragraph:a" data-office-order="0"><span>Alpha</span></p>';
+    const text = root.querySelector('span')?.firstChild;
+    expect(text).toBeTruthy();
+
+    const selection = {
+      rangeCount: 1,
+      isCollapsed: true,
+      anchorNode: text,
+      anchorOffset: 3,
+      focusNode: text,
+      focusOffset: 3,
+    } as unknown as Selection;
+
+    expect(resolveOfficeTextRange(root, selection)).toBeNull();
+    expect(resolveOfficeTextPosition(root, selection)).toEqual({
+      blockId: 'paragraph:a',
+      offset: 3,
+    });
   });
 });

@@ -18,6 +18,10 @@ Slides 和 PDF 资源类型；它们共享 LocalMind 平台能力，但不得把
 编辑状态强行转换或塞入普通 BlockSuite 页面模型。其 source of truth 是
 `docs/office-native/README.md`。
 
+AI 创建的 TXT、Markdown、CSV、JSON 在 Workspace 中使用独立 `WorkspaceFile`
+记录和不可变 Blob，在 Project 中复用原生文件树；不得用普通页面冒充原生文件。
+生成格式、能力边界和迁移约定同样以 `docs/office-native/README.md` 为准。
+
 Project 原生资源已实现，产品及验收契约的 source of truth 是
 `docs/ai-modernization/tracks/project-native-resources.md`。Project 拥有独立文档
 和文件树，默认内部保存不属于任何 Workspace；只有用户明确要求才发布或更新
@@ -153,6 +157,15 @@ LocalMind AI 的关键不变量：
     该配置独立于 Workspace、Workspace 默认 Profile 和用户 Profile；会话中的
     `workspaceId` 仅保留执行、授权及审计上下文，不决定 Project 的模型凭据。
     全局配置缺失或停用时不得回退到 Workspace、设备本地凭据或平台额度模型。
+11. Project Memory 的新实施契约为“一个 Project 一份共享记忆”，当前有效成员可召回；
+    个人会话历史、私人附件和滚动摘要不因此共享。成员管理自己的独立贡献，Owner 管理
+    全部共享记录；多人事实合并、冲突和撤销须检查贡献关系与版本。自动记忆采用项目级
+    设置，保留来源共享权限检查。完整目标、旧个人化迁移分支与验收要求见
+    `docs/ai-modernization/workspace-project-context-session-remediation.zh-CN.md`。
+    当前源码已实现共享身份、贡献/冲突、会话绑定、删除任务、不可变 checkpoint，
+    以及带租约、重试、取消和严格 CAS 的持久化上下文整理任务基础；结构化摘要模型、
+    整理时间线/手动 UI、生产迁移、长期归档及完整 A01—A40 验收仍须单独执行。不能仅
+    取消用户过滤就把实际按私人契约保存的旧记录公开。
 
 ---
 

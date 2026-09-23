@@ -74,6 +74,7 @@ import { Link } from 'react-router-dom';
 import { Area, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 
+import { translateAdminText } from '../../localized-text';
 import { useMutateQueryResource } from '../../use-mutation';
 import { Header } from '../header';
 import { formatBytes } from '../workspaces/utils';
@@ -1148,7 +1149,7 @@ function MailDeliverySection({
           ].filter(series => series !== undefined);
   const chartSeries = sourceSeries.map((series, index) => ({
     key: series.key,
-    label: series.label,
+    label: translateAdminText(series.label),
     total: series.total,
     color: seriesColor(series.key, index),
   }));

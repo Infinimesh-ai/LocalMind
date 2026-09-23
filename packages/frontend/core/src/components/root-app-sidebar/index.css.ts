@@ -11,17 +11,42 @@ export const workspaceAndUserWrapper = style({
   paddingRight: 6,
   alignSelf: 'center',
 });
-export const quickSearchAndNewPage = style({
+export const shortcuts = style({
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  justifyContent: 'space-between',
+  gap: 2,
   padding: '4px 0',
-  marginLeft: -8,
-  marginRight: -6,
 });
-export const quickSearch = style({
-  width: 0,
-  flex: 1,
+export const shortcut = style({
+  position: 'relative',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 32,
+  height: 32,
+  flexShrink: 0,
+  borderRadius: 4,
+  fontSize: 20,
+  color: cssVarV2('icon/primary'),
+  selectors: {
+    '&:hover, &[aria-current="page"], &[data-active="true"]': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
+});
+
+export const moreContent = style({
+  width: 280,
+  maxWidth: 'calc(100vw - 24px)',
+  maxHeight: 'min(640px, var(--radix-popover-content-available-height))',
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  padding: '8px 16px',
 });
 
 export const workspacesHeading = style({

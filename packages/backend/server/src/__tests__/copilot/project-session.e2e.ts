@@ -518,6 +518,14 @@ test.serial(
         contentVersion: number;
         version: number;
         markdown: string;
+        truncated: boolean;
+        nextStart: number | null;
+        coverage: {
+          start: number;
+          end: number;
+          totalCharacters: number;
+          complete: boolean;
+        };
         status: string;
         path: { title: string }[];
       };
@@ -537,7 +545,7 @@ test.serial(
       'project_doc_create',
       {
         title: 'Document A',
-        content: 'Native tool body',
+        content: `Native tool body\n${'A'.repeat(45_000)}\nLATE_MARKER`,
         parent_id: folder.resourceId,
         kind: 'page',
       },
@@ -552,7 +560,7 @@ test.serial(
       'project_doc_create',
       {
         title: 'Document A',
-        content: 'Native tool body',
+        content: `Native tool body\n${'A'.repeat(45_000)}\nLATE_MARKER`,
         parent_id: folder.resourceId,
         kind: 'page',
       },
@@ -590,6 +598,21 @@ test.serial(
       'read-call'
     );
     t.true(read.markdown.includes('Native tool body'));
+    t.true(read.truncated);
+    t.truthy(read.nextStart);
+    const tail = await call(
+      'project_doc_read',
+      {
+        doc_id: created.resourceId,
+        content_version: read.contentVersion,
+        start: read.nextStart,
+        max_characters: 40_000,
+      },
+      'read-tail'
+    );
+    t.true(tail.markdown.includes('LATE_MARKER'));
+    t.false(tail.truncated);
+    t.is(tail.coverage.totalCharacters, read.coverage.totalCharacters);
     await call(
       'project_doc_update',
       {

@@ -56,8 +56,22 @@ export const MenuItem = React.forwardRef<HTMLDivElement, MenuItemProps>(
         className={clsx([styles.root, props.className])}
         data-active={active}
         data-disabled={disabled}
+        aria-disabled={disabled || undefined}
         data-collapsible={collapsible}
-        tabIndex={0}
+        role={props.role ?? 'button'}
+        tabIndex={props.tabIndex ?? 0}
+        onKeyDown={event => {
+          props.onKeyDown?.(event);
+          if (
+            !event.defaultPrevented &&
+            !disabled &&
+            event.target === event.currentTarget &&
+            (event.key === 'Enter' || event.key === ' ')
+          ) {
+            event.preventDefault();
+            event.currentTarget.click();
+          }
+        }}
       >
         {icon && (
           <div className={styles.iconsContainer} data-collapsible={collapsible}>
@@ -106,7 +120,12 @@ export const MenuLinkItem = React.forwardRef<HTMLDivElement, MenuLinkItemProps>(
       <LinkComponent to={to} className={styles.linkItemRoot}>
         {/* The <a> element rendered by Link does not generate display box due to `display: contents` style */}
         {/* Thus ref is passed to MenuItem instead of Link */}
-        <MenuItem ref={ref} {...props}></MenuItem>
+        <MenuItem
+          ref={ref}
+          role="presentation"
+          tabIndex={-1}
+          {...props}
+        ></MenuItem>
       </LinkComponent>
     );
   }

@@ -32,12 +32,12 @@ export function WorkspaceRootDocs() {
   const folderTree = useService(OrganizeService).folderTree;
   const ids = useLiveData(docs.nonTrashDocsIds$);
   const linkedIds = useLiveData(folderTree.linkedDocIds$);
-  const ready = useLiveData(docs.isReady$);
+  const available = useLiveData(docs.isAvailable$);
   const foldersLoading = useLiveData(folderTree.isLoading$);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const rootIds = ids.filter(id => !linkedIds.has(id));
 
-  if (!ready || foldersLoading)
+  if (!available || foldersLoading)
     return (
       <div className={styles.treeMessage} role="status">
         <Skeleton height={24} />

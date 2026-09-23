@@ -29,14 +29,17 @@ type WarmEntry = {
 };
 
 export class WorkspaceRepositoryService extends Service {
+  // Framework constructors receive the resolver after their declared services.
+  // Keep cache settings out of that argument slot so defaults cannot be replaced.
+  protected readonly warmCacheOptions: WarmCacheOptions = {
+    ttlMs: DEFAULT_WARM_CACHE_TTL,
+    capacity: DEFAULT_WARM_CACHE_CAPACITY,
+  };
+
   constructor(
     private readonly flavoursService: WorkspaceFlavoursService,
     private readonly profileRepo: WorkspaceProfileService,
-    private readonly workspacesListService: WorkspaceListService,
-    private readonly warmCacheOptions: WarmCacheOptions = {
-      ttlMs: DEFAULT_WARM_CACHE_TTL,
-      capacity: DEFAULT_WARM_CACHE_CAPACITY,
-    }
+    private readonly workspacesListService: WorkspaceListService
   ) {
     super();
     const identityBoundarySubscription =

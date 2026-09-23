@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { PrismaClient } from '@prisma/client';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
@@ -22,11 +23,29 @@ import { SocketIoAdapter } from './base/websocket';
 import { AuthGuard } from './core/auth';
 import { TelemetryService } from './core/telemetry/service';
 import { serverTimingAndCache } from './middleware/timing';
+import { executeContextSessionRecoveryBarrier } from './models/common/context-session-recovery-barrier';
 
 const OneMB = 1024 * 1024;
 const JsonBodyLimit = 32 * OneMB;
 
 export async function run() {
+  const recoveryBarrierFile =
+    process.env.LOCALMIND_RECOVERY_BARRIER_FILE?.trim();
+  if (recoveryBarrierFile) {
+    // Apply the signed deletion/revocation barrier before AppModule is loaded,
+    // so queue workers and read endpoints cannot observe a restored snapshot
+    // before the barrier has been verified and replayed.
+    const recoveryDb = new PrismaClient();
+    try {
+      await executeContextSessionRecoveryBarrier(
+        recoveryDb,
+        'apply',
+        recoveryBarrierFile
+      );
+    } finally {
+      await recoveryDb.$disconnect();
+    }
+  }
   const { AppModule } = await import('./app.module');
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

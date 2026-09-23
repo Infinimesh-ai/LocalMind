@@ -3,6 +3,7 @@ query copilotContextDashboardGet($workspaceId: String!, $includeDisabled: Boolea
     copilot(workspaceId: $workspaceId) {
       contextSettings {
         autoMemoryEnabled
+        revision
       }
       contextPlannerStrategies {
         version
@@ -48,6 +49,7 @@ query copilotContextDashboardGet($workspaceId: String!, $includeDisabled: Boolea
         supersedesId
         lastUsedAt
         useCount
+        revision
         createdAt
         updatedAt
       }

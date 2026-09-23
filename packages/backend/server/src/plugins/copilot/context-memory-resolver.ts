@@ -15,7 +15,11 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 import { Transactional } from '@nestjs-cls/transactional';
-import { GraphQLJSON } from 'graphql-scalars';
+import type {
+  AiContextCheckpoint,
+  AiContextCompactionTask,
+} from '@prisma/client';
+import { GraphQLJSON, SafeIntResolver } from 'graphql-scalars';
 
 import { BadRequest, Throttle } from '../../base';
 import type { CurrentUser as CurrentUserType } from '../../core/auth';
@@ -39,6 +43,7 @@ import {
 } from './context-memory-service';
 import { ContextRuleService } from './context-rule-service';
 import { CopilotType } from './resolver';
+import { ChatSessionService } from './session';
 
 enum CopilotContextMemoryScopeInputValue {
   user = 'user',
@@ -72,8 +77,8 @@ export class CopilotContextMemoryType {
   @Field(() => ID)
   id!: string;
 
-  @Field(() => String)
-  ownerUserId!: string;
+  @Field(() => String, { nullable: true })
+  ownerUserId!: string | null;
 
   @Field(() => String, { nullable: true })
   workspaceId!: string | null;
@@ -137,6 +142,27 @@ export class CopilotContextMemoryType {
 
   @Field(() => Int)
   useCount!: number;
+
+  @Field(() => Int)
+  revision!: number;
+
+  @Field(() => String)
+  sharingStatus!: string;
+
+  @Field(() => String)
+  contractVersion!: string;
+
+  @Field(() => [String], { nullable: true })
+  contributorUserIds?: string[];
+
+  @Field(() => Int, { nullable: true })
+  contributorCount?: number;
+
+  @Field(() => Int, { nullable: true })
+  pendingConflictCount?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  canManage?: boolean;
 
   @Field(() => GraphQLISODateTime)
   createdAt!: Date;
@@ -240,8 +266,8 @@ export class CopilotContextRuleType {
   @Field(() => ID)
   id!: string;
 
-  @Field(() => String)
-  ownerUserId!: string;
+  @Field(() => String, { nullable: true })
+  ownerUserId!: string | null;
 
   @Field(() => String, { nullable: true })
   workspaceId!: string | null;
@@ -407,6 +433,66 @@ export class CopilotContextSessionScopeType {
 export class CopilotContextSettingsType {
   @Field(() => Boolean)
   autoMemoryEnabled!: boolean;
+
+  @Field(() => Int)
+  revision!: number;
+
+  @Field(() => Int, { nullable: true })
+  projectMemoryRevision?: number;
+
+  @Field(() => String, { nullable: true })
+  contractVersion?: string;
+}
+
+@ObjectType()
+export class CopilotProjectSessionMemoryCaptureType {
+  @Field(() => ID)
+  sessionId!: string;
+
+  @Field(() => ID)
+  projectId!: string;
+
+  @Field(() => Boolean)
+  allowMemoryCapture!: boolean;
+
+  @Field(() => Int)
+  revision!: number;
+}
+
+@ObjectType()
+export class CopilotProjectMemoryConflictType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field(() => ID)
+  projectId!: string;
+
+  @Field(() => ID)
+  baseMemoryId!: string;
+
+  @Field(() => String, { nullable: true })
+  proposedByUserId!: string | null;
+
+  @Field(() => String)
+  factKey!: string;
+
+  @Field(() => String)
+  proposedContent!: string;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => Int)
+  expectedMemoryRevision!: number;
+
+  @Field(() => String, { nullable: true })
+  resolution!: string | null;
+
+  @Field(() => GraphQLISODateTime)
+  createdAt!: Date;
+
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  resolvedAt!: Date | null;
 }
 
 @ObjectType()
@@ -434,6 +520,153 @@ export class CopilotContextStrategyType {
 
   @Field(() => GraphQLISODateTime)
   createdAt!: Date;
+}
+
+@ObjectType()
+export class CopilotContextCompactionTaskType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field(() => ID)
+  sessionId!: string;
+
+  @Field(() => Int)
+  contextEpoch!: number;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => Int)
+  summarizedMessageCount!: number;
+
+  @Field(() => Int)
+  attempt!: number;
+
+  @Field(() => Int)
+  maxAttempts!: number;
+
+  @Field(() => Int, { nullable: true })
+  inputBudget!: number | null;
+
+  @Field(() => Int, { nullable: true })
+  inputTokensEstimated!: number | null;
+
+  @Field(() => Int, { nullable: true })
+  outputTokensEstimated!: number | null;
+
+  @Field(() => Int, { nullable: true })
+  outputCharacters!: number | null;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => ID, { nullable: true })
+  checkpointId!: string | null;
+
+  @Field(() => String, { nullable: true })
+  summary!: string | null;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  summaryData!: Record<string, unknown> | null;
+
+  @Field(() => GraphQLISODateTime)
+  requestedAt!: Date;
+
+  @Field(() => GraphQLISODateTime)
+  updatedAt!: Date;
+
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  completedAt!: Date | null;
+}
+
+@ObjectType()
+export class CopilotContextCompactionEventType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field(() => SafeIntResolver)
+  sequence!: number;
+
+  @Field(() => ID)
+  taskId!: string;
+
+  @Field(() => ID)
+  sessionId!: string;
+
+  @Field(() => Int)
+  contextEpoch!: number;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => Int)
+  attempt!: number;
+
+  @Field(() => GraphQLJSON)
+  statistics!: Record<string, unknown>;
+
+  @Field(() => GraphQLISODateTime)
+  createdAt!: Date;
+}
+
+@ObjectType()
+export class CopilotSessionDeletionType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field(() => ID)
+  sessionId!: string;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => Int)
+  contextEpoch!: number;
+
+  @Field(() => Int)
+  attempt!: number;
+
+  @Field(() => Int)
+  maxAttempts!: number;
+
+  @Field(() => GraphQLJSON)
+  progress!: Record<string, unknown>;
+
+  @Field(() => GraphQLJSON)
+  resultCounts!: Record<string, unknown>;
+
+  @Field(() => String, { nullable: true })
+  failureCode!: string | null;
+
+  @Field(() => String, { nullable: true })
+  failureMessage!: string | null;
+
+  @Field(() => String, { nullable: true })
+  holdReason!: string | null;
+
+  @Field(() => String)
+  backupStatus!: string;
+
+  @Field(() => String, { nullable: true })
+  receiptFingerprint!: string | null;
+
+  @Field(() => GraphQLISODateTime)
+  requestedAt!: Date;
+
+  @Field(() => GraphQLISODateTime)
+  updatedAt!: Date;
+
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  heldAt!: Date | null;
+
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  releasedAt!: Date | null;
+
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  completedAt!: Date | null;
 }
 
 @ObjectType()
@@ -536,6 +769,9 @@ export class UpdateCopilotContextMemoryInput {
 
   @Field(() => CopilotContextMemoryMutableStatusInputValue, { nullable: true })
   status?: CopilotContextMemoryStatus;
+
+  @Field(() => Int, { nullable: true })
+  expectedRevision?: number;
 }
 
 @InputType()
@@ -677,6 +913,42 @@ export class UpdateCopilotContextSettingsInput {
 }
 
 @InputType()
+export class UpdateCopilotProjectContextSettingsInput {
+  @Field(() => String)
+  projectId!: string;
+
+  @Field(() => Boolean)
+  autoMemoryEnabled!: boolean;
+
+  @Field(() => Int)
+  expectedRevision!: number;
+}
+
+@InputType()
+export class UpdateCopilotProjectSessionMemoryCaptureInput {
+  @Field(() => ID)
+  sessionId!: string;
+
+  @Field(() => Boolean)
+  allowMemoryCapture!: boolean;
+
+  @Field(() => Int)
+  expectedRevision!: number;
+}
+
+@InputType()
+export class ResolveCopilotProjectMemoryConflictInput {
+  @Field(() => ID)
+  projectId!: string;
+
+  @Field(() => ID)
+  conflictId!: string;
+
+  @Field(() => String)
+  resolution!: 'accept' | 'reject';
+}
+
+@InputType()
 export class CreateCopilotContextProjectInput {
   @Field(() => String)
   name!: string;
@@ -720,8 +992,36 @@ export class CopilotContextMemoryResolver {
     private readonly ac: PermissionAccess,
     private readonly contextMemory: ContextMemoryService,
     private readonly ruleService: ContextRuleService,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly sessions: ChatSessionService
   ) {}
+
+  private presentContextCompactionTask(
+    task:
+      | (AiContextCompactionTask & {
+          checkpoint?: Pick<
+            AiContextCheckpoint,
+            'summary' | 'summaryData'
+          > | null;
+        })
+      | null
+  ) {
+    if (!task) return null;
+    return {
+      ...task,
+      summary: task.checkpoint?.summary ?? task.resultSummary ?? null,
+      summaryData:
+        task.checkpoint?.summaryData ?? task.resultSummaryData ?? null,
+    };
+  }
+
+  private presentSessionDeletion<T extends { status: string }>(deletion: T) {
+    return {
+      ...deletion,
+      backupStatus:
+        deletion.status === 'held' ? 'held' : 'pending_retention_expiry',
+    };
+  }
 
   private assertDlpSafe(content: string) {
     const dlp = classifyContextMemoryDlp(content);
@@ -838,7 +1138,11 @@ export class CopilotContextMemoryResolver {
       throw new NotFoundException('Context rule not found');
     }
     if (rule.scope === 'project') {
-      await this.requireFullyReadableProject(userId, rule.projectId, 'owner');
+      await this.requireFullyReadableProject(
+        userId,
+        rule.projectId,
+        rule.ownerUserId === userId ? 'member' : 'owner'
+      );
       return;
     }
     if (rule.ownerUserId !== userId) {
@@ -1136,11 +1440,15 @@ export class CopilotContextMemoryResolver {
 
   private async assertCanMutate(user: CurrentUserType, memory: StoredMemory) {
     if (memory.scope === 'project') {
-      await this.requireFullyReadableProject(
-        user.id,
-        memory.projectId,
-        'owner'
-      );
+      if (
+        !memory.projectId ||
+        !(await this.models.copilotContextMemory.canManageProjectMemory(
+          user.id,
+          memory.id
+        ))
+      ) {
+        throw new NotFoundException('Context memory not found');
+      }
       return;
     }
     if (memory.ownerUserId !== user.id) {
@@ -1167,6 +1475,41 @@ export class CopilotContextMemoryResolver {
     return await this.contextMemory.getSettings(user.id, workspaceId);
   }
 
+  @ResolveField(() => CopilotContextSettingsType, {
+    description: 'Get the shared context settings for a Project',
+  })
+  async projectContextSettings(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('projectId', { type: () => ID }) projectId: string
+  ) {
+    await this.requireFullyReadableProject(user.id, projectId, 'member');
+    return await this.contextMemory.getProjectSettings(user.id, projectId);
+  }
+
+  @ResolveField(() => CopilotProjectSessionMemoryCaptureType, {
+    nullable: true,
+    description:
+      'Get whether this private Project conversation may automatically contribute to the shared Project memory',
+  })
+  async projectSessionMemoryCapture(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('sessionId', { type: () => ID }) sessionId: string
+  ) {
+    const session = await this.contextMemory.getProjectSessionMemoryCapture(
+      user.id,
+      sessionId
+    );
+    if (!session || !session.selectedContextProjectId) return null;
+    return {
+      sessionId: session.id,
+      projectId: session.selectedContextProjectId,
+      allowMemoryCapture: session.allowMemoryCapture,
+      revision: session.memoryCaptureRevision,
+    };
+  }
+
   @ResolveField(() => [CopilotContextStrategyType], {
     description:
       'List immutable context planner revisions and checkpoint activity',
@@ -1178,6 +1521,64 @@ export class CopilotContextMemoryResolver {
     const workspaceId = this.requireWorkspace(copilot);
     await this.assertRead(user.id, { workspaceId });
     return await this.contextMemory.listPlannerStrategies(user.id, workspaceId);
+  }
+
+  @ResolveField(() => CopilotContextCompactionTaskType, {
+    nullable: true,
+    description:
+      'Get the latest private context compaction task for an owned conversation',
+  })
+  async contextCompaction(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('sessionId', { type: () => ID }) sessionId: string
+  ) {
+    return this.presentContextCompactionTask(
+      await this.models.copilotContextMemory.getLatestContextCompactionTask(
+        sessionId,
+        user.id
+      )
+    );
+  }
+
+  @ResolveField(() => [CopilotContextCompactionEventType], {
+    description:
+      'Replay private context compaction status events for an owned conversation',
+  })
+  async contextCompactionEvents(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('sessionId', { type: () => ID }) sessionId: string,
+    @Args('afterSequence', { type: () => SafeIntResolver, nullable: true })
+    afterSequence?: number
+  ) {
+    const events =
+      await this.models.copilotContextMemory.listContextCompactionEvents({
+        sessionId,
+        actorUserId: user.id,
+        afterSequence,
+      });
+    return events.map(event => {
+      const sequence = Number(event.sequence);
+      if (!Number.isSafeInteger(sequence)) {
+        throw new Error('Context compaction event sequence is out of range');
+      }
+      return { ...event, sequence };
+    });
+  }
+
+  @ResolveField(() => CopilotSessionDeletionType, {
+    nullable: true,
+    description:
+      'Get content-free purge progress for a deleted conversation owned by the current user',
+  })
+  async sessionDeletion(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('sessionId', { type: () => ID }) sessionId: string
+  ) {
+    const deletion = await this.sessions.getSessionDeletion(user.id, sessionId);
+    return deletion ? this.presentSessionDeletion(deletion) : null;
   }
 
   @ResolveField(() => [CopilotContextProjectType], {
@@ -1276,6 +1677,64 @@ export class CopilotContextMemoryResolver {
     }));
   }
 
+  @ResolveField(() => [CopilotContextMemoryEventType], {
+    description: 'List the current user Automatic Memory events for a Project',
+  })
+  async projectContextMemoryEvents(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('projectId', { type: () => ID }) projectId: string,
+    @Args('limit', { type: () => Int, nullable: true, defaultValue: 50 })
+    limit?: number
+  ) {
+    await this.requireFullyReadableProject(user.id, projectId, 'member');
+    const events = await this.contextMemory.listWriterEvents(
+      user.id,
+      null,
+      limit,
+      projectId
+    );
+    const undoableIds = new Set<string>();
+    const seenFacts = new Set<string>();
+    for (const event of events) {
+      if (
+        event.undoneAt !== null ||
+        !['ADD', 'UPDATE', 'DELETE'].includes(event.operation) ||
+        !event.memory
+      ) {
+        continue;
+      }
+      const factIdentity = `${event.memory.projectId}:${event.factKey ?? event.id}`;
+      if (seenFacts.has(factIdentity)) continue;
+      seenFacts.add(factIdentity);
+      const expectedStatus =
+        event.operation === 'DELETE' ? 'deleted' : 'active';
+      if (event.memory.status === expectedStatus) undoableIds.add(event.id);
+    }
+    return events.map(event => ({
+      ...event,
+      canUndo: undoableIds.has(event.id),
+    }));
+  }
+
+  @ResolveField(() => [CopilotProjectMemoryConflictType], {
+    description:
+      'List pending shared Project memory conflicts for the Project Owner',
+  })
+  async projectMemoryConflicts(
+    @Parent() _copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('projectId', { type: () => ID }) projectId: string
+  ) {
+    const project = await this.requireFullyReadableProject(
+      user.id,
+      projectId,
+      'member'
+    );
+    if (this.projectRole(user.id, project) !== 'owner') return [];
+    return await this.contextMemory.listProjectMemoryConflicts(projectId);
+  }
+
   @ResolveField(() => [CopilotContextRuleType], {
     description: 'List the current user rules and revision history',
   })
@@ -1350,11 +1809,40 @@ export class CopilotContextMemoryResolver {
         user.id,
         projects
       );
-      return await this.contextMemory.listManageable({
+      const memories = await this.contextMemory.listManageable({
         userId: user.id,
         projectIds: accessibleProjects.map(project => project.id),
         includeDisabled,
       });
+      return await Promise.all(
+        memories.map(async memory => {
+          const contributorUserIds = [
+            ...new Set(
+              memory.contributions.flatMap(contribution =>
+                contribution.contributorUserId
+                  ? [contribution.contributorUserId]
+                  : []
+              )
+            ),
+          ];
+          return {
+            ...memory,
+            // A shared-memory row may retain a private source-session pointer
+            // for provenance; it is never disclosed to another member.
+            sourceSessionId:
+              memory.ownerUserId === user.id ? memory.sourceSessionId : null,
+            contributorUserIds,
+            contributorCount: contributorUserIds.length,
+            pendingConflictCount: memory.conflicts.length,
+            canManage:
+              memory.scope !== 'project' ||
+              (await this.models.copilotContextMemory.canManageProjectMemory(
+                user.id,
+                memory.id
+              )),
+          };
+        })
+      );
     }
     const projects = await this.contextMemory.listProjects(user.id, true);
     const accessibleProjects = await this.fullyReadableProjects(
@@ -1391,7 +1879,11 @@ export class CopilotContextMemoryResolver {
   ) {
     const content = this.validateMemoryShape(input);
     if (input.projectId) {
-      await this.requireFullyReadableProject(user.id, input.projectId, 'owner');
+      await this.requireFullyReadableProject(
+        user.id,
+        input.projectId,
+        'member'
+      );
     } else {
       await this.assertRead(user.id, input);
     }
@@ -1431,7 +1923,11 @@ export class CopilotContextMemoryResolver {
       throw new BadRequest('User rules cannot target a workspace or project');
     }
     if (input.scope === 'project') {
-      await this.requireFullyReadableProject(user.id, input.projectId, 'owner');
+      await this.requireFullyReadableProject(
+        user.id,
+        input.projectId,
+        'member'
+      );
     } else if (input.workspaceId) {
       await this.assertRead(user.id, {
         workspaceId: input.workspaceId,
@@ -1703,6 +2199,7 @@ export class CopilotContextMemoryResolver {
       {
         content: input.content?.trim(),
         status: input.status,
+        expectedRevision: input.expectedRevision,
       },
       user.id
     );
@@ -1723,15 +2220,121 @@ export class CopilotContextMemoryResolver {
     });
   }
 
+  @Mutation(() => CopilotContextSettingsType)
+  async updateCopilotProjectContextSettings(
+    @CurrentUser() user: CurrentUserType,
+    @Args('input') input: UpdateCopilotProjectContextSettingsInput
+  ) {
+    await this.requireFullyReadableProject(user.id, input.projectId, 'owner');
+    return await this.contextMemory.updateProjectSettings({
+      userId: user.id,
+      projectId: input.projectId,
+      autoMemoryEnabled: input.autoMemoryEnabled,
+      expectedRevision: input.expectedRevision,
+    });
+  }
+
+  @Mutation(() => CopilotProjectSessionMemoryCaptureType)
+  async updateCopilotProjectSessionMemoryCapture(
+    @CurrentUser() user: CurrentUserType,
+    @Args('input') input: UpdateCopilotProjectSessionMemoryCaptureInput
+  ) {
+    const updated = await this.contextMemory.updateProjectSessionMemoryCapture({
+      userId: user.id,
+      sessionId: input.sessionId,
+      allowMemoryCapture: input.allowMemoryCapture,
+      expectedRevision: input.expectedRevision,
+    });
+    if (!updated?.selectedContextProjectId) {
+      throw new NotFoundException('Project session not found');
+    }
+    return {
+      sessionId: updated.id,
+      projectId: updated.selectedContextProjectId,
+      allowMemoryCapture: updated.allowMemoryCapture,
+      revision: updated.memoryCaptureRevision,
+    };
+  }
+
+  @Mutation(() => CopilotContextCompactionTaskType, { nullable: true })
+  async requestCopilotContextCompaction(
+    @CurrentUser() user: CurrentUserType,
+    @Args('sessionId', { type: () => ID }) sessionId: string
+  ) {
+    return this.presentContextCompactionTask(
+      await this.sessions.requestManualContextCompaction(user.id, sessionId)
+    );
+  }
+
+  @Mutation(() => CopilotContextCompactionTaskType)
+  async retryCopilotContextCompaction(
+    @CurrentUser() user: CurrentUserType,
+    @Args('taskId', { type: () => ID }) taskId: string
+  ) {
+    const task = await this.sessions.retryContextCompaction(user.id, taskId);
+    if (!task) throw new NotFoundException('Context compaction task not found');
+    return this.presentContextCompactionTask(task);
+  }
+
+  @Mutation(() => CopilotContextCompactionTaskType)
+  async cancelCopilotContextCompaction(
+    @CurrentUser() user: CurrentUserType,
+    @Args('taskId', { type: () => ID }) taskId: string
+  ) {
+    const task = await this.sessions.cancelContextCompaction(user.id, taskId);
+    if (!task) throw new NotFoundException('Context compaction task not found');
+    return this.presentContextCompactionTask(task);
+  }
+
+  @Mutation(() => CopilotSessionDeletionType)
+  async retryCopilotSessionDeletion(
+    @CurrentUser() user: CurrentUserType,
+    @Args('sessionId', { type: () => ID }) sessionId: string
+  ) {
+    const deletion = await this.sessions.retrySessionDeletion(
+      user.id,
+      sessionId
+    );
+    if (!deletion) throw new NotFoundException('Session deletion not found');
+    return this.presentSessionDeletion(deletion);
+  }
+
+  @Mutation(() => CopilotProjectMemoryConflictType)
+  async resolveCopilotProjectMemoryConflict(
+    @CurrentUser() user: CurrentUserType,
+    @Args('input') input: ResolveCopilotProjectMemoryConflictInput
+  ) {
+    if (!['accept', 'reject'].includes(input.resolution)) {
+      throw new BadRequest('Invalid Project memory conflict resolution');
+    }
+    await this.requireFullyReadableProject(user.id, input.projectId, 'owner');
+    const conflict = await this.contextMemory.resolveProjectMemoryConflict({
+      ...input,
+      actorUserId: user.id,
+    });
+    if (!conflict) {
+      throw new NotFoundException('Project memory conflict not found');
+    }
+    return conflict;
+  }
+
   @Mutation(() => Boolean)
   async deleteCopilotContextMemory(
     @CurrentUser() user: CurrentUserType,
-    @Args('id', { type: () => ID }) id: string
+    @Args('id', { type: () => ID }) id: string,
+    @Args('expectedRevision', { type: () => Int, nullable: true })
+    expectedRevision?: number
   ) {
     const memory = await this.contextMemory.get(id);
     if (!memory) throw new NotFoundException('Context memory not found');
     await this.assertCanMutate(user, memory);
-    return await this.contextMemory.delete(id, user.id);
+    if (
+      expectedRevision !== undefined &&
+      memory.revision !== expectedRevision
+    ) {
+      throw new BadRequest('Context memory changed; reload first');
+    }
+    return await this.contextMemory.delete(id, user.id, expectedRevision);
   }
 
   @Mutation(() => CopilotContextMemoryEventType)
@@ -1745,6 +2348,27 @@ export class CopilotContextMemoryResolver {
       user.id,
       workspaceId,
       eventId
+    );
+    if (!event) {
+      throw new BadRequest(
+        'This memory event cannot be undone because it is missing, already undone, or has a newer change'
+      );
+    }
+    return { ...event, canUndo: false };
+  }
+
+  @Mutation(() => CopilotContextMemoryEventType)
+  async undoCopilotProjectContextMemoryEvent(
+    @CurrentUser() user: CurrentUserType,
+    @Args('projectId') projectId: string,
+    @Args('eventId', { type: () => ID }) eventId: string
+  ) {
+    await this.requireFullyReadableProject(user.id, projectId, 'member');
+    const event = await this.contextMemory.undoWriterEvent(
+      user.id,
+      null,
+      eventId,
+      projectId
     );
     if (!event) {
       throw new BadRequest(

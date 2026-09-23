@@ -45,6 +45,10 @@ export class CompatSubmissionStore {
     return `copilot:submission:${token}:accepted`;
   }
 
+  private sessionIndexKey(sessionId: string) {
+    return `copilot:submission:session:${sessionId}`;
+  }
+
   private fromStoredSubmission(
     submission?: StoredCompatSubmission
   ): CompatSubmission | undefined {
@@ -84,6 +88,13 @@ export class CompatSubmissionStore {
     await this.cache.set(this.submissionKey(token), stored, {
       ttl: SUBMISSION_TTL,
     });
+    await this.cache.mapSet(this.sessionIndexKey(submission.sessionId), token, {
+      accepted: false,
+    });
+    await this.cache.expire(
+      this.sessionIndexKey(submission.sessionId),
+      SUBMISSION_TTL
+    );
     return token;
   }
 
@@ -105,6 +116,13 @@ export class CompatSubmissionStore {
       },
       { ttl: SUBMISSION_TTL }
     );
+    await this.cache.mapSet(this.sessionIndexKey(accepted.sessionId), token, {
+      accepted: true,
+    });
+    await this.cache.expire(
+      this.sessionIndexKey(accepted.sessionId),
+      SUBMISSION_TTL
+    );
     await this.cache.delete(this.submissionKey(token));
   }
 
@@ -114,5 +132,18 @@ export class CompatSubmissionStore {
     return this.fromStoredAccepted(
       await this.cache.get<StoredAcceptedSubmission>(this.acceptedKey(token))
     );
+  }
+
+  async deleteSession(sessionId: string) {
+    const indexKey = this.sessionIndexKey(sessionId);
+    const tokens = await this.cache.mapKeys(indexKey);
+    await Promise.all(
+      tokens.flatMap(token => [
+        this.cache.delete(this.submissionKey(token)),
+        this.cache.delete(this.acceptedKey(token)),
+      ])
+    );
+    await this.cache.delete(indexKey);
+    return tokens.length;
   }
 }

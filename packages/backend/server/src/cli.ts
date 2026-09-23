@@ -2,12 +2,17 @@ import { basename } from 'node:path';
 
 import { type INestApplicationContext, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { PrismaClient } from '@prisma/client';
 import { Command, CommanderError } from 'commander';
 
 import { CliAppModule } from './data/app';
 import { CreateCommand } from './data/commands/create';
 import { ImportConfigCommand } from './data/commands/import';
 import { RevertCommand, RunCommand } from './data/commands/run';
+import {
+  type ContextSessionRecoveryBarrierMode,
+  executeContextSessionRecoveryBarrier,
+} from './models/common/context-session-recovery-barrier';
 
 function getProgramName() {
   return process.env.npm_lifecycle_event ?? basename(process.argv[1] ?? 'cli');
@@ -71,6 +76,29 @@ function buildProgram(logger: Logger) {
       await withCliApp(logger, async app => {
         await app.get(ImportConfigCommand).execute(path);
       });
+    });
+
+  program
+    .command('context-session-recovery-barrier <mode>')
+    .description('export, verify, or apply the signed recovery barrier')
+    .requiredOption('--file <absolute-path>', 'signed barrier file')
+    .action(async (mode: string, options: { file: string }) => {
+      if (!['export', 'verify', 'apply'].includes(mode)) {
+        throw new Error(
+          'Recovery barrier mode must be export, verify, or apply'
+        );
+      }
+      const db = new PrismaClient();
+      try {
+        const result = await executeContextSessionRecoveryBarrier(
+          db,
+          mode as ContextSessionRecoveryBarrierMode,
+          options.file
+        );
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+      } finally {
+        await db.$disconnect();
+      }
     });
 
   return program;

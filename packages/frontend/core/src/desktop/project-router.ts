@@ -1,7 +1,11 @@
 import type { LoaderFunction, RouteObject } from 'react-router-dom';
 import { redirect } from 'react-router-dom';
 
-import { getProjectPath, PROJECT_ROUTE_PATH } from './route-paths';
+import {
+  getProjectPath,
+  PROJECT_NEW_CONVERSATION_PATH,
+  PROJECT_ROUTE_PATH,
+} from './route-paths';
 
 export { PROJECT_ROUTE_PATH } from './route-paths';
 export const TASKS_ROUTE_PATH = '/tasks';
@@ -24,6 +28,18 @@ export const legacyProjectRedirectLoader: LoaderFunction = ({
 export const projectTopLevelRoutes = [
   {
     path: PROJECT_ROUTE_PATH,
+    lazy: () => import('./pages/intelligence'),
+  },
+  {
+    path: PROJECT_NEW_CONVERSATION_PATH,
+    lazy: () => import('./pages/intelligence'),
+  },
+  {
+    path: `${PROJECT_ROUTE_PATH}/work-orders/:workOrderId`,
+    lazy: () => import('./pages/intelligence'),
+  },
+  {
+    path: `${PROJECT_ROUTE_PATH}/:projectId/conversations/:sessionId`,
     lazy: () => import('./pages/intelligence'),
   },
   {

@@ -197,8 +197,8 @@ export const useColumns = ({
                   IconFalse={
                     <UnlockIcon fontSize={16} className="text-destructive" />
                   }
-                  textTrue="Password Set"
-                  textFalse="No Password"
+                  textTrue={i18n['com.affine.admin.ui.password-set']()}
+                  textFalse={i18n['com.affine.admin.ui.no-password']()}
                 />
                 <StatusItem
                   condition={user.emailVerified}
@@ -214,8 +214,8 @@ export const useColumns = ({
                       className="text-destructive"
                     />
                   }
-                  textTrue="Email Verified"
-                  textFalse="Email Not Verified"
+                  textTrue={i18n['com.affine.admin.ui.email-verified']()}
+                  textFalse={i18n['com.affine.admin.ui.email-not-verified']()}
                 />
               </div>
               <div className="flex flex-wrap gap-2 items-center">
@@ -225,7 +225,9 @@ export const useColumns = ({
                       key={feature}
                       className="inline-flex h-5 items-center rounded-md border border-border/60 bg-chip-white px-2 py-0.5 text-xxs font-medium"
                     >
-                      {feature}
+                      {feature === FeatureType.Admin
+                        ? i18n['com.affine.admin.admin']()
+                        : feature}
                     </span>
                   ))
                 ) : (

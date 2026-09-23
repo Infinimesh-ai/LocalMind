@@ -1,0 +1,17 @@
+mutation copilotProjectMemoryConflictResolve(
+  $input: ResolveCopilotProjectMemoryConflictInput!
+) {
+  resolveCopilotProjectMemoryConflict(input: $input) {
+    id
+    projectId
+    baseMemoryId
+    proposedByUserId
+    factKey
+    proposedContent
+    status
+    expectedMemoryRevision
+    resolution
+    createdAt
+    resolvedAt
+  }
+}

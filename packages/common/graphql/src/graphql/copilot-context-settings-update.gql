@@ -3,5 +3,6 @@ mutation copilotContextSettingsUpdate(
 ) {
   updateCopilotContextSettings(input: $input) {
     autoMemoryEnabled
+    revision
   }
 }

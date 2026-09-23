@@ -238,6 +238,15 @@ export class DocsStore extends Store {
     );
   }
 
+  watchDocListAvailable() {
+    return this.workspaceService.workspace.engine.doc
+      .docState$(this.workspaceService.workspace.id)
+      .pipe(
+        map(state => state.ready || state.synced),
+        distinctUntilChanged()
+      );
+  }
+
   watchDocListReady() {
     return this.workspaceService.workspace.engine.doc
       .docState$(this.workspaceService.workspace.id)

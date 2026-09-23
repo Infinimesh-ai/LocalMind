@@ -832,6 +832,7 @@ async function installActionSessionMock(
       userId,
       sessionId,
       workspaceId,
+      scopeType: 'workspace',
       docId,
       turns: [userTurn],
       prompt: actionPrompt!,

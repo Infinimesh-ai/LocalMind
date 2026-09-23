@@ -149,6 +149,8 @@ export type ChatSessionState = {
   sessionId: string;
   workspaceId: string | null;
   selectedContextProjectId?: string | null;
+  scopeType: 'workspace' | 'project' | 'work_order';
+  workOrderId?: string | null;
   docId: string | null;
   turns: Turn[];
   prompt: ResolvedPrompt;

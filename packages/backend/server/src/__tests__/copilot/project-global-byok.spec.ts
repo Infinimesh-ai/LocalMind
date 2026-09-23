@@ -103,7 +103,9 @@ test('admin saves encrypted singleton with immutable, secret-free audit and serv
   t.true(preview.ok);
   t.is(await db.aiProjectByokConfig.count(), 0);
   const saved = await byok.saveProjectConfig(config(), adminId);
-  t.is(fetch.callCount, 2);
+  // The explicit test probes the configured model and its catalog; save
+  // performs a fresh model probe before persisting the credential.
+  t.is(fetch.callCount, 3);
   t.is(saved.revision, 1);
   t.true(saved.enabled);
   const persisted = await db.aiProjectByokConfig.findUniqueOrThrow({
@@ -330,6 +332,32 @@ test('missing or disabled global BYOK never falls back and later turns reload th
     error: new Error('old request'),
   });
   t.is((await byok.getAdminProjectSettings(adminId)).lastError, null);
+});
+
+test('workspace-free work-order routes record global BYOK use and failure by revision', async t => {
+  const { byok, adminId } = t.context;
+  await byok.saveProjectConfig(config(), adminId);
+  const providerId = 'byok-work-order-global-openai-r1';
+
+  await byok.recordUsage({
+    userId: 'work-order-recipient',
+    sessionId: 'work-order-session',
+    providerId,
+    model: 'global-project-model',
+    featureKind: 'chat',
+    usage: { total_tokens: 7 },
+  });
+  t.truthy((await byok.getAdminProjectSettings(adminId)).lastUsedAt);
+
+  await byok.recordProviderFailure({
+    providerId,
+    featureKind: 'chat',
+    error: new Error('401 synthetic secret'),
+  });
+  t.is(
+    (await byok.getAdminProjectSettings(adminId)).lastError,
+    'Provider request failed.'
+  );
 });
 
 test('revoked membership, archived projects, forged actor or workspace and deleted sessions cannot consume global BYOK', async t => {

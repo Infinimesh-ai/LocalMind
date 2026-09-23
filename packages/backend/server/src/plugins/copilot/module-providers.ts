@@ -115,6 +115,9 @@ import {
   CopilotTranscriptionService,
   CopilotTranscriptRealtimeProvider,
 } from './transcript';
+import { WorkOrderJobs } from './work-order-jobs';
+import { WorkOrderResolver } from './work-order-resolver';
+import { WorkOrderStorage } from './work-order-storage';
 import {
   CopilotWorkspaceEmbeddingConfigResolver,
   CopilotWorkspaceEmbeddingResolver,
@@ -186,6 +189,7 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   ResponsePostprocessor,
   CopilotStorage,
   TurnPersistence,
+  WorkOrderStorage,
 ];
 
 export const COPILOT_CONTEXT_REALTIME_PROVIDERS = [
@@ -227,6 +231,7 @@ export const COPILOT_RESOLVER_PROVIDERS = [
   ProjectByokResolver,
   ProjectAiModelResolver,
   ProjectContextResolver,
+  WorkOrderResolver,
 ];
 
 export const COPILOT_JOB_PROVIDERS = [
@@ -246,6 +251,7 @@ export const COPILOT_JOB_PROVIDERS = [
   McpAttachmentService,
   McpAiDelegationService,
   EnterpriseAuthorizationWorker,
+  WorkOrderJobs,
 ];
 
 export const COPILOT_MCP_PROVIDERS = [

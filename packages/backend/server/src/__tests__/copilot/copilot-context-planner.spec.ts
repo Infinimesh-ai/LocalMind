@@ -14,13 +14,20 @@ import {
 } from '../../plugins/copilot/context-memory-service';
 import { ContextRuleService } from '../../plugins/copilot/context-rule-service';
 import { ContextScopeResolver } from '../../plugins/copilot/context-scope-resolver';
-import { renderBuiltInPromptSessionNative } from '../../plugins/copilot/prompt/native-contract';
 import type { PromptMessage } from '../../plugins/copilot/providers/types';
+import {
+  contextCompactionInputBudget,
+  estimateContextCompactionTokens,
+  renderContextCompactionSummary,
+  splitContextCompactionMessages,
+  validateContextCompactionSummary,
+} from '../../plugins/copilot/runtime/context-compaction';
 import {
   CANDIDATE_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   CANDIDATE_CONTEXT_PLANNER_STRATEGY_VERSION,
   CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   CONTEXT_PLANNER_STRATEGY_VERSION,
+  ContextCompactionUnavailableError,
   ContextPlanner,
   LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION,
   PREVIOUS_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
@@ -43,6 +50,106 @@ function tailRenderer(maxTurns: number) {
     ...turns.slice(-maxTurns),
   ];
 }
+
+test('structured context compaction rejects invented sources and receipts', t => {
+  const valid = validateContextCompactionSummary({
+    value: {
+      currentGoal: 'Ship the release safely.',
+      userConstraints: [
+        {
+          statement: 'Use the eu-west-1 region.',
+          sourceMessageIds: ['message-1'],
+        },
+      ],
+      decisions: [],
+      verifiedFacts: [],
+      completedActions: [
+        {
+          statement: 'Created the release artifact.',
+          sourceMessageIds: ['message-2'],
+          receiptIds: ['receipt-1'],
+        },
+      ],
+      pendingWork: [],
+      openQuestions: [],
+      sourceRefs: ['message-1', 'message-2'],
+    },
+    sourceMessageIds: ['message-1', 'message-2'],
+    receiptIds: ['receipt-1'],
+  });
+  t.true(renderContextCompactionSummary(valid).includes('receipt-1'));
+  t.throws(
+    () =>
+      validateContextCompactionSummary({
+        value: {
+          ...valid,
+          sourceRefs: ['invented-message'],
+        },
+        sourceMessageIds: ['message-1', 'message-2'],
+        receiptIds: ['receipt-1'],
+      }),
+    { message: 'CONTEXT_COMPACTION_INVALID_SOURCE_REFERENCE' }
+  );
+  t.throws(
+    () =>
+      validateContextCompactionSummary({
+        value: {
+          ...valid,
+          completedActions: [
+            {
+              ...valid.completedActions[0],
+              receiptIds: ['invented-receipt'],
+            },
+          ],
+        },
+        sourceMessageIds: ['message-1', 'message-2'],
+        receiptIds: ['receipt-1'],
+      }),
+    { message: 'CONTEXT_COMPACTION_INVALID_RECEIPT_REFERENCE' }
+  );
+  t.throws(
+    () =>
+      validateContextCompactionSummary({
+        value: {
+          ...valid,
+          sourceRefs: ['message-1'],
+        },
+        sourceMessageIds: ['message-1', 'message-2'],
+        receiptIds: ['receipt-1'],
+      }),
+    { message: 'CONTEXT_COMPACTION_INCOMPLETE_SOURCE_REFERENCES' }
+  );
+});
+
+test('context compaction splits one oversized message without omitting its middle', t => {
+  const content = `${'a'.repeat(4_000)}关键中段${'z'.repeat(4_000)}`;
+  const batches = splitContextCompactionMessages(
+    [{ id: 'oversized', role: 'user', content }],
+    2_048
+  );
+  const restored = batches
+    .flat()
+    .map(part => part.content.replace(/^\[message part \d+\/\d+\]\n/u, ''))
+    .join('');
+  t.true(batches.length > 1);
+  t.is(restored, content);
+});
+
+test('context compaction budgeting is conservative for CJK and retains every message', t => {
+  const messages = Array.from({ length: 24 }, (_, index) => ({
+    id: `message-${index}`,
+    role: index % 2 ? 'assistant' : 'user',
+    content: `${'中文约束'.repeat(120)} ${index}`,
+  }));
+  const budget = contextCompactionInputBudget(8_192);
+  const batches = splitContextCompactionMessages(messages, budget);
+  t.true(estimateContextCompactionTokens('中文') > 1);
+  t.true(budget < 8_192);
+  t.deepEqual(
+    batches.flatMap(batch => batch.map(item => item.id)),
+    messages.map(item => item.id)
+  );
+});
 
 test('ContextPlanner retains early and recent facts with a checkpoint', t => {
   const turns = [
@@ -110,13 +217,7 @@ test('ContextPlanner keeps user-owned context outside the primary system message
         content: 'The database migration codename is Maple-42.',
       },
     ],
-    render: turns =>
-      renderBuiltInPromptSessionNative({
-        name: 'Chat With LocalMind AI',
-        turns,
-        renderParams: { content: query },
-        maxTokenSize: 128 * 1024,
-      }).messages,
+    render: turns => [message('system', 'Base prompt'), ...turns],
   });
   const systemMessages = result.messages.filter(item => item.role === 'system');
   const contextMessage = result.messages.find(
@@ -316,6 +417,24 @@ test('ContextPlanner checkpoints long conversations without durable cues', t => 
   t.true(
     result.checkpoint?.summary.includes('first implementation approach') ??
       false
+  );
+});
+
+test('ContextPlanner fails explicitly when omitted history cannot be summarized', t => {
+  const error = t.throws(() =>
+    new ContextPlanner().plan({
+      turns: [
+        message('assistant', 'Transient acknowledgement.'),
+        message('user', 'Continue.'),
+      ],
+      render: tailRenderer(1),
+    })
+  );
+
+  t.true(error instanceof ContextCompactionUnavailableError);
+  t.is(
+    (error as ContextCompactionUnavailableError).code,
+    'CONTEXT_COMPACTION_UNAVAILABLE'
   );
 });
 
@@ -774,6 +893,14 @@ test('hybrid retrieval sends only authorized memory ids to vector and rerank', a
 test('document-side automatic memory does not infer project authority', async t => {
   const stored: Array<Record<string, unknown>> = [];
   const service = new ContextMemoryService({
+    copilotSession: {
+      getMeta: async () => ({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        selectedContextProjectId: null,
+        allowMemoryCapture: true,
+      }),
+    },
     copilotContextMemory: {
       getPreference: async () => ({ autoMemoryEnabled: false }),
       applyWriterDecision: async (input: Record<string, unknown>) => {
@@ -811,6 +938,14 @@ test('document-side automatic memory does not infer project authority', async t 
 test('excluded project memory never falls back to document or workspace memory', async t => {
   let writes = 0;
   const service = new ContextMemoryService({
+    copilotSession: {
+      getMeta: async () => ({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        selectedContextProjectId: null,
+        allowMemoryCapture: true,
+      }),
+    },
     copilotContextMemory: {
       applyWriterDecision: async () => {
         writes += 1;
@@ -857,6 +992,14 @@ test('excluded project memory never falls back to document or workspace memory',
 test('automatic memory setting disables implicit extraction but not explicit commands', async t => {
   let writes = 0;
   const service = new ContextMemoryService({
+    copilotSession: {
+      getMeta: async () => ({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        selectedContextProjectId: null,
+        allowMemoryCapture: true,
+      }),
+    },
     copilotContextMemory: {
       getPreference: async () => ({ autoMemoryEnabled: false }),
       applyWriterDecision: async () => {
@@ -893,6 +1036,14 @@ test('ordinary turns skip automatic memory settings and persistence work', async
   let projectReads = 0;
   let writes = 0;
   const service = new ContextMemoryService({
+    copilotSession: {
+      getMeta: async () => ({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        selectedContextProjectId: null,
+        allowMemoryCapture: true,
+      }),
+    },
     copilotContextMemory: {
       getPreference: async () => {
         preferenceReads += 1;
@@ -928,6 +1079,14 @@ test('ordinary turns skip automatic memory settings and persistence work', async
 test('automatic memory uses workspace scope when no document is in scope', async t => {
   const stored: Array<Record<string, unknown>> = [];
   const service = new ContextMemoryService({
+    copilotSession: {
+      getMeta: async () => ({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        selectedContextProjectId: null,
+        allowMemoryCapture: true,
+      }),
+    },
     copilotContextMemory: {
       getPreference: async () => null,
       applyWriterDecision: async (input: Record<string, unknown>) => {
@@ -971,6 +1130,14 @@ test('automatic memory uses workspace scope when no document is in scope', async
 test('automatic memory fails closed across ambiguous projects', async t => {
   const stored: Array<Record<string, unknown>> = [];
   const service = new ContextMemoryService({
+    copilotSession: {
+      getMeta: async () => ({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        selectedContextProjectId: null,
+        allowMemoryCapture: true,
+      }),
+    },
     copilotContextMemory: {
       getPreference: async () => null,
       applyWriterDecision: async (input: Record<string, unknown>) => {
@@ -1017,6 +1184,14 @@ test('project memory excludes private attachments, invalid source config, and un
   };
   const models = {
     copilotContext: { getSessionSources: async () => sources },
+    copilotSession: {
+      getMeta: async () => ({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        selectedContextProjectId: null,
+        allowMemoryCapture: true,
+      }),
+    },
     copilotContextMemory: {
       getProject: async () => ({
         id: 'project-a',
@@ -1206,6 +1381,7 @@ test('ChatSession persists the planner checkpoint on save', async t => {
       userId: 'user-a',
       sessionId: 'session-a',
       workspaceId: 'workspace-a',
+      scopeType: 'workspace',
       docId: 'doc-a',
       prompt: {
         name: 'test',
@@ -1300,4 +1476,124 @@ test('ChatSession persists the planner checkpoint on save', async t => {
     (traces[0].scope as Record<string, unknown>).readableDocumentRefs,
     [{ workspaceId: 'workspace-a', docId: 'doc-a' }]
   );
+});
+
+test('ChatSession publishes a durable compaction before returning async prompt messages', async t => {
+  const durableTasks: Array<{
+    sourceMessageIds: string[];
+    modelId?: string;
+    contextWindow?: number;
+  }> = [];
+  const legacyCheckpoints: string[] = [];
+  const traces: Array<Record<string, unknown>> = [];
+  const turns = [
+    {
+      id: 'message-1',
+      conversationId: 'session-durable',
+      role: 'user' as const,
+      content: 'Remember that the release uses eu-west-1.',
+      attachments: [],
+      metadata: {},
+      renderTrace: [],
+      toolEvents: [],
+      createdAt: new Date(1),
+    },
+    {
+      id: 'message-2',
+      conversationId: 'session-durable',
+      role: 'assistant' as const,
+      content: 'Acknowledged.',
+      attachments: [],
+      metadata: {},
+      renderTrace: [],
+      toolEvents: [],
+      createdAt: new Date(2),
+    },
+    {
+      id: 'message-3',
+      conversationId: 'session-durable',
+      role: 'user' as const,
+      content: 'Continue.',
+      attachments: [],
+      metadata: {},
+      renderTrace: [],
+      toolEvents: [],
+      createdAt: new Date(3),
+    },
+  ];
+  const session = new ChatSession(
+    {
+      userId: 'user-a',
+      sessionId: 'session-durable',
+      workspaceId: 'workspace-a',
+      scopeType: 'workspace',
+      docId: 'doc-a',
+      prompt: {
+        name: 'test',
+        model: 'test',
+        modelSource: 'built_in',
+        optionalModels: [],
+        optionalModelsSource: 'built_in',
+        proModelsSource: 'built_in',
+        paramKeys: [],
+        params: {},
+        source: 'built_in',
+        category: 'text',
+        overrideApplied: false,
+      },
+      turns,
+    },
+    (_prompt, plannedTurns) => tailRenderer(2)(plannedTurns),
+    undefined,
+    undefined,
+    {
+      planner: new ContextPlanner(),
+      memories: [],
+      checkpoint: null,
+      scope: {
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        sessionId: 'session-durable',
+        primaryDocId: 'doc-a',
+        readableDocIds: ['doc-a'],
+        readableDocumentRefs: [{ workspaceId: 'workspace-a', docId: 'doc-a' }],
+        candidateProjectIds: [],
+        projectIds: [],
+        projectResolution: 'none',
+        selectedProjectId: null,
+      },
+      saveCheckpoint: async checkpoint => {
+        legacyCheckpoints.push(checkpoint.summary);
+      },
+      savePlanTrace: async trace => {
+        traces.push(trace);
+      },
+      retrieveMemories: async () => [],
+      compactCheckpoint: async input => {
+        durableTasks.push({
+          sourceMessageIds: input.sourceMessageIds,
+          modelId: input.modelId,
+          contextWindow: input.contextWindow,
+        });
+        return { ...input.checkpoint, id: 'checkpoint-durable' };
+      },
+    }
+  );
+
+  const messages = await session.finishAsync(
+    {},
+    { modelId: 'route-model', contextWindow: 4_096 }
+  );
+  await session.save();
+
+  t.true(messages.length > 0);
+  t.deepEqual(durableTasks, [
+    {
+      sourceMessageIds: ['message-1', 'message-2'],
+      modelId: 'route-model',
+      contextWindow: 4_096,
+    },
+  ]);
+  t.deepEqual(legacyCheckpoints, []);
+  t.is(traces.length, 1);
 });

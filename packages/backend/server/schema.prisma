@@ -12,6 +12,11 @@ datasource db {
 }
 
 model User {
+  workspaceFiles WorkspaceFile[]
+
+  officeComments       OfficeComment[]
+  officeCommentReplies OfficeCommentReply[]
+
   id              String    @id @default(uuid()) @db.VarChar
   name            String    @db.VarChar
   email           String    @unique @db.VarChar
@@ -82,6 +87,11 @@ model User {
   aiProviderHealthStates                    AiProviderHealthState[]                @relation("provider_health_state_actor")
   aiProviderHealthEvents                    AiProviderHealthEvent[]                @relation("provider_health_event_actor")
   aiContextMemories                         AiContextMemory[]                      @relation("context_memory_owner")
+  editedAiContextMemories                   AiContextMemory[]                      @relation("context_memory_last_editor")
+  aiContextMemoryContributions              AiContextMemoryContribution[]          @relation("context_memory_contributor")
+  proposedProjectMemoryConflicts            AiProjectMemoryConflict[]              @relation("project_memory_conflict_proposer")
+  resolvedProjectMemoryConflicts            AiProjectMemoryConflict[]              @relation("project_memory_conflict_resolver")
+  updatedAiProjectMemorySettings            AiProjectMemorySettings[]              @relation("project_memory_settings_updater")
   aiContextMemoryEvents                     AiContextMemoryEvent[]                 @relation("context_memory_event_owner")
   aiContextPreferences                      AiContextPreference[]                  @relation("context_preference_user")
   createdAiContextProjects                  AiContextProject[]                     @relation("context_project_creator")
@@ -110,6 +120,18 @@ model User {
   createdOfficeArtifacts                    OfficeArtifact[]                       @relation("office_artifact_creator")
   createdOfficeRevisions                    OfficeRevision[]                       @relation("office_revision_creator")
   createdOfficeCommandRequests              OfficeCommandRequest[]                 @relation("office_command_request_creator")
+  sentWorkOrders                            WorkOrder[]                            @relation("work_order_sender")
+  receivedWorkOrders                        WorkOrder[]                            @relation("work_order_recipient")
+  workOrderSessionBindings                  WorkOrderSessionBinding[]              @relation("work_order_session_owner")
+  ownedAiSessionWorkStates                  AiSessionWorkState[]                   @relation("ai_session_work_state_owner")
+  assignedAiSessionAttentions               AiSessionAttention[]                   @relation("ai_session_attention_actor")
+  resolvedAiSessionAttentions               AiSessionAttention[]                   @relation("ai_session_attention_resolver")
+  submittedWorkOrderDeliveries              WorkOrderDeliveryRevision[]            @relation("work_order_delivery_submitter")
+  createdWorkOrderExchanges                 WorkOrderExchange[]                    @relation("work_order_exchange_actor")
+  createdWorkOrderEvents                    WorkOrderEvent[]                       @relation("work_order_event_actor")
+  adoptedWorkOrderDeliveries                WorkOrderAdoption[]                    @relation("work_order_adoption_actor")
+  ownedWorkOrderBlobs                       WorkOrderBlob[]                        @relation("work_order_blob_owner")
+  createdWorkOrderDispatches                WorkOrderDispatch[]                    @relation("work_order_dispatch_sender")
 
   @@index([email])
   @@map("users")
@@ -232,6 +254,10 @@ model MagicLinkOtp {
 }
 
 model Workspace {
+  files WorkspaceFile[]
+
+  officeComments OfficeComment[]
+
   // NOTE: manually set this column type to identity in migration file
   sid                 Int      @unique @default(autoincrement())
   id                  String   @id @default(uuid()) @db.VarChar
@@ -1171,36 +1197,56 @@ model AiSession {
   workspaceId              String?   @map("workspace_id") @db.VarChar
   docId                    String?   @map("doc_id") @db.VarChar
   selectedContextProjectId String?   @map("selected_context_project_id") @db.VarChar
+  scopeType                String    @default("workspace") @map("scope_type") @db.VarChar(16)
   promptName               String    @map("prompt_name") @db.VarChar(32)
   promptAction             String?   @default("") @map("prompt_action") @db.VarChar(32)
   pinned                   Boolean   @default(false)
   title                    String?   @db.VarChar
+  titleSource              String    @default("pending") @map("title_source") @db.VarChar(16)
+  titleRevision            Int       @default(1) @map("title_revision")
+  titleGenerationStatus    String    @default("pending") @map("title_generation_status") @db.VarChar(16)
   // the session id of the parent session if this session is a forked session
   parentSessionId          String?   @map("parent_session_id") @db.VarChar
   messageCost              Int       @default(0)
   tokenCost                Int       @default(0)
+  allowMemoryCapture       Boolean   @default(true) @map("allow_memory_capture")
+  memoryCaptureRevision    Int       @default(1) @map("memory_capture_revision")
   createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt                DateTime? @map("deleted_at") @db.Timestamptz(3)
+  contextEpoch             Int       @default(1) @map("context_epoch")
 
-  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prompt                 AiPrompt               @relation(fields: [promptName], references: [name], onDelete: Cascade)
-  messages               AiSessionMessage[]
-  context                AiContext[]
-  contextCheckpoints     AiContextCheckpoint[]
-  contextPlanTraces      AiContextPlanTrace[]
-  sourceMemories         AiContextMemory[]      @relation("context_memory_source_session")
-  memoryEvents           AiContextMemoryEvent[] @relation("context_memory_event_source_session")
-  contextRuleHits        AiContextRuleHit[]
-  contextPolicyHits      AiContextPolicyHit[]
-  selectedContextProject AiContextProject?      @relation("context_project_selected_session", fields: [selectedContextProjectId], references: [id], onDelete: Restrict)
-  actionRuns             AiActionRun[]
-  agentRuns              AiAgentRun[]           @relation("agent_run_session")
+  user                    User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt                  AiPrompt                      @relation(fields: [promptName], references: [name], onDelete: Cascade)
+  messages                AiSessionMessage[]
+  context                 AiContext?
+  contextCheckpoints      AiContextCheckpoint[]
+  activeContextCheckpoint AiContextCheckpointPointer?   @relation("active_context_checkpoint")
+  contextCompactionTasks  AiContextCompactionTask[]
+  contextCompactionEvents AiContextCompactionEvent[]
+  contextPlanTraces       AiContextPlanTrace[]
+  deletion                AiSessionDeletion?
+  sourceMemories          AiContextMemory[]             @relation("context_memory_source_session")
+  memoryEvents            AiContextMemoryEvent[]        @relation("context_memory_event_source_session")
+  memoryContributions     AiContextMemoryContribution[]
+  memoryConflicts         AiProjectMemoryConflict[]
+  contextRuleHits         AiContextRuleHit[]
+  contextPolicyHits       AiContextPolicyHit[]
+  selectedContextProject  AiContextProject?             @relation("context_project_selected_session", fields: [selectedContextProjectId], references: [id], onDelete: Restrict)
+  actionRuns              AiActionRun[]
+  agentRuns               AiAgentRun[]                  @relation("agent_run_session")
+  workState               AiSessionWorkState?
+  attentions              AiSessionAttention[]
+  workOrderBinding        WorkOrderSessionBinding?
+  sourcedWorkOrders       WorkOrder[]                   @relation("work_order_source_session")
+  workOrderAdoptions      WorkOrderAdoption[]           @relation("work_order_adoption_source_session")
+  workOrderDispatches     WorkOrderDispatch[]           @relation("work_order_dispatch_source_session")
 
-  documentOperations CopilotDocumentOperation[]
-  contextSources     AiSessionContextSource[]
-  projectChatContext ProjectChatContext?
-  delegatedExecution AiMcpDelegationRequest?    @relation("mcp_delegation_execution_session")
+  documentOperations    CopilotDocumentOperation[]
+  contextSources        AiSessionContextSource[]
+  projectBlobReferences AiSessionProjectBlobReference[]
+  projectChatContext    ProjectChatContext?
+  delegatedExecution    AiMcpDelegationRequest?         @relation("mcp_delegation_execution_session")
 
   //NOTE:
   // unrecorded index:
@@ -1211,7 +1257,360 @@ model AiSession {
   @@index([userId])
   @@index([userId, workspaceId, docId])
   @@index([selectedContextProjectId])
+  @@index([userId, scopeType, updatedAt(sort: Desc)])
   @@map("ai_sessions_metadata")
+}
+
+model AiSessionWorkState {
+  sessionId            String    @id @map("session_id") @db.VarChar
+  ownerUserId          String    @map("owner_user_id") @db.VarChar
+  version              Int       @default(1)
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz(3)
+  completionReason     String?   @map("completion_reason") @db.VarChar(256)
+  completionRequestKey String?   @map("completion_request_key") @db.VarChar
+  lastBusinessAt       DateTime  @default(now()) @map("last_business_at") @db.Timestamptz(3)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  owner   User      @relation("ai_session_work_state_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId, lastBusinessAt(sort: Desc), sessionId])
+  @@map("ai_session_work_states")
+}
+
+model AiSessionAttention {
+  id                 String    @id @default(uuid()) @db.VarChar
+  sessionId          String    @map("session_id") @db.VarChar
+  actorId            String    @map("actor_id") @db.VarChar
+  reason             String    @db.VarChar(64)
+  sourceType         String    @map("source_type") @db.VarChar(64)
+  sourceId           String    @map("source_id") @db.VarChar
+  version            Int       @default(1)
+  status             String    @default("open") @db.VarChar(16)
+  evidence           Json      @default("{}") @db.JsonB
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  resolvedAt         DateTime? @map("resolved_at") @db.Timestamptz(3)
+  resolvedBy         String?   @map("resolved_by") @db.VarChar
+  resolutionEvidence Json?     @map("resolution_evidence") @db.JsonB
+
+  session  AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actor    User      @relation("ai_session_attention_actor", fields: [actorId], references: [id], onDelete: Cascade)
+  resolver User?     @relation("ai_session_attention_resolver", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, actorId, sourceType, sourceId])
+  @@index([actorId, status, updatedAt(sort: Desc)])
+  @@map("ai_session_attentions")
+}
+
+model WorkOrderDispatch {
+  id               String    @id @default(uuid()) @db.VarChar
+  sourceSessionId  String?   @map("source_session_id") @db.VarChar
+  senderId         String?   @map("sender_id") @db.VarChar
+  status           String    @default("draft") @db.VarChar(16)
+  draftVersion     Int       @default(1) @map("draft_version")
+  draftFingerprint String    @map("draft_fingerprint") @db.VarChar(64)
+  draft            Json      @db.JsonB
+  requestKey       String    @map("request_key") @db.VarChar
+  confirmationHash String?   @map("confirmation_hash") @db.VarChar(64)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  confirmedAt      DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  orders        WorkOrder[]
+  sourceSession AiSession?  @relation("work_order_dispatch_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
+  sender        User?       @relation("work_order_dispatch_sender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@unique([senderId, requestKey])
+  @@index([sourceSessionId, createdAt(sort: Desc)])
+  @@map("work_order_dispatches")
+}
+
+model WorkOrder {
+  id                      String    @id @default(uuid()) @db.VarChar
+  dispatchId              String    @map("dispatch_id") @db.VarChar
+  sourceSessionId         String?   @map("source_session_id") @db.VarChar
+  senderId                String?   @map("sender_id") @db.VarChar
+  recipientId             String?   @map("recipient_id") @db.VarChar
+  relatedWorkOrderId      String?   @map("related_work_order_id") @db.VarChar
+  relationKind            String    @default("original") @map("relation_kind") @db.VarChar(16)
+  status                  String    @default("open") @db.VarChar(24)
+  version                 Int       @default(1)
+  title                   String    @db.VarChar(256)
+  purpose                 String    @db.Text
+  requirementsFingerprint String    @map("requirements_fingerprint") @db.VarChar(64)
+  background              Json      @default("{}") @db.JsonB
+  terminalReason          String?   @map("terminal_reason") @db.Text
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt             DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  dispatch       WorkOrderDispatch           @relation(fields: [dispatchId], references: [id], onDelete: Restrict)
+  sourceSession  AiSession?                  @relation("work_order_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
+  sender         User?                       @relation("work_order_sender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipient      User?                       @relation("work_order_recipient", fields: [recipientId], references: [id], onDelete: SetNull)
+  related        WorkOrder?                  @relation("work_order_relation", fields: [relatedWorkOrderId], references: [id], onDelete: Restrict)
+  supplements    WorkOrder[]                 @relation("work_order_relation")
+  sessionBinding WorkOrderSessionBinding?
+  requirements   WorkOrderRequirement[]
+  exchanges      WorkOrderExchange[]
+  deliveries     WorkOrderDeliveryRevision[]
+  blobs          WorkOrderBlob[]
+  events         WorkOrderEvent[]
+  outbox         WorkOrderOutbox[]
+  adoptions      WorkOrderAdoptionItem[]
+  agentRuns      AiAgentRun[]                @relation("agent_run_work_order")
+
+  @@index([senderId, sourceSessionId, status, updatedAt(sort: Desc)])
+  @@index([recipientId, status, updatedAt(sort: Desc)])
+  @@index([relatedWorkOrderId])
+  @@map("work_orders")
+}
+
+model WorkOrderSessionBinding {
+  workOrderId         String   @id @map("work_order_id") @db.VarChar
+  sessionId           String   @unique @map("session_id") @db.VarChar
+  ownerUserId         String   @map("owner_user_id") @db.VarChar
+  ownerUserIdSnapshot String   @map("owner_user_id_snapshot") @db.VarChar
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  session   AiSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  owner     User      @relation("work_order_session_owner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@map("work_order_session_bindings")
+}
+
+model WorkOrderRequirement {
+  id                String   @id @default(uuid()) @db.VarChar
+  workOrderId       String   @map("work_order_id") @db.VarChar
+  itemKey           String   @map("item_key") @db.VarChar(64)
+  kind              String   @db.VarChar(16)
+  title             String   @db.VarChar(256)
+  instructions      String   @db.Text
+  required          Boolean  @default(true)
+  acceptedMimeTypes String[] @map("accepted_mime_types")
+  minCount          Int      @default(1) @map("min_count")
+  maxCount          Int      @default(1) @map("max_count")
+  validationMode    String   @map("validation_mode") @db.VarChar(32)
+  ordinal           Int
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workOrder     WorkOrder               @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  deliveryItems WorkOrderDeliveryItem[]
+  draftBlobs    WorkOrderBlob[]
+
+  @@unique([workOrderId, itemKey])
+  @@unique([id, workOrderId])
+  @@index([workOrderId, ordinal])
+  @@map("work_order_requirements")
+}
+
+model WorkOrderExchange {
+  id          String   @id @default(uuid()) @db.VarChar
+  workOrderId String   @map("work_order_id") @db.VarChar
+  actorId     String?  @map("actor_id") @db.VarChar
+  kind        String   @db.VarChar(24)
+  body        String   @db.Text
+  fingerprint String   @db.VarChar(64)
+  requestKey  String   @map("request_key") @db.VarChar
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("work_order_exchange_actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([workOrderId, requestKey])
+  @@index([workOrderId, createdAt])
+  @@map("work_order_exchanges")
+}
+
+model WorkOrderBlob {
+  id            String    @id @default(uuid()) @db.VarChar
+  workOrderId   String    @map("work_order_id") @db.VarChar
+  ownerId       String?   @map("owner_id") @db.VarChar
+  requirementId String    @map("requirement_id") @db.VarChar
+  requestKey    String    @map("request_key") @db.VarChar
+  key           String    @db.VarChar(256)
+  status        String    @default("staged") @db.VarChar(16)
+  fileName      String    @map("file_name") @db.VarChar(512)
+  mimeType      String    @map("mime_type") @db.VarChar(256)
+  byteSize      Int       @map("byte_size")
+  fingerprint   String    @db.VarChar(64)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workOrder     WorkOrder               @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  owner         User?                   @relation("work_order_blob_owner", fields: [ownerId], references: [id], onDelete: SetNull)
+  requirement   WorkOrderRequirement    @relation(fields: [requirementId, workOrderId], references: [id, workOrderId], onDelete: Restrict, onUpdate: Restrict)
+  deliveryItems WorkOrderDeliveryItem[]
+
+  @@unique([workOrderId, key])
+  @@unique([workOrderId, requestKey])
+  @@unique([id, workOrderId])
+  @@index([status, expiresAt])
+  @@map("work_order_blobs")
+}
+
+model WorkOrderDeliveryRevision {
+  id                      String   @id @default(uuid()) @db.VarChar
+  workOrderId             String   @map("work_order_id") @db.VarChar
+  revision                Int
+  submittedBy             String?  @map("submitted_by") @db.VarChar
+  requirementsFingerprint String   @map("requirements_fingerprint") @db.VarChar(64)
+  receiptFingerprint      String   @map("receipt_fingerprint") @db.VarChar(64)
+  validationEvidence      Json     @map("validation_evidence") @db.JsonB
+  status                  String   @default("complete") @db.VarChar(16)
+  submittedAt             DateTime @default(now()) @map("submitted_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder               @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  submitter User?                   @relation("work_order_delivery_submitter", fields: [submittedBy], references: [id], onDelete: SetNull)
+  items     WorkOrderDeliveryItem[]
+  adoptions WorkOrderAdoptionItem[]
+
+  @@unique([workOrderId, revision])
+  @@unique([id, workOrderId])
+  @@index([workOrderId, submittedAt(sort: Desc)])
+  @@map("work_order_delivery_revisions")
+}
+
+model WorkOrderDeliveryItem {
+  id                 String   @id @default(uuid()) @db.VarChar
+  deliveryRevisionId String   @map("delivery_revision_id") @db.VarChar
+  workOrderId        String   @map("work_order_id") @db.VarChar
+  requirementId      String   @map("requirement_id") @db.VarChar
+  blobId             String?  @map("blob_id") @db.VarChar
+  textValue          String?  @map("text_value") @db.Text
+  evidence           Json     @default("{}") @db.JsonB
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deliveryRevision WorkOrderDeliveryRevision @relation(fields: [deliveryRevisionId, workOrderId], references: [id, workOrderId], onDelete: Cascade, onUpdate: Restrict)
+  requirement      WorkOrderRequirement      @relation(fields: [requirementId, workOrderId], references: [id, workOrderId], onDelete: Restrict, onUpdate: Restrict)
+  blob             WorkOrderBlob?            @relation(fields: [blobId, workOrderId], references: [id, workOrderId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([deliveryRevisionId, requirementId, blobId])
+  @@index([workOrderId, requirementId])
+  @@map("work_order_delivery_items")
+}
+
+model WorkOrderEvent {
+  id               String   @id @default(uuid()) @db.VarChar
+  workOrderId      String   @map("work_order_id") @db.VarChar
+  actorId          String?  @map("actor_id") @db.VarChar
+  eventType        String   @map("event_type") @db.VarChar(48)
+  version          Int
+  payload          Json     @default("{}") @db.JsonB
+  eventFingerprint String   @unique @map("event_fingerprint") @db.VarChar(64)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  actor     User?     @relation("work_order_event_actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([workOrderId, version])
+  @@index([workOrderId, createdAt])
+  @@map("work_order_events")
+}
+
+model WorkOrderOutbox {
+  id          BigInt    @id @default(autoincrement())
+  workOrderId String    @map("work_order_id") @db.VarChar
+  eventId     String    @map("event_id") @db.VarChar
+  recipientId String    @map("recipient_id") @db.VarChar
+  channel     String    @default("in_app") @db.VarChar(24)
+  topic       String    @db.VarChar(64)
+  attempts    Int       @default(0)
+  availableAt DateTime  @default(now()) @map("available_at") @db.Timestamptz(3)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+
+  @@unique([eventId, recipientId, channel])
+  @@index([deliveredAt, availableAt])
+  @@map("work_order_outbox")
+}
+
+model WorkOrderAdoption {
+  id                      String   @id @default(uuid()) @db.VarChar
+  sourceSessionId         String?  @map("source_session_id") @db.VarChar
+  sourceSessionIdSnapshot String   @map("source_session_id_snapshot") @db.VarChar
+  actorId                 String?  @map("actor_id") @db.VarChar
+  contextVersion          Int      @map("context_version")
+  requestKey              String   @map("request_key") @db.VarChar
+  revisionSetFingerprint  String   @map("revision_set_fingerprint") @db.VarChar(64)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sourceSession AiSession?              @relation("work_order_adoption_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
+  actor         User?                   @relation("work_order_adoption_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  items         WorkOrderAdoptionItem[]
+
+  @@unique([sourceSessionIdSnapshot, requestKey])
+  @@unique([sourceSessionIdSnapshot, contextVersion])
+  @@map("work_order_adoptions")
+}
+
+model WorkOrderAdoptionItem {
+  adoptionId         String @map("adoption_id") @db.VarChar
+  workOrderId        String @map("work_order_id") @db.VarChar
+  deliveryRevisionId String @map("delivery_revision_id") @db.VarChar
+
+  adoption       WorkOrder                 @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  adoptionRecord WorkOrderAdoption         @relation(fields: [adoptionId], references: [id], onDelete: Cascade)
+  delivery       WorkOrderDeliveryRevision @relation(fields: [deliveryRevisionId, workOrderId], references: [id, workOrderId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([adoptionId, workOrderId])
+  @@map("work_order_adoption_items")
+}
+
+model AiSessionDeletion {
+  id                   String    @id @default(uuid()) @db.VarChar
+  sessionId            String    @unique @map("session_id") @db.VarChar
+  ownerUserIdSnapshot  String    @map("owner_user_id_snapshot") @db.VarChar
+  workspaceIdSnapshot  String?   @map("workspace_id_snapshot") @db.VarChar
+  projectIdSnapshot    String?   @map("project_id_snapshot") @db.VarChar
+  contextEpoch         Int       @map("context_epoch")
+  status               String    @default("requested") @db.VarChar
+  requestFingerprint   String    @map("request_fingerprint") @db.VarChar
+  progress             Json      @default("{}") @db.JsonB
+  resultCounts         Json      @default("{}") @map("result_counts") @db.JsonB
+  attempt              Int       @default(0)
+  maxAttempts          Int       @default(5) @map("max_attempts")
+  workerLeaseId        String?   @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt DateTime? @map("worker_lease_expires_at") @db.Timestamptz(3)
+  nextAttemptAt        DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  failureCode          String?   @map("failure_code") @db.VarChar
+  failureMessage       String?   @map("failure_message") @db.Text
+  holdReason           String?   @map("hold_reason") @db.VarChar
+  heldAt               DateTime? @map("held_at") @db.Timestamptz(3)
+  releasedAt           DateTime? @map("released_at") @db.Timestamptz(3)
+  receiptFingerprint   String?   @map("receipt_fingerprint") @db.VarChar
+  retentionClass       String    @default("long_term_minimal") @map("retention_class") @db.VarChar
+  requestedAt          DateTime  @default(now()) @map("requested_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([workerLeaseExpiresAt])
+  @@index([ownerUserIdSnapshot, requestedAt])
+  @@map("ai_session_deletions")
+}
+
+model AiSessionProjectBlobReference {
+  sessionId String   @map("session_id") @db.VarChar
+  projectId String   @map("project_id") @db.VarChar
+  blobKey   String   @map("blob_key") @db.VarChar(256)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  session AiSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  blob    ProjectBlob @relation(fields: [projectId, blobKey], references: [projectId, key], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([sessionId, projectId, blobKey])
+  @@index([projectId, blobKey])
+  @@map("ai_session_project_blob_references")
 }
 
 model CopilotDocumentOperation {
@@ -1297,7 +1696,8 @@ model AiContextMemory {
   // Migrations additionally enforce scope/lifecycle/content CHECK constraints
   // and expression-based partial uniqueness that Prisma cannot represent.
   id                          String                       @id @default(uuid()) @db.VarChar
-  ownerUserId                 String                       @map("owner_user_id") @db.VarChar
+  ownerUserId                 String?                      @map("owner_user_id") @db.VarChar
+  lastEditedByUserId          String?                      @map("last_edited_by_user_id") @db.VarChar
   workspaceId                 String?                      @map("workspace_id") @db.VarChar
   docId                       String?                      @map("doc_id") @db.VarChar
   projectId                   String?                      @map("project_id") @db.VarChar
@@ -1320,6 +1720,9 @@ model AiContextMemory {
   supersedesId                String?                      @map("supersedes_id") @db.VarChar
   lastUsedAt                  DateTime?                    @map("last_used_at") @db.Timestamptz(3)
   useCount                    Int                          @default(0) @map("use_count")
+  revision                    Int                          @default(1)
+  sharingStatus               String                       @default("private") @map("sharing_status") @db.VarChar
+  contractVersion             String                       @default("legacy/v1") @map("contract_version") @db.VarChar
   quarantinedAt               DateTime?                    @map("quarantined_at") @db.Timestamptz(3)
   quarantineReason            String?                      @map("quarantine_reason") @db.VarChar
   quarantinedByProjectGrantId String?                      @map("quarantined_by_project_grant_id") @db.VarChar
@@ -1329,21 +1732,25 @@ model AiContextMemory {
   createdAt                   DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                   DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner                     User                      @relation("context_memory_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  workspace                 Workspace?                @relation("context_memory_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  project                   AiContextProject?         @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  sourceSession             AiSession?                @relation("context_memory_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
-  supersedes                AiContextMemory?          @relation("context_memory_supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
-  supersededBy              AiContextMemory[]         @relation("context_memory_supersession")
-  events                    AiContextMemoryEvent[]    @relation("context_memory_event_memory")
-  previousEvents            AiContextMemoryEvent[]    @relation("context_memory_event_previous_memory")
+  owner                     User?                         @relation("context_memory_owner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  lastEditor                User?                         @relation("context_memory_last_editor", fields: [lastEditedByUserId], references: [id], onDelete: SetNull)
+  workspace                 Workspace?                    @relation("context_memory_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  project                   AiContextProject?             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  sourceSession             AiSession?                    @relation("context_memory_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
+  supersedes                AiContextMemory?              @relation("context_memory_supersession", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy              AiContextMemory[]             @relation("context_memory_supersession")
+  events                    AiContextMemoryEvent[]        @relation("context_memory_event_memory")
+  previousEvents            AiContextMemoryEvent[]        @relation("context_memory_event_previous_memory")
   sources                   AiContextMemorySource[]
   summaryRevisions          ProjectSummaryRevision[]
-  projectSourceCheck        AiSharedWriteSourceCheck? @relation(fields: [projectSourceCheckId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  quarantinedByProjectGrant AiContextProjectGrant?    @relation("context_memory_quarantine_grant", fields: [quarantinedByProjectGrantId], references: [id], onDelete: SetNull)
+  contributions             AiContextMemoryContribution[]
+  conflicts                 AiProjectMemoryConflict[]
+  projectSourceCheck        AiSharedWriteSourceCheck?     @relation(fields: [projectSourceCheckId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quarantinedByProjectGrant AiContextProjectGrant?        @relation("context_memory_quarantine_grant", fields: [quarantinedByProjectGrantId], references: [id], onDelete: SetNull)
 
   @@unique([id, projectId])
   @@index([ownerUserId, status, updatedAt])
+  @@index([lastEditedByUserId, updatedAt])
   @@index([workspaceId, docId, status, updatedAt])
   @@index([projectId, status, updatedAt])
   @@index([ownerUserId, factKey, status, updatedAt])
@@ -1357,10 +1764,65 @@ model AiContextMemory {
   @@map("ai_context_memories")
 }
 
+model AiContextMemoryContribution {
+  id                 String    @id @default(uuid()) @db.VarChar
+  memoryId           String    @map("memory_id") @db.VarChar
+  projectId          String    @map("project_id") @db.VarChar
+  contributorUserId  String?   @map("contributor_user_id") @db.VarChar
+  sourceSessionId    String?   @map("source_session_id") @db.VarChar
+  sourceTurnId       String?   @map("source_turn_id") @db.VarChar
+  contributionKind   String    @default("create") @map("contribution_kind") @db.VarChar
+  status             String    @default("active") @db.VarChar
+  contentFingerprint String    @map("content_fingerprint") @db.VarChar
+  requestFingerprint String    @unique @map("request_fingerprint") @db.VarChar
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  withdrawnAt        DateTime? @map("withdrawn_at") @db.Timestamptz(3)
+
+  memory      AiContextMemory  @relation(fields: [memoryId, projectId], references: [id, projectId], onDelete: Cascade, onUpdate: Restrict)
+  project     AiContextProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  contributor User?            @relation("context_memory_contributor", fields: [contributorUserId], references: [id], onDelete: SetNull)
+  source      AiSession?       @relation(fields: [sourceSessionId], references: [id], onDelete: SetNull)
+
+  @@index([memoryId, status, createdAt])
+  @@index([projectId, contributorUserId, status, createdAt])
+  @@index([sourceSessionId, createdAt])
+  @@map("ai_context_memory_contributions")
+}
+
+model AiProjectMemoryConflict {
+  id                     String    @id @default(uuid()) @db.VarChar
+  projectId              String    @map("project_id") @db.VarChar
+  baseMemoryId           String    @map("base_memory_id") @db.VarChar
+  proposedByUserId       String?   @map("proposed_by_user_id") @db.VarChar
+  sourceSessionId        String?   @map("source_session_id") @db.VarChar
+  sourceTurnId           String?   @map("source_turn_id") @db.VarChar
+  factKey                String    @map("fact_key") @db.VarChar
+  proposedContent        String    @map("proposed_content") @db.Text
+  proposedFingerprint    String    @map("proposed_fingerprint") @db.VarChar
+  status                 String    @default("pending") @db.VarChar
+  expectedMemoryRevision Int       @map("expected_memory_revision")
+  requestFingerprint     String    @unique @map("request_fingerprint") @db.VarChar
+  resolvedByUserId       String?   @map("resolved_by_user_id") @db.VarChar
+  resolution             String?   @db.VarChar
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt             DateTime? @map("resolved_at") @db.Timestamptz(3)
+
+  project  AiContextProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  memory   AiContextMemory  @relation(fields: [baseMemoryId, projectId], references: [id, projectId], onDelete: Cascade, onUpdate: Restrict)
+  source   AiSession?       @relation(fields: [sourceSessionId], references: [id], onDelete: SetNull)
+  proposer User?            @relation("project_memory_conflict_proposer", fields: [proposedByUserId], references: [id], onDelete: SetNull)
+  resolver User?            @relation("project_memory_conflict_resolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status, createdAt])
+  @@index([baseMemoryId, status])
+  @@map("ai_project_memory_conflicts")
+}
+
 model AiContextMemoryEvent {
   id                  String    @id @default(uuid()) @db.VarChar
   ownerUserId         String?   @map("owner_user_id") @db.VarChar
   workspaceId         String?   @map("workspace_id") @db.VarChar
+  projectId           String?   @map("project_id") @db.VarChar
   sourceSessionId     String?   @map("source_session_id") @db.VarChar
   sourceTurnId        String?   @map("source_turn_id") @db.VarChar
   operation           String    @db.VarChar
@@ -1375,8 +1837,9 @@ model AiContextMemoryEvent {
   undoneAt            DateTime? @map("undone_at") @db.Timestamptz(3)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  owner          User?                  @relation("context_memory_event_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  owner          User?                  @relation("context_memory_event_owner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   workspace      Workspace?             @relation("context_memory_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  project        AiContextProject?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
   sourceSession  AiSession?             @relation("context_memory_event_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
   memory         AiContextMemory?       @relation("context_memory_event_memory", fields: [memoryId], references: [id], onDelete: Cascade)
   previousMemory AiContextMemory?       @relation("context_memory_event_previous_memory", fields: [previousMemoryId], references: [id], onDelete: Cascade)
@@ -1384,6 +1847,7 @@ model AiContextMemoryEvent {
   undoEvents     AiContextMemoryEvent[] @relation("context_memory_event_undo")
 
   @@index([ownerUserId, workspaceId, createdAt])
+  @@index([projectId, createdAt])
   @@index([sourceSessionId, createdAt])
   @@index([memoryId, createdAt])
   @@index([targetEventId])
@@ -1405,6 +1869,8 @@ model ProjectSummaryRevision {
 }
 
 model AiContextProject {
+  officeComments OfficeComment[]
+
   id                      String    @id @default(uuid()) @db.VarChar
   createdByUserId         String?   @map("created_by_user_id") @db.VarChar
   name                    String    @db.VarChar
@@ -1427,6 +1893,10 @@ model AiContextProject {
   membershipAuditEvents AiContextProjectMembershipAuditEvent[]
   policyAuditEvents     AiContextProjectPolicyAuditEvent[]
   memories              AiContextMemory[]
+  memorySettings        AiProjectMemorySettings?
+  memoryContributions   AiContextMemoryContribution[]
+  memoryConflicts       AiProjectMemoryConflict[]
+  memoryEvents          AiContextMemoryEvent[]
   memorySources         AiContextMemorySource[]
   rules                 AiContextRule[]
   selectedSessions      AiSession[]                            @relation("context_project_selected_session")
@@ -1653,23 +2123,27 @@ model ProjectPublicationTarget {
 }
 
 model ProjectBlob {
-  projectId   String   @map("project_id") @db.VarChar
-  key         String   @db.VarChar(256)
-  mimeType    String   @map("mime_type") @db.VarChar(256)
-  byteSize    Int      @map("byte_size")
-  fingerprint String   @db.VarChar(64)
-  createdBy   String   @map("created_by") @db.VarChar
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  projectId         String    @map("project_id") @db.VarChar
+  key               String    @db.VarChar(256)
+  mimeType          String    @map("mime_type") @db.VarChar(256)
+  byteSize          Int       @map("byte_size")
+  fingerprint       String    @db.VarChar(64)
+  createdBy         String    @map("created_by") @db.VarChar
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletionPendingAt DateTime? @map("deletion_pending_at") @db.Timestamptz(3)
+  pendingDeletionId String?   @map("pending_deletion_id") @db.VarChar
 
-  project        AiContextProject            @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  revisions      ProjectResourceRevision[]
-  officeSources  OfficeArtifact[]            @relation("office_project_source_blob")
-  officePackages OfficeRevision[]            @relation("office_project_package_blob")
-  officeStates   OfficeRevision[]            @relation("office_project_state_blob")
-  officeCommands OfficeCommandRequest[]      @relation("office_project_command_blob")
-  attachments    ProjectResourceAttachment[]
+  project                  AiContextProject                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  revisions                ProjectResourceRevision[]
+  officeSources            OfficeArtifact[]                @relation("office_project_source_blob")
+  officePackages           OfficeRevision[]                @relation("office_project_package_blob")
+  officeStates             OfficeRevision[]                @relation("office_project_state_blob")
+  officeCommands           OfficeCommandRequest[]          @relation("office_project_command_blob")
+  attachments              ProjectResourceAttachment[]
+  sessionContextReferences AiSessionProjectBlobReference[]
 
   @@id([projectId, key])
+  @@index([pendingDeletionId])
   @@map("project_blobs")
 }
 
@@ -2000,7 +2474,7 @@ model AiContextMemorySource {
 
 model AiContextRule {
   id              String   @id @default(uuid()) @db.VarChar
-  ownerUserId     String   @map("owner_user_id") @db.VarChar
+  ownerUserId     String?  @map("owner_user_id") @db.VarChar
   workspaceId     String?  @map("workspace_id") @db.VarChar
   projectId       String?  @map("project_id") @db.VarChar
   scope           String   @db.VarChar
@@ -2014,7 +2488,7 @@ model AiContextRule {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner     User                    @relation("context_rule_owner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  owner     User?                   @relation("context_rule_owner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   workspace Workspace?              @relation("context_rule_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
   project   AiContextProject?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   revisions AiContextRuleRevision[]
@@ -2036,7 +2510,7 @@ model AiContextRuleRevision {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   rule    AiContextRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  creator User?              @relation("context_rule_revision_creator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  creator User?              @relation("context_rule_revision_creator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   hits    AiContextRuleHit[]
 
   @@unique([ruleId, revision])
@@ -2127,20 +2601,110 @@ model AiContextPolicyHit {
 model AiContextCheckpoint {
   id                     String   @id @default(uuid()) @db.VarChar
   sessionId              String   @map("session_id") @db.VarChar
+  revision               Int
+  contextEpoch           Int      @map("context_epoch")
+  projectMemoryRevision  Int?     @map("project_memory_revision")
+  status                 String   @default("completed") @db.VarChar
   strategyVersion        String   @map("strategy_version") @db.VarChar
   strategyFingerprint    String   @map("strategy_fingerprint") @db.VarChar
   summary                String   @db.Text
   summarizedMessageCount Int      @default(0) @map("summarized_message_count")
   sourceFingerprint      String   @map("source_fingerprint") @db.VarChar
   diagnostics            Json     @default("{}") @db.JsonB
+  summaryData            Json     @default("{}") @map("summary_data") @db.JsonB
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session                 AiSession                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  activePointer           AiContextCheckpointPointer?
+  publishedCompactionTask AiContextCompactionTask?    @relation("context_compaction_published_checkpoint")
 
-  @@unique([sessionId, strategyVersion])
+  @@unique([sessionId, revision])
   @@index([strategyVersion, updatedAt])
   @@map("ai_context_checkpoints")
+}
+
+model AiContextCompactionTask {
+  id                     String    @id @default(uuid()) @db.VarChar
+  sessionId              String    @map("session_id") @db.VarChar
+  actorUserIdSnapshot    String    @map("actor_user_id_snapshot") @db.VarChar
+  workspaceIdSnapshot    String?   @map("workspace_id_snapshot") @db.VarChar
+  projectIdSnapshot      String?   @map("project_id_snapshot") @db.VarChar
+  contextEpoch           Int       @map("context_epoch")
+  status                 String    @default("queued") @db.VarChar
+  requestFingerprint     String    @unique @map("request_fingerprint") @db.VarChar
+  sourceFingerprint      String    @map("source_fingerprint") @db.VarChar
+  sourceMessageIds       Json      @default("[]") @map("source_message_ids") @db.JsonB
+  summarizedMessageCount Int       @map("summarized_message_count")
+  previousCheckpointId   String?   @map("previous_checkpoint_id") @db.VarChar
+  strategyVersion        String    @map("strategy_version") @db.VarChar
+  strategyFingerprint    String    @map("strategy_fingerprint") @db.VarChar
+  modelId                String?   @map("model_id") @db.VarChar
+  routeFingerprint       String    @map("route_fingerprint") @db.VarChar
+  projectMemoryRevision  Int?      @map("project_memory_revision")
+  projectContextVersion  Int?      @map("project_context_version")
+  dependencies           Json      @default("{}") @db.JsonB
+  candidateSummary       String    @map("candidate_summary") @db.Text
+  candidateSummaryData   Json      @default("{}") @map("candidate_summary_data") @db.JsonB
+  candidateDiagnostics   Json      @default("{}") @map("candidate_diagnostics") @db.JsonB
+  resultSummary          String?   @map("result_summary") @db.Text
+  resultSummaryData      Json?     @map("result_summary_data") @db.JsonB
+  resultDiagnostics      Json?     @map("result_diagnostics") @db.JsonB
+  inputBudget            Int?      @map("input_budget")
+  inputTokensEstimated   Int?      @map("input_tokens_estimated")
+  outputTokensEstimated  Int?      @map("output_tokens_estimated")
+  outputCharacters       Int?      @map("output_characters")
+  attempt                Int       @default(0)
+  maxAttempts            Int       @default(3) @map("max_attempts")
+  workerLeaseId          String?   @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt   DateTime? @map("worker_lease_expires_at") @db.Timestamptz(3)
+  nextAttemptAt          DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  failureCode            String?   @map("failure_code") @db.VarChar
+  failureMessage         String?   @map("failure_message") @db.Text
+  checkpointId           String?   @unique @map("checkpoint_id") @db.VarChar
+  requestedAt            DateTime  @default(now()) @map("requested_at") @db.Timestamptz(3)
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt            DateTime? @map("completed_at") @db.Timestamptz(3)
+  cancelledAt            DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  session    AiSession                  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  checkpoint AiContextCheckpoint?       @relation("context_compaction_published_checkpoint", fields: [checkpointId], references: [id], onDelete: Cascade)
+  events     AiContextCompactionEvent[]
+
+  @@index([status, nextAttemptAt])
+  @@index([workerLeaseExpiresAt])
+  @@index([sessionId, requestedAt])
+  @@map("ai_context_compaction_tasks")
+}
+
+model AiContextCompactionEvent {
+  id           String   @id @default(uuid()) @db.VarChar
+  sequence     Int      @unique @default(autoincrement())
+  taskId       String   @map("task_id") @db.VarChar
+  sessionId    String   @map("session_id") @db.VarChar
+  contextEpoch Int      @map("context_epoch")
+  status       String   @db.VarChar
+  attempt      Int
+  statistics   Json     @default("{}") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  task    AiContextCompactionTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  session AiSession               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, sequence])
+  @@index([taskId, sequence])
+  @@map("ai_context_compaction_events")
+}
+
+model AiContextCheckpointPointer {
+  sessionId    String   @id @map("session_id") @db.VarChar
+  checkpointId String   @unique @map("checkpoint_id") @db.VarChar
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  session    AiSession           @relation("active_context_checkpoint", fields: [sessionId], references: [id], onDelete: Cascade)
+  checkpoint AiContextCheckpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+
+  @@map("ai_context_checkpoint_pointers")
 }
 
 model AiContextPlanTrace {
@@ -2186,6 +2750,40 @@ model AiContextPreference {
   @@unique([userId, workspaceId])
   @@index([workspaceId, updatedAt])
   @@map("ai_context_preferences")
+}
+
+model AiProjectMemorySettings {
+  projectId             String   @id @map("project_id") @db.VarChar
+  autoMemoryEnabled     Boolean  @default(true) @map("auto_memory_enabled")
+  revision              Int      @default(1)
+  projectMemoryRevision Int      @default(1) @map("project_memory_revision")
+  contractVersion       String   @default("shared-project-memory/v1") @map("contract_version") @db.VarChar
+  updatedByUserId       String?  @map("updated_by_user_id") @db.VarChar
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project   AiContextProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  updatedBy User?            @relation("project_memory_settings_updater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId, updatedAt])
+  @@map("ai_project_memory_settings")
+}
+
+model AiContextUpgradeQuarantine {
+  id                  String   @id @default(uuid()) @db.VarChar
+  entityType          String   @map("entity_type") @db.VarChar
+  entityId            String   @map("entity_id") @db.VarChar
+  ownerUserIdSnapshot String?  @map("owner_user_id_snapshot") @db.VarChar
+  projectId           String?  @map("project_id") @db.VarChar
+  reasonCode          String   @map("reason_code") @db.VarChar
+  metadata            Json     @default("{}") @db.JsonB
+  reviewBefore        DateTime @map("review_before") @db.Timestamptz(3)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([entityType, entityId])
+  @@index([reasonCode, reviewBefore])
+  @@index([projectId, createdAt])
+  @@map("ai_context_upgrade_quarantines")
 }
 
 model AiContextStrategyRevision {
@@ -2501,6 +3099,7 @@ model AiAgentRun {
   id                     String    @id @db.VarChar
   workspaceId            String?   @map("workspace_id") @db.VarChar
   projectId              String?   @map("project_id") @db.VarChar
+  workOrderId            String?   @map("work_order_id") @db.VarChar
   actorId                String    @map("actor_id") @db.VarChar
   sessionId              String?   @map("session_id") @db.VarChar
   workflow               String    @db.VarChar
@@ -2527,32 +3126,41 @@ model AiAgentRun {
   createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  workspace                      Workspace?                      @relation("agent_run_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  project                        AiContextProject?               @relation("agent_run_project", fields: [projectId], references: [id], onDelete: Restrict)
-  actor                          User                            @relation("agent_run_actor", fields: [actorId], references: [id], onDelete: Restrict)
-  session                        AiSession?                      @relation("agent_run_session", fields: [sessionId], references: [id], onDelete: SetNull)
-  steps                          AiAgentStep[]                   @relation("agent_step_run")
-  stepRunSnapshots               AiAgentStep[]                   @relation("agent_step_run_snapshot")
-  projectStepRunSnapshots        AiAgentStep[]                   @relation("agent_step_project_run_snapshot")
-  timelineEvents                 AiAgentTimelineEvent[]          @relation("agent_timeline_event_run")
-  timelineRunSnapshots           AiAgentTimelineEvent[]          @relation("agent_timeline_event_run_snapshot")
-  projectTimelineRunSnapshots    AiAgentTimelineEvent[]          @relation("agent_timeline_event_project_run_snapshot")
-  executionResults               AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_snapshot")
-  executionResultSourceSnapshots AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_source_snapshot")
-  projectExecutionResults        AiAgentRuntimeExecutionResult[] @relation("agent_project_execution_result_snapshot")
-  projectExecutionResultSources  AiAgentRuntimeExecutionResult[] @relation("agent_project_execution_result_source_snapshot")
-  mcpDelegationRequests          AiMcpDelegationRequest[]        @relation("mcp_delegation_request_agent_run")
-  projectPublications            ProjectPublication[]
-  resourceEditLeases             ProjectResourceEditLease[]
-  waitingLeaseResource           ProjectResource?                @relation("project_resource_lease_wait", fields: [waitingLeaseResourceId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: Restrict)
+  workspace                       Workspace?                      @relation("agent_run_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  project                         AiContextProject?               @relation("agent_run_project", fields: [projectId], references: [id], onDelete: Restrict)
+  workOrder                       WorkOrder?                      @relation("agent_run_work_order", fields: [workOrderId], references: [id], onDelete: Restrict)
+  actor                           User                            @relation("agent_run_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  session                         AiSession?                      @relation("agent_run_session", fields: [sessionId], references: [id], onDelete: SetNull)
+  steps                           AiAgentStep[]                   @relation("agent_step_run")
+  stepRunSnapshots                AiAgentStep[]                   @relation("agent_step_run_snapshot")
+  projectStepRunSnapshots         AiAgentStep[]                   @relation("agent_step_project_run_snapshot")
+  workOrderStepRunSnapshots       AiAgentStep[]                   @relation("agent_step_work_order_run_snapshot")
+  timelineEvents                  AiAgentTimelineEvent[]          @relation("agent_timeline_event_run")
+  timelineRunSnapshots            AiAgentTimelineEvent[]          @relation("agent_timeline_event_run_snapshot")
+  projectTimelineRunSnapshots     AiAgentTimelineEvent[]          @relation("agent_timeline_event_project_run_snapshot")
+  workOrderTimelineRunSnapshots   AiAgentTimelineEvent[]          @relation("agent_timeline_event_work_order_run_snapshot")
+  executionResults                AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_snapshot")
+  executionResultSourceSnapshots  AiAgentRuntimeExecutionResult[] @relation("agent_run_execution_result_source_snapshot")
+  projectExecutionResults         AiAgentRuntimeExecutionResult[] @relation("agent_project_execution_result_snapshot")
+  projectExecutionResultSources   AiAgentRuntimeExecutionResult[] @relation("agent_project_execution_result_source_snapshot")
+  workOrderExecutionResults       AiAgentRuntimeExecutionResult[] @relation("agent_work_order_execution_result_snapshot")
+  workOrderExecutionResultSources AiAgentRuntimeExecutionResult[] @relation("agent_work_order_execution_result_source_snapshot")
+  mcpDelegationRequests           AiMcpDelegationRequest[]        @relation("mcp_delegation_request_agent_run")
+  projectPublications             ProjectPublication[]
+  resourceEditLeases              ProjectResourceEditLease[]
+  waitingLeaseResource            ProjectResource?                @relation("project_resource_lease_wait", fields: [waitingLeaseResourceId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([workspaceId, sourceType, sourceId])
   @@unique([projectId, sourceType, sourceId])
+  @@unique([workOrderId, sourceType, sourceId])
   @@unique([id, projectId, actorId], map: "ai_agent_runs_project_snapshot_key")
   @@unique([id, projectId, actorId, workflow, sourceType, sourceId], map: "ai_agent_runs_project_source_snapshot_key")
+  @@unique([id, workOrderId, actorId], map: "ai_agent_runs_work_order_snapshot_key")
+  @@unique([id, workOrderId, actorId, workflow, sourceType, sourceId], map: "ai_agent_runs_work_order_source_snapshot_key")
   @@unique([id, workspaceId, actorId], map: "ai_agent_runs_execution_result_snapshot_key")
   @@unique([id, workspaceId, actorId, workflow, sourceType, sourceId], map: "ai_agent_runs_execution_result_source_snapshot_key")
   @@index([projectId, status, updatedAt])
+  @@index([workOrderId, status, updatedAt])
   @@index([workspaceId, createdAt])
   @@index([actorId, createdAt])
   @@index([actorId, status, updatedAt])
@@ -2570,6 +3178,7 @@ model AiAgentStep {
   runId               String    @map("run_id") @db.VarChar
   workspaceId         String?   @map("workspace_id") @db.VarChar
   projectId           String?   @map("project_id") @db.VarChar
+  workOrderId         String?   @map("work_order_id") @db.VarChar
   actorId             String    @map("actor_id") @db.VarChar
   stepKey             String    @map("step_key") @db.VarChar
   stepType            String    @map("step_type") @db.VarChar
@@ -2584,16 +3193,18 @@ model AiAgentStep {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  run                AiAgentRun             @relation("agent_step_run", fields: [runId], references: [id], onDelete: Cascade, map: "ai_agent_steps_run_id_fkey")
-  runSnapshot        AiAgentRun?            @relation("agent_step_run_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_steps_run_snapshot_fkey")
-  projectRunSnapshot AiAgentRun?            @relation("agent_step_project_run_snapshot", fields: [runId, projectId, actorId], references: [id, projectId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_steps_project_snapshot_fkey")
-  workspace          Workspace?             @relation("agent_step_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  actor              User                   @relation("agent_step_actor", fields: [actorId], references: [id], onDelete: Restrict)
-  timelineEvents     AiAgentTimelineEvent[] @relation("agent_timeline_event_step")
+  run                  AiAgentRun             @relation("agent_step_run", fields: [runId], references: [id], onDelete: Cascade, map: "ai_agent_steps_run_id_fkey")
+  runSnapshot          AiAgentRun?            @relation("agent_step_run_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_steps_run_snapshot_fkey")
+  projectRunSnapshot   AiAgentRun?            @relation("agent_step_project_run_snapshot", fields: [runId, projectId, actorId], references: [id, projectId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_steps_project_snapshot_fkey")
+  workOrderRunSnapshot AiAgentRun?            @relation("agent_step_work_order_run_snapshot", fields: [runId, workOrderId, actorId], references: [id, workOrderId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_steps_work_order_snapshot_fkey")
+  workspace            Workspace?             @relation("agent_step_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor                User                   @relation("agent_step_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  timelineEvents       AiAgentTimelineEvent[] @relation("agent_timeline_event_step")
 
   @@unique([runId, stepKey])
   @@unique([id, runId, workspaceId, actorId], map: "ai_agent_steps_timeline_step_snapshot_key")
   @@unique([id, runId, projectId, actorId], map: "ai_agent_steps_project_timeline_snapshot_key")
+  @@unique([id, runId, workOrderId, actorId], map: "ai_agent_steps_work_order_timeline_snapshot_key")
   @@index([workspaceId, createdAt])
   @@index([actorId, createdAt])
   @@index([status, createdAt])
@@ -2607,6 +3218,7 @@ model AiAgentTimelineEvent {
   stepId           String?  @map("step_id") @db.VarChar
   workspaceId      String?  @map("workspace_id") @db.VarChar
   projectId        String?  @map("project_id") @db.VarChar
+  workOrderId      String?  @map("work_order_id") @db.VarChar
   actorId          String   @map("actor_id") @db.VarChar
   eventType        String   @map("event_type") @db.VarChar
   status           String   @db.VarChar
@@ -2616,12 +3228,13 @@ model AiAgentTimelineEvent {
   eventFingerprint String   @map("event_fingerprint") @db.VarChar
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  run                AiAgentRun   @relation("agent_timeline_event_run", fields: [runId], references: [id], onDelete: Cascade, map: "ai_agent_timeline_events_run_id_fkey")
-  runSnapshot        AiAgentRun?  @relation("agent_timeline_event_run_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_timeline_events_run_snapshot_fkey")
-  projectRunSnapshot AiAgentRun?  @relation("agent_timeline_event_project_run_snapshot", fields: [runId, projectId, actorId], references: [id, projectId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_timeline_events_project_snapshot_fkey")
-  step               AiAgentStep? @relation("agent_timeline_event_step", fields: [stepId], references: [id], onDelete: SetNull, map: "ai_agent_timeline_events_step_id_fkey")
-  workspace          Workspace?   @relation("agent_timeline_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  actor              User         @relation("agent_timeline_event_actor", fields: [actorId], references: [id], onDelete: Restrict)
+  run                  AiAgentRun   @relation("agent_timeline_event_run", fields: [runId], references: [id], onDelete: Cascade, map: "ai_agent_timeline_events_run_id_fkey")
+  runSnapshot          AiAgentRun?  @relation("agent_timeline_event_run_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_timeline_events_run_snapshot_fkey")
+  projectRunSnapshot   AiAgentRun?  @relation("agent_timeline_event_project_run_snapshot", fields: [runId, projectId, actorId], references: [id, projectId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_timeline_events_project_snapshot_fkey")
+  workOrderRunSnapshot AiAgentRun?  @relation("agent_timeline_event_work_order_run_snapshot", fields: [runId, workOrderId, actorId], references: [id, workOrderId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_timeline_events_work_order_snapshot_fkey")
+  step                 AiAgentStep? @relation("agent_timeline_event_step", fields: [stepId], references: [id], onDelete: SetNull, map: "ai_agent_timeline_events_step_id_fkey")
+  workspace            Workspace?   @relation("agent_timeline_event_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor                User         @relation("agent_timeline_event_actor", fields: [actorId], references: [id], onDelete: Restrict)
 
   @@unique([runId, ordinal])
   @@index([runId, createdAt])
@@ -2637,6 +3250,7 @@ model AiAgentRuntimeExecutionResult {
   runId              String   @map("run_id") @db.VarChar
   workspaceId        String?  @map("workspace_id") @db.VarChar
   projectId          String?  @map("project_id") @db.VarChar
+  workOrderId        String?  @map("work_order_id") @db.VarChar
   actorId            String   @map("actor_id") @db.VarChar
   workflow           String   @db.VarChar
   sourceType         String   @map("source_type") @db.VarChar
@@ -2656,14 +3270,17 @@ model AiAgentRuntimeExecutionResult {
   completedAt        DateTime @map("completed_at") @db.Timestamptz(3)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  run               AiAgentRun? @relation("agent_run_execution_result_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_runtime_execution_results_run_id_fkey")
-  runSourceSnapshot AiAgentRun? @relation("agent_run_execution_result_source_snapshot", fields: [runId, workspaceId, actorId, workflow, sourceType, sourceId], references: [id, workspaceId, actorId, workflow, sourceType, sourceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_runtime_execution_results_run_source_snapshot_fkey")
-  projectRun        AiAgentRun? @relation("agent_project_execution_result_snapshot", fields: [runId, projectId, actorId], references: [id, projectId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_results_project_snapshot_fkey")
-  projectRunSource  AiAgentRun? @relation("agent_project_execution_result_source_snapshot", fields: [runId, projectId, actorId, workflow, sourceType, sourceId], references: [id, projectId, actorId, workflow, sourceType, sourceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_results_project_source_fkey")
+  run                AiAgentRun? @relation("agent_run_execution_result_snapshot", fields: [runId, workspaceId, actorId], references: [id, workspaceId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_runtime_execution_results_run_id_fkey")
+  runSourceSnapshot  AiAgentRun? @relation("agent_run_execution_result_source_snapshot", fields: [runId, workspaceId, actorId, workflow, sourceType, sourceId], references: [id, workspaceId, actorId, workflow, sourceType, sourceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_runtime_execution_results_run_source_snapshot_fkey")
+  projectRun         AiAgentRun? @relation("agent_project_execution_result_snapshot", fields: [runId, projectId, actorId], references: [id, projectId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_results_project_snapshot_fkey")
+  projectRunSource   AiAgentRun? @relation("agent_project_execution_result_source_snapshot", fields: [runId, projectId, actorId, workflow, sourceType, sourceId], references: [id, projectId, actorId, workflow, sourceType, sourceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_results_project_source_fkey")
+  workOrderRun       AiAgentRun? @relation("agent_work_order_execution_result_snapshot", fields: [runId, workOrderId, actorId], references: [id, workOrderId, actorId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_results_work_order_snapshot_fkey")
+  workOrderRunSource AiAgentRun? @relation("agent_work_order_execution_result_source_snapshot", fields: [runId, workOrderId, actorId, workflow, sourceType, sourceId], references: [id, workOrderId, actorId, workflow, sourceType, sourceId], onDelete: Cascade, onUpdate: Restrict, map: "ai_agent_results_work_order_source_fkey")
 
   @@unique([runId, workerAttempt])
   @@unique([workspaceId, resultFingerprint])
   @@unique([projectId, resultFingerprint])
+  @@unique([workOrderId, resultFingerprint])
   @@index([workspaceId, createdAt])
   @@index([actorId, createdAt])
   @@index([resultStatus, createdAt])
@@ -2703,6 +3320,7 @@ model AiSessionContextSource {
   sessionId   String   @map("session_id") @db.VarChar
   workspaceId String?  @map("workspace_id") @db.VarChar
   projectId   String?  @map("project_id") @db.VarChar
+  workOrderId String?  @map("work_order_id") @db.VarChar
   kind        String   @db.VarChar
   sourceId    String   @map("source_id") @db.VarChar
   evidence    Json     @default("{}") @db.JsonB
@@ -2712,6 +3330,7 @@ model AiSessionContextSource {
 
   @@unique([sessionId, workspaceId, kind, sourceId])
   @@unique([sessionId, projectId, kind, sourceId])
+  @@unique([sessionId, workOrderId, kind, sourceId])
   @@map("ai_session_context_sources")
 }
 
@@ -2765,6 +3384,7 @@ model AiContext {
   embeddings AiContextEmbedding[]
   session    AiSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  @@unique([sessionId])
   @@map("ai_contexts")
 }
 
@@ -2906,20 +3526,21 @@ model AiWorkspaceByokConfig {
 }
 
 model AiProjectByokConfig {
-  apiStyle        String?   @map("api_style") @db.VarChar(32)
-  id              String    @id @default("global") @db.VarChar
-  revision        Int
-  provider        String    @db.VarChar(32)
-  encryptedApiKey String    @map("encrypted_api_key") @db.Text
-  endpoint        String?   @db.VarChar(2048)
-  modelId         String    @map("model_id") @db.VarChar(255)
-  enabled         Boolean   @default(true)
-  lastValidatedAt DateTime  @map("last_validated_at") @db.Timestamptz(3)
-  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(3)
-  lastError       String?   @map("last_error") @db.VarChar(300)
-  lastErrorAt     DateTime? @map("last_error_at") @db.Timestamptz(3)
-  updatedBy       String    @map("updated_by") @db.VarChar
-  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  apiStyle         String?   @map("api_style") @db.VarChar(32)
+  id               String    @id @default("global") @db.VarChar
+  revision         Int
+  provider         String    @db.VarChar(32)
+  encryptedApiKey  String    @map("encrypted_api_key") @db.Text
+  endpoint         String?   @db.VarChar(2048)
+  modelId          String    @map("model_id") @db.VarChar(255)
+  enabled          Boolean   @default(true)
+  workOrderEnabled Boolean   @default(false) @map("work_order_enabled")
+  lastValidatedAt  DateTime  @map("last_validated_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(3)
+  lastError        String?   @map("last_error") @db.VarChar(300)
+  lastErrorAt      DateTime? @map("last_error_at") @db.Timestamptz(3)
+  updatedBy        String    @map("updated_by") @db.VarChar
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("ai_project_byok_config")
 }
@@ -2933,6 +3554,7 @@ model AiProjectByokAuditEvent {
   endpoint          String?  @db.VarChar(2048)
   modelId           String   @map("model_id") @db.VarChar(255)
   enabled           Boolean
+  workOrderEnabled  Boolean  @map("work_order_enabled")
   credentialChanged Boolean  @map("credential_changed")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -3226,6 +3848,8 @@ enum BlobStatus {
 // like, total size of blobs in a workspace, or blob list for sync service.
 // it should only be a map of metadata of blobs stored anywhere else
 model Blob {
+  workspaceFiles WorkspaceFile[]
+
   workspaceId String     @map("workspace_id") @db.VarChar
   key         String     @db.VarChar
   size        Int        @db.Integer
@@ -3262,6 +3886,8 @@ enum OfficeRevisionOrigin {
 }
 
 model OfficeArtifact {
+  comments OfficeComment[]
+
   id                   String             @id @default(uuid()) @db.VarChar
   workspaceId          String?            @map("workspace_id") @db.VarChar
   projectId            String?            @map("project_id") @db.VarChar
@@ -3376,6 +4002,7 @@ model OfficeCommandRequest {
 
 enum NotificationType {
   ProjectFileRequest
+  WorkOrder
   AccessRequest
   AccessRequestResolved
   Mention
@@ -4153,42 +4780,41 @@ model CalendarEventInstance {
 }
 
 model LocalMindLogEvent {
-  id                 String   @default(uuid()) @db.VarChar
-  eventId            String   @map("event_id") @db.VarChar
-  occurredAt         DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
-  ingestedAt         DateTime @default(now()) @map("ingested_at") @db.Timestamptz(3)
-  instanceId         String   @map("instance_id") @db.VarChar
-  nodeId             String   @map("node_id") @db.VarChar
-  service            String   @db.VarChar
-  component          String?  @db.VarChar
-  severity           String   @db.VarChar
-  eventName          String   @map("event_name") @db.VarChar
-  messageTemplate    String?  @map("message_template") @db.VarChar
-  messageParams      Json?    @map("message_params") @db.JsonB
-  requestId          String?  @map("request_id") @db.VarChar
-  traceId            String?  @map("trace_id") @db.VarChar
-  spanId             String?  @map("span_id") @db.VarChar
-  actorType          String?  @map("actor_type") @db.VarChar
-  actorIdHash        String?  @map("actor_id_hash") @db.VarChar
-  workspaceId        String?  @map("workspace_id") @db.VarChar
-  projectId          String?  @map("project_id") @db.VarChar
-  resourceType       String?  @map("resource_type") @db.VarChar
-  resourceId         String?  @map("resource_id") @db.VarChar
-  sessionId          String?  @map("session_id") @db.VarChar
-  runId              String?  @map("run_id") @db.VarChar
-  stepId             String?  @map("step_id") @db.VarChar
-  jobName            String?  @map("job_name") @db.VarChar
-  jobId              String?  @map("job_id") @db.VarChar
-  status             String?  @db.VarChar
-  errorCode          String?  @map("error_code") @db.VarChar
-  durationMs         Int?     @map("duration_ms")
-  metadata           Json?    @db.JsonB
-  redactionVersion   String   @default("v1") @map("redaction_version") @db.VarChar
-  retentionClass     String   @default("runtime") @map("retention_class") @db.VarChar
+  id               String   @default(uuid()) @db.VarChar
+  eventId          String   @map("event_id") @db.VarChar
+  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  ingestedAt       DateTime @default(now()) @map("ingested_at") @db.Timestamptz(3)
+  instanceId       String   @map("instance_id") @db.VarChar
+  nodeId           String   @map("node_id") @db.VarChar
+  service          String   @db.VarChar
+  component        String?  @db.VarChar
+  severity         String   @db.VarChar
+  eventName        String   @map("event_name") @db.VarChar
+  messageTemplate  String?  @map("message_template") @db.VarChar
+  messageParams    Json?    @map("message_params") @db.JsonB
+  requestId        String?  @map("request_id") @db.VarChar
+  traceId          String?  @map("trace_id") @db.VarChar
+  spanId           String?  @map("span_id") @db.VarChar
+  actorType        String?  @map("actor_type") @db.VarChar
+  actorIdHash      String?  @map("actor_id_hash") @db.VarChar
+  workspaceId      String?  @map("workspace_id") @db.VarChar
+  projectId        String?  @map("project_id") @db.VarChar
+  resourceType     String?  @map("resource_type") @db.VarChar
+  resourceId       String?  @map("resource_id") @db.VarChar
+  sessionId        String?  @map("session_id") @db.VarChar
+  runId            String?  @map("run_id") @db.VarChar
+  stepId           String?  @map("step_id") @db.VarChar
+  jobName          String?  @map("job_name") @db.VarChar
+  jobId            String?  @map("job_id") @db.VarChar
+  status           String?  @db.VarChar
+  errorCode        String?  @map("error_code") @db.VarChar
+  durationMs       Int?     @map("duration_ms")
+  metadata         Json?    @db.JsonB
+  redactionVersion String   @default("v1") @map("redaction_version") @db.VarChar
+  retentionClass   String   @default("runtime") @map("retention_class") @db.VarChar
 
   @@id([id, occurredAt])
   @@index([eventId])
-
   @@index([occurredAt])
   @@index([severity, occurredAt])
   @@index([eventName, occurredAt])
@@ -4218,14 +4844,61 @@ model LocalMindLogPolicy {
 model LocalMindLogArchive {
   id             String   @id @default(uuid()) @db.VarChar
   eventId        String   @unique @map("event_id") @db.VarChar
+  batchId        String?  @map("batch_id") @db.VarChar
   occurredAt     DateTime @map("occurred_at") @db.Timestamptz(3)
   archivedAt     DateTime @default(now()) @map("archived_at") @db.Timestamptz(3)
   retentionClass String   @map("retention_class") @db.VarChar
   payload        Json     @db.JsonB
 
+  batch LocalMindLogArchiveBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
   @@index([occurredAt])
   @@index([archivedAt])
+  @@index([batchId])
   @@map("localmind_log_archives")
+}
+
+model LocalMindLogArchiveBatch {
+  id                   String    @id @default(uuid()) @db.VarChar
+  status               String    @default("pending") @db.VarChar
+  archivePath          String?   @map("archive_path") @db.Text
+  keyVersion           String?   @map("key_version") @db.VarChar
+  manifestFingerprint  String?   @map("manifest_fingerprint") @db.VarChar
+  signature            String?   @db.VarChar
+  itemCount            Int       @default(0) @map("item_count")
+  fromOccurredAt       DateTime? @map("from_occurred_at") @db.Timestamptz(3)
+  toOccurredAt         DateTime? @map("to_occurred_at") @db.Timestamptz(3)
+  attempt              Int       @default(0)
+  maxAttempts          Int       @default(5) @map("max_attempts")
+  workerLeaseId        String?   @map("worker_lease_id") @db.VarChar
+  workerLeaseExpiresAt DateTime? @map("worker_lease_expires_at") @db.Timestamptz(3)
+  nextAttemptAt        DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  failureCode          String?   @map("failure_code") @db.VarChar
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  events LocalMindLogArchive[]
+
+  @@index([status, nextAttemptAt])
+  @@index([workerLeaseExpiresAt])
+  @@index([completedAt])
+  @@map("localmind_log_archive_batches")
+}
+
+model ContextSessionRecoveryBarrierReceipt {
+  id           String   @id @db.VarChar
+  fingerprint  String   @db.VarChar
+  keyVersion   String   @map("key_version") @db.VarChar
+  signature    String   @db.VarChar
+  sessionCount Int      @default(0) @map("session_count")
+  memoryCount  Int      @default(0) @map("memory_count")
+  grantCount   Int      @default(0) @map("grant_count")
+  generatedAt  DateTime @map("generated_at") @db.Timestamptz(3)
+  appliedAt    DateTime @default(now()) @map("applied_at") @db.Timestamptz(3)
+
+  @@index([appliedAt])
+  @@map("context_session_recovery_barrier_receipts")
 }
 
 model LocalMindAuditEnvelope {
@@ -4305,7 +4978,7 @@ model McpResourceExternalDocument {
   operationId        String               @map("operation_id") @db.VarChar
   createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(3)
-  operation          McpResourceOperation  @relation(fields: [operationId, workspaceId, credentialFamilyId, documentId], references: [id, workspaceId, credentialFamilyId, documentId], onDelete: Cascade)
+  operation          McpResourceOperation @relation(fields: [operationId, workspaceId, credentialFamilyId, documentId], references: [id, workspaceId, credentialFamilyId, documentId], onDelete: Cascade)
 
   @@id([workspaceId, credentialFamilyId, externalId])
   @@index([workspaceId, documentId])
@@ -4325,4 +4998,64 @@ model WorkspaceDocOutbox {
 
   @@index([createdAt])
   @@map("workspace_doc_outbox")
+}
+
+model OfficeComment {
+  id          String               @id @default(uuid()) @db.VarChar
+  workspaceId String?              @map("workspace_id") @db.VarChar
+  projectId   String?              @map("project_id") @db.VarChar
+  docId       String               @map("artifact_id") @db.VarChar
+  userId      String               @map("user_id") @db.VarChar
+  content     Json                 @db.JsonB
+  resolved    Boolean              @default(false)
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  workspace   Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     AiContextProject?    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  artifact    OfficeArtifact       @relation(fields: [docId], references: [id], onDelete: Cascade)
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies     OfficeCommentReply[]
+
+  @@index([workspaceId, docId, createdAt])
+  @@index([projectId, docId, createdAt])
+  @@map("office_comments")
+}
+
+model OfficeCommentReply {
+  id        String        @id @default(uuid()) @db.VarChar
+  commentId String        @map("comment_id") @db.VarChar
+  userId    String        @map("user_id") @db.VarChar
+  content   Json          @db.JsonB
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  comment   OfficeComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([commentId, createdAt])
+  @@map("office_comment_replies")
+}
+
+// Independent downloadable files; Office resources retain their native revision model.
+model WorkspaceFile {
+  id                 String    @id @default(uuid()) @db.VarChar
+  workspaceId        String    @map("workspace_id") @db.VarChar
+  createdBy          String    @map("created_by") @db.VarChar
+  sourceSessionId    String    @map("source_session_id") @db.VarChar
+  fileName           String    @map("file_name") @db.VarChar(512)
+  mimeType           String    @map("mime_type") @db.VarChar(256)
+  byteSize           Int       @map("byte_size")
+  blobKey            String    @map("blob_key") @db.VarChar
+  fingerprint        String    @db.VarChar(128)
+  requestKey         String    @map("request_key") @db.VarChar(256)
+  requestFingerprint String    @map("request_fingerprint") @db.VarChar(128)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator            User      @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  blob               Blob      @relation(fields: [workspaceId, blobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, requestKey])
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@map("workspace_files")
 }

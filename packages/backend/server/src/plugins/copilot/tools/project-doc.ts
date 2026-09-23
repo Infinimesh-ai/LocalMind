@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { BadRequest } from '../../../base';
+import { type NativeFileCreateService } from '../../../core/office/create-service';
 import { ProjectResourceService } from '../../../core/project';
 import { Models } from '../../../models';
 import { assertCurrentProjectToolContract } from '../../../models/common/copilot-tool-contract';
@@ -16,6 +17,7 @@ import {
   type CopilotChatOptions,
   CopilotChatOptionsSchema,
 } from '../providers/types';
+import { NativeFileCreateToolSchema } from './file-create-input';
 import {
   type CopilotToolExecuteOptions,
   type CopilotToolSet,
@@ -25,6 +27,7 @@ import {
 export const PROJECT_NATIVE_TOOL_NAMES = new Set([
   'project_file_request_recipients',
   'project_file_request_create',
+  'project_file_create',
   'project_doc_create',
   'project_doc_read',
   'project_doc_update',
@@ -51,7 +54,8 @@ export function createProjectResourceTools(
   resources: ProjectResourceService,
   options: NonNullable<CopilotChatOptions>,
   projectId: string,
-  executingRun?: ProjectAgentRun
+  executingRun?: ProjectAgentRun,
+  files?: NativeFileCreateService
 ): CopilotToolSet {
   if (
     !options.user ||
@@ -174,6 +178,25 @@ export function createProjectResourceTools(
     },
   });
   const tools: CopilotToolSet = {
+    ...(files
+      ? {
+          project_file_create: defineTool({
+            description:
+              'Create and save a real DOCX, XLSX, PPTX, TXT, Markdown, CSV or JSON file inside this Project, optionally in parent_id. Use structured paragraphs, sheets/rows or slides; use text for TXT/Markdown/JSON (valid JSON), rows for CSV. Strings in XLSX are literal text, not formulas. Native Office files can be read and edited with project_office tools afterwards. This never publishes to a Workspace.',
+            inputSchema: NativeFileCreateToolSchema,
+            execute: async (file, execute) => {
+              await authorize();
+              return files.create({
+                projectId,
+                actorId: scope.actorId,
+                sessionId: scope.sourceSessionId,
+                requestKey: requestKey(execute),
+                file,
+              });
+            },
+          }),
+        }
+      : {}),
     project_publication_prepare: defineTool({
       description:
         'Prepare a separate explicit Workspace publication or update request for a document already saved in this Project. Use only when the user explicitly asks to publish to or update a Workspace. Return the durable request ID and waiting status. The user chooses the exact destination and confirms the preview in the publication task; never imply publication has completed. Cancellation preserves the internal document.',
@@ -277,15 +300,32 @@ export function createProjectResourceTools(
     }),
     project_doc_read: defineTool({
       description:
-        'Read a document from this Project and return its immutable content version. Call this before project_doc_update. Source Workspace documents are independent copies and are not read by this tool.',
-      inputSchema: z.object({ doc_id: id }).strict(),
-      execute: async ({ doc_id }) => {
+        'Read a bounded character range from a Project document and return immutable version and coverage evidence. Use content_version from selected context to reread the same frozen source, and continue with start=nextStart until complete when exact later content is needed. Call this before project_doc_update. Source Workspace documents are independent copies and are not read by this tool.',
+      inputSchema: z
+        .object({
+          doc_id: id,
+          content_version: z.number().int().positive().optional(),
+          start: z.number().int().nonnegative().default(0),
+          max_characters: z.number().int().min(1).max(120_000).default(40_000),
+        })
+        .strict(),
+      execute: async ({ doc_id, content_version, start, max_characters }) => {
         await authorize();
+        const rangeStart = start ?? 0;
+        const rangeLength = max_characters ?? 40_000;
         const current = await resources.readDocument({
           ...scope,
           resourceId: doc_id,
+          sequence: content_version,
         });
         const markdown = parseYDocToMarkdown(current.bytes, doc_id, true);
+        if (rangeStart > markdown.markdown.length) {
+          throw new BadRequest('Project document read range is out of bounds');
+        }
+        const end = Math.min(
+          markdown.markdown.length,
+          rangeStart + rangeLength
+        );
         await models.copilotContext.recordInputSources({
           projectId,
           actorId: scope.actorId,
@@ -302,8 +342,15 @@ export function createProjectResourceTools(
         return {
           ...(await receipt(doc_id)),
           contentVersion: current.revision.sequence,
-          markdown: markdown.markdown.slice(0, 120000),
-          truncated: markdown.markdown.length > 120000,
+          markdown: markdown.markdown.slice(rangeStart, end),
+          coverage: {
+            start: rangeStart,
+            end,
+            totalCharacters: markdown.markdown.length,
+            complete: rangeStart === 0 && end === markdown.markdown.length,
+          },
+          truncated: end < markdown.markdown.length,
+          nextStart: end < markdown.markdown.length ? end : null,
         };
       },
     }),
@@ -381,7 +428,8 @@ export function createProjectResourceTools(
       .filter(([name]) => {
         if (name === 'project_publication_prepare')
           return enabled.has('docCreate') || enabled.has('docUpdate');
-        if (name === 'project_doc_create') return enabled.has('docCreate');
+        if (name === 'project_doc_create' || name === 'project_file_create')
+          return enabled.has('docCreate');
         if (name === 'project_doc_read') return enabled.has('docRead');
         if (name === 'project_doc_update') return enabled.has('docUpdate');
         if (name === 'project_doc_keyword_search')
@@ -538,7 +586,8 @@ export function createProjectResourceTools(
                           const output = await executeProjectResourceRun(
                             models,
                             resources,
-                            current
+                            current,
+                            files
                           );
                           execute.signal?.throwIfAborted();
                           return output;
@@ -567,6 +616,7 @@ export const ProjectResourceCommandSchema = z
   .object({
     version: z.literal(2),
     toolName: z.enum([
+      'project_file_create',
       'project_doc_create',
       'project_doc_update',
       'project_resource_update_meta',
@@ -588,7 +638,8 @@ export const ProjectResourceCommandSchema = z
 export async function executeProjectResourceRun(
   models: Models,
   resources: ProjectResourceService,
-  run: ProjectAgentRun
+  run: ProjectAgentRun,
+  files?: NativeFileCreateService
 ) {
   if (
     !run.projectId ||
@@ -612,7 +663,8 @@ export async function executeProjectResourceRun(
     resources,
     command.options,
     run.projectId,
-    run
+    run,
+    files
   );
   const tool = tools[command.toolName];
   if (!tool?.execute || !(tool.inputSchema instanceof z.ZodType))

@@ -885,3 +885,53 @@ test('indexer completion waits for the current job to finish', async () => {
     sync.stop();
   }
 });
+
+test('doc sync clears a transient connection error after reconnecting', async () => {
+  const local = new IndexedDBDocStorage({
+    id: 'ws-reconnect-error',
+    flavour: 'local-reconnect-error',
+    type: 'workspace',
+  });
+  const syncMetadata = new IndexedDBDocSyncStorage({
+    id: 'ws-reconnect-error',
+    flavour: 'local-reconnect-error',
+    type: 'workspace',
+  });
+  const remote = new PermissionDeniedRemoteDocStorage('ws-reconnect-error');
+  vi.spyOn(remote.connection, 'waitForConnected').mockRejectedValueOnce(
+    new Error('Storage disconnected: transport close')
+  );
+  const peer = new DocSyncPeer('remote-reconnect', local, syncMetadata, remote);
+  const abort = new AbortController();
+  const states: { retrying: boolean; errorMessage: string | null }[] = [];
+  const subscription = peer
+    .docState$('root')
+    .subscribe(state => states.push(state));
+  local.connection.connect();
+  syncMetadata.connection.connect();
+  await local.connection.waitForConnected();
+  await syncMetadata.connection.waitForConnected();
+  const running = peer.mainLoop(abort.signal).catch(() => {});
+  try {
+    await vi.waitFor(() => {
+      expect(states.some(state => state.retrying && state.errorMessage)).toBe(
+        true
+      );
+    });
+    await vi.waitFor(
+      () => {
+        expect(states.at(-1)).toMatchObject({
+          retrying: false,
+          errorMessage: null,
+        });
+      },
+      { timeout: 8000 }
+    );
+  } finally {
+    abort.abort();
+    await running;
+    subscription.unsubscribe();
+    local.connection.disconnect();
+    syncMetadata.connection.disconnect();
+  }
+}, 12000);

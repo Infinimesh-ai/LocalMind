@@ -10,6 +10,7 @@ import {
   cleanupCopilotSessionMutation,
   cleanupProjectCopilotSessionsMutation,
   copilotContextSessionScopeQuery,
+  copilotWorkOrderChatGetQuery,
   createCopilotContextMutation,
   createCopilotMessageMutation,
   createCopilotSessionMutation,
@@ -215,6 +216,18 @@ export class CopilotClient {
         variables: { projectId, sessionId },
       });
       return res.currentUser?.copilot?.projectChat ?? null;
+    } catch (err) {
+      throw resolveError(err);
+    }
+  }
+
+  async getWorkOrderSession(workOrderId: string) {
+    try {
+      const res = await this.gql({
+        query: copilotWorkOrderChatGetQuery,
+        variables: { workOrderId },
+      });
+      return res.currentUser?.copilot?.myWorkOrderChat ?? null;
     } catch (err) {
       throw resolveError(err);
     }

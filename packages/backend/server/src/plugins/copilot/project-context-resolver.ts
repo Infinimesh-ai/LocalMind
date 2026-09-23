@@ -85,6 +85,22 @@ export class ProjectContextResolver {
 
   @Mutation(() => ProjectChatContextType)
   @Throttle('strict')
+  async refreshProjectChatContext(
+    @CurrentUser() user: User,
+    @Args('projectId') projectId: string,
+    @Args('sessionId') sessionId: string,
+    @Args('expectedVersion', { type: () => Int }) expectedVersion: number
+  ) {
+    return await this.context.refresh({
+      actorId: user.id,
+      projectId,
+      sessionId,
+      expectedVersion,
+    });
+  }
+
+  @Mutation(() => ProjectChatContextType)
+  @Throttle('strict')
   async uploadProjectChatContextFile(
     @CurrentUser() user: User,
     @Args('projectId') projectId: string,

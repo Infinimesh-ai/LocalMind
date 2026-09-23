@@ -37,7 +37,13 @@ export class ProjectBlobStorage {
     private readonly runtime: StorageRuntimeProvider
   ) {}
 
-  async put(input: ProjectActor & { bytes: Buffer; mimeType: string }) {
+  async put(
+    input: ProjectActor & {
+      bytes: Buffer;
+      mimeType: string;
+      mimeIdentity?: boolean;
+    }
+  ) {
     await this.models.projectResource.assertMember(input);
     if (
       input.bytes.length > PROJECT_BLOB_MAX_BYTES ||
@@ -46,7 +52,7 @@ export class ProjectBlobStorage {
     )
       throw new BadRequest('Project Blob exceeds its bounds');
     const fingerprint = createHash('sha256').update(input.bytes).digest('hex');
-    const key = `sha256-${fingerprint}`;
+    const key = `sha256-${fingerprint}${input.mimeIdentity ? '-' + createHash('sha256').update(input.mimeType).digest('hex').slice(0, 16) : ''}`;
     return this.models.projectResource.storeBlob(
       {
         ...input,
@@ -101,6 +107,18 @@ export class ProjectBlobStorage {
       throw new BadRequest('Project Blob content does not match');
     await this.models.projectResource.assertMember(input);
     return { blob, bytes };
+  }
+
+  async deletePendingSessionBlob(input: {
+    deletionId: string;
+    projectId: string;
+    key: string;
+  }) {
+    await this.runtime.deleteObject(
+      'blob',
+      this.objectKey(input.projectId, input.key)
+    );
+    await this.models.projectResource.completePendingSessionBlobDeletion(input);
   }
 
   private objectKey(projectId: string, key: string) {
@@ -187,27 +205,25 @@ export class ProjectResourceService {
 
   async createFile(
     input: ProjectActor & {
+      origin?: 'user' | 'ai';
+      sourceSessionId?: string;
       title: string;
       blobKey: string;
       parentId?: string | null;
       requestKey: string;
     }
   ) {
-    return this.models.projectResource.withMember(
-      input,
-      async () => {
-        await this.models.projectResource.getBlob({
-          ...input,
-          key: input.blobKey,
-        });
-        const file = await this.models.projectResource.create({
-          ...input,
-          kind: 'file',
-        });
-        return file;
-      },
-      true
-    );
+    return this.withWriteSources(input, async () => {
+      await this.models.projectResource.getBlob({
+        ...input,
+        key: input.blobKey,
+      });
+      const file = await this.models.projectResource.create({
+        ...input,
+        kind: 'file',
+      });
+      return file;
+    });
   }
 
   async readFile(input: ProjectActor & { resourceId: string }) {

@@ -6,6 +6,7 @@ fragment ProjectByokSettings on ProjectByokSettingsType {
   modelId
   apiStyle
   enabled
+  workOrderEnabled
   lastValidatedAt
   lastUsedAt
   lastError
@@ -19,8 +20,9 @@ fragment ProjectByokSettings on ProjectByokSettingsType {
     provider
     endpoint
     modelId
-  apiStyle
+    apiStyle
     enabled
+    workOrderEnabled
     credentialChanged
     createdAt
   }

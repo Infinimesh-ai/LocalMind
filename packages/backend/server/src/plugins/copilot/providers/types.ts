@@ -100,6 +100,8 @@ export const COPILOT_CHAT_TOOL_CATEGORIES = [
   'office',
   // reminder-only Project Blocker suggestion (confirmation persists separately)
   'blocker',
+  // private work-order delivery draft generation
+  'workOrder',
   // user-scoped enterprise collaboration connections
   'enterprise',
   // workspace-managed outbound SparkClaw MCP connection
@@ -301,6 +303,7 @@ const CopilotProviderOptionsSchema = z.object({
             'read',
             'workspace_write',
             'project_write',
+            'work_order_write',
             'external_dynamic',
           ]),
         })

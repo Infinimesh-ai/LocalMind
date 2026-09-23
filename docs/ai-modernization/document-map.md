@@ -40,6 +40,19 @@ section or landing record.
 | [MCP direct resources](./mcp-direct-resource-tools-design.zh-CN.md)           | Implemented, disabled by default: 10 direct Workspace MCP tools plus 3 existing delegation tools, independent capabilities, version checks and durable receipts                       | Public resource contracts, implementation scope and acceptance                                   |
 | [archive](./archive/README.md)                                                | Split historical audit log                                                                                                                                                            | A concise landing record is required for traceability                                            |
 
+## Context And Session Remediation
+
+The [Workspace / Project context and session implementation plan](workspace-project-context-session-remediation.zh-CN.md)
+defines the corrected target of one shared Memory library per Project while keeping
+conversation history and rolling summaries private to each owned session. It covers
+contribution management, Project-level automatic capture, source-sharing checks,
+private-data migration safeguards, session authorization, reference refresh,
+deletion/audit retention, unique Workspace contexts and rolling compaction. The
+plan has phased gates and an acceptance matrix and supersedes the earlier per-user
+Project Memory target. P0-P4 source implementation and isolated validation are
+recorded in the [execution record](workspace-project-context-session-remediation.execution.zh-CN.md);
+real-model, full-browser, real-backup restore and runtime deployment gates remain open.
+
 ## Historical Plan Rule
 
 The [AI capability modernization archive](./archive/README.md) replaces the

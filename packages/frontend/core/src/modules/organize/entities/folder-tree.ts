@@ -16,6 +16,10 @@ export class FolderTree extends Entity {
   isLoading$ = LiveData.from(this.folderStore.watchIsLoading(), true);
   error$ = LiveData.from(this.folderStore.watchError(), null);
   canMutate$ = LiveData.from(this.folderStore.watchCanMutate(), false);
+  linkedDocIds$ = LiveData.from(
+    this.folderStore.watchLinkedDocIds(),
+    new Set<string>()
+  );
 
   refresh() {
     return this.folderStore.refresh();

@@ -12108,6 +12108,118 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.aiContext.projectSummary"](): string;
     /**
+      * `Project memory`
+      */
+    ["com.affine.localmind.project-memory.title"](): string;
+    /**
+      * `Allow automatic contributions`
+      */
+    ["com.affine.localmind.project-memory.automatic"](): string;
+    /**
+      * `Each Project has one shared long-term memory. Active members can use it; private chats and attachments are never exposed. Each conversation controls whether it may contribute.`
+      */
+    ["com.affine.localmind.project-memory.explanation"](): string;
+    /**
+      * `Only the Project Owner can change the project-wide automatic contribution setting.`
+      */
+    ["com.affine.localmind.project-memory.ownerOnly"](): string;
+    /**
+      * `Show shared memories`
+      */
+    ["com.affine.localmind.project-memory.memberFilter"](): string;
+    /**
+      * `My contributions`
+      */
+    ["com.affine.localmind.project-memory.mine"](): string;
+    /**
+      * `All shared memory`
+      */
+    ["com.affine.localmind.project-memory.allMembers"](): string;
+    /**
+      * `Shared memory revision {{revision}}`
+      */
+    ["com.affine.localmind.project-memory.version"](options: {
+        readonly revision: string;
+    }): string;
+    /**
+      * `{{count}} contributors: {{names}}`
+      */
+    ["com.affine.localmind.project-memory.contributors"](options: Readonly<{
+        count: string;
+        names: string;
+    }>): string;
+    /**
+      * `{{count}} pending conflicts`
+      */
+    ["com.affine.localmind.project-memory.conflicts"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Pending memory conflicts`
+      */
+    ["com.affine.localmind.project-memory.conflictTitle"](): string;
+    /**
+      * `A proposed fact conflicts with the current shared value. Accepting creates a new immutable memory version; rejecting preserves the current value.`
+      */
+    ["com.affine.localmind.project-memory.conflictExplanation"](): string;
+    /**
+      * `Accept proposal`
+      */
+    ["com.affine.localmind.project-memory.conflictAccept"](): string;
+    /**
+      * `Keep current value`
+      */
+    ["com.affine.localmind.project-memory.conflictReject"](): string;
+    /**
+      * `Resolve this memory conflict?`
+      */
+    ["com.affine.localmind.project-memory.conflictConfirmTitle"](): string;
+    /**
+      * `Accepting publishes the proposed fact as a new immutable revision of shared Project memory.`
+      */
+    ["com.affine.localmind.project-memory.conflictAcceptConfirm"](): string;
+    /**
+      * `Rejecting closes this proposal and keeps the current shared memory value.`
+      */
+    ["com.affine.localmind.project-memory.conflictRejectConfirm"](): string;
+    /**
+      * `No memories in this view.`
+      */
+    ["com.affine.localmind.project-memory.empty"](): string;
+    /**
+      * `Remove this item from shared Project memory and delete its derived search data? Items with multiple contributors can only be removed by the Project Owner.`
+      */
+    ["com.affine.localmind.project-memory.deleteDescription"](): string;
+    /**
+      * `Contribute from this conversation`
+      */
+    ["com.affine.localmind.project-memory.sessionCapture"](): string;
+    /**
+      * `When enabled, this private conversation may add distilled facts to shared Project memory. The conversation and attachments remain private.`
+      */
+    ["com.affine.localmind.project-memory.sessionCaptureExplanation"](): string;
+    /**
+      * `Could not update this conversation's memory contribution setting. Try again.`
+      */
+    ["com.affine.localmind.project-memory.sessionCaptureError"](): string;
+    /**
+      * `Using v{{frozen}}; latest is v{{current}}.`
+      */
+    ["com.affine.localmind.project-context.versionStale"](options: Readonly<{
+        frozen: string;
+        current: string;
+    }>): string;
+    /**
+      * `Pinned to v{{version}}.`
+      */
+    ["com.affine.localmind.project-context.versionCurrent"](options: {
+        readonly version: string;
+    }): string;
+    /**
+      * `Refresh references`
+      */
+    ["com.affine.localmind.project-context.refresh"](): string;
+    /**
       * `Add project summary`
       */
     ["com.affine.localmind.aiContext.addProjectSummary"](): string;
@@ -12267,7 +12379,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.section.memory.title"](): string;
     /**
-      * `Manage personal rules, automatic memory, and project summaries.`
+      * `Manage personal rules, personal memory, and shared Project memory.`
       */
     ["com.affine.localmind.help.section.memory.summary"](): string;
     /**
@@ -16676,6 +16788,22 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.admin.project-ai-enabled"](): string;
     /**
+      * `Work-order AI enabled`
+      */
+    ["com.affine.admin.work-order-ai-enabled-label"](): string;
+    /**
+      * `Allow new personal work orders and their conversations to use the instance Project BYOK model. Disabling blocks new dispatches but keeps existing work orders readable and finishable; credentials never fall back.`
+      */
+    ["com.affine.admin.work-order-ai-enabled-help"](): string;
+    /**
+      * `Work-order AI enabled.`
+      */
+    ["com.affine.admin.work-order-ai-enabled"](): string;
+    /**
+      * `Work-order AI disabled.`
+      */
+    ["com.affine.admin.work-order-ai-disabled"](): string;
+    /**
       * `Page Not Found (TODO)`
       */
     ["com.affine.ui.page-not-found-todo"](): string;
@@ -19240,6 +19368,1697 @@ export function useAFFiNEI18N(): {
       * `The selected model passed the connection test, but the API model list could not be loaded. The current model is retained; try again to load other options.`
       */
     ["com.affine.admin.byok-model-list-unavailable"](): string;
+    /**
+      * `No AI profiles created. Saving a credential does not create a profile.`
+      */
+    ["com.affine.admin.ai-profiles-empty-explanation"](): string;
+    /**
+      * `Until a profile is created, workspace routing uses these enabled credentials:`
+      */
+    ["com.affine.admin.ai-profiles-fallback-credentials"](): string;
+    /**
+      * `No enabled credentials. Add and enable a credential above to use workspace AI.`
+      */
+    ["com.affine.admin.ai-profiles-no-enabled-credentials"](): string;
+    /**
+      * `Logs`
+      */
+    ["com.affine.admin.ui.logs"](): string;
+    /**
+      * `Observability / Logs`
+      */
+    ["com.affine.admin.ui.observability-logs"](): string;
+    /**
+      * `Log Center`
+      */
+    ["com.affine.admin.ui.log-center"](): string;
+    /**
+      * `Filter by request ID`
+      */
+    ["com.affine.admin.ui.filter-by-request-id"](): string;
+    /**
+      * `Filter by trace ID`
+      */
+    ["com.affine.admin.ui.filter-by-trace-id"](): string;
+    /**
+      * `Severity (info/error)`
+      */
+    ["com.affine.admin.ui.severity-info-error"](): string;
+    /**
+      * `Event name`
+      */
+    ["com.affine.admin.ui.event-name"](): string;
+    /**
+      * `Keyword`
+      */
+    ["com.affine.admin.ui.keyword"](): string;
+    /**
+      * `Export redacted NDJSON`
+      */
+    ["com.affine.admin.ui.export-redacted-ndjson"](): string;
+    /**
+      * `Loading logs…`
+      */
+    ["com.affine.admin.ui.loading-logs"](): string;
+    /**
+      * `No logs found.`
+      */
+    ["com.affine.admin.ui.no-logs-found"](): string;
+    /**
+      * `Time`
+      */
+    ["com.affine.admin.ui.time"](): string;
+    /**
+      * `Severity`
+      */
+    ["com.affine.admin.ui.severity"](): string;
+    /**
+      * `Event`
+      */
+    ["com.affine.admin.ui.event"](): string;
+    /**
+      * `Request`
+      */
+    ["com.affine.admin.ui.request"](): string;
+    /**
+      * `Trace / Audit`
+      */
+    ["com.affine.admin.ui.trace-audit"](): string;
+    /**
+      * `Status`
+      */
+    ["com.affine.admin.ui.status"](): string;
+    /**
+      * `Event detail`
+      */
+    ["com.affine.admin.ui.event-detail"](): string;
+    /**
+      * `Observability / Settings`
+      */
+    ["com.affine.admin.ui.observability-settings"](): string;
+    /**
+      * `Retention and ingestion`
+      */
+    ["com.affine.admin.ui.retention-and-ingestion"](): string;
+    /**
+      * `Self-hosted telemetry export is disabled by default.`
+      */
+    ["com.affine.admin.ui.self-hosted-telemetry-export-is-disabled-by-default"](): string;
+    /**
+      * `Runtime retention (days)`
+      */
+    ["com.affine.admin.ui.runtime-retention-days"](): string;
+    /**
+      * `Failure retention (days)`
+      */
+    ["com.affine.admin.ui.failure-retention-days"](): string;
+    /**
+      * `Legal hold`
+      */
+    ["com.affine.admin.ui.legal-hold"](): string;
+    /**
+      * `Freeze retention and archive cleanup`
+      */
+    ["com.affine.admin.ui.freeze-retention-and-archive-cleanup"](): string;
+    /**
+      * `Saving…`
+      */
+    ["com.affine.admin.ui.saving"](): string;
+    /**
+      * `Save policy`
+      */
+    ["com.affine.admin.ui.save-policy"](): string;
+    /**
+      * `Preview retention cleanup`
+      */
+    ["com.affine.admin.ui.preview-retention-cleanup"](): string;
+    /**
+      * `Preview signed archive`
+      */
+    ["com.affine.admin.ui.preview-signed-archive"](): string;
+    /**
+      * `Create signed archive`
+      */
+    ["com.affine.admin.ui.create-signed-archive"](): string;
+    /**
+      * `Archiving…`
+      */
+    ["com.affine.admin.ui.archiving"](): string;
+    /**
+      * `Signed archive batches`
+      */
+    ["com.affine.admin.ui.signed-archive-batches"](): string;
+    /**
+      * `No archive batches yet.`
+      */
+    ["com.affine.admin.ui.no-archive-batches-yet"](): string;
+    /**
+      * `Created`
+      */
+    ["com.affine.admin.ui.created"](): string;
+    /**
+      * `Records`
+      */
+    ["com.affine.admin.ui.records"](): string;
+    /**
+      * `Key version`
+      */
+    ["com.affine.admin.ui.key-version"](): string;
+    /**
+      * `Integrity`
+      */
+    ["com.affine.admin.ui.integrity"](): string;
+    /**
+      * `Archive candidates or completed records`
+      */
+    ["com.affine.admin.ui.archive-candidates-or-completed-records"](): string;
+    /**
+      * `Session deletion tasks`
+      */
+    ["com.affine.admin.ui.session-deletion-tasks"](): string;
+    /**
+      * `No session deletion tasks yet.`
+      */
+    ["com.affine.admin.ui.no-session-deletion-tasks-yet"](): string;
+    /**
+      * `Requested`
+      */
+    ["com.affine.admin.ui.requested"](): string;
+    /**
+      * `Session`
+      */
+    ["com.affine.admin.ui.session"](): string;
+    /**
+      * `Scope`
+      */
+    ["com.affine.admin.ui.scope"](): string;
+    /**
+      * `Backup status`
+      */
+    ["com.affine.admin.ui.backup-status"](): string;
+    /**
+      * `Attempts`
+      */
+    ["com.affine.admin.ui.attempts"](): string;
+    /**
+      * `Unable to load logs`
+      */
+    ["com.affine.admin.ui.unable-to-load-logs"](): string;
+    /**
+      * `Unable to save policy`
+      */
+    ["com.affine.admin.ui.unable-to-save-policy"](): string;
+    /**
+      * `App Version`
+      */
+    ["com.affine.admin.ui.app-version"](): string;
+    /**
+      * `Editor Version`
+      */
+    ["com.affine.admin.ui.editor-version"](): string;
+    /**
+      * `Server`
+      */
+    ["com.affine.admin.ui.server"](): string;
+    /**
+      * `Auth`
+      */
+    ["com.affine.admin.ui.auth"](): string;
+    /**
+      * `Notification`
+      */
+    ["com.affine.admin.ui.notification"](): string;
+    /**
+      * `Storage`
+      */
+    ["com.affine.admin.ui.storage"](): string;
+    /**
+      * `OAuth`
+      */
+    ["com.affine.admin.ui.oauth"](): string;
+    /**
+      * `Crypto`
+      */
+    ["com.affine.admin.ui.crypto"](): string;
+    /**
+      * `Job`
+      */
+    ["com.affine.admin.ui.job"](): string;
+    /**
+      * `Throttle`
+      */
+    ["com.affine.admin.ui.throttle"](): string;
+    /**
+      * `Doc`
+      */
+    ["com.affine.admin.ui.doc"](): string;
+    /**
+      * `Websocket`
+      */
+    ["com.affine.admin.ui.websocket"](): string;
+    /**
+      * `Flags`
+      */
+    ["com.affine.admin.ui.flags"](): string;
+    /**
+      * `DocService`
+      */
+    ["com.affine.admin.ui.docservice"](): string;
+    /**
+      * `DocumentOcr`
+      */
+    ["com.affine.admin.ui.documentocr"](): string;
+    /**
+      * `Iscp`
+      */
+    ["com.affine.admin.ui.iscp"](): string;
+    /**
+      * `Client`
+      */
+    ["com.affine.admin.ui.client"](): string;
+    /**
+      * `Calendar`
+      */
+    ["com.affine.admin.ui.calendar"](): string;
+    /**
+      * `Indexer`
+      */
+    ["com.affine.admin.ui.indexer"](): string;
+    /**
+      * `Worker`
+      */
+    ["com.affine.admin.ui.worker"](): string;
+    /**
+      * `Connection tested`
+      */
+    ["com.affine.admin.ui.connection-tested"](): string;
+    /**
+      * `Failed`
+      */
+    ["com.affine.admin.ui.failed"](): string;
+    /**
+      * `Not tested`
+      */
+    ["com.affine.admin.ui.not-tested"](): string;
+    /**
+      * `Never`
+      */
+    ["com.affine.admin.ui.never"](): string;
+    /**
+      * `Unknown`
+      */
+    ["com.affine.admin.ui.unknown"](): string;
+    /**
+      * `Disabled`
+      */
+    ["com.affine.admin.ui.disabled"](): string;
+    /**
+      * `Blocked`
+      */
+    ["com.affine.admin.ui.blocked"](): string;
+    /**
+      * `Ready`
+      */
+    ["com.affine.admin.ui.ready"](): string;
+    /**
+      * `Unconfigured`
+      */
+    ["com.affine.admin.ui.unconfigured"](): string;
+    /**
+      * `Warning`
+      */
+    ["com.affine.admin.ui.warning"](): string;
+    /**
+      * `Config fallback`
+      */
+    ["com.affine.admin.ui.config-fallback"](): string;
+    /**
+      * `DB revision`
+      */
+    ["com.affine.admin.ui.db-revision"](): string;
+    /**
+      * `Legacy registry`
+      */
+    ["com.affine.admin.ui.legacy-registry"](): string;
+    /**
+      * `Rerank`
+      */
+    ["com.affine.admin.ui.rerank"](): string;
+    /**
+      * `Workspace indexing`
+      */
+    ["com.affine.admin.ui.workspace-indexing"](): string;
+    /**
+      * `Cloud`
+      */
+    ["com.affine.admin.ui.cloud"](): string;
+    /**
+      * `Local`
+      */
+    ["com.affine.admin.ui.local"](): string;
+    /**
+      * `Private cloud`
+      */
+    ["com.affine.admin.ui.private-cloud"](): string;
+    /**
+      * `Degraded`
+      */
+    ["com.affine.admin.ui.degraded"](): string;
+    /**
+      * `Down`
+      */
+    ["com.affine.admin.ui.down"](): string;
+    /**
+      * `Healthy`
+      */
+    ["com.affine.admin.ui.healthy"](): string;
+    /**
+      * `Minimum length requirement of password`
+      */
+    ["com.affine.admin.ui.minimum-length-requirement-of-password"](): string;
+    /**
+      * `Maximum length requirement of password`
+      */
+    ["com.affine.admin.ui.maximum-length-requirement-of-password"](): string;
+    /**
+      * `The storage provider for user uploaded blobs`
+      */
+    ["com.affine.admin.ui.the-storage-provider-for-user-uploaded-blobs"](): string;
+    /**
+      * `The bucket name for user uploaded blobs storage`
+      */
+    ["com.affine.admin.ui.the-bucket-name-for-user-uploaded-blobs-storage"](): string;
+    /**
+      * `The S3 compatible config for the storage provider (endpoint/region/credentials).`
+      */
+    ["com.affine.admin.ui.the-s3-compatible-config-for-the-storage-provider-endpoint-region-credentials"](): string;
+    /**
+      * `The storage provider for user avatars`
+      */
+    ["com.affine.admin.ui.the-storage-provider-for-user-avatars"](): string;
+    /**
+      * `The bucket name for user avatars storage`
+      */
+    ["com.affine.admin.ui.the-bucket-name-for-user-avatars-storage"](): string;
+    /**
+      * `The public path prefix for user avatars(e.g. https://my-bucket.s3.amazonaws.com/)`
+      */
+    ["com.affine.admin.ui.the-public-path-prefix-for-user-avatars-e-g-https-my-bucket-s3-amazonaws-com"](): string;
+    /**
+      * `The private key for used by the crypto module to create signed tokens or encrypt data.`
+      */
+    ["com.affine.admin.ui.the-private-key-for-used-by-the-crypto-module-to-create-signed-tokens-or-encrypt-data"](): string;
+    /**
+      * `The config for job queues`
+      */
+    ["com.affine.admin.ui.the-config-for-job-queues"](): string;
+    /**
+      * `The config for job workers`
+      */
+    ["com.affine.admin.ui.the-config-for-job-workers"](): string;
+    /**
+      * `The config for copilot job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-copilot-job-queue"](): string;
+    /**
+      * `The config for calendar job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-calendar-job-queue"](): string;
+    /**
+      * `The config for doc job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-doc-job-queue"](): string;
+    /**
+      * `The config for indexer job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-indexer-job-queue"](): string;
+    /**
+      * `The config for notification job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-notification-job-queue"](): string;
+    /**
+      * `The config for nightly job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-nightly-job-queue"](): string;
+    /**
+      * `The config for backend runtime job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-backend-runtime-job-queue"](): string;
+    /**
+      * `The config for invite abuse disposition job queue`
+      */
+    ["com.affine.admin.ui.the-config-for-invite-abuse-disposition-job-queue"](): string;
+    /**
+      * `Whether the throttler is enabled.`
+      */
+    ["com.affine.admin.ui.whether-the-throttler-is-enabled"](): string;
+    /**
+      * `The config for the default throttler.`
+      */
+    ["com.affine.admin.ui.the-config-for-the-default-throttler"](): string;
+    /**
+      * `The config for the strict throttler.`
+      */
+    ["com.affine.admin.ui.the-config-for-the-strict-throttler"](): string;
+    /**
+      * `Whether allow new registrations.`
+      */
+    ["com.affine.admin.ui.whether-allow-new-registrations"](): string;
+    /**
+      * `Whether allow new registrations via configured oauth.`
+      */
+    ["com.affine.admin.ui.whether-allow-new-registrations-via-configured-oauth"](): string;
+    /**
+      * `Whether require email domain record verification before accessing restricted resources.`
+      */
+    ["com.affine.admin.ui.whether-require-email-domain-record-verification-before-accessing-restricted-resources"](): string;
+    /**
+      * `Whether require email verification before accessing restricted resources(not implemented).`
+      */
+    ["com.affine.admin.ui.whether-require-email-verification-before-accessing-restricted-resources-not-implemented"](): string;
+    /**
+      * `Minimum account age in seconds before new accounts can invite members or create share links.`
+      */
+    ["com.affine.admin.ui.minimum-account-age-in-seconds-before-new-accounts-can-invite-members-or-create-share-links"](): string;
+    /**
+      * `Whether request abuse source facts should trust Cloudflare headers from the origin edge.`
+      */
+    ["com.affine.admin.ui.whether-request-abuse-source-facts-should-trust-cloudflare-headers-from-the-origin-edge"](): string;
+    /**
+      * `Whether workspace invite quota should record would-block decisions without rejecting requests or executing abuse actions.`
+      */
+    ["com.affine.admin.ui.whether-workspace-invite-quota-should-record-would-block-decisions-without-rejecting-requests-or-executing-abuse-actions"](): string;
+    /**
+      * `Whether workspace invite quota should fail open when native runtime admission is unavailable. Keep disabled for production.`
+      */
+    ["com.affine.admin.ui.whether-workspace-invite-quota-should-fail-open-when-native-runtime-admission-is-unavailable-keep-disabled-for-production"](): string;
+    /**
+      * `The password strength requirements when set new password.`
+      */
+    ["com.affine.admin.ui.the-password-strength-requirements-when-set-new-password"](): string;
+    /**
+      * `Application auth expiration time in seconds.`
+      */
+    ["com.affine.admin.ui.application-auth-expiration-time-in-seconds"](): string;
+    /**
+      * `Application auth time to refresh in seconds.`
+      */
+    ["com.affine.admin.ui.application-auth-time-to-refresh-in-seconds"](): string;
+    /**
+      * `Access JWT expiration time in seconds.`
+      */
+    ["com.affine.admin.ui.access-jwt-expiration-time-in-seconds"](): string;
+    /**
+      * `Auth refresh session inactivity expiration in seconds.`
+      */
+    ["com.affine.admin.ui.auth-refresh-session-inactivity-expiration-in-seconds"](): string;
+    /**
+      * `Auth refresh session absolute expiration in seconds.`
+      */
+    ["com.affine.admin.ui.auth-refresh-session-absolute-expiration-in-seconds"](): string;
+    /**
+      * `One-use refresh rotation concurrency grace period in seconds.`
+      */
+    ["com.affine.admin.ui.one-use-refresh-rotation-concurrency-grace-period-in-seconds"](): string;
+    /**
+      * `Retention for expired auth refresh generations in seconds.`
+      */
+    ["com.affine.admin.ui.retention-for-expired-auth-refresh-generations-in-seconds"](): string;
+    /**
+      * `Hostname used for SMTP HELO/EHLO (e.g. mail.example.com). Leave empty to use the system hostname.`
+      */
+    ["com.affine.admin.ui.hostname-used-for-smtp-helo-ehlo-e-g-mail-example-com-leave-empty-to-use-the-system-hostname"](): string;
+    /**
+      * `Host of the email server (e.g. smtp.gmail.com)`
+      */
+    ["com.affine.admin.ui.host-of-the-email-server-e-g-smtp-gmail-com"](): string;
+    /**
+      * `Port of the email server (they commonly are 25, 465 or 587)`
+      */
+    ["com.affine.admin.ui.port-of-the-email-server-they-commonly-are-25-465-or-587"](): string;
+    /**
+      * `Username used to authenticate the email server`
+      */
+    ["com.affine.admin.ui.username-used-to-authenticate-the-email-server"](): string;
+    /**
+      * `Password used to authenticate the email server`
+      */
+    ["com.affine.admin.ui.password-used-to-authenticate-the-email-server"](): string;
+    /**
+      * `Sender of all the emails (e.g. "LocalMind Self Hosted &lt;noreply@example.com&gt;")`
+      */
+    ["com.affine.admin.ui.sender-of-all-the-emails-e-g-localmind-self-hosted-lt-noreply-example-com-gt"](): string;
+    /**
+      * `Whether ignore email server's TLS certificate verification. Enable it for self-signed certificates.`
+      */
+    ["com.affine.admin.ui.whether-ignore-email-server-s-tls-certificate-verification-enable-it-for-self-signed-certificates"](): string;
+    /**
+      * `The emails from these domains are always sent using the fallback SMTP server.`
+      */
+    ["com.affine.admin.ui.the-emails-from-these-domains-are-always-sent-using-the-fallback-smtp-server"](): string;
+    /**
+      * `Number of mail delivery rows claimed by each worker tick.`
+      */
+    ["com.affine.admin.ui.number-of-mail-delivery-rows-claimed-by-each-worker-tick"](): string;
+    /**
+      * `Mail delivery worker lease duration in milliseconds.`
+      */
+    ["com.affine.admin.ui.mail-delivery-worker-lease-duration-in-milliseconds"](): string;
+    /**
+      * `Days to retain anonymized terminal mail delivery ledger rows.`
+      */
+    ["com.affine.admin.ui.days-to-retain-anonymized-terminal-mail-delivery-ledger-rows"](): string;
+    /**
+      * `Hostname used for fallback SMTP HELO/EHLO (e.g. mail.example.com). Leave empty to use the system hostname.`
+      */
+    ["com.affine.admin.ui.hostname-used-for-fallback-smtp-helo-ehlo-e-g-mail-example-com-leave-empty-to-use-the-system-hostname"](): string;
+    /**
+      * `Use `y-octo` to merge updates at the same time when merging using Yjs.`
+      */
+    ["com.affine.admin.ui.use-y-octo-to-merge-updates-at-the-same-time-when-merging-using-yjs"](): string;
+    /**
+      * `The minimum time interval in milliseconds of creating a new history snapshot when doc get updated.`
+      */
+    ["com.affine.admin.ui.the-minimum-time-interval-in-milliseconds-of-creating-a-new-history-snapshot-when-doc-get-updated"](): string;
+    /**
+      * `The public accessible path prefix for user avatars.`
+      */
+    ["com.affine.admin.ui.the-public-accessible-path-prefix-for-user-avatars"](): string;
+    /**
+      * `The config of storage for user avatars.`
+      */
+    ["com.affine.admin.ui.the-config-of-storage-for-user-avatars"](): string;
+    /**
+      * `The config of storage for all uploaded blobs(images, videos, etc.).`
+      */
+    ["com.affine.admin.ui.the-config-of-storage-for-all-uploaded-blobs-images-videos-etc"](): string;
+    /**
+      * `The enabled transports for accepting websocket traffics.`
+      */
+    ["com.affine.admin.ui.the-enabled-transports-for-accepting-websocket-traffics"](): string;
+    /**
+      * `How many bytes or characters a message can be, before closing the session (to avoid DoS).`
+      */
+    ["com.affine.admin.ui.how-many-bytes-or-characters-a-message-can-be-before-closing-the-session-to-avoid-dos"](): string;
+    /**
+      * `A recognizable name for the server. It will be shown when connected with LocalMind Desktop.`
+      */
+    ["com.affine.admin.ui.a-recognizable-name-for-the-server-it-will-be-shown-when-connected-with-localmind-desktop"](): string;
+    /**
+      * `Base URL of the LocalMind server, used for generating external URLs.
+    Defaults to `[server.protocol]://[server.host][:server.port]` if not specified.
+        `
+      */
+    ["com.affine.admin.ui.base-url-of-the-localmind-server-used-for-generating-external-urls-defaults-to-server-protocol-server-host-server-port-if-not-specified"](): string;
+    /**
+      * `Whether the server is hosted on a ssl enabled domain (https://).`
+      */
+    ["com.affine.admin.ui.whether-the-server-is-hosted-on-a-ssl-enabled-domain-https"](): string;
+    /**
+      * `Where the server get deployed(FQDN).`
+      */
+    ["com.affine.admin.ui.where-the-server-get-deployed-fqdn"](): string;
+    /**
+      * `Multiple hosts the server will accept requests from.`
+      */
+    ["com.affine.admin.ui.multiple-hosts-the-server-will-accept-requests-from"](): string;
+    /**
+      * `The address to listen on (e.g., 0.0.0.0 for IPv4, :: for IPv6).`
+      */
+    ["com.affine.admin.ui.the-address-to-listen-on-e-g-0-0-0-0-for-ipv4-for-ipv6"](): string;
+    /**
+      * `Which port the server will listen on.`
+      */
+    ["com.affine.admin.ui.which-port-the-server-will-listen-on"](): string;
+    /**
+      * `Subpath where the server is deployed, if any (e.g. /localmind).`
+      */
+    ["com.affine.admin.ui.subpath-where-the-server-is-deployed-if-any-e-g-localmind"](): string;
+    /**
+      * `Whether allow guest users to create demo workspaces.`
+      */
+    ["com.affine.admin.ui.whether-allow-guest-users-to-create-demo-workspaces"](): string;
+    /**
+      * `The endpoint of the doc service.`
+      */
+    ["com.affine.admin.ui.the-endpoint-of-the-doc-service"](): string;
+    /**
+      * `Enable permission-checked scanned PDF OCR through the server-controlled SparkClaw endpoint.`
+      */
+    ["com.affine.admin.ui.enable-permission-checked-scanned-pdf-ocr-through-the-server-controlled-sparkclaw-endpoint"](): string;
+    /**
+      * `OpenAI-compatible SparkClaw OCR base URL. The server appends /chat/completions.`
+      */
+    ["com.affine.admin.ui.openai-compatible-sparkclaw-ocr-base-url-the-server-appends-chat-completions"](): string;
+    /**
+      * `Exact hostname allowed for outbound OCR requests.`
+      */
+    ["com.affine.admin.ui.exact-hostname-allowed-for-outbound-ocr-requests"](): string;
+    /**
+      * `Model id sent to the OpenAI-compatible OCR endpoint.`
+      */
+    ["com.affine.admin.ui.model-id-sent-to-the-openai-compatible-ocr-endpoint"](): string;
+    /**
+      * `Optional server-only bearer token for the OCR endpoint.`
+      */
+    ["com.affine.admin.ui.optional-server-only-bearer-token-for-the-ocr-endpoint"](): string;
+    /**
+      * `Maximum time for one OCR page inference.`
+      */
+    ["com.affine.admin.ui.maximum-time-for-one-ocr-page-inference"](): string;
+    /**
+      * `Maximum rasterized page image size accepted by the OCR API.`
+      */
+    ["com.affine.admin.ui.maximum-rasterized-page-image-size-accepted-by-the-ocr-api"](): string;
+    /**
+      * `Maximum cleaned Markdown bytes accepted from one OCR completion.`
+      */
+    ["com.affine.admin.ui.maximum-cleaned-markdown-bytes-accepted-from-one-ocr-completion"](): string;
+    /**
+      * `Maximum completion tokens requested from the OCR model.`
+      */
+    ["com.affine.admin.ui.maximum-completion-tokens-requested-from-the-ocr-model"](): string;
+    /**
+      * `Maximum concurrent OCR page requests per LocalMind server process.`
+      */
+    ["com.affine.admin.ui.maximum-concurrent-ocr-page-requests-per-localmind-server-process"](): string;
+    /**
+      * `Enable the LocalMind SparkClaw ISCP integration`
+      */
+    ["com.affine.admin.ui.enable-the-localmind-sparkclaw-iscp-integration"](): string;
+    /**
+      * `Internal URL of the LocalMind ISCP controller`
+      */
+    ["com.affine.admin.ui.internal-url-of-the-localmind-iscp-controller"](): string;
+    /**
+      * `Bearer token used between LocalMind and the ISCP controller`
+      */
+    ["com.affine.admin.ui.bearer-token-used-between-localmind-and-the-iscp-controller"](): string;
+    /**
+      * `ISCP domain assigned to LocalMind SparkClaw endpoints`
+      */
+    ["com.affine.admin.ui.iscp-domain-assigned-to-localmind-sparkclaw-endpoints"](): string;
+    /**
+      * `Whether check version of client before accessing the server.`
+      */
+    ["com.affine.admin.ui.whether-check-version-of-client-before-accessing-the-server"](): string;
+    /**
+      * `Allowed version range of the app that allowed to access the server. Requires 'client/versionControl.enabled' to be true to take effect.`
+      */
+    ["com.affine.admin.ui.allowed-version-range-of-the-app-that-allowed-to-access-the-server-requires-client-versioncontrol-enabled-to-be-true-to-take-effect"](): string;
+    /**
+      * `Google Calendar integration config`
+      */
+    ["com.affine.admin.ui.google-calendar-integration-config"](): string;
+    /**
+      * `CalDAV integration config`
+      */
+    ["com.affine.admin.ui.caldav-integration-config"](): string;
+    /**
+      * `Enable indexer plugin`
+      */
+    ["com.affine.admin.ui.enable-indexer-plugin"](): string;
+    /**
+      * `Indexer search service provider name`
+      */
+    ["com.affine.admin.ui.indexer-search-service-provider-name"](): string;
+    /**
+      * `Indexer search service endpoint`
+      */
+    ["com.affine.admin.ui.indexer-search-service-endpoint"](): string;
+    /**
+      * `Indexer search service api key. Optional for elasticsearch`
+      */
+    ["com.affine.admin.ui.indexer-search-service-api-key-optional-for-elasticsearch"](): string;
+    /**
+      * `Indexer search service auth username, if not set, basic auth will be disabled. Optional for elasticsearch`
+      */
+    ["com.affine.admin.ui.indexer-search-service-auth-username-if-not-set-basic-auth-will-be-disabled-optional-for-elasticsearch"](): string;
+    /**
+      * `Indexer search service auth password, if not set, basic auth will be disabled. Optional for elasticsearch`
+      */
+    ["com.affine.admin.ui.indexer-search-service-auth-password-if-not-set-basic-auth-will-be-disabled-optional-for-elasticsearch"](): string;
+    /**
+      * `Number of workspaces automatically indexed per batch`
+      */
+    ["com.affine.admin.ui.number-of-workspaces-automatically-indexed-per-batch"](): string;
+    /**
+      * `Google OAuth provider config`
+      */
+    ["com.affine.admin.ui.google-oauth-provider-config"](): string;
+    /**
+      * `GitHub OAuth provider config`
+      */
+    ["com.affine.admin.ui.github-oauth-provider-config"](): string;
+    /**
+      * `OIDC OAuth provider config. Private network access requires allowPrivateNetwork: true`
+      */
+    ["com.affine.admin.ui.oidc-oauth-provider-config-private-network-access-requires-allowprivatenetwork-true"](): string;
+    /**
+      * `Apple OAuth provider config`
+      */
+    ["com.affine.admin.ui.apple-oauth-provider-config"](): string;
+    /**
+      * `Allowed origin`
+      */
+    ["com.affine.admin.ui.allowed-origin"](): string;
+    /**
+      * `Overview`
+      */
+    ["com.affine.admin.ui.overview"](): string;
+    /**
+      * `Queues`
+      */
+    ["com.affine.admin.ui.queues"](): string;
+    /**
+      * `Resume all`
+      */
+    ["com.affine.admin.ui.resume-all"](): string;
+    /**
+      * `Pause all`
+      */
+    ["com.affine.admin.ui.pause-all"](): string;
+    /**
+      * `Paused`
+      */
+    ["com.affine.admin.ui.paused"](): string;
+    /**
+      * `Theme`
+      */
+    ["com.affine.admin.ui.theme"](): string;
+    /**
+      * `System theme`
+      */
+    ["com.affine.admin.ui.system-theme"](): string;
+    /**
+      * `Light theme`
+      */
+    ["com.affine.admin.ui.light-theme"](): string;
+    /**
+      * `Dark theme`
+      */
+    ["com.affine.admin.ui.dark-theme"](): string;
+    /**
+      * `Could not fetch queues`
+      */
+    ["com.affine.admin.ui.could-not-fetch-queues"](): string;
+    /**
+      * `Error`
+      */
+    ["com.affine.admin.ui.error"](): string;
+    /**
+      * `Options`
+      */
+    ["com.affine.admin.ui.options"](): string;
+    /**
+      * `Data`
+      */
+    ["com.affine.admin.ui.data"](): string;
+    /**
+      * `Return value`
+      */
+    ["com.affine.admin.ui.return-value"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.admin.ui.retry"](): string;
+    /**
+      * `Rerun`
+      */
+    ["com.affine.admin.ui.rerun"](): string;
+    /**
+      * `Discard`
+      */
+    ["com.affine.admin.ui.discard"](): string;
+    /**
+      * `Remove`
+      */
+    ["com.affine.admin.ui.remove"](): string;
+    /**
+      * `Close`
+      */
+    ["com.affine.admin.ui.close"](): string;
+    /**
+      * `Name`
+      */
+    ["com.affine.admin.ui.name"](): string;
+    /**
+      * `Lifecycle`
+      */
+    ["com.affine.admin.ui.lifecycle"](): string;
+    /**
+      * `No jobs found`
+      */
+    ["com.affine.admin.ui.no-jobs-found"](): string;
+    /**
+      * `Delete`
+      */
+    ["com.affine.admin.ui.delete"](): string;
+    /**
+      * `Added to queue`
+      */
+    ["com.affine.admin.ui.added-to-queue"](): string;
+    /**
+      * `Completed`
+      */
+    ["com.affine.admin.ui.completed"](): string;
+    /**
+      * `Processed`
+      */
+    ["com.affine.admin.ui.processed"](): string;
+    /**
+      * `Retried`
+      */
+    ["com.affine.admin.ui.retried"](): string;
+    /**
+      * `Cancel`
+      */
+    ["com.affine.admin.ui.cancel"](): string;
+    /**
+      * `Waiting`
+      */
+    ["com.affine.admin.ui.waiting"](): string;
+    /**
+      * `Active`
+      */
+    ["com.affine.admin.ui.active"](): string;
+    /**
+      * `Prioritized`
+      */
+    ["com.affine.admin.ui.prioritized"](): string;
+    /**
+      * `Waiting Children`
+      */
+    ["com.affine.admin.ui.waiting-children"](): string;
+    /**
+      * `Delayed`
+      */
+    ["com.affine.admin.ui.delayed"](): string;
+    /**
+      * `Are you absolutely sure?`
+      */
+    ["com.affine.admin.ui.are-you-absolutely-sure"](): string;
+    /**
+      * `Clean all`
+      */
+    ["com.affine.admin.ui.clean-all"](): string;
+    /**
+      * `New job has been added`
+      */
+    ["com.affine.admin.ui.new-job-has-been-added"](): string;
+    /**
+      * `New job scheduler has been added`
+      */
+    ["com.affine.admin.ui.new-job-scheduler-has-been-added"](): string;
+    /**
+      * `Template`
+      */
+    ["com.affine.admin.ui.template"](): string;
+    /**
+      * `Add job`
+      */
+    ["com.affine.admin.ui.add-job"](): string;
+    /**
+      * `Add scheduler`
+      */
+    ["com.affine.admin.ui.add-scheduler"](): string;
+    /**
+      * `Invalid JSON`
+      */
+    ["com.affine.admin.ui.invalid-json"](): string;
+    /**
+      * `Resume`
+      */
+    ["com.affine.admin.ui.resume"](): string;
+    /**
+      * `Pause`
+      */
+    ["com.affine.admin.ui.pause"](): string;
+    /**
+      * `Empty`
+      */
+    ["com.affine.admin.ui.empty"](): string;
+    /**
+      * `Scheduler`
+      */
+    ["com.affine.admin.ui.scheduler"](): string;
+    /**
+      * `Pattern`
+      */
+    ["com.affine.admin.ui.pattern"](): string;
+    /**
+      * `No next run`
+      */
+    ["com.affine.admin.ui.no-next-run"](): string;
+    /**
+      * `Next Run`
+      */
+    ["com.affine.admin.ui.next-run"](): string;
+    /**
+      * `Last minute`
+      */
+    ["com.affine.admin.ui.last-minute"](): string;
+    /**
+      * `Last hour`
+      */
+    ["com.affine.admin.ui.last-hour"](): string;
+    /**
+      * `Last 24 hours`
+      */
+    ["com.affine.admin.ui.last-24-hours"](): string;
+    /**
+      * `Last 7 days`
+      */
+    ["com.affine.admin.ui.last-7-days"](): string;
+    /**
+      * `Metrics`
+      */
+    ["com.affine.admin.ui.metrics"](): string;
+    /**
+      * `Success Rate`
+      */
+    ["com.affine.admin.ui.success-rate"](): string;
+    /**
+      * `Throughput`
+      */
+    ["com.affine.admin.ui.throughput"](): string;
+    /**
+      * `No queue found`
+      */
+    ["com.affine.admin.ui.no-queue-found"](): string;
+    /**
+      * `Could not fetch jobs`
+      */
+    ["com.affine.admin.ui.could-not-fetch-jobs"](): string;
+    /**
+      * `Spool: {{files}} files / {{bytes}} bytes`
+      */
+    ["com.affine.admin.ui.spool"](options: Readonly<{
+        files: string;
+        bytes: string;
+    }>): string;
+    /**
+      * `Dry run: {{count}} rows`
+      */
+    ["com.affine.admin.ui.cleanup-preview"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Manage {{name}} settings`
+      */
+    ["com.affine.admin.ui.manage-settings"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `You've viewed {{viewed}} of {{total}} jobs`
+      */
+    ["com.affine.admin.queue.jobs-viewed"](options: Readonly<{
+        viewed: string;
+        total: string;
+    }>): string;
+    /**
+      * `{{count}} selected`
+      */
+    ["com.affine.admin.queue.jobs-selected"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `All {{status}} jobs have been removed`
+      */
+    ["com.affine.admin.queue.jobs-cleaned"](options: {
+        readonly status: string;
+    }): string;
+    /**
+      * `This action cannot be undone. This will permanently remove all {{status}} jobs from the queue.`
+      */
+    ["com.affine.admin.queue.clean-confirm"](options: {
+        readonly status: string;
+    }): string;
+    /**
+      * `Yes, remove jobs`
+      */
+    ["com.affine.admin.queue.confirm-remove"](): string;
+    /**
+      * `Add {{kind}}`
+      */
+    ["com.affine.admin.queue.add-kind"](options: {
+        readonly kind: string;
+    }): string;
+    /**
+      * `job`
+      */
+    ["com.affine.admin.queue.job-kind"](): string;
+    /**
+      * `scheduler`
+      */
+    ["com.affine.admin.queue.scheduler-kind"](): string;
+    /**
+      * `Every {{ms}} ms`
+      */
+    ["com.affine.admin.queue.every-ms"](options: {
+        readonly ms: string;
+    }): string;
+    /**
+      * `{{count}} runs total`
+      */
+    ["com.affine.admin.queue.runs-total"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `{{count}}/min`
+      */
+    ["com.affine.admin.queue.per-minute"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Unable to preview cleanup. Please retry.`
+      */
+    ["com.affine.admin.ui.preview-failed"](): string;
+    /**
+      * `Action menu`
+      */
+    ["com.affine.admin.queue.action-menu"](): string;
+    /**
+      * `View details`
+      */
+    ["com.affine.admin.queue.view-details"](): string;
+    /**
+      * `{{connected}} connected and {{blocked}} blocked out of {{max}} max clients`
+      */
+    ["com.affine.admin.queue.redis-clients"](options: Readonly<{
+        connected: string;
+        blocked: string;
+        max: string;
+    }>): string;
+    /**
+      * `Add {{kind}} to {{queue}}`
+      */
+    ["com.affine.admin.queue.add-to-queue"](options: Readonly<{
+        kind: string;
+        queue: string;
+    }>): string;
+    /**
+      * `Verifiable until {{time}}`
+      */
+    ["com.affine.admin.ui.verifiable-until"](options: {
+        readonly time: string;
+    }): string;
+    /**
+      * `Retired {{time}}`
+      */
+    ["com.affine.admin.ui.retired-at"](options: {
+        readonly time: string;
+    }): string;
+    /**
+      * `Key updated`
+      */
+    ["com.affine.admin.ui.key-updated"](): string;
+    /**
+      * `Password Set`
+      */
+    ["com.affine.admin.ui.password-set"](): string;
+    /**
+      * `No Password`
+      */
+    ["com.affine.admin.ui.no-password"](): string;
+    /**
+      * `Email Verified`
+      */
+    ["com.affine.admin.ui.email-verified"](): string;
+    /**
+      * `Email Not Verified`
+      */
+    ["com.affine.admin.ui.email-not-verified"](): string;
+    /**
+      * `Features`
+      */
+    ["com.affine.admin.ui.features"](): string;
+    /**
+      * `Sent`
+      */
+    ["com.affine.admin.ui.sent"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.admin.ui.queued"](): string;
+    /**
+      * `Sending`
+      */
+    ["com.affine.admin.ui.sending"](): string;
+    /**
+      * `Skipped`
+      */
+    ["com.affine.admin.ui.skipped"](): string;
+    /**
+      * `Canceled`
+      */
+    ["com.affine.admin.ui.canceled"](): string;
+    /**
+      * `Retry wait`
+      */
+    ["com.affine.admin.ui.retry-wait"](): string;
+    /**
+      * `Successful`
+      */
+    ["com.affine.admin.ui.successful"](): string;
+    /**
+      * `Unsuccessful`
+      */
+    ["com.affine.admin.ui.unsuccessful"](): string;
+    /**
+      * `Pending`
+      */
+    ["com.affine.admin.ui.pending"](): string;
+    /**
+      * `BYOK local`
+      */
+    ["com.affine.admin.ui.byok-local"](): string;
+    /**
+      * `BYOK server`
+      */
+    ["com.affine.admin.ui.byok-server"](): string;
+    /**
+      * `Project BYOK global`
+      */
+    ["com.affine.admin.ui.project-byok-global"](): string;
+    /**
+      * `Configured`
+      */
+    ["com.affine.admin.ui.configured"](): string;
+    /**
+      * `Legacy config`
+      */
+    ["com.affine.admin.ui.legacy-config"](): string;
+    /**
+      * `This file is too large to preview. Download it to open locally.`
+      */
+    ["com.affine.localmind.project-files.previewTooLarge"](): string;
+    /**
+      * `Preview is not available for this format. Download it to open locally.`
+      */
+    ["com.affine.localmind.project-files.previewUnsupported"](): string;
+    /**
+      * `Imported file`
+      */
+    ["com.affine.office.revision-origin-import"](): string;
+    /**
+      * `Manual edit`
+      */
+    ["com.affine.office.revision-origin-user"](): string;
+    /**
+      * `AI edit`
+      */
+    ["com.affine.office.revision-origin-ai"](): string;
+    /**
+      * `Document changes`
+      */
+    ["com.affine.office.revision-operation-document"](): string;
+    /**
+      * `Workbook changes`
+      */
+    ["com.affine.office.revision-operation-workbook"](): string;
+    /**
+      * `Presentation changes`
+      */
+    ["com.affine.office.revision-operation-presentation"](): string;
+    /**
+      * `PDF changes`
+      */
+    ["com.affine.office.revision-operation-pdf"](): string;
+    /**
+      * `Organize context`
+      */
+    ["com.affine.localmind.compaction.request"](): string;
+    /**
+      * `Organizing earlier conversation`
+      */
+    ["com.affine.localmind.compaction.running"](): string;
+    /**
+      * `LocalMind is creating a private, structured summary before continuing. Your request will be sent once.`
+      */
+    ["com.affine.localmind.compaction.runningDescription"](): string;
+    /**
+      * `Waiting to retry context organization`
+      */
+    ["com.affine.localmind.compaction.retryWaiting"](): string;
+    /**
+      * `The durable task will resume safely without repeating tools or your request.`
+      */
+    ["com.affine.localmind.compaction.retryWaitingDescription"](): string;
+    /**
+      * `Attempt {{attempt}} of {{maxAttempts}}`
+      */
+    ["com.affine.localmind.compaction.attempt"](options: Readonly<{
+        attempt: string;
+        maxAttempts: string;
+    }>): string;
+    /**
+      * `Cancel`
+      */
+    ["com.affine.localmind.compaction.cancel"](): string;
+    /**
+      * `Context organized`
+      */
+    ["com.affine.localmind.compaction.completed"](): string;
+    /**
+      * `{{count}} earlier messages were replaced by a private, structured summary.`
+      */
+    ["com.affine.localmind.compaction.completedDescription"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Estimated input {{input}} tokens · summary {{output}} tokens`
+      */
+    ["com.affine.localmind.compaction.tokenEstimate"](options: Readonly<{
+        input: string;
+        output: string;
+    }>): string;
+    /**
+      * `Review summary`
+      */
+    ["com.affine.localmind.compaction.summary"](): string;
+    /**
+      * `Context organization cancelled`
+      */
+    ["com.affine.localmind.compaction.cancelled"](): string;
+    /**
+      * `No summary was applied. Your draft and conversation remain available.`
+      */
+    ["com.affine.localmind.compaction.cancelledDescription"](): string;
+    /**
+      * `Context changed before organization finished`
+      */
+    ["com.affine.localmind.compaction.stale"](): string;
+    /**
+      * `The late result was not applied. Start again to summarize the current conversation.`
+      */
+    ["com.affine.localmind.compaction.staleDescription"](): string;
+    /**
+      * `Context organization failed`
+      */
+    ["com.affine.localmind.compaction.failed"](): string;
+    /**
+      * `Your request was not repeated. Retry the durable task or continue in a new conversation.`
+      */
+    ["com.affine.localmind.compaction.failedDescription"](): string;
+    /**
+      * `Failure code: {{code}}`
+      */
+    ["com.affine.localmind.compaction.failureCode"](options: {
+        readonly code: string;
+    }): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.compaction.retry"](): string;
+    /**
+      * `Dismiss context organization status`
+      */
+    ["com.affine.localmind.compaction.dismiss"](): string;
+    /**
+      * `Context organization status is unavailable`
+      */
+    ["com.affine.localmind.compaction.statusUnavailable"](): string;
+    /**
+      * `Reload status`
+      */
+    ["com.affine.localmind.compaction.retryStatus"](): string;
+    /**
+      * `My work`
+      */
+    ["com.affine.localmind.workbench.v9.overview"](): string;
+    /**
+      * `Private conversations and personal work orders that require your attention.`
+      */
+    ["com.affine.localmind.workbench.v9.overviewDescription"](): string;
+    /**
+      * `Give AI a new task`
+      */
+    ["com.affine.localmind.workbench.v9.newConversation"](): string;
+    /**
+      * `Items`
+      */
+    ["com.affine.localmind.workbench.v9.items"](): string;
+    /**
+      * `Relations`
+      */
+    ["com.affine.localmind.workbench.v9.relations"](): string;
+    /**
+      * `Project`
+      */
+    ["com.affine.localmind.workbench.v9.projectFilter"](): string;
+    /**
+      * `All projects`
+      */
+    ["com.affine.localmind.workbench.v9.allProjects"](): string;
+    /**
+      * `Personal work order`
+      */
+    ["com.affine.localmind.workbench.v9.personalWorkOrder"](): string;
+    /**
+      * `Needs my action`
+      */
+    ["com.affine.localmind.workbench.v9.todo"](): string;
+    /**
+      * `In progress`
+      */
+    ["com.affine.localmind.workbench.v9.progress"](): string;
+    /**
+      * `Completed`
+      */
+    ["com.affine.localmind.workbench.v9.done"](): string;
+    /**
+      * `No conversations in this column.`
+      */
+    ["com.affine.localmind.workbench.v9.columnEmpty"](): string;
+    /**
+      * `active runs`
+      */
+    ["com.affine.localmind.workbench.v9.activeRuns"](): string;
+    /**
+      * `Relations appear after a confirmed work order involves you.`
+      */
+    ["com.affine.localmind.workbench.v9.graphEmpty"](): string;
+    /**
+      * `Zoom out`
+      */
+    ["com.affine.localmind.workbench.v9.zoomOut"](): string;
+    /**
+      * `Zoom in`
+      */
+    ["com.affine.localmind.workbench.v9.zoomIn"](): string;
+    /**
+      * `Accessible relations`
+      */
+    ["com.affine.localmind.workbench.v9.relationList"](): string;
+    /**
+      * `Only the first 500 accessible relations are shown.`
+      */
+    ["com.affine.localmind.workbench.v9.graphTruncated"](): string;
+    /**
+      * `No conversations yet`
+      */
+    ["com.affine.localmind.workbench.v9.noConversations"](): string;
+    /**
+      * `Loading conversations…`
+      */
+    ["com.affine.localmind.workbench.v9.loadingConversations"](): string;
+    /**
+      * `Load more conversations`
+      */
+    ["com.affine.localmind.workbench.v9.loadMoreConversations"](): string;
+    /**
+      * `Could not load more conversations`
+      */
+    ["com.affine.localmind.workbench.v9.loadMoreConversationsFailed"](): string;
+    /**
+      * `Untitled conversation`
+      */
+    ["com.affine.localmind.workbench.v9.untitled"](): string;
+    /**
+      * `Mark complete`
+      */
+    ["com.affine.localmind.workbench.v9.markComplete"](): string;
+    /**
+      * `The administrator has not enabled the global model for personal work orders.`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderModelMissing"](): string;
+    /**
+      * `Could not update the work order`
+      */
+    ["com.affine.localmind.workbench.v9.actionFailed"](): string;
+    /**
+      * `Could not upload this delivery`
+      */
+    ["com.affine.localmind.workbench.v9.uploadFailed"](): string;
+    /**
+      * `This item is unavailable.`
+      */
+    ["com.affine.localmind.workbench.v9.unavailable"](): string;
+    /**
+      * `Purpose`
+      */
+    ["com.affine.localmind.workbench.v9.purpose"](): string;
+    /**
+      * `Relationship`
+      */
+    ["com.affine.localmind.workbench.v9.relationKind"](): string;
+    /**
+      * `Version`
+      */
+    ["com.affine.localmind.workbench.v9.version"](): string;
+    /**
+      * `Delivery requirements`
+      */
+    ["com.affine.localmind.workbench.v9.requirements"](): string;
+    /**
+      * `Validating and uploading…`
+      */
+    ["com.affine.localmind.workbench.v9.uploading"](): string;
+    /**
+      * `Submit a new revision`
+      */
+    ["com.affine.localmind.workbench.v9.submitRevision"](): string;
+    /**
+      * `Submit delivery`
+      */
+    ["com.affine.localmind.workbench.v9.submitDelivery"](): string;
+    /**
+      * `Questions and decisions`
+      */
+    ["com.affine.localmind.workbench.v9.exchanges"](): string;
+    /**
+      * `Immutable delivery history`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryHistory"](): string;
+    /**
+      * `Use this version in the source conversation`
+      */
+    ["com.affine.localmind.workbench.v9.adoptDelivery"](): string;
+    /**
+      * `Delivery details stay locked until every active work order in this dispatch is complete.`
+      */
+    ["com.affine.localmind.workbench.v9.waitForCompleteDispatch"](): string;
+    /**
+      * `Ask or refuse`
+      */
+    ["com.affine.localmind.workbench.v9.askOrRefuse"](): string;
+    /**
+      * `Answer or withdraw`
+      */
+    ["com.affine.localmind.workbench.v9.answerOrCancel"](): string;
+    /**
+      * `Send question`
+      */
+    ["com.affine.localmind.workbench.v9.askQuestion"](): string;
+    /**
+      * `Refuse`
+      */
+    ["com.affine.localmind.workbench.v9.refuse"](): string;
+    /**
+      * `Send answer`
+      */
+    ["com.affine.localmind.workbench.v9.answerQuestion"](): string;
+    /**
+      * `Withdraw work order`
+      */
+    ["com.affine.localmind.workbench.v9.cancelWorkOrder"](): string;
+    /**
+      * `This work order is managed from its original conversation. Open that conversation to answer, withdraw, or adopt returned material.`
+      */
+    ["com.affine.localmind.workbench.v9.senderUsesSource"](): string;
+    /**
+      * `Could not rename the conversation`
+      */
+    ["com.affine.localmind.workbench.v9.renameFailed"](): string;
+    /**
+      * `The conversation could not be completed`
+      */
+    ["com.affine.localmind.workbench.v9.completeFailed"](): string;
+    /**
+      * `Request a delivery`
+      */
+    ["com.affine.localmind.workbench.v9.sendWorkOrder"](): string;
+    /**
+      * `Review work-order draft`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderDraft"](): string;
+    /**
+      * `Confirm exact existing accounts and the frozen delivery requirements. Recipients see nothing until you explicitly confirm sending.`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderDraftHelp"](): string;
+    /**
+      * `Recipient`
+      */
+    ["com.affine.localmind.workbench.v9.recipient"](): string;
+    /**
+      * `Exact account ID or email`
+      */
+    ["com.affine.localmind.workbench.v9.recipientPlaceholder"](): string;
+    /**
+      * `Verify account`
+      */
+    ["com.affine.localmind.workbench.v9.resolveRecipient"](): string;
+    /**
+      * `Recipient is unavailable`
+      */
+    ["com.affine.localmind.workbench.v9.recipientUnavailable"](): string;
+    /**
+      * `Work-order title`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderTitle"](): string;
+    /**
+      * `Related work-order ID`
+      */
+    ["com.affine.localmind.workbench.v9.relatedWorkOrder"](): string;
+    /**
+      * `Requirement`
+      */
+    ["com.affine.localmind.workbench.v9.requirement"](): string;
+    /**
+      * `Kind`
+      */
+    ["com.affine.localmind.workbench.v9.kind"](): string;
+    /**
+      * `Requirement title`
+      */
+    ["com.affine.localmind.workbench.v9.requirementTitle"](): string;
+    /**
+      * `Completion instructions`
+      */
+    ["com.affine.localmind.workbench.v9.instructions"](): string;
+    /**
+      * `Accepted MIME types, comma separated`
+      */
+    ["com.affine.localmind.workbench.v9.acceptedMimeTypes"](): string;
+    /**
+      * `Required`
+      */
+    ["com.affine.localmind.workbench.v9.required"](): string;
+    /**
+      * `Add requirement`
+      */
+    ["com.affine.localmind.workbench.v9.addRequirement"](): string;
+    /**
+      * `Add recipient`
+      */
+    ["com.affine.localmind.workbench.v9.addRecipient"](): string;
+    /**
+      * `This immutable draft is ready for your confirmation.`
+      */
+    ["com.affine.localmind.workbench.v9.confirmBeforeSending"](): string;
+    /**
+      * `Confirmation expires`
+      */
+    ["com.affine.localmind.workbench.v9.confirmExpires"](): string;
+    /**
+      * `Confirm and send`
+      */
+    ["com.affine.localmind.workbench.v9.confirmAndSend"](): string;
+    /**
+      * `Review before sending`
+      */
+    ["com.affine.localmind.workbench.v9.prepareConfirmation"](): string;
+    /**
+      * `Could not prepare the work order`
+      */
+    ["com.affine.localmind.workbench.v9.prepareFailed"](): string;
+    /**
+      * `Could not send the work order`
+      */
+    ["com.affine.localmind.workbench.v9.sendFailed"](): string;
+    /**
+      * `Work orders sent`
+      */
+    ["com.affine.localmind.workbench.v9.workOrdersSent"](): string;
+    /**
+      * `A work order has an update`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderNotice"](): string;
+    /**
+      * `Open work order`
+      */
+    ["com.affine.localmind.workbench.v9.openWorkOrder"](): string;
+    /**
+      * `Start a private Project conversation. The project is explicit and cannot silently inherit from another conversation.`
+      */
+    ["com.affine.localmind.workbench.v9.newConversationHelp"](): string;
+    /**
+      * `Project`
+      */
+    ["com.affine.localmind.workbench.v9.chooseProject"](): string;
+    /**
+      * `Choose a project`
+      */
+    ["com.affine.localmind.workbench.v9.chooseProjectPlaceholder"](): string;
+    /**
+      * `Choose a project before sending. Your draft is unchanged.`
+      */
+    ["com.affine.localmind.workbench.v9.chooseProjectError"](): string;
+    /**
+      * `Conversation name (optional)`
+      */
+    ["com.affine.localmind.workbench.v9.optionalTitle"](): string;
+    /**
+      * `Describe what LocalMind should do…`
+      */
+    ["com.affine.localmind.workbench.v9.taskPlaceholder"](): string;
+    /**
+      * `This unsent draft lasts only for this page session.`
+      */
+    ["com.affine.localmind.workbench.v9.draftLifetime"](): string;
+    /**
+      * `Conversation context`
+      */
+    ["com.affine.localmind.workbench.v9.contextPanel"](): string;
+    /**
+      * `Only Project files explicitly referenced by this conversation appear here. Opening a file does not add it automatically.`
+      */
+    ["com.affine.localmind.workbench.v9.contextHelp"](): string;
+    /**
+      * `Collaboration roles`
+      */
+    ["com.affine.localmind.workbench.v9.collaborationRoles"](): string;
+    /**
+      * `Delivery direction and status come from the same private work orders as the relationship graph.`
+      */
+    ["com.affine.localmind.workbench.v9.collaborationRolesHelp"](): string;
+    /**
+      * `No work-order collaborators in this conversation.`
+      */
+    ["com.affine.localmind.workbench.v9.noCollaborationRoles"](): string;
+    /**
+      * `Collaboration roles could not be loaded.`
+      */
+    ["com.affine.localmind.workbench.v9.rolesLoadFailed"](): string;
+    /**
+      * `Project Memory is shared with Project members, while private chats, attachments, and conversation summaries remain separate.`
+      */
+    ["com.affine.localmind.workbench.v9.projectMemoryHelp"](): string;
+    /**
+      * `This conversation does not reference any Project files yet.`
+      */
+    ["com.affine.localmind.workbench.v9.contextEmpty"](): string;
+    /**
+      * `Reference in conversation`
+      */
+    ["com.affine.localmind.workbench.v9.referenceResource"](): string;
+    /**
+      * `Referenced`
+      */
+    ["com.affine.localmind.workbench.v9.referenced"](): string;
+    /**
+      * `Toggle file sidebar`
+      */
+    ["com.affine.localmind.workbench.v9.toggleFileTree"](): string;
+    /**
+      * `Show conversation context`
+      */
+    ["com.affine.localmind.workbench.v9.showContext"](): string;
+    /**
+      * `Show Project files`
+      */
+    ["com.affine.localmind.workbench.v9.showFileTree"](): string;
     /**
       * `An internal error occurred.`
       */

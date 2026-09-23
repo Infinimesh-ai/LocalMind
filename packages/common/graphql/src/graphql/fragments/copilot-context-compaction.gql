@@ -1,0 +1,21 @@
+fragment CopilotContextCompactionFields on CopilotContextCompactionTaskType {
+  id
+  sessionId
+  contextEpoch
+  status
+  summarizedMessageCount
+  attempt
+  maxAttempts
+  inputBudget
+  inputTokensEstimated
+  outputTokensEstimated
+  outputCharacters
+  failureCode
+  failureMessage
+  checkpointId
+  summary
+  summaryData
+  requestedAt
+  updatedAt
+  completedAt
+}

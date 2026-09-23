@@ -19,6 +19,7 @@ import {
 import { EMBED_BLOCK_MODEL_LIST } from '@blocksuite/affine-shared/consts';
 import type { ExtendedModel } from '@blocksuite/affine-shared/types';
 import {
+  deleteBlockWithListOrder,
   focusTitle,
   getDocTitleInlineEditor,
   getPrevContentBlock,
@@ -72,7 +73,7 @@ export function mergeWithPrev(editorHost: EditorHost, model: BlockModel) {
 
     const lengthBeforeJoin = prevBlock.props.text?.length ?? 0;
     prevBlock.props.text.join(model.text as Text);
-    doc.deleteBlock(model, {
+    deleteBlockWithListOrder(doc, model, {
       bringChildrenTo: parent,
     });
     asyncSetInlineRange(editorHost.std, prevBlock, {
@@ -123,11 +124,11 @@ export function mergeWithPrev(editorHost: EditorHost, model: BlockModel) {
       });
       editorHost.selection.setGroup('note', [selection]);
     } else {
-      doc.deleteBlock(prevBlock);
+      deleteBlockWithListOrder(doc, prevBlock);
     }
 
     if (model.text?.length === 0) {
-      doc.deleteBlock(model, {
+      deleteBlockWithListOrder(doc, model, {
         bringChildrenTo: parent,
       });
     }
@@ -136,7 +137,7 @@ export function mergeWithPrev(editorHost: EditorHost, model: BlockModel) {
   }
 
   if (matchModels(parent, [DatabaseBlockModel])) {
-    doc.deleteBlock(model);
+    deleteBlockWithListOrder(doc, model);
     focusTextModel(editorHost.std, prevBlock.id, prevBlock.text?.yText.length);
     return true;
   }
@@ -173,7 +174,7 @@ function handleNoPreviousSibling(editorHost: EditorHost, model: ExtendedModel) {
         title.join(text);
       }
       if (model.children.length > 0 || doc.getNext(model)) {
-        doc.deleteBlock(model, {
+        deleteBlockWithListOrder(doc, model, {
           bringChildrenTo: parent,
         });
       }
@@ -190,7 +191,7 @@ function handleNoPreviousSibling(editorHost: EditorHost, model: ExtendedModel) {
       text?.length === 0 &&
       (model.children.length > 0 || doc.getNext(model))
     ) {
-      doc.deleteBlock(model, {
+      deleteBlockWithListOrder(doc, model, {
         bringChildrenTo: parent,
       });
       focusFirstBlockStart();
@@ -203,7 +204,7 @@ function handleNoPreviousSibling(editorHost: EditorHost, model: ExtendedModel) {
     text?.length === 0 &&
     (model.children.length > 0 || doc.getNext(model))
   ) {
-    doc.deleteBlock(model, {
+    deleteBlockWithListOrder(doc, model, {
       bringChildrenTo: parent,
     });
     focusFirstBlockStart();

@@ -53,6 +53,27 @@ export const copilotChatHistoryFragment = `fragment CopilotChatHistory on Copilo
   createdAt
   updatedAt
 }`;
+export const copilotContextCompactionFieldsFragment = `fragment CopilotContextCompactionFields on CopilotContextCompactionTaskType {
+  id
+  sessionId
+  contextEpoch
+  status
+  summarizedMessageCount
+  attempt
+  maxAttempts
+  inputBudget
+  inputTokensEstimated
+  outputTokensEstimated
+  outputCharacters
+  failureCode
+  failureMessage
+  checkpointId
+  summary
+  summaryData
+  requestedAt
+  updatedAt
+  completedAt
+}`;
 export const copilotDocumentOperationFieldsFragment = `fragment CopilotDocumentOperationFields on CopilotDocumentOperationType {
   id
   kind
@@ -70,6 +91,26 @@ export const copilotDocumentOperationFieldsFragment = `fragment CopilotDocumentO
   placedDocumentAt
   failureCode
   accessRequestId
+}`;
+export const copilotSessionDeletionFieldsFragment = `fragment CopilotSessionDeletionFields on CopilotSessionDeletionType {
+  id
+  sessionId
+  status
+  contextEpoch
+  attempt
+  maxAttempts
+  progress
+  resultCounts
+  failureCode
+  failureMessage
+  holdReason
+  backupStatus
+  receiptFingerprint
+  requestedAt
+  updatedAt
+  heldAt
+  releasedAt
+  completedAt
 }`;
 export const copilotWorkbenchTaskItemFieldsFragment = `fragment CopilotWorkbenchTaskItemFields on CopilotWorkbenchTaskItemType {
   projectTask {
@@ -249,6 +290,7 @@ export const projectByokSettingsFragment = `fragment ProjectByokSettings on Proj
   modelId
   apiStyle
   enabled
+  workOrderEnabled
   lastValidatedAt
   lastUsedAt
   lastError
@@ -264,6 +306,7 @@ export const projectByokSettingsFragment = `fragment ProjectByokSettings on Proj
     modelId
     apiStyle
     enabled
+    workOrderEnabled
     credentialChanged
     createdAt
   }
@@ -1022,6 +1065,17 @@ export const setProjectByokEnabledMutation = {
   op: 'setProjectByokEnabled',
   query: `mutation setProjectByokEnabled($expectedRevision: SafeInt!, $enabled: Boolean!) {
   setProjectByokEnabled(expectedRevision: $expectedRevision, enabled: $enabled) {
+    ...ProjectByokSettings
+  }
+}
+${projectByokSettingsFragment}`,
+};
+
+export const setWorkOrderByokEnabledMutation = {
+  id: 'setWorkOrderByokEnabledMutation' as const,
+  op: 'setWorkOrderByokEnabled',
+  query: `mutation setWorkOrderByokEnabled($expectedRevision: SafeInt!, $enabled: Boolean!) {
+  setWorkOrderByokEnabled(expectedRevision: $expectedRevision, enabled: $enabled) {
     ...ProjectByokSettings
   }
 }
@@ -2412,6 +2466,34 @@ export const confirmCopilotBlockerSuggestionMutation = {
 ${copilotBlockerFieldsFragment}`,
 };
 
+export const copilotCollaborationGraphGetQuery = {
+  id: 'copilotCollaborationGraphGetQuery' as const,
+  op: 'copilotCollaborationGraphGet',
+  query: `query copilotCollaborationGraphGet {
+  currentUser {
+    copilot {
+      myCollaborationGraph {
+        nodes {
+          id
+          label
+          self
+        }
+        edges {
+          id
+          from
+          to
+          status
+          label
+          ownSessionId
+          ownWorkOrderId
+        }
+        truncated
+      }
+    }
+  }
+}`,
+};
+
 export const addContextBlobMutation = {
   id: 'addContextBlobMutation' as const,
   op: 'addContextBlob',
@@ -2460,6 +2542,65 @@ export const removeContextCategoryMutation = {
 }`,
 };
 
+export const copilotContextCompactionCancelMutation = {
+  id: 'copilotContextCompactionCancelMutation' as const,
+  op: 'copilotContextCompactionCancel',
+  query: `mutation copilotContextCompactionCancel($taskId: ID!) {
+  cancelCopilotContextCompaction(taskId: $taskId) {
+    ...CopilotContextCompactionFields
+  }
+}
+${copilotContextCompactionFieldsFragment}`,
+};
+
+export const copilotContextCompactionGetQuery = {
+  id: 'copilotContextCompactionGetQuery' as const,
+  op: 'copilotContextCompactionGet',
+  query: `query copilotContextCompactionGet($sessionId: ID!, $afterSequence: SafeInt) {
+  currentUser {
+    copilot {
+      contextCompaction(sessionId: $sessionId) {
+        ...CopilotContextCompactionFields
+      }
+      contextCompactionEvents(sessionId: $sessionId, afterSequence: $afterSequence) {
+        id
+        sequence
+        taskId
+        sessionId
+        contextEpoch
+        status
+        attempt
+        statistics
+        createdAt
+      }
+    }
+  }
+}
+${copilotContextCompactionFieldsFragment}`,
+};
+
+export const copilotContextCompactionRequestMutation = {
+  id: 'copilotContextCompactionRequestMutation' as const,
+  op: 'copilotContextCompactionRequest',
+  query: `mutation copilotContextCompactionRequest($sessionId: ID!) {
+  requestCopilotContextCompaction(sessionId: $sessionId) {
+    ...CopilotContextCompactionFields
+  }
+}
+${copilotContextCompactionFieldsFragment}`,
+};
+
+export const copilotContextCompactionRetryMutation = {
+  id: 'copilotContextCompactionRetryMutation' as const,
+  op: 'copilotContextCompactionRetry',
+  query: `mutation copilotContextCompactionRetry($taskId: ID!) {
+  retryCopilotContextCompaction(taskId: $taskId) {
+    ...CopilotContextCompactionFields
+  }
+}
+${copilotContextCompactionFieldsFragment}`,
+};
+
 export const createCopilotContextMutation = {
   id: 'createCopilotContextMutation' as const,
   op: 'createCopilotContext',
@@ -2476,6 +2617,7 @@ export const copilotContextDashboardGetQuery = {
     copilot(workspaceId: $workspaceId) {
       contextSettings {
         autoMemoryEnabled
+        revision
       }
       contextPlannerStrategies {
         version
@@ -2521,6 +2663,7 @@ export const copilotContextDashboardGetQuery = {
         supersedesId
         lastUsedAt
         useCount
+        revision
         createdAt
         updatedAt
       }
@@ -2871,8 +3014,8 @@ export const copilotContextMemoryCreateMutation = {
 export const copilotContextMemoryDeleteMutation = {
   id: 'copilotContextMemoryDeleteMutation' as const,
   op: 'copilotContextMemoryDelete',
-  query: `mutation copilotContextMemoryDelete($id: ID!) {
-  deleteCopilotContextMemory(id: $id)
+  query: `mutation copilotContextMemoryDelete($id: ID!, $expectedRevision: Int) {
+  deleteCopilotContextMemory(id: $id, expectedRevision: $expectedRevision)
 }`,
 };
 
@@ -2891,6 +3034,7 @@ export const copilotContextMemoryUpdateMutation = {
     kind
     status
     content
+    revision
     createdAt
     updatedAt
   }
@@ -3002,6 +3146,7 @@ export const copilotContextSettingsUpdateMutation = {
   query: `mutation copilotContextSettingsUpdate($input: UpdateCopilotContextSettingsInput!) {
   updateCopilotContextSettings(input: $input) {
     autoMemoryEnabled
+    revision
   }
 }`,
 };
@@ -4227,6 +4372,88 @@ export const getPromptModelsQuery = {
 }`,
 };
 
+export const copilotProjectContextDashboardGetQuery = {
+  id: 'copilotProjectContextDashboardGetQuery' as const,
+  op: 'copilotProjectContextDashboardGet',
+  query: `query copilotProjectContextDashboardGet($projectId: ID!, $includeDisabled: Boolean) {
+  currentUser {
+    id
+    copilot {
+      contextProject(id: $projectId) {
+        id
+        role
+        canManage
+        members {
+          userId
+          name
+          role
+        }
+      }
+      projectContextSettings(projectId: $projectId) {
+        autoMemoryEnabled
+        revision
+        projectMemoryRevision
+        contractVersion
+      }
+      contextMemories(includeDisabled: $includeDisabled) {
+        id
+        ownerUserId
+        projectId
+        kind
+        status
+        content
+        captureMode
+        revision
+        sharingStatus
+        contractVersion
+        contributorUserIds
+        contributorCount
+        pendingConflictCount
+        canManage
+        updatedAt
+      }
+      projectContextMemoryEvents(projectId: $projectId, limit: 100) {
+        id
+        operation
+        memoryId
+        previousMemoryId
+        factKey
+        explicit
+        reasonCode
+        writerVersion
+        undoneAt
+        canUndo
+        createdAt
+      }
+      projectMemoryConflicts(projectId: $projectId) {
+        id
+        projectId
+        baseMemoryId
+        proposedByUserId
+        factKey
+        proposedContent
+        status
+        expectedMemoryRevision
+        resolution
+        createdAt
+        resolvedAt
+      }
+    }
+  }
+}`,
+};
+
+export const copilotProjectContextSettingsUpdateMutation = {
+  id: 'copilotProjectContextSettingsUpdateMutation' as const,
+  op: 'copilotProjectContextSettingsUpdate',
+  query: `mutation copilotProjectContextSettingsUpdate($input: UpdateCopilotProjectContextSettingsInput!) {
+  updateCopilotProjectContextSettings(input: $input) {
+    autoMemoryEnabled
+    revision
+  }
+}`,
+};
+
 export const acceptCopilotProjectInvitationMutation = {
   id: 'acceptCopilotProjectInvitationMutation' as const,
   op: 'acceptCopilotProjectInvitation',
@@ -4284,6 +4511,56 @@ export const withdrawCopilotProjectInvitationMutation = {
     status
     withdrawnAt
     updatedAt
+  }
+}`,
+};
+
+export const copilotProjectMemoryConflictResolveMutation = {
+  id: 'copilotProjectMemoryConflictResolveMutation' as const,
+  op: 'copilotProjectMemoryConflictResolve',
+  query: `mutation copilotProjectMemoryConflictResolve($input: ResolveCopilotProjectMemoryConflictInput!) {
+  resolveCopilotProjectMemoryConflict(input: $input) {
+    id
+    projectId
+    baseMemoryId
+    proposedByUserId
+    factKey
+    proposedContent
+    status
+    expectedMemoryRevision
+    resolution
+    createdAt
+    resolvedAt
+  }
+}`,
+};
+
+export const copilotProjectSessionMemoryCaptureGetQuery = {
+  id: 'copilotProjectSessionMemoryCaptureGetQuery' as const,
+  op: 'copilotProjectSessionMemoryCaptureGet',
+  query: `query copilotProjectSessionMemoryCaptureGet($sessionId: ID!) {
+  currentUser {
+    copilot {
+      projectSessionMemoryCapture(sessionId: $sessionId) {
+        sessionId
+        projectId
+        allowMemoryCapture
+        revision
+      }
+    }
+  }
+}`,
+};
+
+export const copilotProjectSessionMemoryCaptureUpdateMutation = {
+  id: 'copilotProjectSessionMemoryCaptureUpdateMutation' as const,
+  op: 'copilotProjectSessionMemoryCaptureUpdate',
+  query: `mutation copilotProjectSessionMemoryCaptureUpdate($input: UpdateCopilotProjectSessionMemoryCaptureInput!) {
+  updateCopilotProjectSessionMemoryCapture(input: $input) {
+    sessionId
+    projectId
+    allowMemoryCapture
+    revision
   }
 }`,
 };
@@ -7089,6 +7366,32 @@ export const createCopilotSessionMutation = {
   deprecations: ["'createCopilotSession' is deprecated: use `createCopilotSessionWithHistory` instead"],
 };
 
+export const copilotSessionDeletionGetQuery = {
+  id: 'copilotSessionDeletionGetQuery' as const,
+  op: 'copilotSessionDeletionGet',
+  query: `query copilotSessionDeletionGet($sessionId: ID!) {
+  currentUser {
+    copilot {
+      sessionDeletion(sessionId: $sessionId) {
+        ...CopilotSessionDeletionFields
+      }
+    }
+  }
+}
+${copilotSessionDeletionFieldsFragment}`,
+};
+
+export const retryCopilotSessionDeletionMutation = {
+  id: 'retryCopilotSessionDeletionMutation' as const,
+  op: 'retryCopilotSessionDeletion',
+  query: `mutation retryCopilotSessionDeletion($sessionId: ID!) {
+  retryCopilotSessionDeletion(sessionId: $sessionId) {
+    ...CopilotSessionDeletionFields
+  }
+}
+${copilotSessionDeletionFieldsFragment}`,
+};
+
 export const forkCopilotSessionMutation = {
   id: 'forkCopilotSessionMutation' as const,
   op: 'forkCopilotSession',
@@ -7991,6 +8294,277 @@ export const submitTranscriptTaskMutation = {
   file: true,
 };
 
+export const askWorkOrderQuestionMutation = {
+  id: 'askWorkOrderQuestionMutation' as const,
+  op: 'askWorkOrderQuestion',
+  query: `mutation askWorkOrderQuestion($workOrderId: ID!, $body: String!, $expectedVersion: Int!, $requestKey: String!) {
+  askWorkOrderQuestion(
+    workOrderId: $workOrderId
+    body: $body
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}`,
+};
+
+export const answerWorkOrderQuestionMutation = {
+  id: 'answerWorkOrderQuestionMutation' as const,
+  op: 'answerWorkOrderQuestion',
+  query: `mutation answerWorkOrderQuestion($workOrderId: ID!, $body: String!, $expectedVersion: Int!, $requestKey: String!) {
+  answerWorkOrderQuestion(
+    workOrderId: $workOrderId
+    body: $body
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}`,
+};
+
+export const refuseWorkOrderMutation = {
+  id: 'refuseWorkOrderMutation' as const,
+  op: 'refuseWorkOrder',
+  query: `mutation refuseWorkOrder($workOrderId: ID!, $reason: String!, $expectedVersion: Int!, $requestKey: String!) {
+  refuseWorkOrder(
+    workOrderId: $workOrderId
+    reason: $reason
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}`,
+};
+
+export const cancelWorkOrderMutation = {
+  id: 'cancelWorkOrderMutation' as const,
+  op: 'cancelWorkOrder',
+  query: `mutation cancelWorkOrder($workOrderId: ID!, $reason: String, $expectedVersion: Int!, $requestKey: String!) {
+  cancelWorkOrder(
+    workOrderId: $workOrderId
+    reason: $reason
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}`,
+};
+
+export const submitWorkOrderDeliveryMutation = {
+  id: 'submitWorkOrderDeliveryMutation' as const,
+  op: 'submitWorkOrderDelivery',
+  query: `mutation submitWorkOrderDelivery($workOrderId: ID!, $expectedVersion: Int!, $requestKey: String!, $items: [WorkOrderDeliveryItemInput!]!) {
+  submitWorkOrderDelivery(
+    workOrderId: $workOrderId
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+    items: $items
+  ) {
+    workOrderId
+    status
+    version
+    deliveryRevisionId
+    revision
+    receiptFingerprint
+  }
+}`,
+};
+
+export const adoptWorkOrderDeliveriesMutation = {
+  id: 'adoptWorkOrderDeliveriesMutation' as const,
+  op: 'adoptWorkOrderDeliveries',
+  query: `mutation adoptWorkOrderDeliveries($sourceSessionId: ID!, $expectedContextVersion: Int!, $requestKey: String!, $revisions: [WorkOrderAdoptionRevisionInput!]!) {
+  adoptWorkOrderDeliveries(
+    sourceSessionId: $sourceSessionId
+    expectedContextVersion: $expectedContextVersion
+    requestKey: $requestKey
+    revisions: $revisions
+  ) {
+    id
+    contextVersion
+    revisionSetFingerprint
+  }
+}`,
+};
+
+export const copilotWorkOrderChatGetQuery = {
+  id: 'copilotWorkOrderChatGetQuery' as const,
+  op: 'copilotWorkOrderChatGet',
+  query: `query copilotWorkOrderChatGet($workOrderId: ID!) {
+  currentUser {
+    copilot {
+      myWorkOrderChat(workOrderId: $workOrderId) {
+        sessionId
+        workspaceId
+        docId
+        selectedContextProjectId
+        parentSessionId
+        promptName
+        model
+        optionalModels
+        action
+        pinned
+        title
+        tokens
+        createdAt
+        updatedAt
+        messages {
+          id
+          role
+          content
+          attachments
+          streamObjects {
+            type
+            textDelta
+            toolCallId
+            toolName
+            args
+            result
+          }
+          createdAt
+        }
+      }
+      myWorkOrderAiModel(workOrderId: $workOrderId) {
+        configured
+        modelId
+        provider
+      }
+    }
+  }
+}`,
+};
+
+export const prepareWorkOrderDispatchMutation = {
+  id: 'prepareWorkOrderDispatchMutation' as const,
+  op: 'prepareWorkOrderDispatch',
+  query: `mutation prepareWorkOrderDispatch($sourceSessionId: ID!, $requestKey: String!, $recipients: [WorkOrderRecipientDraftInput!]!) {
+  prepareWorkOrderDispatch(
+    sourceSessionId: $sourceSessionId
+    requestKey: $requestKey
+    recipients: $recipients
+  ) {
+    dispatchId
+    draftVersion
+    draftFingerprint
+    confirmationToken
+    confirmationRequired
+    expiresAt
+  }
+}`,
+};
+
+export const confirmWorkOrderDispatchMutation = {
+  id: 'confirmWorkOrderDispatchMutation' as const,
+  op: 'confirmWorkOrderDispatch',
+  query: `mutation confirmWorkOrderDispatch($dispatchId: ID!, $confirmationToken: String!, $expectedDraftVersion: Int!, $requestKey: String!) {
+  confirmWorkOrderDispatch(
+    dispatchId: $dispatchId
+    confirmationToken: $confirmationToken
+    expectedDraftVersion: $expectedDraftVersion
+    requestKey: $requestKey
+  ) {
+    dispatchId
+    workOrderIds
+    recipientSessionIds
+  }
+}`,
+};
+
+export const copilotWorkOrderGetQuery = {
+  id: 'copilotWorkOrderGetQuery' as const,
+  op: 'copilotWorkOrderGet',
+  query: `query copilotWorkOrderGet($workOrderId: ID!) {
+  currentUser {
+    copilot {
+      myWorkOrder(workOrderId: $workOrderId) {
+        id
+        sourceSessionId
+        ownSessionId
+        sourceContextVersion
+        viewerRole
+        title
+        purpose
+        relationKind
+        status
+        version
+        requirements {
+          id
+          itemKey
+          kind
+          title
+          instructions
+          required
+          acceptedMimeTypes
+          minCount
+          maxCount
+          validationMode
+        }
+        exchanges {
+          id
+          kind
+          body
+          createdAt
+        }
+        deliveries {
+          id
+          revision
+          receiptFingerprint
+          submittedAt
+          items {
+            requirementId
+            blobId
+            textValue
+            fileName
+            mimeType
+            byteSize
+          }
+        }
+        stagedBlobs {
+          id
+          requirementId
+          fileName
+          mimeType
+          byteSize
+          fingerprint
+          createdAt
+        }
+        deliveriesReleased
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}`,
+};
+
+export const copilotWorkOrderRecipientResolveQuery = {
+  id: 'copilotWorkOrderRecipientResolveQuery' as const,
+  op: 'copilotWorkOrderRecipientResolve',
+  query: `query copilotWorkOrderRecipientResolve($exact: String!) {
+  currentUser {
+    copilot {
+      resolveWorkOrderRecipient(exact: $exact) {
+        id
+        name
+        email
+      }
+    }
+  }
+}`,
+};
+
 export const copilotWorkbenchBlockersGetQuery = {
   id: 'copilotWorkbenchBlockersGetQuery' as const,
   op: 'copilotWorkbenchBlockersGet',
@@ -8004,6 +8578,92 @@ export const copilotWorkbenchBlockersGetQuery = {
   }
 }
 ${copilotBlockerFieldsFragment}`,
+};
+
+export const completeConversationMutation = {
+  id: 'completeConversationMutation' as const,
+  op: 'completeConversation',
+  query: `mutation completeConversation($sessionId: ID!, $expectedVersion: Int!, $requestKey: String!, $reason: String) {
+  completeConversation(
+    sessionId: $sessionId
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+    reason: $reason
+  ) {
+    sessionId
+    version
+    completedAt
+    completionReason
+    lastBusinessAt
+  }
+}`,
+};
+
+export const renameConversationMutation = {
+  id: 'renameConversationMutation' as const,
+  op: 'renameConversation',
+  query: `mutation renameConversation($sessionId: ID!, $title: String!, $expectedRevision: Int!) {
+  renameConversation(
+    sessionId: $sessionId
+    title: $title
+    expectedRevision: $expectedRevision
+  ) {
+    sessionId
+    scopeType
+    title
+    titleRevision
+    column
+    attentionReasons
+    activeRunCount
+    project {
+      id
+      name
+    }
+    workOrderId
+    workOrderStatus
+    lastBusinessAt
+    version
+  }
+}`,
+};
+
+export const copilotWorkbenchConversationsGetQuery = {
+  id: 'copilotWorkbenchConversationsGetQuery' as const,
+  op: 'copilotWorkbenchConversationsGet',
+  query: `query copilotWorkbenchConversationsGet($column: String, $first: Int = 30, $after: String) {
+  currentUser {
+    copilot {
+      myConversationCards(column: $column, first: $first, after: $after) {
+        items {
+          sessionId
+          scopeType
+          title
+          titleRevision
+          column
+          attentionReasons
+          activeRunCount
+          project {
+            id
+            name
+          }
+          workOrderId
+          workOrderStatus
+          lastBusinessAt
+          version
+        }
+        counts {
+          todo
+          progress
+          done
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}`,
 };
 
 export const copilotWorkbenchProjectsGetQuery = {
@@ -9675,8 +10335,12 @@ export const officeArtifactsQuery = {
 export const officeCollaboratorsQuery = {
   id: 'officeCollaboratorsQuery' as const,
   op: 'officeCollaborators',
-  query: `query officeCollaborators($workspaceId: String!, $artifactId: String!) {
-  officeCollaborators(workspaceId: $workspaceId, artifactId: $artifactId) {
+  query: `query officeCollaborators($workspaceId: String, $artifactId: String!, $owner: OfficeCommentOwnerInput) {
+  officeCollaborators(
+    workspaceId: $workspaceId
+    artifactId: $artifactId
+    owner: $owner
+  ) {
     id
     name
     avatarUrl
@@ -9837,8 +10501,12 @@ ${officeCommentFieldsFragment}`,
 export const officeCommentsQuery = {
   id: 'officeCommentsQuery' as const,
   op: 'officeComments',
-  query: `query officeComments($workspaceId: String!, $artifactId: String!) {
-  officeComments(workspaceId: $workspaceId, artifactId: $artifactId) {
+  query: `query officeComments($workspaceId: String, $artifactId: String!, $owner: OfficeCommentOwnerInput) {
+  officeComments(
+    workspaceId: $workspaceId
+    artifactId: $artifactId
+    owner: $owner
+  ) {
     ...OfficeCommentFields
   }
 }
@@ -10555,6 +11223,7 @@ export const projectSummariesQuery = {
   op: 'projectSummaries',
   query: `query projectSummaries {
   currentUser {
+    id
     copilot {
       contextMemories {
         id
@@ -10562,6 +11231,8 @@ export const projectSummariesQuery = {
         kind
         content
         updatedAt
+        ownerUserId
+        revision
       }
     }
   }
@@ -10647,6 +11318,21 @@ export const recoverDocMutation = {
   query: `mutation recoverDoc($workspaceId: String!, $docId: String!, $timestamp: DateTime!) {
   recoverDoc(workspaceId: $workspaceId, guid: $docId, timestamp: $timestamp)
 }`,
+};
+
+export const refreshProjectChatContextMutation = {
+  id: 'refreshProjectChatContextMutation' as const,
+  op: 'refreshProjectChatContext',
+  query: `mutation refreshProjectChatContext($projectId: String!, $sessionId: String!, $expectedVersion: Int!) {
+  refreshProjectChatContext(
+    projectId: $projectId
+    sessionId: $sessionId
+    expectedVersion: $expectedVersion
+  ) {
+    ...ProjectChatContextFields
+  }
+}
+${projectChatContextFieldsFragment}`,
 };
 
 export const refreshProjectResourceSourceMutation = {

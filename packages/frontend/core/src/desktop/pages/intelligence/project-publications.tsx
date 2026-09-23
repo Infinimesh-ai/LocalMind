@@ -35,6 +35,7 @@ import {
   UploadIcon,
 } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
+import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
@@ -194,8 +195,7 @@ function ProjectPublicationList({
     creating.current = true;
     setPending(true);
     setError(null);
-    if (retry.current?.kind !== kind)
-      retry.current = { kind, key: crypto.randomUUID() };
+    if (retry.current?.kind !== kind) retry.current = { kind, key: nanoid() };
     try {
       const result = await graphql.gql({
         query: prepareProjectPublicationMutation,
@@ -775,7 +775,7 @@ function DestinationDirectory({
     setCreating(true);
     setError(null);
     if (folderRequest.current?.title !== name.trim())
-      folderRequest.current = { title: name.trim(), key: crypto.randomUUID() };
+      folderRequest.current = { title: name.trim(), key: nanoid() };
     try {
       const result = await graphql.gql({
         query: createProjectDestinationFolderMutation,

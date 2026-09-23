@@ -1,0 +1,608 @@
+diff --git a/dist/main.mjs b/dist/main.mjs
+index 0b824eb6af0464b07149a2219d12288ac81259bb..42fe6e7440f4ede3d7caa83bd17399bab1860493 100644
+--- a/dist/main.mjs
++++ b/dist/main.mjs
+@@ -1,3 +1,12 @@
++import __localmindCron from "cronstrue";
++import "cronstrue/locales/zh_CN";
++import { formatDistanceToNow as __localmindDistance } from "date-fns";
++import { zhCN as __localmindZh } from "date-fns/locale/zh-CN";
++import { getOrCreateI18n as __localmindI18n } from "@affine/i18n";
++const __localmindKeys = {"Overview": "com.affine.admin.ui.overview", "Queues": "com.affine.admin.ui.queues", "Resume all": "com.affine.admin.ui.resume-all", "Pause all": "com.affine.admin.ui.pause-all", "Paused": "com.affine.admin.ui.paused", "Theme": "com.affine.admin.ui.theme", "System theme": "com.affine.admin.ui.system-theme", "Light theme": "com.affine.admin.ui.light-theme", "Dark theme": "com.affine.admin.ui.dark-theme", "Could not fetch queues": "com.affine.admin.ui.could-not-fetch-queues", "Error": "com.affine.admin.ui.error", "Options": "com.affine.admin.ui.options", "Data": "com.affine.admin.ui.data", "Return value": "com.affine.admin.ui.return-value", "Logs": "com.affine.admin.ui.logs", "Retry": "com.affine.admin.ui.retry", "Rerun": "com.affine.admin.ui.rerun", "Discard": "com.affine.admin.ui.discard", "Remove": "com.affine.admin.ui.remove", "Close": "com.affine.admin.ui.close", "Name": "com.affine.admin.ui.name", "Lifecycle": "com.affine.admin.ui.lifecycle", "No jobs found": "com.affine.admin.ui.no-jobs-found", "Delete": "com.affine.admin.ui.delete", "Added to queue": "com.affine.admin.ui.added-to-queue", "Completed": "com.affine.admin.ui.completed", "Failed": "com.affine.admin.ui.failed", "Processed": "com.affine.admin.ui.processed", "Retried": "com.affine.admin.ui.retried", "Cancel": "com.affine.admin.ui.cancel", "Waiting": "com.affine.admin.ui.waiting", "Active": "com.affine.admin.ui.active", "Prioritized": "com.affine.admin.ui.prioritized", "Waiting Children": "com.affine.admin.ui.waiting-children", "Delayed": "com.affine.admin.ui.delayed", "Are you absolutely sure?": "com.affine.admin.ui.are-you-absolutely-sure", "Clean all": "com.affine.admin.ui.clean-all", "New job has been added": "com.affine.admin.ui.new-job-has-been-added", "New job scheduler has been added": "com.affine.admin.ui.new-job-scheduler-has-been-added", "Template": "com.affine.admin.ui.template", "Add job": "com.affine.admin.ui.add-job", "Add scheduler": "com.affine.admin.ui.add-scheduler", "Invalid JSON": "com.affine.admin.ui.invalid-json", "Resume": "com.affine.admin.ui.resume", "Pause": "com.affine.admin.ui.pause", "Empty": "com.affine.admin.ui.empty", "Scheduler": "com.affine.admin.ui.scheduler", "Pattern": "com.affine.admin.ui.pattern", "No next run": "com.affine.admin.ui.no-next-run", "Next Run": "com.affine.admin.ui.next-run", "Last minute": "com.affine.admin.ui.last-minute", "Last hour": "com.affine.admin.ui.last-hour", "Last 24 hours": "com.affine.admin.ui.last-24-hours", "Last 7 days": "com.affine.admin.ui.last-7-days", "Metrics": "com.affine.admin.ui.metrics", "Success Rate": "com.affine.admin.ui.success-rate", "Throughput": "com.affine.admin.ui.throughput", "No queue found": "com.affine.admin.ui.no-queue-found", "Could not fetch jobs": "com.affine.admin.ui.could-not-fetch-jobs"};
++const __localmindMessage = (key, options) => __localmindI18n().t("com.affine.admin.queue." + key, options);
++const __localmindStatus = value => __localmindT({"waiting-children":"Waiting Children", processing:"Processed"}[value] ?? (value.charAt(0).toUpperCase() + value.slice(1)));
++const __localmindT = text => __localmindI18n().t(__localmindKeys[text], { defaultValue: text });
+ var nc = (e) => {
+   throw TypeError(e);
+ };
+@@ -13925,7 +13934,7 @@ var J3 = function() {
+   var e = Z3("user-preferences", {
+     theme: "system"
+   }), t = e[0], n = e[1];
+-  return /* @__PURE__ */ b.jsx(W3, { className: "flex h-7 space-x-0.5 rounded-md bg-slate-100 p-0.5 dark:bg-slate-700", defaultSelectedKeys: ["system"], "aria-label": "Theme", selectedKeys: [t.theme], onSelectionChange: function(r) {
++  return /* @__PURE__ */ b.jsx(W3, { className: "flex h-7 space-x-0.5 rounded-md bg-slate-100 p-0.5 dark:bg-slate-700", defaultSelectedKeys: ["system"], "aria-label": __localmindT("Theme"), selectedKeys: [t.theme], onSelectionChange: function(r) {
+     r.has("system") ? n({ theme: "system" }) : r.has("light") ? (document.documentElement.classList.remove("dark"), n({ theme: "light" })) : r.has("dark") && (document.documentElement.classList.add("dark"), n({ theme: "dark" }));
+   }, children: [
+     {
+@@ -13933,21 +13942,21 @@ var J3 = function() {
+       icon: function() {
+         return /* @__PURE__ */ b.jsx(i5, {});
+       },
+-      ariaLabel: "System theme"
++      ariaLabel: __localmindT("System theme")
+     },
+     {
+       value: "light",
+       icon: function() {
+         return /* @__PURE__ */ b.jsx(_5, {});
+       },
+-      ariaLabel: "Light theme"
++      ariaLabel: __localmindT("Light theme")
+     },
+     {
+       value: "dark",
+       icon: function() {
+         return /* @__PURE__ */ b.jsx(S5, {});
+       },
+-      ariaLabel: "Dark theme"
++      ariaLabel: __localmindT("Dark theme")
+     }
+   ].map(function(r) {
+     return /* @__PURE__ */ b.jsx(G3, { className: "flex aspect-square h-full items-center justify-center rounded-md text-slate-900 transition duration-150 ease-in-out hover:bg-slate-200 active:bg-slate-300 data-[selected=true]:bg-slate-200 data-[selected=true]:shadow-sm dark:text-slate-50 dark:hover:bg-slate-500 dark:data-[selected=true]:bg-slate-500", id: r.value, "aria-label": r.ariaLabel, children: r.icon() }, r.value);
+@@ -13981,11 +13990,11 @@ var J3 = function() {
+           /* @__PURE__ */ b.jsx("p", { className: "text-lg font-semibold", children: "QueueDash" })
+         ] }),
+         /* @__PURE__ */ b.jsxs("div", { className: "w-full space-y-4", children: [
+-          /* @__PURE__ */ b.jsx(yd, { label: "Overview", icon: /* @__PURE__ */ b.jsx(r5, { className: "mb-0.5", height: 16, width: 16 }), to: "../" }),
++          /* @__PURE__ */ b.jsx(yd, { get label() { return __localmindT("Overview"); }, icon: /* @__PURE__ */ b.jsx(r5, { className: "mb-0.5", height: 16, width: 16 }), to: "../" }),
+           /* @__PURE__ */ b.jsx("div", { className: "h-px w-full bg-slate-100 dark:bg-slate-700" }),
+           /* @__PURE__ */ b.jsx("div", { className: "w-full space-y-1", children: o ? Xe([], new Array(10), !0).map(function(a, s) {
+             return /* @__PURE__ */ b.jsx(No, { className: "h-8 w-full" }, s);
+-          }) : i ? /* @__PURE__ */ b.jsx(Al, { message: "Could not fetch queues" }) : r == null ? void 0 : r.map(function(a) {
++          }) : i ? /* @__PURE__ */ b.jsx(Al, { message: __localmindT("Could not fetch queues") }) : r == null ? void 0 : r.map(function(a) {
+             return /* @__PURE__ */ b.jsx(yd, { to: "../".concat(a.name), label: a.displayName }, a.name);
+           }) })
+         ] })
+@@ -17144,7 +17153,7 @@ var W1 = function(e) {
+   var t = e.isLastRow, n = e.children, r = e.isSelected, o = e.onClick, i = e.layoutVariant;
+   return /* @__PURE__ */ b.jsx("div", { onClick: function(a) {
+     return o(a);
+-  }, "aria-label": "button", className: "group grid w-full cursor-pointer p-2 transition-colors duration-150 active:bg-slate-50/25 dark:active:bg-slate-800/25 ".concat(t ? "border-b border-slate-200 dark:border-slate-700" : "", " ").concat(i === "job" ? "grid-cols-[auto,350px,576px,1fr]" : "grid-cols-[auto,350px,1fr,1fr]", " ").concat(r ? "bg-slate-200/50 dark:bg-slate-800/50" : "hover:bg-slate-50/50 dark:hover:bg-slate-900"), children: n });
++  }, "aria-label": __localmindMessage("view-details"), className: "group grid w-full cursor-pointer p-2 transition-colors duration-150 active:bg-slate-50/25 dark:active:bg-slate-800/25 ".concat(t ? "border-b border-slate-200 dark:border-slate-700" : "", " ").concat(i === "job" ? "grid-cols-[auto,350px,576px,1fr]" : "grid-cols-[auto,350px,1fr,1fr]", " ").concat(r ? "bg-slate-200/50 dark:bg-slate-800/50" : "hover:bg-slate-50/50 dark:hover:bg-slate-900"), children: n });
+ }, Wl = 30, Wo = 2e3, ql = 2, q1 = function() {
+   return /* @__PURE__ */ b.jsxs("div", { children: [
+     /* @__PURE__ */ b.jsx("div", { className: "rounded-t-md border-b border-slate-200 bg-slate-50 p-2 text-left text-sm font-semibold dark:border-slate-700 dark:bg-slate-800", children: /* @__PURE__ */ b.jsx("span", { className: "opacity-0", children: "Placeholder" }) }),
+@@ -20432,7 +20441,7 @@ function _o({ data: e, theme: t, invertTheme: n, keyPath: r = ["root"], labelRen
+ var Ja = function(e) {
+   var t = e.actions;
+   return /* @__PURE__ */ b.jsxs(T3, { children: [
+-    /* @__PURE__ */ b.jsx(Tu, { className: "flex size-7 items-center justify-center rounded-md bg-slate-50 text-slate-900 outline-none transition duration-150 ease-in-out hover:bg-slate-100 focus:bg-slate-100 radix-state-open:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus:bg-slate-700 dark:radix-state-open:bg-slate-700", "aria-label": "Action menu", children: /* @__PURE__ */ b.jsx(c5, { width: 18, height: 18 }) }),
++    /* @__PURE__ */ b.jsx(Tu, { className: "flex size-7 items-center justify-center rounded-md bg-slate-50 text-slate-900 outline-none transition duration-150 ease-in-out hover:bg-slate-100 focus:bg-slate-100 radix-state-open:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus:bg-slate-700 dark:radix-state-open:bg-slate-700", "aria-label": __localmindMessage("action-menu"), children: /* @__PURE__ */ b.jsx(c5, { width: 18, height: 18 }) }),
+     /* @__PURE__ */ b.jsx(k3, { placement: "bottom left", className: "space-y-0.5 rounded-md border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/95", offset: 5, children: /* @__PURE__ */ b.jsx(L3, { children: t.map(function(n) {
+       return /* @__PURE__ */ b.jsxs(N3, { className: "flex cursor-default items-center space-x-1.5 rounded-md py-1.5 pl-1.5 pr-8 text-sm font-medium text-slate-900 outline-none transition duration-150 ease-in-out focus:bg-slate-100 dark:text-slate-100 dark:focus:bg-slate-700", onAction: n.onSelect, children: [
+         n.icon,
+@@ -20450,7 +20459,7 @@ var Ja = function(e) {
+     jobId: t.id
+   }, y = (r == null ? void 0 : r.supports.retry) !== !1, x = Xe(Xe(Xe([], t.failedReason && y ? [
+     {
+-      label: "Retry",
++      get label() { return __localmindT("Retry"); },
+       onSelect: function() {
+         a(v);
+       },
+@@ -20458,7 +20467,7 @@ var Ja = function(e) {
+     }
+   ] : [], !0), t.finishedAt ? [
+     {
+-      label: "Rerun",
++      get label() { return __localmindT("Rerun"); },
+       onSelect: function() {
+         h(v);
+       },
+@@ -20466,7 +20475,7 @@ var Ja = function(e) {
+     }
+   ] : [
+     {
+-      label: "Discard",
++      get label() { return __localmindT("Discard"); },
+       onSelect: function() {
+         u(v);
+       },
+@@ -20475,7 +20484,7 @@ var Ja = function(e) {
+   ], !0), [
+     // Remove - always available
+     {
+-      label: "Remove",
++      get label() { return __localmindT("Remove"); },
+       onSelect: function() {
+         p(v);
+       },
+@@ -20533,16 +20542,16 @@ var Ja = function(e) {
+         ] }),
+         /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-1", children: [
+           /* @__PURE__ */ b.jsx(g$, { queueName: n, job: t, queue: (l = o.data) !== null && l !== void 0 ? l : void 0, onRemove: r }),
+-          /* @__PURE__ */ b.jsx("button", { className: "flex size-7 items-center justify-center rounded-md bg-slate-50 text-slate-900 outline-none transition duration-150 ease-in-out hover:bg-slate-100 focus:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus:bg-slate-700", "aria-label": "Close", onClick: function() {
++          /* @__PURE__ */ b.jsx("button", { className: "flex size-7 items-center justify-center rounded-md bg-slate-50 text-slate-900 outline-none transition duration-150 ease-in-out hover:bg-slate-100 focus:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus:bg-slate-700", "aria-label": __localmindT("Close"), onClick: function() {
+             r(), f();
+           }, children: /* @__PURE__ */ b.jsx(mu, {}) })
+         ] })
+       ] }),
+       /* @__PURE__ */ b.jsxs("div", { children: [
+         t.failedReason ? /* @__PURE__ */ b.jsxs("div", { className: "space-y-2 border-b border-b-slate-200 py-4 dark:border-b-slate-700", children: [
+-          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Error" }),
++          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Error") }),
+           /* @__PURE__ */ b.jsx("p", { className: "text-sm text-red-600 dark:text-red-400", children: t.failedReason }),
+-          /* @__PURE__ */ b.jsx(On, { label: "Retry", size: "sm", icon: /* @__PURE__ */ b.jsx(Vr, { width: 14 }), onClick: function() {
++          /* @__PURE__ */ b.jsx(On, { get label() { return __localmindT("Retry"); }, size: "sm", icon: /* @__PURE__ */ b.jsx(Vr, { width: 14 }), onClick: function() {
+             i({
+               queueName: n,
+               jobId: t.id
+@@ -20550,19 +20559,19 @@ var Ja = function(e) {
+           } })
+         ] }) : null,
+         /* @__PURE__ */ b.jsxs("div", { className: "space-y-2 border-b border-b-slate-200 py-4 dark:border-b-slate-700", children: [
+-          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Options" }),
++          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Options") }),
+           /* @__PURE__ */ b.jsx("div", { className: "data-json-renderer [&>ul]:max-h-[400px]", children: /* @__PURE__ */ b.jsx(_o, { data: t.opts, theme: "monokai" }) })
+         ] }),
+         /* @__PURE__ */ b.jsxs("div", { className: "space-y-2 py-4", children: [
+-          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Data" }),
++          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Data") }),
+           /* @__PURE__ */ b.jsx("div", { className: "data-json-renderer [&>ul]:max-h-[400px]", children: /* @__PURE__ */ b.jsx(_o, { data: t.data, theme: "monokai" }) })
+         ] }),
+         t.returnValue !== void 0 && t.returnValue !== null && /* @__PURE__ */ b.jsxs("div", { className: "space-y-2 border-t border-t-slate-200 py-4 dark:border-b-slate-700", children: [
+-          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Return value" }),
++          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Return value") }),
+           /* @__PURE__ */ b.jsx("div", { className: "data-json-renderer [&>ul]:max-h-[400px]", children: /* @__PURE__ */ b.jsx(_o, { data: t.returnValue, theme: "monokai" }) })
+         ] }),
+         !((u = o.data) === null || u === void 0) && u.supports.logs && (a != null && a.length) ? /* @__PURE__ */ b.jsxs("div", { className: "space-y-2 border-t border-t-slate-200 pt-4 dark:border-t-slate-700", children: [
+-          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Logs" }),
++          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Logs") }),
+           /* @__PURE__ */ b.jsx("div", { className: "space-y-1", children: a == null ? void 0 : a.map(function(c, h) {
+             return /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-2", children: [
+               /* @__PURE__ */ b.jsx("div", { className: "h-4 w-1 rounded-sm bg-slate-300 dark:bg-slate-600" }),
+@@ -20597,12 +20606,12 @@ var Ja = function(e) {
+         ] })
+       ] });
+     },
+-    header: "Name"
++    header: function() { return __localmindT("Name"); }
+   }),
+   Ni.display({
+     id: "lifecycle",
+     header: function() {
+-      return "Lifecycle";
++      return __localmindT("Lifecycle");
+     },
+     cell: function(e) {
+       var t = e.row.original, n = t.createdAt, r = t.processedAt, o = t.finishedAt, i = t.status, a = t.retriedAt;
+@@ -20623,7 +20632,7 @@ var Ja = function(e) {
+   }),
+   Ni.display({
+     id: "options",
+-    header: "Options",
++    header: function() { return __localmindT("Options"); },
+     cell: function(e) {
+       var t, n = e.row.original.opts;
+       return /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-2", children: [
+@@ -20669,15 +20678,11 @@ var Ja = function(e) {
+           return /* @__PURE__ */ b.jsx("div", { className: "flex h-full items-center ".concat(k !== 0 ? "pr-10" : "pr-3"), children: ga(P.column.columnDef.cell, P.getContext()) }, P.id);
+         }) }, M.id);
+       }),
+-      !o && d ? /* @__PURE__ */ b.jsx("div", { className: "flex items-center justify-center py-10", children: /* @__PURE__ */ b.jsx("p", { className: "text-slate-500 dark:text-slate-400", children: "No jobs found" }) }) : null
++      !o && d ? /* @__PURE__ */ b.jsx("div", { className: "flex items-center justify-center py-10", children: /* @__PURE__ */ b.jsx("p", { className: "text-slate-500 dark:text-slate-400", children: __localmindT("No jobs found") }) }) : null
+     ] }) }),
+     !o && d ? null : /* @__PURE__ */ b.jsx("div", { ref: c, className: "my-3 flex justify-center", children: /* @__PURE__ */ b.jsxs("div", { className: "flex flex-col items-center space-y-2", children: [
+       /* @__PURE__ */ b.jsxs("p", { className: "text-xs text-slate-500 dark:text-slate-400", children: [
+-        "You've viewed ",
+-        t.length,
+-        " of ",
+-        n,
+-        " jobs"
++        __localmindMessage("jobs-viewed", {viewed:t.length, total:n})
+       ] }),
+       /* @__PURE__ */ b.jsx(K3, { value: g, children: function(M) {
+         var R = M.percentage;
+@@ -20689,10 +20694,9 @@ var Ja = function(e) {
+     ] }) }),
+     h.getSelectedRowModel().rows.length > 0 ? /* @__PURE__ */ b.jsx("div", { className: "pointer-events-none sticky bottom-0 flex w-full items-center justify-center pb-5", children: /* @__PURE__ */ b.jsxs("div", { className: "pointer-events-auto flex items-center space-x-3 rounded-lg border-slate-100 bg-white/90 px-3 py-2 text-sm shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/90", children: [
+       /* @__PURE__ */ b.jsxs("p", { className: "text-slate-900 dark:text-slate-100", children: [
+-        h.getSelectedRowModel().rows.length,
+-        " selected"
++        __localmindMessage("jobs-selected", {count:h.getSelectedRowModel().rows.length})
+       ] }),
+-      s === "completed" || s === "failed" ? /* @__PURE__ */ b.jsx(On, { label: s === "failed" ? "Retry" : "Rerun", icon: /* @__PURE__ */ b.jsx(Vr, {}), size: "sm", onClick: function() {
++      s === "completed" || s === "failed" ? /* @__PURE__ */ b.jsx(On, { label: __localmindT(s === "failed" ? "Retry" : "Rerun"), icon: /* @__PURE__ */ b.jsx(Vr, {}), size: "sm", onClick: function() {
+         h.getSelectedRowModel().rows.forEach(function(M) {
+           s === "failed" ? y({
+             queueName: a,
+@@ -20703,7 +20707,7 @@ var Ja = function(e) {
+           });
+         }), h.resetRowSelection();
+       } }) : null,
+-      /* @__PURE__ */ b.jsx(On, { label: "Delete", colorScheme: "red", icon: /* @__PURE__ */ b.jsx(Jr, {}), size: "sm", onClick: function() {
++      /* @__PURE__ */ b.jsx(On, { get label() { return __localmindT("Delete"); }, colorScheme: "red", icon: /* @__PURE__ */ b.jsx(Jr, {}), size: "sm", onClick: function() {
+         $({
+           queueName: a,
+           jobIds: h.getSelectedRowModel().rows.map(function(M) {
+@@ -20715,13 +20719,13 @@ var Ja = function(e) {
+   ] });
+ }, Bs = function(e) {
+   var t = e.variant, n = e.date, r = {
+-    added: "Added to queue",
+-    completed: "Completed",
+-    failed: "Failed",
+-    processing: "Processed",
+-    retried: "Retried"
++    get added() { return __localmindT("Added to queue"); },
++    get completed() { return __localmindT("Completed"); },
++    get failed() { return __localmindT("Failed"); },
++    get processing() { return __localmindT("Processed"); },
++    get retried() { return __localmindT("Retried"); }
+   };
+-  return /* @__PURE__ */ b.jsx(zu, { message: "".concat(r[t], " ").concat(U1(n), " ago"), children: /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-1.5", children: [
++  return /* @__PURE__ */ b.jsx(zu, { message: r[t] + " · " + __localmindDistance(n, {addSuffix:true, locale:__localmindI18n().language === "zh-Hans" ? __localmindZh : undefined}), children: /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-1.5", children: [
+     t === "added" && /* @__PURE__ */ b.jsx(H0, { width: 14, height: 14, className: "rounded-full bg-cyan-50 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-400" }),
+     t === "processing" && /* @__PURE__ */ b.jsx(Z2, { width: 14, height: 14, className: "rounded-full bg-slate-50 text-slate-900 dark:bg-slate-800 dark:text-slate-300" }),
+     t === "retried" && /* @__PURE__ */ b.jsx(Vr, { width: 14, height: 14, className: "rounded-full bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-400" }),
+@@ -20757,7 +20761,7 @@ var Ja = function(e) {
+         /* @__PURE__ */ b.jsx(Qa, { className: "mb-3 text-xl font-semibold text-slate-900 dark:text-slate-100", children: t }),
+         /* @__PURE__ */ b.jsx("p", { className: "mb-6 text-slate-600 dark:text-slate-400", children: n }),
+         /* @__PURE__ */ b.jsxs("div", { className: "flex justify-end space-x-3", children: [
+-          /* @__PURE__ */ b.jsx(On, { onClick: a, label: "Cancel" }),
++          /* @__PURE__ */ b.jsx(On, { onClick: a, label: __localmindT("Cancel") }),
+           r
+         ] })
+       ] });
+@@ -21507,32 +21511,32 @@ const W$ = /* @__PURE__ */ w.forwardRef(function(t, n) {
+ var q$ = function(e) {
+   var t = e.showCleanAllButton, n = e.queueName, r = e.status, o = e.queue, i = be.queue.clean.useMutation({
+     onSuccess: function() {
+-      xr.success("All ".concat(r, " jobs have been removed"));
++      xr.success(__localmindMessage("jobs-cleaned", {status:__localmindStatus(r)}));
+     }
+   }), a = i.mutate, s = i.status, l = Xe(Xe(Xe(Xe(Xe([
+     {
+-      name: "Completed",
++      get name() { return __localmindT("Completed"); },
+       status: "completed"
+     },
+     {
+-      name: "Failed",
++      get name() { return __localmindT("Failed"); },
+       status: "failed"
+     },
+     {
+-      name: "Active",
++      get name() { return __localmindT("Active"); },
+       status: "active"
+     }
+-  ], o != null && o.supports.priorities ? [{ name: "Prioritized", status: "prioritized" }] : [], !0), [
++  ], o != null && o.supports.priorities ? [{ get name() { return __localmindT("Prioritized"); }, status: "prioritized" }] : [], !0), [
+     {
+-      name: "Waiting",
++      get name() { return __localmindT("Waiting"); },
+       status: "waiting"
+     }
+-  ], !1), o != null && o.supports.flows ? [{ name: "Waiting Children", status: "waiting-children" }] : [], !0), [
++  ], !1), o != null && o.supports.flows ? [{ get name() { return __localmindT("Waiting Children"); }, status: "waiting-children" }] : [], !0), [
+     {
+-      name: "Delayed",
++      get name() { return __localmindT("Delayed"); },
+       status: "delayed"
+     }
+-  ], !1), o != null && o.supports.pause ? [{ name: "Paused", status: "paused" }] : [], !0);
++  ], !1), o != null && o.supports.pause ? [{ get name() { return __localmindT("Paused"); }, status: "paused" }] : [], !0);
+   return /* @__PURE__ */ b.jsxs("div", { className: "flex items-center justify-between", children: [
+     /* @__PURE__ */ b.jsx("div", { className: "flex items-center space-x-3", children: l.map(function(u) {
+       var f = u.status === r;
+@@ -21561,12 +21565,12 @@ var q$ = function(e) {
+         }), children: o.counts[u.status] }) : null
+       ] }, u.name);
+     }) }),
+-    t && r !== "waiting-children" && (o != null && o.supports.clean) ? /* @__PURE__ */ b.jsx(y$, { title: "Are you absolutely sure?", description: "This action cannot be undone. This will permanently remove all ".concat(r, " jobs from the queue."), action: /* @__PURE__ */ b.jsx(On, { variant: "filled", colorScheme: "red", label: "Yes, remove jobs", onClick: function() {
++    t && r !== "waiting-children" && (o != null && o.supports.clean) ? /* @__PURE__ */ b.jsx(y$, { title: __localmindT("Are you absolutely sure?"), description: __localmindMessage("clean-confirm", {status:__localmindStatus(r)}), action: /* @__PURE__ */ b.jsx(On, { variant: "filled", colorScheme: "red", label: __localmindMessage("confirm-remove"), onClick: function() {
+       return a({
+         queueName: n,
+         status: r
+       });
+-    } }), children: /* @__PURE__ */ b.jsx(On, { colorScheme: "yellow", icon: /* @__PURE__ */ b.jsx(Jr, {}), label: "Clean all", size: "sm", isLoading: s === "pending" }) }) : null
++    } }), children: /* @__PURE__ */ b.jsx(On, { colorScheme: "yellow", icon: /* @__PURE__ */ b.jsx(Jr, {}), get label() { return __localmindT("Clean all"); }, size: "sm", isLoading: s === "pending" }) }) : null
+   ] });
+ };
+ function lf(e, t) {
+@@ -22499,14 +22503,14 @@ var eE = JS, tE = eu(eE), nE = tE, Us = function(e) {
+ }, pf = function(e) {
+   var t = e.queue, n = e.onDismiss, r = e.variant, o = r === void 0 ? "job" : r, i = be.queue.addJob.useMutation({
+     onSuccess: function() {
+-      xr.success("New job has been added"), n();
++      xr.success(__localmindT("New job has been added")), n();
+     },
+     onError: function(R) {
+       xr.error(R.message);
+     }
+   }), a = i.mutate, s = i.status, l = be.queue.addJobScheduler.useMutation({
+     onSuccess: function() {
+-      xr.success("New job scheduler has been added"), n();
++      xr.success(__localmindT("New job scheduler has been added")), n();
+     },
+     onError: function(R) {
+       xr.error(R.message);
+@@ -22524,27 +22528,23 @@ var eE = JS, tE = eu(eE), nE = tE, Us = function(e) {
+   }, children: /* @__PURE__ */ b.jsx(Ya, { isDismissable: !0, className: "fixed inset-0 bg-black/20 dark:bg-black/40", children: /* @__PURE__ */ b.jsx(Ga, { className: "fixed left-1/2 top-1/2 max-h-[85vh] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-scroll rounded-lg bg-white p-4 shadow-xl dark:bg-slate-900", children: function(R) {
+     var P = R.close;
+     return /* @__PURE__ */ b.jsxs(b.Fragment, { children: [
+-      /* @__PURE__ */ b.jsx("button", { className: "absolute right-2 top-2 flex size-7 items-center justify-center rounded-full text-slate-500 transition duration-150 ease-in-out hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800", "aria-label": "Close", onClick: function() {
++      /* @__PURE__ */ b.jsx("button", { className: "absolute right-2 top-2 flex size-7 items-center justify-center rounded-full text-slate-500 transition duration-150 ease-in-out hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800", "aria-label": __localmindT("Close"), onClick: function() {
+         P(), n();
+       }, children: /* @__PURE__ */ b.jsx(mu, {}) }),
+       /* @__PURE__ */ b.jsx("div", { className: "flex items-center space-x-4", children: /* @__PURE__ */ b.jsxs(Qa, { className: "mb-1 text-xl font-semibold text-slate-900 dark:text-slate-100", children: [
+-        "Add ",
+-        $ ? "job" : "scheduler",
+-        " to",
+-        " ",
+-        t.displayName.toLocaleLowerCase()
++        __localmindMessage("add-to-queue", {kind:__localmindMessage($ ? "job-kind" : "scheduler-kind"), queue:t.displayName})
+       ] }) }),
+       $ ? /* @__PURE__ */ b.jsx(Us, { value: h, onChange: d }) : /* @__PURE__ */ b.jsxs("div", { className: "space-y-4", children: [
+         /* @__PURE__ */ b.jsxs("div", { className: "space-y-2", children: [
+-          /* @__PURE__ */ b.jsx("label", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Template" }),
++          /* @__PURE__ */ b.jsx("label", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Template") }),
+           /* @__PURE__ */ b.jsx(Us, { value: p, onChange: m })
+         ] }),
+         /* @__PURE__ */ b.jsxs("div", { children: [
+-          /* @__PURE__ */ b.jsx("label", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Options" }),
++          /* @__PURE__ */ b.jsx("label", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Options") }),
+           /* @__PURE__ */ b.jsx(Us, { value: y, onChange: x })
+         ] })
+       ] }),
+-      /* @__PURE__ */ b.jsx("div", { children: /* @__PURE__ */ b.jsx(On, { label: $ ? "Add job" : "Add scheduler", variant: "filled", disabled: M === "pending", onClick: function() {
++      /* @__PURE__ */ b.jsx("div", { children: /* @__PURE__ */ b.jsx(On, { label: __localmindT($ ? "Add job" : "Add scheduler"), variant: "filled", disabled: M === "pending", onClick: function() {
+         try {
+           if ($) {
+             var k = JSON.parse(h);
+@@ -22561,7 +22561,7 @@ var eE = JS, tE = eu(eE), nE = tE, Us = function(e) {
+             });
+           }
+         } catch {
+-          xr.error("Invalid JSON");
++          xr.error(__localmindT("Invalid JSON"));
+         }
+       } }) })
+     ] });
+@@ -22571,7 +22571,7 @@ var eE = JS, tE = eu(eE), nE = tE, Us = function(e) {
+     queueName: t.name
+   }, h = Xe(Xe(Xe(Xe([], t.supports.pause && t.supports.resume ? [
+     {
+-      label: t.paused ? "Resume" : "Pause",
++      label: __localmindT(t.paused ? "Resume" : "Pause"),
+       onSelect: function() {
+         t.paused ? r(c) : n(c);
+       },
+@@ -22580,7 +22580,7 @@ var eE = JS, tE = eu(eE), nE = tE, Us = function(e) {
+   ] : [], !0), [
+     // Add job - always available
+     {
+-      label: "Add job",
++      get label() { return __localmindT("Add job"); },
+       onSelect: function() {
+         s(!0);
+       },
+@@ -22588,7 +22588,7 @@ var eE = JS, tE = eu(eE), nE = tE, Us = function(e) {
+     }
+   ], !1), t.supports.schedulers ? [
+     {
+-      label: "Add scheduler",
++      get label() { return __localmindT("Add scheduler"); },
+       onSelect: function() {
+         f(!0);
+       },
+@@ -22596,7 +22596,7 @@ var eE = JS, tE = eu(eE), nE = tE, Us = function(e) {
+     }
+   ] : [], !0), t.supports.empty ? [
+     {
+-      label: "Empty",
++      get label() { return __localmindT("Empty"); },
+       onSelect: function() {
+         o(c);
+       },
+@@ -23285,7 +23285,7 @@ var aE = function(e) {
+     a && (r == null || r());
+   }, [a, r]), /* @__PURE__ */ b.jsx(Ja, { actions: [
+     {
+-      label: "Remove",
++      get label() { return __localmindT("Remove"); },
+       onSelect: function() {
+         i({
+           queueName: n,
+@@ -23302,7 +23302,7 @@ var aE = function(e) {
+   }, className: "fixed inset-0 bg-black/20 dark:bg-black/40", children: /* @__PURE__ */ b.jsx(Ga, { className: "fixed left-1/2 top-1/2 max-h-[85vh] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-scroll rounded-lg bg-white p-4 shadow-xl dark:bg-slate-900", children: function(a) {
+     var s = a.close;
+     return /* @__PURE__ */ b.jsxs(b.Fragment, { children: [
+-      /* @__PURE__ */ b.jsx("button", { className: "absolute right-2 top-2 flex size-7 items-center justify-center rounded-full text-slate-500 transition duration-150 ease-in-out hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800", "aria-label": "Close", onClick: function() {
++      /* @__PURE__ */ b.jsx("button", { className: "absolute right-2 top-2 flex size-7 items-center justify-center rounded-full text-slate-500 transition duration-150 ease-in-out hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800", "aria-label": __localmindT("Close"), onClick: function() {
+         r(), s();
+       }, children: /* @__PURE__ */ b.jsx(mu, {}) }),
+       /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-4", children: [
+@@ -23317,11 +23317,11 @@ var aE = function(e) {
+       ] }),
+       /* @__PURE__ */ b.jsxs("div", { children: [
+         /* @__PURE__ */ b.jsxs("div", { className: "space-y-2 border-b border-b-slate-200 py-4 dark:border-b-slate-700", children: [
+-          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Options" }),
++          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Options") }),
+           /* @__PURE__ */ b.jsx("div", { className: "data-json-renderer [&>ul]:max-h-[400px]", children: /* @__PURE__ */ b.jsx(_o, { data: i, theme: "monokai" }) })
+         ] }),
+         /* @__PURE__ */ b.jsxs("div", { className: "space-y-2 pt-4", children: [
+-          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: "Template" }),
++          /* @__PURE__ */ b.jsx("p", { className: "text-xs font-semibold uppercase text-slate-600 dark:text-slate-400", children: __localmindT("Template") }),
+           /* @__PURE__ */ b.jsx("div", { className: "data-json-renderer [&>ul]:max-h-[400px]", children: /* @__PURE__ */ b.jsx(_o, { data: o, theme: "monokai" }) })
+         ] })
+       ] })
+@@ -23359,36 +23359,33 @@ var uE = function(e) {
+       cell: function(t) {
+         return /* @__PURE__ */ b.jsx("div", { className: "flex w-full items-center space-x-2", children: /* @__PURE__ */ b.jsx("span", { className: "max-w-fit grow basis-full truncate text-slate-900 dark:text-slate-200", children: t.cell.row.original.name }) });
+       },
+-      header: "Scheduler"
++      header: function() { return __localmindT("Scheduler"); }
+     }),
+     Hi.accessor("pattern", {
+       cell: function(t) {
+         return /* @__PURE__ */ b.jsxs("span", { className: "grow basis-full truncate text-slate-900 dark:text-slate-200", children: [
+-          t.cell.row.original.pattern ? iE.toString(t.cell.row.original.pattern, {
++          t.cell.row.original.pattern ? __localmindCron.toString(t.cell.row.original.pattern, {
++            locale: __localmindI18n().language === "zh-Hans" ? "zh_CN" : "en",
+             verbose: !0
+-          }) : t.cell.row.original.every ? "Every ".concat(t.cell.row.original.every) : "",
++          }) : t.cell.row.original.every ? __localmindMessage("every-ms", {ms:t.cell.row.original.every}) : "",
+           " ",
+           t.cell.row.original.tz ? "(".concat(lE(t.cell.row.original.tz), ")") : ""
+         ] });
+       },
+-      header: "Pattern"
++      header: function() { return __localmindT("Pattern"); }
+     }),
+     Hi.accessor("next", {
+       cell: function(t) {
+         return t.cell.row.original.next ? /* @__PURE__ */ b.jsx(zu, { message: z1(new Date(t.cell.row.original.next), "dd MMM yyyy HH:mm:ss zzz"), children: /* @__PURE__ */ b.jsx("div", { className: "flex items-center space-x-1.5", children: /* @__PURE__ */ b.jsxs("p", { className: "text-slate-900 dark:text-slate-200", children: [
+-          "In ",
+-          U1(new Date(t.cell.row.original.next)),
++          __localmindDistance(new Date(t.cell.row.original.next), {addSuffix:true, locale:__localmindI18n().language === "zh-Hans" ? __localmindZh : undefined}),
+           " ",
+           /* @__PURE__ */ b.jsxs("span", { className: "text-sm text-slate-700 dark:text-slate-400", children: [
+             "(",
+-            t.cell.row.original.iterationCount,
+-            " run",
+-            t.cell.row.original.iterationCount === 1 ? "" : "s",
+-            " total)"
++            __localmindMessage("runs-total", {count:t.cell.row.original.iterationCount}), ")"
+           ] })
+-        ] }) }) }) : /* @__PURE__ */ b.jsx("p", { className: "text-slate-900 dark:text-slate-200", children: "No next run" });
++        ] }) }) }) : /* @__PURE__ */ b.jsx("p", { className: "text-slate-900 dark:text-slate-200", children: __localmindT("No next run") });
+       },
+-      header: "Next Run"
++      header: function() { return __localmindT("Next Run"); }
+     })
+   ];
+ }, cE = function(e) {
+@@ -23433,10 +23430,9 @@ var uE = function(e) {
+     ] }) }),
+     h.getSelectedRowModel().rows.length > 0 ? /* @__PURE__ */ b.jsx("div", { className: "pointer-events-none sticky bottom-0 flex w-full items-center justify-center pb-5", children: /* @__PURE__ */ b.jsxs("div", { className: "pointer-events-auto flex items-center space-x-3 rounded-lg border-slate-100 bg-white/90 px-3 py-2 text-sm shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/90", children: [
+       /* @__PURE__ */ b.jsxs("p", { className: "text-slate-900 dark:text-slate-100", children: [
+-        h.getSelectedRowModel().rows.length,
+-        " selected"
++        __localmindMessage("jobs-selected", {count:h.getSelectedRowModel().rows.length})
+       ] }),
+-      /* @__PURE__ */ b.jsx(On, { label: "Delete", colorScheme: "red", icon: /* @__PURE__ */ b.jsx(Jr, {}), size: "sm", onClick: function() {
++      /* @__PURE__ */ b.jsx(On, { get label() { return __localmindT("Delete"); }, colorScheme: "red", icon: /* @__PURE__ */ b.jsx(Jr, {}), size: "sm", onClick: function() {
+         m({
+           queueName: t,
+           jobSchedulerIds: h.getSelectedRowModel().rows.map(function(y) {
+@@ -23462,10 +23458,10 @@ var uE = function(e) {
+     ] })
+   ] });
+ }, mr = {
+-  "1m": { label: "Last minute", minutes: 1 },
+-  "1h": { label: "Last hour", minutes: 60 },
+-  "24h": { label: "Last 24 hours", minutes: 1440 },
+-  "7d": { label: "Last 7 days", minutes: 10080 }
++  "1m": { get label() { return __localmindT("Last minute"); }, minutes: 1 },
++  "1h": { get label() { return __localmindT("Last hour"); }, minutes: 60 },
++  "24h": { get label() { return __localmindT("Last 24 hours"); }, minutes: 1440 },
++  "7d": { get label() { return __localmindT("Last 7 days"); }, minutes: 10080 }
+ }, dE = function(e) {
+   var t = e.queueName, n = ee("1h"), r = n[0], o = n[1], i = be.queue.metrics.useQuery({
+     queueName: t,
+@@ -23496,7 +23492,7 @@ var uE = function(e) {
+   var m = a && u ? a.count + u.count > 0 ? (a.count / (a.count + u.count) * 100).toFixed(1) : "100" : "0";
+   return /* @__PURE__ */ b.jsxs("div", { className: "space-y-4", children: [
+     /* @__PURE__ */ b.jsxs("div", { className: "flex items-center justify-between", children: [
+-      /* @__PURE__ */ b.jsx("h2", { className: "text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50", children: "Metrics" }),
++      /* @__PURE__ */ b.jsx("h2", { className: "text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50", children: __localmindT("Metrics") }),
+       /* @__PURE__ */ b.jsx("div", { className: "flex items-center space-x-0.5 rounded-lg border border-slate-200/80 bg-white/80 p-0.5 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/50", children: Object.keys(mr).map(function(v) {
+         return /* @__PURE__ */ b.jsx("button", { onClick: function() {
+           return o(v);
+@@ -23506,10 +23502,10 @@ var uE = function(e) {
+     c ? /* @__PURE__ */ b.jsx("div", { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4", children: Xe([], Array(4), !0).map(function(v, y) {
+       return /* @__PURE__ */ b.jsx(No, { className: "h-[88px] rounded-xl" }, y);
+     }) }) : /* @__PURE__ */ b.jsxs("div", { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4", children: [
+-      /* @__PURE__ */ b.jsx(Vi, { label: "Completed", value: (a == null ? void 0 : a.count) || 0, trend: d || void 0, variant: "completed" }),
+-      /* @__PURE__ */ b.jsx(Vi, { label: "Failed", value: (u == null ? void 0 : u.count) || 0, trend: g || void 0, variant: "failed" }),
+-      /* @__PURE__ */ b.jsx(Vi, { label: "Success Rate", value: "".concat(m, "%") }),
+-      /* @__PURE__ */ b.jsx(Vi, { label: "Throughput", value: "".concat(p, "/min") })
++      /* @__PURE__ */ b.jsx(Vi, { get label() { return __localmindT("Completed"); }, value: (a == null ? void 0 : a.count) || 0, trend: d || void 0, variant: "completed" }),
++      /* @__PURE__ */ b.jsx(Vi, { get label() { return __localmindT("Failed"); }, value: (u == null ? void 0 : u.count) || 0, trend: g || void 0, variant: "failed" }),
++      /* @__PURE__ */ b.jsx(Vi, { get label() { return __localmindT("Success Rate"); }, value: "".concat(m, "%") }),
++      /* @__PURE__ */ b.jsx(Vi, { get label() { return __localmindT("Throughput"); }, value: __localmindMessage("per-minute", {count:p}) })
+     ] })
+   ] });
+ }, Ws = new Intl.NumberFormat("en-US").format, fE = function() {
+@@ -23538,36 +23534,17 @@ var uE = function(e) {
+   }), x = (e = h == null ? void 0 : h.pages.map(function($) {
+     return $.jobs;
+   }).flat()) !== null && e !== void 0 ? e : [];
+-  return /* @__PURE__ */ b.jsx(P1, { children: y.data === null ? /* @__PURE__ */ b.jsx(Al, { message: "No queue found" }) : p ? /* @__PURE__ */ b.jsx(Al, { message: "Could not fetch jobs" }) : /* @__PURE__ */ b.jsxs("div", { children: [
++  return /* @__PURE__ */ b.jsx(P1, { children: y.data === null ? /* @__PURE__ */ b.jsx(Al, { message: __localmindT("No queue found") }) : p ? /* @__PURE__ */ b.jsx(Al, { message: __localmindT("Could not fetch jobs") }) : /* @__PURE__ */ b.jsxs("div", { children: [
+     /* @__PURE__ */ b.jsx("div", { className: "mb-2 flex justify-between", children: /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-4", children: [
+       /* @__PURE__ */ b.jsx("h1", { className: "text-2xl font-bold text-slate-900 dark:text-slate-50", children: y.data ? y.data.displayName : /* @__PURE__ */ b.jsx(No, { className: "h-8 w-52 rounded-md" }) }),
+       /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-2", children: [
+         y.data ? /* @__PURE__ */ b.jsx(rE, { queue: y.data }) : null,
+-        !((t = y.data) === null || t === void 0) && t.paused ? /* @__PURE__ */ b.jsx("div", { className: "flex h-7 cursor-default items-center justify-center space-x-1.5 rounded-md bg-yellow-50 px-2 text-sm font-medium text-yellow-900 transition duration-150 ease-in-out dark:bg-yellow-950/30 dark:text-yellow-400", children: /* @__PURE__ */ b.jsx("span", { children: "Paused" }) }) : null
++        !((t = y.data) === null || t === void 0) && t.paused ? /* @__PURE__ */ b.jsx("div", { className: "flex h-7 cursor-default items-center justify-center space-x-1.5 rounded-md bg-yellow-50 px-2 text-sm font-medium text-yellow-900 transition duration-150 ease-in-out dark:bg-yellow-950/30 dark:text-yellow-400", children: /* @__PURE__ */ b.jsx("span", { children: __localmindT("Paused") }) }) : null
+       ] })
+     ] }) }),
+     /* @__PURE__ */ b.jsx("div", { className: "mb-5", children: /* @__PURE__ */ b.jsx("div", { className: "flex items-center space-x-2", children: y.data ? /* @__PURE__ */ b.jsxs(b.Fragment, { children: [
+       /* @__PURE__ */ b.jsxs("p", { className: "text-slate-600 dark:text-slate-400", children: [
+-        /* @__PURE__ */ b.jsxs("span", { className: "text-green-800 dark:text-green-400", children: [
+-          Ws(y.data.client.connectedClients),
+-          " ",
+-          "connected"
+-        ] }),
+-        " ",
+-        "and",
+-        " ",
+-        /* @__PURE__ */ b.jsxs("span", { className: "text-red-800 dark:text-red-400", children: [
+-          Ws(y.data.client.blockedClients),
+-          " ",
+-          "blocked"
+-        ] }),
+-        " ",
+-        "out of",
+-        " ",
+-        /* @__PURE__ */ b.jsxs("span", { className: "text-slate-900 dark:text-slate-100", children: [
+-          Ws(y.data.client.maxClients),
+-          " max clients"
+-        ] })
++        __localmindMessage("redis-clients", {connected: Ws(y.data.client.connectedClients), blocked: Ws(y.data.client.blockedClients), max: Ws(y.data.client.maxClients)})
+       ] }),
+       /* @__PURE__ */ b.jsx("p", { className: "text-slate-600 dark:text-slate-400", children: "·" }),
+       /* @__PURE__ */ b.jsxs("p", { className: "text-slate-600 dark:text-slate-400", children: [
+@@ -23624,7 +23601,7 @@ var uE = function(e) {
+   return n.data ? /* @__PURE__ */ b.jsxs(Ia, { to: "../".concat(n.data.name), className: "group flex items-center justify-between transition", children: [
+     /* @__PURE__ */ b.jsxs("div", { className: "flex items-center space-x-2", children: [
+       /* @__PURE__ */ b.jsx("p", { className: "py-3 text-lg font-medium text-slate-900 transition group-hover:text-brand-900 dark:text-slate-200 dark:group-hover:text-brand-100", children: n.data.displayName }),
+-      /* @__PURE__ */ b.jsx("div", { children: n.data.paused ? /* @__PURE__ */ b.jsx("div", { className: "flex h-7 items-center justify-center space-x-1.5 rounded-md bg-yellow-50 px-2 text-sm font-medium text-yellow-900 transition duration-150 ease-in-out dark:bg-yellow-950/30 dark:text-yellow-400", children: /* @__PURE__ */ b.jsx("span", { children: "Paused" }) }) : null })
++      /* @__PURE__ */ b.jsx("div", { children: n.data.paused ? /* @__PURE__ */ b.jsx("div", { className: "flex h-7 items-center justify-center space-x-1.5 rounded-md bg-yellow-50 px-2 text-sm font-medium text-yellow-900 transition duration-150 ease-in-out dark:bg-yellow-950/30 dark:text-yellow-400", children: /* @__PURE__ */ b.jsx("span", { children: __localmindT("Paused") }) }) : null })
+     ] }),
+     /* @__PURE__ */ b.jsxs("div", { className: "flex space-x-5", children: [
+       /* @__PURE__ */ b.jsx(zi, { count: n.data.counts.completed, variant: "completed" }),
+@@ -23637,17 +23614,17 @@ var uE = function(e) {
+   var e = be.queue.list.useQuery().data, t = be.queue.pauseAll.useMutation().mutate, n = be.queue.resumeAll.useMutation().mutate;
+   return /* @__PURE__ */ b.jsx(P1, { children: /* @__PURE__ */ b.jsxs("div", { className: "xl:max-w-2xl", children: [
+     /* @__PURE__ */ b.jsxs("div", { className: "flex justify-between", children: [
+-      /* @__PURE__ */ b.jsx("h1", { className: "mb-6 text-2xl font-bold text-slate-900 dark:text-slate-50", children: "Queues" }),
++      /* @__PURE__ */ b.jsx("h1", { className: "mb-6 text-2xl font-bold text-slate-900 dark:text-slate-50", children: __localmindT("Queues") }),
+       /* @__PURE__ */ b.jsx("div", { children: /* @__PURE__ */ b.jsx(Ja, { actions: [
+         {
+-          label: "Resume all",
++          get label() { return __localmindT("Resume all"); },
+           icon: /* @__PURE__ */ b.jsx(B0, {}),
+           onSelect: function() {
+             return n();
+           }
+         },
+         {
+-          label: "Pause all",
++          get label() { return __localmindT("Pause all"); },
+           icon: /* @__PURE__ */ b.jsx(K0, {}),
+           onSelect: function() {
+             return t();

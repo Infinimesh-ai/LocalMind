@@ -32,7 +32,7 @@ if (
   localStorage.getItem('disableSharedWorker') !== 'true'
 ) {
   const worker = new SharedWorker(workerUrl, {
-    name: 'affine-shared-worker',
+    name: `affine-shared-worker-${BUILD_CONFIG.workerBuildId}`,
   });
   storeManagerClient = new StoreManagerClient(new OpClient(worker.port));
 } else {

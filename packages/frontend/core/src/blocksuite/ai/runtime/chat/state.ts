@@ -1,11 +1,21 @@
 import type { AIToolsConfig } from '@affine/core/modules/ai-button';
-import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import type {
+  CopilotChatHistoryFragment,
+  CopilotContextCompactionFieldsFragment,
+  CopilotContextCompactionGetQuery,
+} from '@affine/graphql';
 import { I18n } from '@affine/i18n';
 
 export type AIChatScope =
   | {
       kind: 'project';
       projectId: string;
+      workspaceId?: never;
+    }
+  | {
+      kind: 'work_order';
+      workOrderId: string;
+      sessionId: string;
       workspaceId?: never;
     }
   | {
@@ -150,11 +160,35 @@ export type AIChatProjectScopeState = {
   candidates: Array<{ id: string; name: string }>;
 };
 
+export type AIChatProjectMemoryCaptureState = {
+  loading: boolean;
+  error: Error | null;
+  allowMemoryCapture: boolean;
+  revision: number | null;
+};
+
+export type AIChatContextCompactionTask =
+  CopilotContextCompactionFieldsFragment;
+
+export type AIChatContextCompactionEvent = NonNullable<
+  NonNullable<CopilotContextCompactionGetQuery['currentUser']>['copilot']
+>['contextCompactionEvents'][number];
+
+export type AIChatContextCompactionState = {
+  task: AIChatContextCompactionTask | null;
+  events: AIChatContextCompactionEvent[];
+  loading: boolean;
+  polling: boolean;
+  error: Error | null;
+  dismissedTaskId: string | null;
+};
+
 export type AIChatComposerState = {
   text: string;
   attachments: (string | Blob | File)[];
   context: AIChatContextState;
   projectScope: AIChatProjectScopeState;
+  projectMemoryCapture: AIChatProjectMemoryCaptureState;
   reasoning: boolean;
   toolsConfig?: AIToolsConfig;
   modelId?: string;
@@ -178,6 +212,7 @@ export type AIChatSnapshot = {
   messages: AIChatMessage[];
   status: AIChatStatus;
   error: Error | null;
+  contextCompaction: AIChatContextCompactionState;
   composer: AIChatComposerState;
   navigationRequest: AIChatNavigationRequest | null;
   uiPolicy: {
@@ -186,8 +221,20 @@ export type AIChatSnapshot = {
     canCloseActiveTab: boolean;
     canPinActiveSession: boolean;
     canSend: boolean;
+    canRequestContextCompaction: boolean;
   };
 };
+
+export function createInitialContextCompactionState(): AIChatContextCompactionState {
+  return {
+    task: null,
+    events: [],
+    loading: false,
+    polling: false,
+    error: null,
+    dismissedTaskId: null,
+  };
+}
 
 export function createInitialComposerState(): AIChatComposerState {
   return {
@@ -214,6 +261,12 @@ export function createInitialComposerState(): AIChatComposerState {
       selectedProjectId: null,
       candidates: [],
     },
+    projectMemoryCapture: {
+      loading: false,
+      error: null,
+      allowMemoryCapture: false,
+      revision: null,
+    },
     reasoning: false,
   };
 }
@@ -233,7 +286,7 @@ export function sessionToTab(session: CopilotChatHistoryFragment): AIChatTab {
 export function createDraftTab(scope: AIChatScope): AIChatTab {
   return {
     kind: 'draft',
-    id: `draft:${scope.kind}:${scope.kind === 'project' ? scope.projectId : 'docId' in scope ? (scope.docId ?? '') : ''}`,
+    id: `draft:${scope.kind}:${scope.kind === 'project' ? scope.projectId : scope.kind === 'work_order' ? scope.workOrderId : 'docId' in scope ? (scope.docId ?? '') : ''}`,
     get title() {
       return I18n['com.affine.localmind.documentUpdate.newChat']();
     },

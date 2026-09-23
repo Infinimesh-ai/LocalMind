@@ -135,4 +135,24 @@ describe('WorkspaceAiProfilesEditor', () => {
       expect.objectContaining({ id: 'adminUserAiProfileAssignmentQuery' })
     );
   });
+  test('shows enabled fallback credentials separately from saved profiles', () => {
+    render(
+      <WorkspaceAiProfilesEditor
+        scope={{ id: 'workspace-1', name: 'Engineering' }}
+      />
+    );
+    expect(
+      screen.getByText(
+        'No AI profiles created. Saving a credential does not create a profile.'
+      )
+    ).not.toBeNull();
+    expect(
+      screen.getByText('Engineering primary · openai / gpt-test')
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        'Until a profile is created, workspace routing uses these enabled credentials:'
+      )
+    ).not.toBeNull();
+  });
 });

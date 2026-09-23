@@ -1,11 +1,9 @@
-// Import is already correct, no changes needed
+import { IconButton, Popover } from '@affine/component';
 import {
-  AddPageButton,
   AppDownloadButton,
   AppSidebar,
   MenuItem,
   MenuLinkItem,
-  QuickSearchInput,
   SidebarContainer,
   SidebarScrollableContainer,
 } from '@affine/core/modules/app-sidebar/views';
@@ -25,15 +23,16 @@ import {
   HelpIcon,
   ImportIcon,
   JournalIcon,
+  MoreHorizontalIcon,
+  SearchIcon,
   SettingsIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService, useServices } from '@toeverything/infra';
 import type { ReactElement } from 'react';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import {
-  CollapsibleSection,
   NavigationPanelCollections,
   NavigationPanelFavorites,
   NavigationPanelMigrationFavorites,
@@ -43,14 +42,16 @@ import { WorkbenchService } from '../../modules/workbench';
 import { WorkspaceNavigator } from '../workspace-selector';
 import {
   bottomContainer,
-  quickSearch,
-  quickSearchAndNewPage,
+  moreContent,
+  shortcut,
+  shortcuts,
   workspaceAndUserWrapper,
   workspaceWrapper,
 } from './index.css';
 import { InviteMembersButton } from './invite-members-button';
 import { AppSidebarJournalButton } from './journal-button';
 import { NotificationButton } from './notification-button';
+import { SidebarShortcutLink } from './shortcut';
 import { SidebarAudioPlayer } from './sidebar-audio-player';
 import { TemplateDocEntrance } from './template-doc-entrance';
 import { TrashButton } from './trash-button';
@@ -83,11 +84,13 @@ const AllDocsButton = () => {
   );
 
   return (
-    <MenuLinkItem icon={<AllDocsIcon />} active={allPageActive} to={'/all'}>
-      <span data-testid="all-pages">
-        {t['com.affine.workspaceSubPath.all']()}
-      </span>
-    </MenuLinkItem>
+    <SidebarShortcutLink
+      icon={<AllDocsIcon />}
+      active={allPageActive}
+      to="/all"
+      label={t['com.affine.workspaceSubPath.all']()}
+      testId="all-pages"
+    />
   );
 };
 
@@ -108,29 +111,29 @@ const AIChatButton = () => {
   }
 
   return (
-    <MenuLinkItem
+    <SidebarShortcutLink
       icon={<AiOutlineIcon />}
       active={aiChatActive}
-      linkComponent={Link}
+      global
       to="/project"
-    >
-      <span data-testid="ai-chat">
-        {t['com.affine.localmind.workbench.projects']()}
-      </span>
-    </MenuLinkItem>
+      label={t['com.affine.localmind.workbench.projects']()}
+      testId="ai-chat"
+    />
   );
 };
 
 const TasksButton = () => {
   const t = useI18n();
+  const location = useLocation();
   const featureFlagService = useService(FeatureFlagService);
   const serverService = useService(ServerService);
   const serverFeatures = useLiveData(serverService.server.features$);
   const enableAI = useLiveData(featureFlagService.flags.enable_ai.$);
-  const workbench = useService(WorkbenchService).workbench;
-  const active = useLiveData(
-    workbench.location$.selector(location => location.pathname === '/tasks')
-  );
+  const active = location.pathname === '/tasks';
+  const workspacePath = location.pathname.match(/^\/workspace\/[^/]+/)?.[0];
+  const tasksPath = workspacePath
+    ? `/tasks?${new URLSearchParams({ returnTo: `${workspacePath}/all` })}`
+    : '/tasks';
 
   if (!enableAI || !serverFeatures?.copilot) {
     return null;
@@ -140,7 +143,8 @@ const TasksButton = () => {
     <MenuLinkItem
       icon={<CheckBoxCheckLinearIcon />}
       active={active}
-      to="/tasks"
+      linkComponent={Link}
+      to={tasksPath}
     >
       <span data-testid="copilot-tasks">
         {t['com.affine.workspaceSubPath.tasks']()}
@@ -183,6 +187,7 @@ export const RootAppSidebar = memo((): ReactElement => {
   );
 
   const sessionStatus = useLiveData(authService.session.status$);
+  const [moreOpen, setMoreOpen] = useState(false);
   const t = useI18n();
   const workspaceDialogService = useService(WorkspaceDialogService);
   const workbench = workbenchService.workbench;
@@ -199,6 +204,7 @@ export const RootAppSidebar = memo((): ReactElement => {
   );
 
   const onOpenSettingModal = useCallback(() => {
+    setMoreOpen(false);
     workspaceDialogService.open('setting', {
       activeTab: 'appearance',
     });
@@ -235,6 +241,7 @@ export const RootAppSidebar = memo((): ReactElement => {
   );
 
   const onOpenImportModal = useCallback(() => {
+    setMoreOpen(false);
     track.$.navigationPanel.importModal.open();
     workspaceDialogService.open('import', undefined, payload => {
       if (!payload) {
@@ -259,62 +266,102 @@ export const RootAppSidebar = memo((): ReactElement => {
           </div>
           <UserInfo />
         </div>
-        <div className={quickSearchAndNewPage}>
-          <QuickSearchInput
-            className={quickSearch}
+        <div
+          className={shortcuts}
+          aria-label={t['com.affine.rootAppSidebar.shortcuts']()}
+        >
+          <IconButton
+            className={shortcut}
+            aria-label={t['Quick search']()}
+            tooltip={t['Quick search']()}
             data-testid="slider-bar-quick-search-button"
             data-event-props="$.navigationPanel.$.quickSearch"
             onClick={onOpenQuickSearchModal}
-          />
-          <AddPageButton />
+          >
+            <SearchIcon />
+          </IconButton>
+          <AllDocsButton />
+          <AppSidebarJournalButton compact />
+          {sessionStatus === 'authenticated' && <NotificationButton iconOnly />}
+          <AIChatButton />
+          <Popover
+            open={moreOpen}
+            onOpenChange={setMoreOpen}
+            contentOptions={{
+              className: moreContent,
+              side: 'bottom',
+              align: 'end',
+              collisionPadding: 12,
+              'aria-label': t['com.affine.rootAppSidebar.more'](),
+            }}
+            content={
+              <div
+                onClickCapture={event => {
+                  const target = event.target as HTMLElement;
+                  if (target.closest('a')) {
+                    // A microtask can run between native capture and bubble
+                    // listeners. Wait for the entire click dispatch (including
+                    // links that stop propagation) before unmounting the menu.
+                    setTimeout(() => setMoreOpen(false), 0);
+                  }
+                }}
+              >
+                <TasksButton />
+                <MenuItem
+                  data-testid="slider-bar-workspace-setting-button"
+                  icon={<SettingsIcon />}
+                  onClick={onOpenSettingModal}
+                >
+                  <span data-testid="settings-modal-trigger">
+                    {t['com.affine.settingSidebar.title']()}
+                  </span>
+                </MenuItem>
+                <HelpButton />
+                <TrashButton />
+                <MenuItem
+                  data-testid="slider-bar-import-button"
+                  icon={<ImportIcon />}
+                  onClick={onOpenImportModal}
+                >
+                  <span data-testid="import-modal-trigger">
+                    {t['Import']()}
+                  </span>
+                </MenuItem>
+                <InviteMembersButton onOpen={() => setMoreOpen(false)} />
+                <TemplateDocEntrance />
+                <ExternalMenuLinkItem
+                  href={`${BUILD_CONFIG.githubUrl}/releases`}
+                  icon={<JournalIcon />}
+                  label={t['com.affine.app-sidebar.learn-more']()}
+                />
+                <NavigationPanelFavorites />
+                <NavigationPanelMigrationFavorites />
+                <NavigationPanelTags />
+                <NavigationPanelCollections />
+                {BUILD_CONFIG.isElectron ? (
+                  <UpdaterButton />
+                ) : (
+                  <AppDownloadButton />
+                )}
+              </div>
+            }
+          >
+            <IconButton
+              className={shortcut}
+              aria-label={t['com.affine.rootAppSidebar.more']()}
+              tooltip={t['com.affine.rootAppSidebar.more']()}
+              data-testid="sidebar-more-button"
+            >
+              <MoreHorizontalIcon />
+            </IconButton>
+          </Popover>
         </div>
-        <AllDocsButton />
-        <AppSidebarJournalButton />
-        {sessionStatus === 'authenticated' && <NotificationButton />}
-        <AIChatButton />
       </SidebarContainer>
       <SidebarScrollableContainer>
-        <NavigationPanelFavorites />
         <SidebarWorkspaces />
-        <NavigationPanelMigrationFavorites />
-        <NavigationPanelTags />
-        <NavigationPanelCollections />
-        <CollapsibleSection
-          path={['others']}
-          title={t['com.affine.rootAppSidebar.others']()}
-          contentStyle={{ padding: '6px 8px 0 8px' }}
-        >
-          <TasksButton />
-          <MenuItem
-            data-testid="slider-bar-workspace-setting-button"
-            icon={<SettingsIcon />}
-            onClick={onOpenSettingModal}
-          >
-            <span data-testid="settings-modal-trigger">
-              {t['com.affine.settingSidebar.title']()}
-            </span>
-          </MenuItem>
-          <HelpButton />
-          <TrashButton />
-          <MenuItem
-            data-testid="slider-bar-import-button"
-            icon={<ImportIcon />}
-            onClick={onOpenImportModal}
-          >
-            <span data-testid="import-modal-trigger">{t['Import']()}</span>
-          </MenuItem>
-          <InviteMembersButton />
-          <TemplateDocEntrance />
-          <ExternalMenuLinkItem
-            href={`${BUILD_CONFIG.githubUrl}/releases`}
-            icon={<JournalIcon />}
-            label={t['com.affine.app-sidebar.learn-more']()}
-          />
-        </CollapsibleSection>
       </SidebarScrollableContainer>
       <SidebarContainer className={bottomContainer}>
         <SidebarAudioPlayer />
-        {BUILD_CONFIG.isElectron ? <UpdaterButton /> : <AppDownloadButton />}
       </SidebarContainer>
     </AppSidebar>
   );

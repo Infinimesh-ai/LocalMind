@@ -1,3 +1,6 @@
+// oxlint-disable-next-line no-restricted-imports
+import 'katex/dist/katex.min.css';
+
 import {
   Button,
   IconButton,
@@ -6,6 +9,8 @@ import {
   useConfirmModal,
 } from '@affine/component';
 import { getViewManager } from '@affine/core/blocksuite/manager/view';
+import { patchNotificationService } from '@affine/core/blocksuite/view-extensions/editor-view/notification-service';
+import { slashMenuLocaleExtension } from '@affine/core/blocksuite/view-extensions/editor-view/slash-menu-locale';
 import { getPreviewThemeExtension } from '@affine/core/blocksuite/view-extensions/theme/preview-theme';
 import {
   AuthService,
@@ -13,7 +18,9 @@ import {
   GraphQLService,
   ServerService,
 } from '@affine/core/modules/cloud';
+import { EditorSettingService } from '@affine/core/modules/editor-setting';
 import { ProjectBlobEngine } from '@affine/core/modules/project-resources/blob';
+import { ensureProjectDocumentParagraph } from '@affine/core/modules/project-resources/document-editor';
 import {
   ProjectDocumentSession,
   type ProjectDocumentState,
@@ -34,7 +41,10 @@ import { WorkspaceImpl } from '@affine/core/modules/workspace/impls/workspace';
 import { UserFriendlyError } from '@affine/error';
 import { saveProjectDocumentMutation } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import { ViewportElementExtension } from '@blocksuite/affine/shared/services';
+import {
+  EditorSettingExtension,
+  ViewportElementExtension,
+} from '@blocksuite/affine/shared/services';
 import { BlockStdScope } from '@blocksuite/affine/std';
 import { SaveIcon } from '@blocksuite/icons/rc';
 import { useFramework, useLiveData, useService } from '@toeverything/infra';
@@ -56,6 +66,7 @@ export function ProjectDocument({
 }) {
   const t = useI18n();
   const framework = useFramework();
+  const editorSettings = useService(EditorSettingService).editorSetting;
   const graphql = useService(GraphQLService);
   const fetcher = useService(FetchService);
   const server = useService(ServerService).server;
@@ -68,10 +79,14 @@ export function ProjectDocument({
   proofRef.current = editLease?.proof;
   const editorRef = useRef<BlockStdScope | null>(null);
   useEffect(() => {
-    if (editorRef.current) editorRef.current.store.readonly = !editLease?.proof;
+    if (editorRef.current) {
+      editorRef.current.store.readonly = !editLease?.proof;
+      if (mode === 'page')
+        ensureProjectDocumentParagraph(editorRef.current.store);
+    }
     if (!editLease?.proof) sessionRef.current?.suspend();
     else sessionRef.current?.resume();
-  }, [editLease?.proof]);
+  }, [editLease?.proof, mode]);
   useProjectEditGuard({
     get hasUnsavedChanges() {
       return sessionRef.current?.hasUnsavedChanges ?? false;
@@ -94,7 +109,10 @@ export function ProjectDocument({
   const recoveryKey = useRef<string[] | undefined>(undefined);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const confirmUnsaved = useProjectUnsavedConfirmation();
-  const { openConfirmModal } = useConfirmModal();
+  const confirmModal = useConfirmModal();
+  const { openConfirmModal } = confirmModal;
+  const confirmModalRef = useRef(confirmModal);
+  confirmModalRef.current = confirmModal;
 
   useEffect(() => {
     if (!accountId || !container.current) return;
@@ -176,9 +194,17 @@ export function ProjectDocument({
           ...getViewManager().config.init().value.get(mode),
           ViewportElementExtension('.project-document-viewport'),
           getPreviewThemeExtension(framework),
+          slashMenuLocaleExtension,
+          patchNotificationService(confirmModalRef.current),
+          EditorSettingExtension({
+            // eslint-disable-next-line rxjs/finnish
+            setting$: editorSettings.settingSignal,
+            set: (key, value) => editorSettings.set(key, value),
+          }),
         ],
       });
       std.store.readonly = !proofRef.current;
+      if (mode === 'page') ensureProjectDocumentParagraph(std.store);
       editorRef.current = std;
       element.replaceChildren(std.render());
     };
@@ -218,6 +244,7 @@ export function ProjectDocument({
     };
   }, [
     accountId,
+    editorSettings,
     fetcher,
     framework,
     graphql,
@@ -320,7 +347,12 @@ export function ProjectDocument({
         </div>
       ) : null}
       <div className={`${styles.content} project-document-viewport`}>
-        <div ref={container} className={styles.editor} data-mode={mode} />
+        <div className={styles.documentBody} data-mode={mode}>
+          {mode === 'page' ? (
+            <h1 className={styles.documentTitle}>{title}</h1>
+          ) : null}
+          <div ref={container} className={styles.editor} data-mode={mode} />
+        </div>
       </div>
     </div>
   );

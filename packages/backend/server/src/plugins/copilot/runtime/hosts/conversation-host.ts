@@ -234,8 +234,12 @@ export class ConversationHost {
     if (!session || session.config.userId !== userId) {
       throw new CopilotSessionNotFound();
     }
+    const isBoundWorkOrderSession =
+      session.config.scopeType === 'work_order' &&
+      Boolean(session.config.workOrderId);
     if (
       chatSurface === 'intelligence_workbench' &&
+      !isBoundWorkOrderSession &&
       (session.config.docId ||
         !session.contextScope?.selectedProjectId ||
         session.contextScope.projectResolution !== 'selected')
@@ -244,7 +248,10 @@ export class ConversationHost {
         'Select an active project you belong to before sending an Intelligence message.'
       );
     }
-    if (session.contextScope?.projectResolution === 'invalid_selection') {
+    if (
+      !isBoundWorkOrderSession &&
+      session.contextScope?.projectResolution === 'invalid_selection'
+    ) {
       throw new BadRequest(
         'The conversation project is no longer available. Select another project and start a new conversation.'
       );

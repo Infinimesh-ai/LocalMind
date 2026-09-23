@@ -212,7 +212,12 @@ export class CapabilityPolicyHost {
       session.config.selectedContextProjectId
         ? [...new Set([...(promptTools ?? []), 'blocker' as const])]
         : promptTools;
-    const tools = options.officeContext ? (['office'] as const) : projectTools;
+    const tools =
+      session.config.scopeType === 'work_order'
+        ? (['workOrder'] as const)
+        : options.officeContext
+          ? (['office'] as const)
+          : projectTools;
     return {
       model,
       contextWindow,

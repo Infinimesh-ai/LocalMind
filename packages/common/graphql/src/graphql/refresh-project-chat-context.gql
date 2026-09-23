@@ -1,0 +1,15 @@
+mutation refreshProjectChatContext(
+  $projectId: String!
+  $sessionId: String!
+  $expectedVersion: Int!
+) {
+  refreshProjectChatContext(
+    projectId: $projectId
+    sessionId: $sessionId
+    expectedVersion: $expectedVersion
+  ) {
+    ...ProjectChatContextFields
+  }
+}
+
+#import './fragments/project-chat-context-fields.gql'

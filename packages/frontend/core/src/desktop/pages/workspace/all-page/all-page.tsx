@@ -28,6 +28,7 @@ import * as styles from './all-page.css';
 import { AllDocsHeader } from './all-page-header';
 import { MigrationAllDocsDataNotification } from './migration-data';
 import { PinnedCollections } from './pinned-collections';
+import { WorkspaceFiles } from './workspace-files';
 
 const DefaultDisplayPreference: {
   [key in ViewMode]: ExplorerDisplayPreference;
@@ -366,6 +367,7 @@ export const AllPage = () => {
       <ViewBody>
         <div className={styles.body}>
           <MigrationAllDocsDataNotification />
+          {!selectedCollectionId && !tempFilters?.length && <WorkspaceFiles />}
           <div className={styles.pinnedCollection}>
             <PinnedCollections
               activeCollectionId={selectedCollectionId}

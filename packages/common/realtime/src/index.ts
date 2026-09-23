@@ -336,6 +336,10 @@ export interface RealtimeTopicMap {
       reason: NotificationCountChangedReason;
     };
   };
+  'office.comment.changed': {
+    input: { artifactId: string; workspaceId?: string; projectId?: string };
+    event: { changed: true };
+  };
   'comment.changed': {
     input: {
       workspaceId: string;

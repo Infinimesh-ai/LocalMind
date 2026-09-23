@@ -156,10 +156,17 @@ async function prepareRuntimeSync() {
       `${temporary}/client`,
     ]);
     const generatedSchema = await readFile(`${temporary}/client/schema.prisma`);
-    if (
-      createHash('sha256').update(generatedSchema).digest('hex') !==
-      inputs['packages/backend/server/schema.prisma']
-    )
+    // Prisma formats the schema embedded in its generated client. Compare tokens
+    // while preserving quoted values; formatting alone is not schema drift.
+    const schemaTokens = value =>
+      value
+        .toString()
+        .match(/"(?:\\.|[^"\\])*"|[^\s]/g)
+        ?.join('');
+    const sourceSchema = await readFile(
+      resolve(repoRoot, 'packages/backend/server/schema.prisma')
+    );
+    if (schemaTokens(generatedSchema) !== schemaTokens(sourceSchema))
       throw new Error('Validated Prisma Client is stale');
     await run('docker', [
       'cp',
@@ -254,12 +261,21 @@ async function syncBackend() {
 }
 
 async function syncWeb() {
+  process.env.LOCALMIND_WORKER_BUILD_ID = Date.now().toString(36);
   await run('yarn', ['affine', 'bundle', '-p', '@affine/web']);
+  // The server serves mobile assets before web assets at the same URL prefix.
+  // Keep their shared worker filenames in sync with the current source.
+  await run('yarn', ['affine', 'bundle', '-p', '@affine/mobile']);
   await run('yarn', ['affine', 'bundle', '-p', '@affine/admin']);
   await run('docker', [
     'cp',
     'packages/frontend/apps/web/dist/.',
     `${container}:/app/static`,
+  ]);
+  await run('docker', [
+    'cp',
+    'packages/frontend/apps/mobile/dist/.',
+    `${container}:/app/static/mobile`,
   ]);
   await run('docker', [
     'cp',

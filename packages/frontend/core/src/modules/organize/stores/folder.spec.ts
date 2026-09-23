@@ -84,6 +84,22 @@ describe('FolderStore links', () => {
     });
   }
 
+  test('root document membership follows authorized links and permission changes', async () => {
+    createFolder('private-folder');
+    const link = store.createLink('private-folder', 'doc', 'doc-1', 'a0');
+    expect(await firstValueFrom(store.watchLinkedDocIds())).toEqual(
+      new Set(['doc-1'])
+    );
+    directoryState$.next({ mode: 'filtered', items: [], error: null });
+    expect(await firstValueFrom(store.watchLinkedDocIds())).toEqual(new Set());
+    directoryState$.next({ mode: 'full', items: [], error: null });
+    expect(await firstValueFrom(store.watchLinkedDocIds())).toEqual(
+      new Set(['doc-1'])
+    );
+    store.removeLink(link);
+    expect(await firstValueFrom(store.watchLinkedDocIds())).toEqual(new Set());
+  });
+
   test('restricted and failed loads never fall back to cached directory rows', async () => {
     createFolder('cached-private');
     directoryState$.next({

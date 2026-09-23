@@ -18,6 +18,7 @@ import {
 import { useI18n } from '@affine/i18n';
 import { ResetIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
+import { nanoid } from 'nanoid';
 import { useRef, useState } from 'react';
 
 import * as styles from './project-publications.css';
@@ -139,7 +140,7 @@ export function ProjectSourceRefresh({
                         source.sourceResourceId
                     }
                     onChange={() =>
-                      setSelection({ source, requestKey: crypto.randomUUID() })
+                      setSelection({ source, requestKey: nanoid() })
                     }
                   />
                   <span className={styles.title}>

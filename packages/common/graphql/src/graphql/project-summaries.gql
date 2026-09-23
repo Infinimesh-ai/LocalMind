@@ -1,5 +1,6 @@
 query projectSummaries {
   currentUser {
+    id
     copilot {
       contextMemories {
         id
@@ -7,6 +8,8 @@ query projectSummaries {
         kind
         content
         updatedAt
+        ownerUserId
+        revision
       }
     }
   }

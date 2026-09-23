@@ -217,6 +217,11 @@ export class CopilotContextService implements OnApplicationBootstrap {
     workspaceId?: string
   ): Promise<ContextSession | null> {
     const context = await this.models.copilotContext.getBySessionId(sessionId);
+    // Project conversations use the native Project context snapshot. Some
+    // upgraded installations can still contain a legacy Workspace AiContext
+    // row for the same session; ignoring it is both safer and compatible with
+    // the create-time invariant that now rejects such rows.
+    if (context?.session.selectedContextProjectId) return null;
     return context
       ? this.getOwnedContext(userId, context.id, { sessionId, workspaceId })
       : null;

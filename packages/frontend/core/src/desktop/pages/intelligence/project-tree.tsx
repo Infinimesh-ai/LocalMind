@@ -8,6 +8,7 @@ import {
 } from '@affine/component';
 import { useI18n } from '@affine/i18n';
 import {
+  AiIcon,
   DeleteTemporarilyIcon,
   EditIcon,
   FolderIcon,
@@ -17,16 +18,34 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 
 import * as styles from './project-tree.css';
-import type { WorkbenchProject } from './types';
+import type { WorkbenchConversationCard, WorkbenchProject } from './types';
+
+const EMPTY_CONVERSATIONS: WorkbenchConversationCard[] = [];
+const NOOP = () => undefined;
+const ASYNC_NOOP = async () => undefined;
 
 type ProjectTreeProps = {
   projects: WorkbenchProject[];
   selectedProjectId: string | null;
+  selectedSessionId?: string | null;
+  conversations?: WorkbenchConversationCard[];
   loading: boolean;
   error?: string;
+  conversationsLoading?: boolean;
+  conversationsLoadingMore?: boolean;
+  conversationsError?: string;
+  conversationsHasMore?: boolean;
   mutationsPending: boolean;
   onRefresh: () => void;
+  onRefreshConversations?: () => void;
+  onLoadMoreConversations?: () => void;
   onSelectProject: (projectId: string | null) => void;
+  onOpenConversation?: (card: WorkbenchConversationCard) => void;
+  onNewConversation?: () => void;
+  onRenameConversation?: (
+    card: WorkbenchConversationCard,
+    title: string
+  ) => Promise<void>;
   onCreate: (name: string) => Promise<void>;
   onRename: (project: WorkbenchProject, name: string) => Promise<void>;
   onArchive: (project: WorkbenchProject) => Promise<void>;
@@ -36,11 +55,22 @@ type ProjectTreeProps = {
 export const ProjectTree = ({
   projects,
   selectedProjectId,
+  selectedSessionId,
+  conversations = EMPTY_CONVERSATIONS,
   loading,
   error,
+  conversationsLoading = false,
+  conversationsLoadingMore = false,
+  conversationsError,
+  conversationsHasMore = false,
   mutationsPending,
   onRefresh,
+  onRefreshConversations = NOOP,
+  onLoadMoreConversations = NOOP,
   onSelectProject,
+  onOpenConversation = NOOP,
+  onNewConversation = NOOP,
+  onRenameConversation = ASYNC_NOOP,
   onCreate,
   onRename,
   onArchive,
@@ -53,6 +83,13 @@ export const ProjectTree = ({
     null
   );
   const [renamedProjectName, setRenamedProjectName] = useState('');
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
+    () => new Set(selectedProjectId ? [selectedProjectId] : [])
+  );
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(
+    null
+  );
+  const [renamedSessionTitle, setRenamedSessionTitle] = useState('');
 
   useEffect(() => {
     if (
@@ -63,6 +100,11 @@ export const ProjectTree = ({
       setRenamedProjectName('');
     }
   }, [projects, renamingProjectId]);
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    setExpandedProjectIds(current => new Set(current).add(selectedProjectId));
+  }, [selectedProjectId]);
 
   const activeProjects = useMemo(
     () => projects.filter(project => project.status === 'active'),
@@ -89,6 +131,27 @@ export const ProjectTree = ({
     setRenamedProjectName('');
   };
 
+  const submitSessionRename = async (card: WorkbenchConversationCard) => {
+    const title = renamedSessionTitle.trim();
+    if (!title || title === card.title || mutationsPending) {
+      setRenamingSessionId(null);
+      setRenamedSessionTitle('');
+      return;
+    }
+    await onRenameConversation(card, title);
+    setRenamingSessionId(null);
+    setRenamedSessionTitle('');
+  };
+
+  const startSessionRename = (card: WorkbenchConversationCard) => {
+    setRenamingSessionId(card.sessionId);
+    setRenamedSessionTitle(card.title ?? '');
+  };
+
+  const personalWorkOrders = conversations.filter(
+    card => card.scopeType === 'work_order'
+  );
+
   return (
     <nav
       className={styles.root}
@@ -107,6 +170,14 @@ export const ProjectTree = ({
           onClick={() => setCreating(true)}
         />
       </div>
+
+      <Button
+        className={styles.newConversation}
+        variant="primary"
+        onClick={onNewConversation}
+      >
+        {t['com.affine.localmind.workbench.v9.newConversation']()}
+      </Button>
 
       {creating ? (
         <div className={styles.inlineEditor}>
@@ -199,7 +270,15 @@ export const ProjectTree = ({
                     <button
                       type="button"
                       className={styles.projectButton}
-                      onClick={() => onSelectProject(project.id)}
+                      aria-expanded={expandedProjectIds.has(project.id)}
+                      onClick={() =>
+                        setExpandedProjectIds(current => {
+                          const next = new Set(current);
+                          if (next.has(project.id)) next.delete(project.id);
+                          else next.add(project.id);
+                          return next;
+                        })
+                      }
                     >
                       <FolderIcon />
                       <span className={styles.projectName} title={project.name}>
@@ -262,10 +341,154 @@ export const ProjectTree = ({
                     </Menu>
                   ) : null}
                 </div>
+                {expandedProjectIds.has(project.id) ? (
+                  <ul className={styles.documents}>
+                    {conversations
+                      .filter(card => card.project?.id === project.id)
+                      .map(card => (
+                        <li key={card.sessionId} className={styles.documentRow}>
+                          {renamingSessionId === card.sessionId ? (
+                            <Input
+                              className={styles.renameInput}
+                              autoFocus
+                              autoSelect
+                              value={renamedSessionTitle}
+                              maxLength={80}
+                              disabled={mutationsPending}
+                              onChange={setRenamedSessionTitle}
+                              onEnter={() => void submitSessionRename(card)}
+                              onKeyDown={event => {
+                                if (event.key === 'Escape') {
+                                  setRenamingSessionId(null);
+                                  setRenamedSessionTitle('');
+                                }
+                              }}
+                              onBlur={() => void submitSessionRename(card)}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.documentButton}
+                              aria-current={
+                                selectedSessionId === card.sessionId
+                                  ? 'page'
+                                  : undefined
+                              }
+                              onClick={() => onOpenConversation(card)}
+                              onDoubleClick={() => startSessionRename(card)}
+                              onKeyDown={event => {
+                                if (event.key === 'F2') {
+                                  event.preventDefault();
+                                  startSessionRename(card);
+                                }
+                              }}
+                            >
+                              <AiIcon />
+                              <span title={card.title ?? undefined}>
+                                {card.title ||
+                                  t[
+                                    'com.affine.localmind.workbench.v9.untitled'
+                                  ]()}
+                              </span>
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    {conversations.every(
+                      card => card.project?.id !== project.id
+                    ) ? (
+                      <li className={styles.groupLabel}>
+                        {t[
+                          'com.affine.localmind.workbench.v9.noConversations'
+                        ]()}
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
+        {personalWorkOrders.length ? (
+          <section className={styles.personalSection}>
+            <h3>
+              {t['com.affine.localmind.workbench.v9.personalWorkOrder']()}
+            </h3>
+            <ul className={styles.documents}>
+              {personalWorkOrders.map(card => (
+                <li key={card.sessionId} className={styles.documentRow}>
+                  {renamingSessionId === card.sessionId ? (
+                    <Input
+                      className={styles.renameInput}
+                      autoFocus
+                      autoSelect
+                      value={renamedSessionTitle}
+                      maxLength={80}
+                      disabled={mutationsPending}
+                      onChange={setRenamedSessionTitle}
+                      onEnter={() => void submitSessionRename(card)}
+                      onKeyDown={event => {
+                        if (event.key === 'Escape') {
+                          setRenamingSessionId(null);
+                          setRenamedSessionTitle('');
+                        }
+                      }}
+                      onBlur={() => void submitSessionRename(card)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.documentButton}
+                      aria-current={
+                        selectedSessionId === card.sessionId
+                          ? 'page'
+                          : undefined
+                      }
+                      onClick={() => onOpenConversation(card)}
+                      onDoubleClick={() => startSessionRename(card)}
+                      onKeyDown={event => {
+                        if (event.key === 'F2') {
+                          event.preventDefault();
+                          startSessionRename(card);
+                        }
+                      }}
+                    >
+                      <AiIcon />
+                      <span title={card.title ?? undefined}>
+                        {card.title ||
+                          t['com.affine.localmind.workbench.v9.untitled']()}
+                      </span>
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {conversationsLoading ? (
+          <div className={styles.conversationPageState} aria-live="polite">
+            <Loading size={18} />
+            <span>
+              {t['com.affine.localmind.workbench.v9.loadingConversations']()}
+            </span>
+          </div>
+        ) : conversationsError ? (
+          <div className={styles.conversationPageState} role="alert">
+            <span>{conversationsError}</span>
+            <Button onClick={onRefreshConversations}>
+              {t['com.affine.localmind.workbench.retry']()}
+            </Button>
+          </div>
+        ) : conversationsHasMore ? (
+          <Button
+            className={styles.loadMoreConversations}
+            loading={conversationsLoadingMore}
+            disabled={conversationsLoadingMore}
+            onClick={onLoadMoreConversations}
+          >
+            {t['com.affine.localmind.workbench.v9.loadMoreConversations']()}
+          </Button>
+        ) : null}
       </div>
     </nav>
   );

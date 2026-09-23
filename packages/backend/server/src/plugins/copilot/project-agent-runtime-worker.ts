@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 
 import { JOB_SIGNAL, OnJob } from '../../base';
 import { DocWriter } from '../../core/doc';
+import { NativeFileCreateService } from '../../core/office/create-service';
 import { ProjectResourceService } from '../../core/project';
 import {
   PROJECT_DESTINATION_FOLDER_WORKFLOW,
@@ -41,7 +42,8 @@ export class CopilotProjectAgentRuntimeWorker {
     folders: ProjectDestinationFolderService,
     imports: ProjectWorkspaceImportService,
     private readonly writer: DocWriter,
-    private readonly registry: CopilotAgentRuntimeWorkflowRegistry
+    private readonly registry: CopilotAgentRuntimeWorkflowRegistry,
+    @Optional() files?: NativeFileCreateService
   ) {
     registry.registerProject({
       workflow: PROJECT_WORKSPACE_IMPORT_WORKFLOW,
@@ -85,7 +87,7 @@ export class CopilotProjectAgentRuntimeWorker {
         summary:
           'Persist internal Project resource operations through their native owner and immutable receipts.',
       },
-      execute: run => executeProjectResourceRun(models, resources, run),
+      execute: run => executeProjectResourceRun(models, resources, run, files),
     });
   }
 

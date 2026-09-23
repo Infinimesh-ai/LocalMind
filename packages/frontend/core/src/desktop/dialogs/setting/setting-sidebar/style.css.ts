@@ -73,6 +73,15 @@ export const sidebarItemsWrapper = style({
   gap: 4,
 });
 export const sidebarSelectItem = style({
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  fontFamily: 'inherit',
+  textAlign: 'left',
+  ':focus-visible': {
+    outline: `2px solid ${cssVar('primaryColor')}`,
+    outlineOffset: 2,
+  },
   display: 'flex',
   alignItems: 'center',
   padding: '4px 8px',

@@ -1,3 +1,5 @@
+import './ai-context-compaction-status';
+
 import type {
   AIDraftService,
   AIToolsConfigService,
@@ -403,6 +405,10 @@ export class AIChatContent extends SignalWatcher(
         .onOpenDoc=${this.onOpenDoc}
         .blockerSuggestionConfirmation=${this.blockerSuggestionConfirmation}
       ></ai-chat-messages>
+      <ai-context-compaction-status
+        .runtime=${this.runtime}
+        .snapshot=${this.runtimeSnapshot}
+      ></ai-context-compaction-status>
       <ai-chat-composer
         style=${styleMap({
           [this.onboardingOffsetY > 0 ? 'paddingTop' : 'paddingBottom']:

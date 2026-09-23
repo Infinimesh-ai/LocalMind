@@ -1,5 +1,6 @@
 import { ListBlockModel } from '@blocksuite/affine-model';
 import {
+  deleteBlockWithListOrder,
   getNextContentBlock,
   matchModels,
 } from '@blocksuite/affine-shared/utils';
@@ -36,11 +37,11 @@ export function forwardDelete(std: BlockStdScope): true | undefined {
     const grandChildren = firstChild.children;
     if (grandChildren) {
       doc.moveBlocks(grandChildren, model);
-      doc.deleteBlock(firstChild);
+      deleteBlockWithListOrder(doc, firstChild);
       return true;
     }
 
-    doc.deleteBlock(firstChild);
+    deleteBlockWithListOrder(doc, firstChild);
     return true;
   }
 
@@ -55,7 +56,7 @@ export function forwardDelete(std: BlockStdScope): true | undefined {
       doc.moveBlocks(nextSibling.children, parent, model, false);
     }
 
-    doc.deleteBlock(nextSibling);
+    deleteBlockWithListOrder(doc, nextSibling);
     return true;
   }
 
@@ -69,7 +70,7 @@ export function forwardDelete(std: BlockStdScope): true | undefined {
       if (!nextBlockParent) return;
       doc.moveBlocks(nextBlock.children, nextBlockParent, parent, false);
     }
-    doc.deleteBlock(nextBlock);
+    deleteBlockWithListOrder(doc, nextBlock);
   }
   return true;
 }

@@ -49,6 +49,15 @@ Native DOCX/XLSX/PPTX/PDF editing is tracked separately in
 Runtime, authorization, approval, audit, and cancellation semantics defined by
 this modernization plan.
 
+Project 与 Workspace 复用同一套 Office 文件界面、编辑状态和公共操作的修复方案见
+[`project-workspace-office-surface-remediation.zh-CN.md`](project-workspace-office-surface-remediation.zh-CN.md)。
+
+Workspace / Project AI 会话授权、项目级共享 Memory（个人会话与摘要不共享）、引用版本、删除与长期审计、
+唯一上下文及滚动整理的现行专项契约见
+[`workspace-project-context-session-remediation.zh-CN.md`](workspace-project-context-session-remediation.zh-CN.md)。
+P0—P4 源码实现及隔离验证、P5 未完成的真实模型/浏览器/恢复/部署关卡见
+[`workspace-project-context-session-remediation.execution.zh-CN.md`](workspace-project-context-session-remediation.execution.zh-CN.md)。
+
 ## Track Documents
 
 The implemented [Project Native Resources](tracks/project-native-resources.md)

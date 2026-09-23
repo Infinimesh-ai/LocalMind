@@ -2,6 +2,12 @@ import type { NbstoreService } from '@affine/core/modules/storage';
 import {
   ContextCategories,
   type CopilotChatHistoryFragment,
+  copilotContextCompactionCancelMutation,
+  copilotContextCompactionGetQuery,
+  copilotContextCompactionRequestMutation,
+  copilotContextCompactionRetryMutation,
+  copilotProjectSessionMemoryCaptureGetQuery,
+  copilotProjectSessionMemoryCaptureUpdateMutation,
   type getCopilotHistoriesQuery,
   type GraphQLQuery,
   type ProjectChatContextItemInput,
@@ -11,6 +17,7 @@ import {
   type QueryChatSessionsInput,
   type QueryOptions,
   type QueryResponse,
+  refreshProjectChatContextMutation,
   type RequestOptions,
   type UpdateChatSessionInput,
   updateProjectChatContextMutation,
@@ -84,6 +91,17 @@ export class AIRequestService {
           variables: { projectId, sessionId, expectedVersion, items },
         })
       ).updateProjectChatContext,
+    refresh: async (
+      projectId: string,
+      sessionId: string,
+      expectedVersion: number
+    ) =>
+      (
+        await this.client.gql({
+          query: refreshProjectChatContextMutation,
+          variables: { projectId, sessionId, expectedVersion },
+        })
+      ).refreshProjectChatContext,
     upload: async (
       projectId: string,
       sessionId: string,
@@ -115,6 +133,63 @@ export class AIRequestService {
         sequence,
       } satisfies ProjectChatContextItemInput;
     },
+  };
+
+  readonly projectMemoryCapture = {
+    get: async (sessionId: string) =>
+      (
+        await this.client.gql({
+          query: copilotProjectSessionMemoryCaptureGetQuery,
+          variables: { sessionId },
+        })
+      ).currentUser?.copilot.projectSessionMemoryCapture ?? null,
+    update: async (
+      sessionId: string,
+      allowMemoryCapture: boolean,
+      expectedRevision: number
+    ) =>
+      (
+        await this.client.gql({
+          query: copilotProjectSessionMemoryCaptureUpdateMutation,
+          variables: {
+            input: { sessionId, allowMemoryCapture, expectedRevision },
+          },
+        })
+      ).updateCopilotProjectSessionMemoryCapture,
+  };
+
+  readonly contextCompaction = {
+    get: async (sessionId: string, afterSequence?: number) => {
+      const result = await this.client.gql({
+        query: copilotContextCompactionGetQuery,
+        variables: { sessionId, afterSequence },
+      });
+      return {
+        task: result.currentUser?.copilot.contextCompaction ?? null,
+        events: result.currentUser?.copilot.contextCompactionEvents ?? [],
+      };
+    },
+    request: async (sessionId: string) =>
+      (
+        await this.client.gql({
+          query: copilotContextCompactionRequestMutation,
+          variables: { sessionId },
+        })
+      ).requestCopilotContextCompaction,
+    retry: async (taskId: string) =>
+      (
+        await this.client.gql({
+          query: copilotContextCompactionRetryMutation,
+          variables: { taskId },
+        })
+      ).retryCopilotContextCompaction,
+    cancel: async (taskId: string) =>
+      (
+        await this.client.gql({
+          query: copilotContextCompactionCancelMutation,
+          variables: { taskId },
+        })
+      ).cancelCopilotContextCompaction,
   };
 
   async createSession(options: CreateSessionOptions) {
@@ -153,6 +228,10 @@ export class AIRequestService {
 
   getProjectSession(projectId: string, sessionId: string) {
     return this.client.getProjectSession(projectId, sessionId);
+  }
+
+  getWorkOrderSession(workOrderId: string) {
+    return this.client.getWorkOrderSession(workOrderId);
   }
 
   getProjectSessions(...args: Parameters<CopilotClient['getProjectSessions']>) {

@@ -6,11 +6,14 @@ import { RealtimeModule } from '../realtime';
 import { StorageModule } from '../storage';
 import { OfficeArtifactService } from './artifact-service';
 import { OfficeCommandService } from './command-service';
+import { OfficeCommentRealtimeProvider } from './comment-realtime';
 import { OfficeCommentResolver } from './comment-resolver';
 import { OfficeCommentService } from './comment-service';
 import { OfficeController } from './controller';
+import { NativeFileCreateService } from './create-service';
 import { OfficeDocxCommandService } from './docx-command';
 import { OfficeDocxImportService } from './docx-import';
+import { WorkspaceFileController } from './file-controller';
 import { OfficeImportService } from './import-service';
 import { ProjectOfficeController } from './project-controller';
 import { ProjectResourceIndexer } from './project-indexer';
@@ -20,11 +23,17 @@ import { OfficeResourceStorage } from './resource-storage';
 
 @Module({
   imports: [PermissionModule, ProjectModule, RealtimeModule, StorageModule],
-  controllers: [OfficeController, ProjectOfficeController],
+  controllers: [
+    OfficeController,
+    ProjectOfficeController,
+    WorkspaceFileController,
+  ],
   providers: [
+    NativeFileCreateService,
     OfficeArtifactService,
     OfficeResourceStorage,
     OfficeCommentResolver,
+    OfficeCommentRealtimeProvider,
     OfficeCommentService,
     OfficeCommandService,
     OfficeDocxCommandService,
@@ -35,6 +44,7 @@ import { OfficeResourceStorage } from './resource-storage';
     ProjectResourceIndexer,
   ],
   exports: [
+    NativeFileCreateService,
     OfficeArtifactService,
     OfficeCommentService,
     OfficeCommandService,

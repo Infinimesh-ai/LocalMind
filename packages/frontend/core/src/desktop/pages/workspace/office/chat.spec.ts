@@ -127,7 +127,7 @@ describe('Office chat selection labels', () => {
             end: { blockId: 'paragraph-1', offset: 4 },
           },
         },
-        'Text paragraph-1 (1-4)',
+        'Text paragraph-1 (1–4)',
       ],
       [
         {

@@ -21,6 +21,8 @@ services:
       - ${UPLOAD_LOCATION:-./data/localmind/storage}:/root/.affine/storage
       - ${CONFIG_LOCATION:-./data/localmind/config}:/root/.affine/config
       - ${ENTERPRISE_CLI_DATA_LOCATION:-./data/localmind/enterprise-cli}:/var/lib/localmind/enterprise-cli
+      - ${AUDIT_ARCHIVE_LOCATION:-./data/localmind/audit-archive}:/var/lib/localmind/audit-archive
+      - ${RECOVERY_BARRIER_LOCATION:-./data/localmind/recovery-barrier}:/var/lib/localmind/recovery-barrier:ro
     env_file:
       - path: .env
         required: false
@@ -29,6 +31,7 @@ services:
       - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
       - AFFINE_INDEXER_ENABLED=false
       - LOCALMIND_ENTERPRISE_CLI_ROOT_DIR=/var/lib/localmind/enterprise-cli
+      - LOCALMIND_AUDIT_ARCHIVE_DIR=/var/lib/localmind/audit-archive
       - ISCP_ENABLED=${ISCP_ENABLED:-false}
       - ISCP_CONTROLLER_URL=http://iscp_controller:8091
       - ISCP_CONTROLLER_TOKEN=${ISCP_CONTROLLER_TOKEN:-}
@@ -139,6 +142,7 @@ services:
       - ${UPLOAD_LOCATION:-./data/localmind/storage}:/root/.affine/storage
       - ${CONFIG_LOCATION:-./data/localmind/config}:/root/.affine/config
       - ${ENTERPRISE_CLI_DATA_LOCATION:-./data/localmind/enterprise-cli}:/var/lib/localmind/enterprise-cli
+      - ${RECOVERY_BARRIER_LOCATION:-./data/localmind/recovery-barrier}:/var/lib/localmind/recovery-barrier
     command: ['sh', '-c', 'node ./scripts/self-host-predeploy.js']
     env_file:
       - path: .env

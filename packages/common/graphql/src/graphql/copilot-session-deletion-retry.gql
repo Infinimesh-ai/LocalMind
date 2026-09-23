@@ -1,0 +1,7 @@
+#import "./fragments/copilot-session-deletion.gql"
+
+mutation retryCopilotSessionDeletion($sessionId: ID!) {
+  retryCopilotSessionDeletion(sessionId: $sessionId) {
+    ...CopilotSessionDeletionFields
+  }
+}

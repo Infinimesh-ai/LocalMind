@@ -88,6 +88,7 @@ vi.mock('@affine/i18n', () => ({
 }));
 
 vi.mock('@blocksuite/icons/rc', () => ({
+  AiIcon: () => <svg />,
   DeleteTemporarilyIcon: () => <svg />,
   EditIcon: () => <svg />,
   FolderIcon: () => <svg />,
@@ -97,7 +98,7 @@ vi.mock('@blocksuite/icons/rc', () => ({
 }));
 
 import { ProjectTree } from './project-tree';
-import type { WorkbenchProject } from './types';
+import type { WorkbenchConversationCard, WorkbenchProject } from './types';
 
 afterEach(cleanup);
 
@@ -113,6 +114,21 @@ const project: WorkbenchProject = {
   canManage: true,
   createdAt: '2026-09-04T00:00:00.000Z',
   updatedAt: '2026-09-04T00:00:00.000Z',
+};
+
+const conversation: WorkbenchConversationCard = {
+  sessionId: 'session-1',
+  scopeType: 'project',
+  title: 'Conversation one',
+  titleRevision: 1,
+  column: 'progress',
+  attentionReasons: [],
+  activeRunCount: 0,
+  workOrderId: null,
+  workOrderStatus: null,
+  lastBusinessAt: '2026-09-22T00:00:00.000Z',
+  version: 1,
+  project: { id: project.id, name: project.name },
 };
 
 const renderTree = (
@@ -135,11 +151,110 @@ const renderTree = (
   );
 
 describe('ProjectTree', () => {
-  test('selects the Project independently of any Workspace document', () => {
+  test('expands a Project without changing the main-area selection', () => {
     const onSelectProject = vi.fn();
-    renderTree({ onSelectProject });
+    renderTree({
+      selectedProjectId: null,
+      conversations: [conversation],
+      onSelectProject,
+    });
+
     fireEvent.click(screen.getByRole('button', { name: 'Project one' }));
-    expect(onSelectProject).toHaveBeenCalledWith('project-1');
+
+    expect(onSelectProject).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: 'Conversation one' })
+    ).not.toBeNull();
+  });
+
+  test('opens a conversation and renames it with F2', async () => {
+    const onOpenConversation = vi.fn();
+    const onRenameConversation = vi.fn().mockResolvedValue(undefined);
+    renderTree({
+      conversations: [conversation],
+      onOpenConversation,
+      onRenameConversation,
+    });
+
+    const conversationButton = screen.getByRole('button', {
+      name: 'Conversation one',
+    });
+    fireEvent.click(conversationButton);
+    expect(onOpenConversation).toHaveBeenCalledWith(conversation);
+
+    fireEvent.keyDown(conversationButton, { key: 'F2' });
+    const renameInput = screen.getByDisplayValue('Conversation one');
+    fireEvent.change(renameInput, { target: { value: '  Renamed session  ' } });
+    fireEvent.blur(renameInput);
+
+    await waitFor(() => {
+      expect(onRenameConversation).toHaveBeenCalledWith(
+        conversation,
+        'Renamed session'
+      );
+    });
+  });
+
+  test('renders conversation paging, retry, and loading states', () => {
+    const onLoadMoreConversations = vi.fn();
+    const { rerender } = renderTree({
+      conversations: [conversation],
+      conversationsHasMore: true,
+      onLoadMoreConversations,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.loadMoreConversations',
+      })
+    );
+    expect(onLoadMoreConversations).toHaveBeenCalledTimes(1);
+
+    const onRefreshConversations = vi.fn();
+    rerender(
+      <ProjectTree
+        projects={[project]}
+        selectedProjectId="project-1"
+        loading={false}
+        conversationsError="Conversation load failed"
+        mutationsPending={false}
+        onRefresh={vi.fn()}
+        onRefreshConversations={onRefreshConversations}
+        onSelectProject={vi.fn()}
+        onCreate={vi.fn()}
+        onRename={vi.fn()}
+        onArchive={vi.fn()}
+        onManageCollaboration={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Conversation load failed'
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.retry',
+      })
+    );
+    expect(onRefreshConversations).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ProjectTree
+        projects={[project]}
+        selectedProjectId="project-1"
+        loading={false}
+        conversationsLoading
+        mutationsPending={false}
+        onRefresh={vi.fn()}
+        onSelectProject={vi.fn()}
+        onCreate={vi.fn()}
+        onRename={vi.fn()}
+        onArchive={vi.fn()}
+        onManageCollaboration={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByText('com.affine.localmind.workbench.v9.loadingConversations')
+    ).not.toBeNull();
   });
 
   test('trims and submits a new project name', async () => {

@@ -1,0 +1,69 @@
+query copilotProjectContextDashboardGet(
+  $projectId: ID!
+  $includeDisabled: Boolean
+) {
+  currentUser {
+    id
+    copilot {
+      contextProject(id: $projectId) {
+        id
+        role
+        canManage
+        members {
+          userId
+          name
+          role
+        }
+      }
+      projectContextSettings(projectId: $projectId) {
+        autoMemoryEnabled
+        revision
+        projectMemoryRevision
+        contractVersion
+      }
+      contextMemories(includeDisabled: $includeDisabled) {
+        id
+        ownerUserId
+        projectId
+        kind
+        status
+        content
+        captureMode
+        revision
+        sharingStatus
+        contractVersion
+        contributorUserIds
+        contributorCount
+        pendingConflictCount
+        canManage
+        updatedAt
+      }
+      projectContextMemoryEvents(projectId: $projectId, limit: 100) {
+        id
+        operation
+        memoryId
+        previousMemoryId
+        factKey
+        explicit
+        reasonCode
+        writerVersion
+        undoneAt
+        canUndo
+        createdAt
+      }
+      projectMemoryConflicts(projectId: $projectId) {
+        id
+        projectId
+        baseMemoryId
+        proposedByUserId
+        factKey
+        proposedContent
+        status
+        expectedMemoryRevision
+        resolution
+        createdAt
+        resolvedAt
+      }
+    }
+  }
+}

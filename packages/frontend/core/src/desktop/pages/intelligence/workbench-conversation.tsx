@@ -12,7 +12,6 @@ import type {
   BlockerSuggestionConfirmation,
 } from '@affine/core/blocksuite/ai/components/ai-chat-messages';
 import {
-  AIChatTabs,
   AIChatToolbar,
   configureAIChatToolbar,
 } from '@affine/core/blocksuite/ai/components/ai-chat-toolbar';
@@ -41,7 +40,114 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectChatConfig } from './project-chat-config';
 import { ProjectFilePicker } from './project-file-picker';
 import { ProjectTasks } from './project-tasks';
+import type { WorkbenchConversationCard } from './types';
+import {
+  type WorkOrderAgentDraft,
+  WorkOrderComposer,
+} from './work-order-composer';
 import * as styles from './workbench-conversation.css';
+
+function object(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function workOrderDraftFromStreamObject(
+  value: unknown
+): WorkOrderAgentDraft | null {
+  const stream = object(value);
+  if (
+    stream?.type !== 'tool-result' ||
+    stream.toolName !== 'work_order_draft' ||
+    stream.isError === true
+  )
+    return null;
+  const result = object(stream.result);
+  if (
+    result?.kind !== 'work_order_draft' ||
+    result.origin !== 'ai_generated' ||
+    result.confirmationRequired !== true ||
+    typeof result.draftId !== 'string' ||
+    typeof result.sourceSessionId !== 'string' ||
+    !Array.isArray(result.recipients) ||
+    !result.recipients.length ||
+    result.recipients.length > 20
+  )
+    return null;
+  const recipients: WorkOrderAgentDraft['recipients'] = [];
+  for (const candidate of result.recipients) {
+    const row = object(candidate);
+    const recipient = object(row?.recipient);
+    if (
+      !row ||
+      !recipient ||
+      typeof recipient.id !== 'string' ||
+      typeof recipient.name !== 'string' ||
+      typeof recipient.email !== 'string' ||
+      typeof row.title !== 'string' ||
+      typeof row.purpose !== 'string' ||
+      !['original', 'supplement', 'replacement'].includes(
+        String(row.relationKind)
+      ) ||
+      !Array.isArray(row.requirements) ||
+      !row.requirements.length ||
+      row.requirements.length > 32
+    )
+      return null;
+    const requirements: WorkOrderAgentDraft['recipients'][number]['requirements'] =
+      [];
+    for (const candidateRequirement of row.requirements) {
+      const requirement = object(candidateRequirement);
+      if (
+        !requirement ||
+        !['text', 'file'].includes(String(requirement.kind)) ||
+        typeof requirement.title !== 'string' ||
+        typeof requirement.instructions !== 'string' ||
+        typeof requirement.required !== 'boolean' ||
+        !Array.isArray(requirement.acceptedMimeTypes) ||
+        !requirement.acceptedMimeTypes.every(
+          mimeType => typeof mimeType === 'string'
+        ) ||
+        typeof requirement.minCount !== 'number' ||
+        typeof requirement.maxCount !== 'number'
+      )
+        return null;
+      requirements.push({
+        kind: requirement.kind as 'text' | 'file',
+        title: requirement.title,
+        instructions: requirement.instructions,
+        required: requirement.required,
+        acceptedMimeTypes: requirement.acceptedMimeTypes as string[],
+        minCount: requirement.minCount,
+        maxCount: requirement.maxCount,
+      });
+    }
+    recipients.push({
+      recipient: {
+        id: recipient.id,
+        name: recipient.name,
+        email: recipient.email,
+      },
+      title: row.title,
+      purpose: row.purpose,
+      relationKind: row.relationKind as
+        | 'original'
+        | 'supplement'
+        | 'replacement',
+      relatedWorkOrderId:
+        typeof row.relatedWorkOrderId === 'string'
+          ? row.relatedWorkOrderId
+          : null,
+      requirements,
+    });
+  }
+  return {
+    draftId: result.draftId,
+    sourceSessionId: result.sourceSessionId,
+    recipients,
+  };
+}
 
 type WorkbenchConversationProps = {
   onDocumentsChanged?: () => Promise<unknown>;
@@ -51,6 +157,21 @@ type WorkbenchConversationProps = {
   onConfirmBlockerSuggestion?: (suggestion: BlockerSuggestion) => Promise<void>;
   officeContext?: OfficeAiContext;
   onTaskCompleted?: (task: ProjectAgentTaskFieldsFragment) => Promise<unknown>;
+  selectedSessionId?: string;
+  selectedCard?: WorkbenchConversationCard;
+  onCompleteConversation?: (card: WorkbenchConversationCard) => Promise<void>;
+  startEmpty?: boolean;
+  initialDraftText?: string;
+  autoSendInitialDraft?: boolean;
+  onSessionCreated?: (sessionId: string) => Promise<unknown> | unknown;
+  onContextPanelChange?: (state: WorkbenchContextPanelState | null) => void;
+};
+
+export type WorkbenchContextPanelState = {
+  resourceIds: string[];
+  loading: boolean;
+  openPicker: () => void;
+  referenceResource: (resourceId: string) => Promise<void>;
 };
 
 const useAIRequestService = () => {
@@ -75,6 +196,14 @@ export const WorkbenchConversation = ({
   onConfirmBlockerSuggestion,
   officeContext,
   onTaskCompleted,
+  selectedSessionId,
+  selectedCard,
+  onCompleteConversation,
+  startEmpty = false,
+  initialDraftText,
+  autoSendInitialDraft = false,
+  onSessionCreated,
+  onContextPanelChange,
 }: WorkbenchConversationProps) => {
   const t = useI18n();
   const framework = useFramework();
@@ -92,9 +221,12 @@ export const WorkbenchConversation = ({
   );
   const [bodyReady, setBodyReady] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
+  const [workOrderComposerOpen, setWorkOrderComposerOpen] = useState(false);
+  const [agentWorkOrderDraft, setAgentWorkOrderDraft] =
+    useState<WorkOrderAgentDraft | null>(null);
+  const seenAgentDrafts = useRef(new Set<string>());
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const toolbarContainerRef = useRef<HTMLDivElement>(null);
-  const tabsContainerRef = useRef<HTMLDivElement>(null);
   const blockerSuggestionConfirmation = useMemo<
     BlockerSuggestionConfirmation | undefined
   >(
@@ -139,11 +271,11 @@ export const WorkbenchConversation = ({
       new AIChatRuntime({
         request: requestService,
         scope: { kind: 'project', projectId: selectedProjectId },
-        strategy: new ProjectAIChatSessionStrategy(),
+        strategy: new ProjectAIChatSessionStrategy(startEmpty),
         chatSurface: 'intelligence_workbench',
         projectId: selectedProjectId,
       }),
-    [requestService, selectedProjectId]
+    [requestService, selectedProjectId, startEmpty]
   );
   const snapshot = useAIChatRuntime(runtime);
   const previousStatus = useRef(snapshot?.status);
@@ -168,8 +300,89 @@ export const WorkbenchConversation = ({
     snapshot?.sessions.find(
       session => session.sessionId === snapshot.activeSessionId
     ) ?? null;
+  useEffect(() => {
+    if (!snapshot?.messages.length || !activeSession) return;
+    for (let index = snapshot.messages.length - 1; index >= 0; index--) {
+      const message = snapshot.messages[index];
+      for (
+        let objectIndex = (message.streamObjects?.length ?? 0) - 1;
+        objectIndex >= 0;
+        objectIndex--
+      ) {
+        const draft = workOrderDraftFromStreamObject(
+          message.streamObjects?.[objectIndex]
+        );
+        if (
+          !draft ||
+          draft.sourceSessionId !== activeSession.sessionId ||
+          seenAgentDrafts.current.has(draft.draftId)
+        )
+          continue;
+        seenAgentDrafts.current.add(draft.draftId);
+        setAgentWorkOrderDraft(draft);
+        setWorkOrderComposerOpen(true);
+        return;
+      }
+    }
+  }, [activeSession, snapshot?.messages]);
 
   useEffect(() => () => runtime.dispose(), [runtime]);
+
+  const initialDraftApplied = useRef(false);
+  useEffect(() => {
+    if (
+      initialDraftApplied.current ||
+      !initialDraftText ||
+      snapshot?.readiness !== 'ready'
+    ) {
+      return;
+    }
+    initialDraftApplied.current = true;
+    void runtime
+      .dispatch({ type: 'setComposerText', text: initialDraftText })
+      .then(() =>
+        autoSendInitialDraft
+          ? runtime.dispatch({ type: 'send', input: initialDraftText })
+          : undefined
+      )
+      .catch(report);
+  }, [autoSendInitialDraft, initialDraftText, runtime, snapshot?.readiness]);
+
+  const createdSessionReported = useRef(false);
+  useEffect(() => {
+    if (
+      startEmpty &&
+      snapshot?.activeSessionId &&
+      (snapshot.status === 'success' || snapshot.status === 'error') &&
+      !createdSessionReported.current
+    ) {
+      createdSessionReported.current = true;
+      void onSessionCreated?.(snapshot.activeSessionId);
+    }
+  }, [
+    onSessionCreated,
+    snapshot?.activeSessionId,
+    snapshot?.status,
+    startEmpty,
+  ]);
+
+  useEffect(() => {
+    if (
+      !selectedSessionId ||
+      snapshot?.readiness !== 'ready' ||
+      snapshot.activeSessionId === selectedSessionId
+    ) {
+      return;
+    }
+    runtime
+      .dispatch({ type: 'openSession', sessionId: selectedSessionId })
+      .catch(report);
+  }, [
+    runtime,
+    selectedSessionId,
+    snapshot?.activeSessionId,
+    snapshot?.readiness,
+  ]);
 
   useEffect(() => {
     runtime
@@ -203,6 +416,48 @@ export const WorkbenchConversation = ({
       limit: Math.max(0, 16 - items.filter(item => item.kind !== 'doc').length),
     });
   }, [runtime]);
+  const referenceResource = useCallback(
+    async (resourceId: string) => {
+      const current = runtime.getSnapshot();
+      if (current.composer.context.loading) return;
+      const resourceIds = current.composer.context.items.flatMap(item =>
+        item.kind === 'doc' ? [item.docId] : []
+      );
+      if (resourceIds.includes(resourceId)) return;
+      await runtime.dispatch({
+        type: 'setProjectContextResources',
+        tabId: current.activeTabId,
+        baseResourceIds: resourceIds,
+        resourceIds: [...resourceIds, resourceId],
+      });
+    },
+    [runtime]
+  );
+  const contextResourceIds = useMemo(
+    () =>
+      snapshot?.composer.context.items.flatMap(item =>
+        item.kind === 'doc' ? [item.docId] : []
+      ) ?? [],
+    [snapshot?.composer.context.items]
+  );
+  const contextPanelState = useMemo<WorkbenchContextPanelState>(
+    () => ({
+      resourceIds: contextResourceIds,
+      loading: snapshot?.composer.context.loading ?? false,
+      openPicker: openDocuments,
+      referenceResource,
+    }),
+    [
+      contextResourceIds,
+      openDocuments,
+      referenceResource,
+      snapshot?.composer.context.loading,
+    ]
+  );
+  useEffect(() => {
+    onContextPanelChange?.(contextPanelState);
+    return () => onContextPanelChange?.(null);
+  }, [contextPanelState, onContextPanelChange]);
   useEffect(() => {
     setDocumentPicker(null);
   }, [snapshot?.activeTabId, selectedProjectId]);
@@ -294,17 +549,6 @@ export const WorkbenchConversation = ({
     },
   });
 
-  useAIChatElement({
-    containerRef: tabsContainerRef,
-    selector: 'ai-chat-tabs',
-    enabled: true,
-    createElement: () => new AIChatTabs(),
-    configureElement: tabs => {
-      tabs.runtime = runtime;
-      tabs.runtimeSnapshot = snapshot;
-    },
-  });
-
   const setContentContainer = useCallback((node: HTMLDivElement | null) => {
     contentContainerRef.current = node;
     setBodyReady(!!node);
@@ -321,8 +565,32 @@ export const WorkbenchConversation = ({
       data-testid="workbench-conversation"
     >
       <header className={styles.header}>
-        <div className={styles.tabs} ref={tabsContainerRef} />
+        <div className={styles.conversationIdentity}>
+          <strong>
+            {activeSession?.title ||
+              t['com.affine.localmind.workbench.v9.newConversation']()}
+          </strong>
+          <span>{selectedProjectName}</span>
+        </div>
         <div className={styles.tools}>
+          {activeSession ? (
+            <Button
+              onClick={() => {
+                setAgentWorkOrderDraft(null);
+                setWorkOrderComposerOpen(true);
+              }}
+            >
+              {t['com.affine.localmind.workbench.v9.sendWorkOrder']()}
+            </Button>
+          ) : null}
+          {selectedCard &&
+          selectedCard.column !== 'done' &&
+          selectedCard.scopeType !== 'work_order' &&
+          onCompleteConversation ? (
+            <Button onClick={() => void onCompleteConversation(selectedCard)}>
+              {t['com.affine.localmind.workbench.v9.markComplete']()}
+            </Button>
+          ) : null}
           <div ref={setToolbarContainer} />
         </div>
       </header>
@@ -368,6 +636,18 @@ export const WorkbenchConversation = ({
               resourceIds,
             })
           }
+        />
+      ) : null}
+      {activeSession ? (
+        <WorkOrderComposer
+          sourceSessionId={activeSession.sessionId}
+          open={workOrderComposerOpen}
+          onOpenChange={setWorkOrderComposerOpen}
+          agentDraft={agentWorkOrderDraft}
+          onSent={() => {
+            setAgentWorkOrderDraft(null);
+            return onDocumentsChanged?.();
+          }}
         />
       ) : null}
     </section>

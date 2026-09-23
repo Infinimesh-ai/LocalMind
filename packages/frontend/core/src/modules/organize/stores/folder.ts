@@ -84,6 +84,26 @@ export class FolderStore extends Store {
     );
   }
 
+  watchLinkedDocIds() {
+    const links$ = this.directoryAccess
+      ? this.directoryAccess.state$.pipe(
+          switchMap(state =>
+            state.mode === 'local' || state.mode === 'full'
+              ? this.dbService.db.folders.find$({ type: 'doc' })
+              : of(state.mode === 'filtered' ? state.items : [])
+          )
+        )
+      : this.dbService.db.folders.find$({ type: 'doc' });
+    return links$.pipe(
+      map(
+        items =>
+          new Set(
+            items.filter(item => item.type === 'doc').map(item => item.data)
+          )
+      )
+    );
+  }
+
   watchIsLoading() {
     if (!this.directoryAccess) return this.dbService.db.folders.isLoading$;
     return this.directoryAccess.state$.pipe(

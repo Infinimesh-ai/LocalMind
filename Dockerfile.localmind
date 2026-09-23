@@ -152,6 +152,7 @@ RUN rm -rf /app \
   && cp -a packages/frontend/apps/mobile/dist/. /app/static/mobile \
   && cp packages/backend/server/package.json /app/package.json \
   && cp packages/backend/server/schema.prisma /app/schema.prisma \
+  && AFFINE_DOCKER_CLEAN=1 APP_ROOT=/workspace TARGETARCH=${TARGETARCH} TARGETVARIANT=${TARGETVARIANT} node packages/backend/server/scripts/docker-clean.mjs \
   && cp -a node_modules /app/node_modules \
   && cp packages/backend/native/server-native.node /app/dist/server-native.node \
   && cp packages/backend/native/server-native.x64.node /app/dist/server-native.x64.node \

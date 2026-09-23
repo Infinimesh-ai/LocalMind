@@ -136,7 +136,7 @@ export class DocAIChatSessionStrategy implements AIChatSessionStrategy {
 
 export class WorkspaceAIChatSessionStrategy implements AIChatSessionStrategy {
   async loadInitialSession(scope: AIChatScope, request: AIRequestService) {
-    if (scope.kind === 'project') return null;
+    if (scope.kind !== 'workspace') return null;
     const sessions = await request.getSessions(scope.workspaceId, undefined, {
       pinned: true,
       limit: 1,
@@ -158,7 +158,7 @@ export class WorkspaceAIChatSessionStrategy implements AIChatSessionStrategy {
     request: AIRequestService,
     options: AIChatCreateSessionOptions = {}
   ) {
-    if (scope.kind === 'project') return Promise.resolve(null);
+    if (scope.kind !== 'workspace') return Promise.resolve(null);
     return request.createSessionWithHistory({
       workspaceId: scope.workspaceId,
       promptName: getSessionPromptName(options),
@@ -168,7 +168,11 @@ export class WorkspaceAIChatSessionStrategy implements AIChatSessionStrategy {
   }
 
   canOpenAsTab(session: CopilotChatHistoryFragment, scope: AIChatScope) {
-    return session.workspaceId === scope.workspaceId && !session.docId;
+    return (
+      scope.kind === 'workspace' &&
+      session.workspaceId === scope.workspaceId &&
+      !session.docId
+    );
   }
 
   openSession(session: CopilotChatHistoryFragment) {
@@ -202,7 +206,13 @@ export class ForkAIChatSessionStrategy implements AIChatSessionStrategy {
     request: AIRequestService,
     options: AIChatCreateSessionOptions = {}
   ) {
-    if (scope.kind === 'project') return null;
+    if (
+      scope.kind !== 'fork' &&
+      scope.kind !== 'chat-block' &&
+      scope.kind !== 'playground'
+    ) {
+      return null;
+    }
     const docId = 'docId' in scope ? scope.docId : undefined;
     const parentSessionId =
       'parentSessionId' in scope ? scope.parentSessionId : undefined;
@@ -242,8 +252,11 @@ export class ChatBlockAIChatSessionStrategy extends ForkAIChatSessionStrategy {}
 export class PlaygroundAIChatSessionStrategy extends ForkAIChatSessionStrategy {}
 
 export class ProjectAIChatSessionStrategy implements AIChatSessionStrategy {
+  constructor(private readonly startEmpty = false) {}
+
   async loadInitialSession(scope: AIChatScope, request: AIRequestService) {
     if (scope.kind !== 'project') return null;
+    if (this.startEmpty) return null;
     const sessions = await request.getProjectSessions(
       scope.projectId,
       { first: 1 },
@@ -282,6 +295,33 @@ export class ProjectAIChatSessionStrategy implements AIChatSessionStrategy {
   openSession(session: CopilotChatHistoryFragment, scope: AIChatScope) {
     if (!this.canOpenAsTab(session, scope))
       throw new Error('Conversation belongs to another resource owner');
+    return { type: 'opened' as const, session };
+  }
+}
+
+export class WorkOrderAIChatSessionStrategy implements AIChatSessionStrategy {
+  async loadInitialSession(scope: AIChatScope, request: AIRequestService) {
+    if (scope.kind !== 'work_order') return null;
+    return request.getWorkOrderSession(scope.workOrderId);
+  }
+
+  createDraftSession(scope: AIChatScope) {
+    return createDraftTab(scope);
+  }
+
+  async createSession(scope: AIChatScope, request: AIRequestService) {
+    if (scope.kind !== 'work_order') return null;
+    return request.getWorkOrderSession(scope.workOrderId);
+  }
+
+  canOpenAsTab(session: CopilotChatHistoryFragment, scope: AIChatScope) {
+    return scope.kind === 'work_order' && session.sessionId === scope.sessionId;
+  }
+
+  openSession(session: CopilotChatHistoryFragment, scope: AIChatScope) {
+    if (!this.canOpenAsTab(session, scope)) {
+      throw new Error('Conversation belongs to another work order');
+    }
     return { type: 'opened' as const, session };
   }
 }

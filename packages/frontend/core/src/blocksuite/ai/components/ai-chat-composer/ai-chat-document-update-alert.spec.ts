@@ -147,6 +147,8 @@ describe('AIChatDocumentUpdateAlert', () => {
         writable: true,
       },
       onNewChat: { value: onNewChat, writable: true },
+      onRefresh: { value: undefined, writable: true },
+      refreshing: { value: false, writable: true },
       requestUpdate: { value: vi.fn() },
     });
     const container = document.createElement('div');
@@ -176,5 +178,36 @@ describe('AIChatDocumentUpdateAlert', () => {
         alert.documents
       )
     ).toBe(true);
+  });
+
+  test('refreshes stale Project references in place', async () => {
+    localStorage.clear();
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    const alert = Object.create(
+      AIChatDocumentUpdateAlert.prototype
+    ) as AIChatDocumentUpdateAlert;
+    Object.defineProperties(alert, {
+      workspaceId: { value: 'project:project-1', writable: true },
+      sessionId: { value: 'session-1', writable: true },
+      documents: {
+        value: [{ docId: 'doc-1', updatedAt: 21 }],
+        writable: true,
+      },
+      docDisplayConfig: { value: undefined, writable: true },
+      onNewChat: { value: undefined, writable: true },
+      onRefresh: { value: onRefresh, writable: true },
+      refreshing: { value: false, writable: true },
+      requestUpdate: { value: vi.fn() },
+    });
+    const container = document.createElement('div');
+    render(alert.render(), container);
+
+    const refreshButton = container.querySelector(
+      '[data-testid="ai-chat-document-update-refresh"]'
+    );
+    expect(refreshButton).toBeInstanceOf(HTMLButtonElement);
+    (refreshButton as HTMLButtonElement).click();
+    await Promise.resolve();
+    expect(onRefresh).toHaveBeenCalledOnce();
   });
 });

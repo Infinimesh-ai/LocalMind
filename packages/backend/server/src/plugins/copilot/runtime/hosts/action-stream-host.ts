@@ -98,6 +98,7 @@ export class ActionStreamHost {
         modelId: parsedQuery.modelId,
         byokLeaseId: parsedQuery.byokLeaseId,
         quotaBackedRoutesAllowed: prepared.quotaBackedRoutesAllowed,
+        signal,
       }
     );
     const imageRoutes = await this.prepareImageRoutes(
@@ -177,6 +178,7 @@ export class ActionStreamHost {
       modelId?: string;
       byokLeaseId?: string;
       quotaBackedRoutesAllowed?: boolean;
+      signal?: AbortSignal;
     }
   ): Promise<PromptMessage[]> {
     const promptName = ACTION_PROMPTS[actionId];
@@ -199,7 +201,11 @@ export class ActionStreamHost {
             }
           );
 
-      return session.finish(params, { contextWindow });
+      return await session.finishAsync(params, {
+        contextWindow,
+        modelId: routeContext.modelId,
+        signal: routeContext.signal,
+      });
     }
 
     const prompt = await this.prompts.get(promptName);

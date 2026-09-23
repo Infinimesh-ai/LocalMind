@@ -6,17 +6,18 @@ import { CollaborationIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
 import { useCallback } from 'react';
 
-export const InviteMembersButton = () => {
+export const InviteMembersButton = ({ onOpen }: { onOpen?: () => void }) => {
   const workspace = useService(WorkspaceService).workspace;
 
   const isLocal = workspace.flavour === 'local';
 
   const dialogService = useService(WorkspaceDialogService);
   const onOpenInviteMembersModal = useCallback(() => {
+    onOpen?.();
     dialogService.open('setting', {
       activeTab: `workspace:members`,
     });
-  }, [dialogService]);
+  }, [dialogService, onOpen]);
 
   const t = useI18n();
 

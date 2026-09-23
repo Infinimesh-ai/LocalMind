@@ -1,5 +1,5 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 
 export const root = style({
   minWidth: 0,
@@ -22,12 +22,28 @@ export const header = style({
   borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 
-export const tabs = style({
+export const conversationIdentity = style({
   minWidth: 0,
   flex: 1,
   display: 'flex',
-  alignItems: 'center',
+  flexDirection: 'column',
+  justifyContent: 'center',
   overflow: 'hidden',
+});
+
+export const tabs = conversationIdentity;
+globalStyle(`${conversationIdentity} strong`, {
+  overflow: 'hidden',
+  fontSize: 13,
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+globalStyle(`${conversationIdentity} span`, {
+  overflow: 'hidden',
+  color: cssVarV2('text/secondary'),
+  fontSize: 11,
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 
 export const tools = style({

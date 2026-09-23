@@ -43,6 +43,8 @@ import { CopilotSupportBundleModel } from './copilot-support-bundle';
 import { CopilotTaskRoutePolicyRevisionModel } from './copilot-task-route-policy-revision';
 import { CopilotTranscriptTaskModel } from './copilot-transcript-task';
 import { CopilotUsageModel } from './copilot-usage';
+import { CopilotWorkOrderModel } from './copilot-work-order';
+import { CopilotWorkOrderAgentRuntimeModel } from './copilot-work-order-agent-runtime';
 import { CopilotWorkspaceConfigModel } from './copilot-workspace';
 import { DocModel } from './doc';
 import { DocUserModel } from './doc-user';
@@ -59,6 +61,7 @@ import { McpResourceOperationModel } from './mcp-resource-operation';
 import { NotificationModel } from './notification';
 import { OfficeArtifactModel } from './office-artifact';
 import { OfficeCommandRequestModel } from './office-command-request';
+import { OfficeCommentModel } from './office-comment';
 import {
   DocAccessPolicyModel,
   DocGrantModel,
@@ -83,9 +86,11 @@ import { WorkspaceAnalyticsModel } from './workspace-analytics';
 import { WorkspaceCalendarModel } from './workspace-calendar';
 import { WorkspaceDirectoryGrantModel } from './workspace-directory-grant';
 import { WorkspaceDocOutboxModel } from './workspace-doc-outbox';
+import { WorkspaceFileModel } from './workspace-file';
 import { WorkspaceUserModel } from './workspace-user';
 
 const MODELS = {
+  workspaceFile: WorkspaceFileModel,
   user: UserModel,
   session: SessionModel,
   verificationToken: VerificationTokenModel,
@@ -103,6 +108,7 @@ const MODELS = {
   history: HistoryModel,
   notification: NotificationModel,
   officeArtifact: OfficeArtifactModel,
+  officeComment: OfficeCommentModel,
   officeCommandRequest: OfficeCommandRequestModel,
   projectResource: ProjectResourceModel,
   projectWorkspaceImport: ProjectWorkspaceImportModel,
@@ -136,6 +142,8 @@ const MODELS = {
   copilotEnterpriseConnection: CopilotEnterpriseConnectionModel,
   copilotExternalMcp: CopilotExternalMcpModel,
   copilotWorkspace: CopilotWorkspaceConfigModel,
+  copilotWorkOrder: CopilotWorkOrderModel,
+  copilotWorkOrderAgentRuntime: CopilotWorkOrderAgentRuntimeModel,
   copilotWorkspaceByokConfig: CopilotWorkspaceByokConfigModel,
   copilotJob: CopilotJobModel,
   copilotMcpDelegation: CopilotMcpDelegationModel,
@@ -241,6 +249,8 @@ export * from './copilot-support-bundle';
 export * from './copilot-task-route-policy-revision';
 export * from './copilot-transcript-task';
 export * from './copilot-usage';
+export * from './copilot-work-order';
+export * from './copilot-work-order-agent-runtime';
 export * from './copilot-workspace';
 export * from './doc';
 export * from './doc-user';

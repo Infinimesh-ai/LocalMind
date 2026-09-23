@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Transactional } from '@nestjs-cls/transactional';
 import { AiPromptRole } from '@prisma/client';
 
@@ -13,6 +14,7 @@ import {
   JobQueue,
   OnJob,
 } from '../../base';
+import { ProjectBlobStorage } from '../../core/project';
 import {
   CleanupSessionOptions,
   type CopilotContextPlanTraceInput,
@@ -22,6 +24,7 @@ import {
   UpdateChatSessionOptions,
 } from '../../models';
 import { CopilotAccessPolicy } from './access';
+import { CompatSubmissionStore } from './compat/submission-store';
 import { ContextMemoryService } from './context-memory-service';
 import { ContextRuleService } from './context-rule-service';
 import {
@@ -34,7 +37,20 @@ import { type Conversation, promptMessageFromTurn, type Turn } from './core';
 import type { ResolvedPrompt } from './prompt';
 import { PromptService } from './prompt/service';
 import { type PromptMessage, type PromptParams } from './providers/types';
+import { CapabilityRuntime } from './runtime/capability-runtime';
 import {
+  CONTEXT_COMPACTION_PROMPT_VERSION,
+  CONTEXT_COMPACTION_RESPONSE_CONTRACT,
+  contextCompactionInputBudget,
+  contextCompactionMessages,
+  ContextCompactionSummarySchema,
+  estimateContextCompactionTokens,
+  renderContextCompactionSummary,
+  splitContextCompactionMessages,
+  validateContextCompactionSummary,
+} from './runtime/context-compaction';
+import {
+  ContextCompactionUnavailableError,
   ContextPlanner,
   type ContextPlannerCheckpoint,
   type ContextPlannerMemory,
@@ -54,6 +70,12 @@ declare global {
     'copilot.session.deleteDoc': {
       workspaceId: string;
       docId: string;
+    };
+    'copilot.session.purge': {
+      sessionId: string;
+    };
+    'copilot.session.compactContext': {
+      taskId: string;
     };
   }
 }
@@ -100,6 +122,13 @@ export class ChatSession implements AsyncDisposable {
       scope: ContextScopeResolution;
       savePlanTrace: (trace: CopilotContextPlanTraceInput) => Promise<void>;
       retrieveMemories: (query: string) => Promise<ContextPlannerMemory[]>;
+      compactCheckpoint?: (input: {
+        checkpoint: ContextPlannerCheckpoint;
+        sourceMessageIds: string[];
+        modelId?: string;
+        contextWindow?: number;
+        signal?: AbortSignal;
+      }) => Promise<ContextPlannerCheckpoint>;
     }
   ) {
     this.renderPromptSession = renderPromptSession;
@@ -119,6 +148,8 @@ export class ChatSession implements AsyncDisposable {
       userId,
       workspaceId,
       selectedContextProjectId,
+      scopeType,
+      workOrderId,
       docId,
       prompt: { name: promptName, config: promptConfig },
     } = this.state;
@@ -128,6 +159,8 @@ export class ChatSession implements AsyncDisposable {
       userId,
       workspaceId,
       selectedContextProjectId,
+      scopeType,
+      workOrderId,
       docId,
       promptName,
       promptConfig,
@@ -242,6 +275,46 @@ export class ChatSession implements AsyncDisposable {
     return plan.messages;
   }
 
+  async finishAsync(
+    params: PromptParams,
+    options: {
+      contextWindow?: number;
+      referenceMessages?: PromptMessage[];
+      modelId?: string;
+      signal?: AbortSignal;
+    } = {}
+  ): Promise<PromptMessage[]> {
+    const messages = this.finish(params, options);
+    const checkpoint = this.pendingCheckpoint;
+    if (!checkpoint || !this.context) return messages;
+    // A failed/cancelled durable compaction must never fall through to the
+    // legacy save-on-dispose path.
+    this.pendingCheckpoint = undefined;
+    const sourceMessageIds = this.state.turns
+      .slice(0, checkpoint.summarizedMessageCount)
+      .map(turn => turn.id);
+    if (sourceMessageIds.some(id => !id)) {
+      throw new ContextCompactionUnavailableError();
+    }
+    if (!this.context.compactCheckpoint) {
+      throw new ContextCompactionUnavailableError();
+    }
+    const published = await this.context.compactCheckpoint({
+      checkpoint,
+      sourceMessageIds: sourceMessageIds as string[],
+      modelId: options.modelId,
+      contextWindow: options.contextWindow,
+      signal: options.signal,
+    });
+    this.context.checkpoint = published;
+    // Re-run deterministic assembly against the checkpoint that actually won
+    // the lease/CAS. The original render still contained the provisional
+    // heuristic candidate and must never be sent to the provider.
+    const reassembled = this.finish(params, options);
+    this.pendingCheckpoint = undefined;
+    return reassembled;
+  }
+
   async save() {
     await this.dispose?.({
       ...this.state,
@@ -298,10 +371,13 @@ export class ChatSessionService {
     private readonly conversationPolicy: ConversationPolicy,
     private readonly prompts: PromptService,
     private readonly promptRuntime: PromptRuntime,
+    private readonly capabilityRuntime: CapabilityRuntime,
     private readonly contextPlanner: ContextPlanner,
     private readonly contextMemory: ContextMemoryService,
     private readonly contextRules: ContextRuleService,
-    private readonly contextScopeResolver: ContextScopeResolver
+    private readonly contextScopeResolver: ContextScopeResolver,
+    private readonly compatSubmissions: CompatSubmissionStore,
+    private readonly projectBlobs: ProjectBlobStorage
   ) {}
 
   private async retrieveContextMemories(
@@ -646,7 +722,430 @@ export class ChatSessionService {
   }
 
   async cleanup(options: CleanupSessionOptions) {
-    return await this.store.cleanup(options);
+    const sessionIds = await this.store.cleanup(options);
+    await Promise.all(
+      sessionIds.map(sessionId =>
+        this.jobs.add(
+          'copilot.session.purge',
+          { sessionId },
+          { jobId: `copilot-session-purge-${sessionId}` }
+        )
+      )
+    );
+    return sessionIds;
+  }
+
+  async getSessionDeletion(userId: string, sessionId: string) {
+    return await this.models.copilotSession.getSessionDeletion(
+      sessionId,
+      userId
+    );
+  }
+
+  async retrySessionDeletion(userId: string, sessionId: string) {
+    const deletion = await this.models.copilotSession.retrySessionDeletion(
+      sessionId,
+      userId
+    );
+    if (deletion?.status === 'retry_wait') {
+      await this.jobs.add(
+        'copilot.session.purge',
+        { sessionId },
+        { jobId: `copilot-session-purge-${sessionId}` }
+      );
+    }
+    return deletion;
+  }
+
+  async requestManualContextCompaction(userId: string, sessionId: string) {
+    await this.assertOwnedSession(userId, sessionId);
+    const state = await this.getState(sessionId);
+    if (!state) throw new CopilotSessionNotFound();
+    const checkpoint = await this.contextMemory.loadCheckpoint(sessionId);
+    const turns = state.turns.map(turn => promptMessageFromTurn(turn));
+    const candidate = this.contextPlanner.createManualCheckpoint({
+      turns,
+      checkpoint,
+    });
+    if (!candidate) {
+      return await this.models.copilotContextMemory.getLatestContextCompactionTask(
+        sessionId,
+        userId
+      );
+    }
+    const sourceMessageIds = state.turns
+      .slice(0, candidate.summarizedMessageCount)
+      .map(turn => turn.id);
+    if (sourceMessageIds.some(id => !id)) {
+      throw new ContextCompactionUnavailableError();
+    }
+    const inputBudget = contextCompactionInputBudget();
+    const task =
+      await this.models.copilotContextMemory.requestContextCompaction({
+        sessionId,
+        actorUserId: userId,
+        sourceMessageIds: sourceMessageIds as string[],
+        sourceFingerprint: candidate.sourceFingerprint,
+        summarizedMessageCount: candidate.summarizedMessageCount,
+        strategyVersion: candidate.strategyVersion,
+        strategyFingerprint: candidate.strategyFingerprint,
+        modelId: state.prompt.model,
+        routeFingerprint: createHash('sha256')
+          .update(
+            JSON.stringify({
+              version: 'context-compaction-route/v1',
+              modelId: state.prompt.model,
+              contextWindow: null,
+              inputBudget,
+              schemaHash: CONTEXT_COMPACTION_RESPONSE_CONTRACT.schemaHash,
+            })
+          )
+          .digest('hex'),
+        inputBudget,
+        candidateSummary: candidate.summary,
+        candidateSummaryData: candidate.summaryData,
+        candidateDiagnostics: candidate.diagnostics,
+      });
+    await this.enqueueContextCompaction(task);
+    return task;
+  }
+
+  async retryContextCompaction(userId: string, taskId: string) {
+    const task = await this.models.copilotContextMemory.retryContextCompaction(
+      taskId,
+      userId
+    );
+    if (task) await this.enqueueContextCompaction(task);
+    return task;
+  }
+
+  async cancelContextCompaction(userId: string, taskId: string) {
+    return await this.models.copilotContextMemory.cancelContextCompaction(
+      taskId,
+      userId
+    );
+  }
+
+  private async enqueueContextCompaction(task: {
+    id: string;
+    attempt: number;
+  }) {
+    try {
+      await this.jobs.add(
+        'copilot.session.compactContext',
+        { taskId: task.id },
+        { jobId: `copilot-context-compaction-${task.id}-${task.attempt}` }
+      );
+    } catch (error) {
+      // The database task is authoritative. The minute cron can repair a
+      // transient enqueue failure without losing or duplicating the result.
+      this.logger.warn('Failed to enqueue durable context compaction', {
+        taskId: task.id,
+        error,
+      });
+    }
+  }
+
+  private async waitForContextCompaction(taskId: string, signal?: AbortSignal) {
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      if (signal?.aborted) return null;
+      const task =
+        await this.models.copilotContextMemory.getContextCompactionTask(taskId);
+      if (!task || task.status !== 'running') return task;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return await this.models.copilotContextMemory.getContextCompactionTask(
+      taskId
+    );
+  }
+
+  private async compactCheckpoint(input: {
+    sessionId: string;
+    actorUserId: string;
+    checkpoint: ContextPlannerCheckpoint;
+    sourceMessageIds: string[];
+    modelId?: string;
+    contextWindow?: number;
+    signal?: AbortSignal;
+  }): Promise<ContextPlannerCheckpoint> {
+    let task = await this.models.copilotContextMemory.requestContextCompaction({
+      sessionId: input.sessionId,
+      actorUserId: input.actorUserId,
+      sourceMessageIds: input.sourceMessageIds,
+      sourceFingerprint: input.checkpoint.sourceFingerprint,
+      summarizedMessageCount: input.checkpoint.summarizedMessageCount,
+      strategyVersion: input.checkpoint.strategyVersion,
+      strategyFingerprint: input.checkpoint.strategyFingerprint,
+      modelId: input.modelId,
+      routeFingerprint: createHash('sha256')
+        .update(
+          JSON.stringify({
+            version: 'context-compaction-route/v1',
+            modelId: input.modelId ?? null,
+            contextWindow: input.contextWindow ?? null,
+            inputBudget: contextCompactionInputBudget(input.contextWindow),
+            schemaHash: CONTEXT_COMPACTION_RESPONSE_CONTRACT.schemaHash,
+          })
+        )
+        .digest('hex'),
+      inputBudget: contextCompactionInputBudget(input.contextWindow),
+      candidateSummary: input.checkpoint.summary,
+      candidateSummaryData: input.checkpoint.summaryData,
+      candidateDiagnostics: input.checkpoint.diagnostics,
+    });
+    if (input.signal?.aborted) {
+      await this.models.copilotContextMemory.cancelContextCompaction(
+        task.id,
+        input.actorUserId
+      );
+      throw new ContextCompactionUnavailableError();
+    }
+    if (['failed', 'cancelled'].includes(task.status)) {
+      task =
+        (await this.models.copilotContextMemory.retryContextCompaction(
+          task.id,
+          input.actorUserId
+        )) ?? task;
+    }
+    await this.enqueueContextCompaction(task);
+    task = (await this.executeContextCompaction(task.id)) ?? task;
+    if (task.status === 'running') {
+      task =
+        (await this.waitForContextCompaction(task.id, input.signal)) ?? task;
+    }
+    if (input.signal?.aborted) {
+      await this.models.copilotContextMemory.cancelContextCompaction(
+        task.id,
+        input.actorUserId
+      );
+      throw new ContextCompactionUnavailableError();
+    }
+    if (task.status !== 'succeeded' || !task.checkpointId) {
+      throw new ContextCompactionUnavailableError();
+    }
+    return {
+      id: task.checkpointId,
+      strategyVersion: task.strategyVersion,
+      strategyFingerprint: task.strategyFingerprint,
+      summary: task.resultSummary ?? task.candidateSummary,
+      summarizedMessageCount: task.summarizedMessageCount,
+      sourceFingerprint: task.sourceFingerprint,
+      diagnostics: (task.resultDiagnostics ??
+        task.candidateDiagnostics) as Record<string, unknown>,
+      summaryData: (task.resultSummaryData ??
+        task.candidateSummaryData) as Record<string, unknown>,
+    };
+  }
+
+  private async generateContextCompaction(taskId: string, leaseId: string) {
+    const source =
+      await this.models.copilotContextMemory.getContextCompactionGenerationInput(
+        { taskId, leaseId }
+      );
+    if (!source || source.task.resultSummary) return source?.task ?? null;
+    const previous = ContextCompactionSummarySchema.safeParse(
+      source.previousCheckpoint?.summaryData
+    );
+    const previousSummary = previous.success ? previous.data : null;
+    const previousMessageCount = previousSummary
+      ? (source.previousCheckpoint?.summarizedMessageCount ?? 0)
+      : 0;
+    const messages = source.messages.slice(previousMessageCount);
+    const inputBudget =
+      source.task.inputBudget ?? contextCompactionInputBudget();
+    const batches = splitContextCompactionMessages(messages, inputBudget);
+    if (!batches.length) {
+      throw new Error('CONTEXT_COMPACTION_EMPTY_SOURCE');
+    }
+
+    let summary = previousSummary;
+    let inputTokensEstimated = 0;
+    for (const [batchIndex, batch] of batches.entries()) {
+      const prompt = contextCompactionMessages({
+        messages: batch,
+        previousSummary: summary,
+        receiptIds: source.receiptIds,
+        batchIndex,
+        batchCount: batches.length,
+      });
+      inputTokensEstimated += prompt.reduce(
+        (total, message) =>
+          total + estimateContextCompactionTokens(message.content),
+        0
+      );
+      const generated = await this.capabilityRuntime.generateStructuredValue(
+        { modelId: source.task.modelId ?? undefined },
+        prompt,
+        {
+          user: source.task.actorUserIdSnapshot,
+          workspace: source.task.workspaceIdSnapshot ?? undefined,
+          session: source.task.sessionId,
+          taskId: source.task.id,
+          featureKind: 'chat',
+          maxTokens: 4_096,
+          responseSchemaJson:
+            CONTEXT_COMPACTION_RESPONSE_CONTRACT.responseSchemaJson,
+          schemaHash: CONTEXT_COMPACTION_RESPONSE_CONTRACT.schemaHash,
+          strict: true,
+          maxProviderAttempts: 2,
+          signal: AbortSignal.timeout(60_000),
+        },
+        CONTEXT_COMPACTION_RESPONSE_CONTRACT as Required<
+          typeof CONTEXT_COMPACTION_RESPONSE_CONTRACT
+        >
+      );
+      summary = validateContextCompactionSummary({
+        value: generated.value,
+        sourceMessageIds: source.messages.map(message => message.id),
+        receiptIds: source.receiptIds,
+      });
+      await this.models.copilotContextMemory.renewContextCompactionLease({
+        taskId,
+        leaseId,
+        leaseExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+    }
+    if (!summary) throw new Error('CONTEXT_COMPACTION_EMPTY_RESULT');
+    const rendered = renderContextCompactionSummary(summary);
+    return await this.models.copilotContextMemory.storeContextCompactionResult({
+      taskId,
+      leaseId,
+      summary: rendered,
+      summaryData: summary,
+      diagnostics: {
+        promptVersion: CONTEXT_COMPACTION_PROMPT_VERSION,
+        schemaHash: CONTEXT_COMPACTION_RESPONSE_CONTRACT.schemaHash,
+        batchCount: batches.length,
+        sourceMessageCount: source.messages.length,
+        previousCheckpointUsed: Boolean(previousSummary),
+        receiptCount: source.receiptIds.length,
+        tokenAccounting: 'provider_neutral_conservative_estimate',
+        inputBudget,
+      },
+      inputTokensEstimated,
+      outputTokensEstimated: estimateContextCompactionTokens(rendered),
+    });
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async enqueueDueContextCompactions() {
+    const tasks =
+      await this.models.copilotContextMemory.listDueContextCompactions(100);
+    await Promise.all(
+      tasks.map(async task => {
+        const current =
+          await this.models.copilotContextMemory.getContextCompactionTask(
+            task.id
+          );
+        if (current) await this.enqueueContextCompaction(current);
+      })
+    );
+  }
+
+  async executeContextCompaction(taskId: string) {
+    const leaseId = randomUUID();
+    const claimed =
+      await this.models.copilotContextMemory.claimContextCompaction({
+        taskId,
+        leaseId,
+        leaseExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+    if (!claimed || claimed.status !== 'running') {
+      return (
+        claimed ??
+        (await this.models.copilotContextMemory.getContextCompactionTask(
+          taskId
+        ))
+      );
+    }
+    try {
+      await this.generateContextCompaction(taskId, leaseId);
+      return await this.models.copilotContextMemory.publishContextCompaction({
+        taskId,
+        leaseId,
+      });
+    } catch (error) {
+      const failureCode =
+        error instanceof Error &&
+        /^CONTEXT_COMPACTION_[A-Z0-9_]+$/.test(error.message)
+          ? error.message
+          : 'CONTEXT_COMPACTION_PROVIDER_FAILED';
+      await this.models.copilotContextMemory.failContextCompaction({
+        taskId,
+        leaseId,
+        failureCode,
+      });
+      throw error;
+    }
+  }
+
+  @OnJob('copilot.session.compactContext')
+  async compactContextJob(job: Jobs['copilot.session.compactContext']) {
+    await this.executeContextCompaction(job.taskId);
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async enqueueDueSessionDeletions() {
+    const deletions =
+      await this.models.copilotSession.listDueSessionDeletions(100);
+    await Promise.all(
+      deletions.map(deletion =>
+        this.jobs.add(
+          'copilot.session.purge',
+          { sessionId: deletion.sessionId },
+          { jobId: `copilot-session-purge-${deletion.sessionId}` }
+        )
+      )
+    );
+  }
+
+  @OnJob('copilot.session.purge')
+  async purgeDeletedSession(job: Jobs['copilot.session.purge']) {
+    const leaseId = randomUUID();
+    const deletion = await this.models.copilotSession.claimSessionDeletion({
+      sessionId: job.sessionId,
+      leaseId,
+      leaseExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+    if (!deletion) return;
+    try {
+      await this.compatSubmissions.deleteSession(job.sessionId);
+      await this.models.copilotSession.purgeSessionDeletion({
+        sessionId: job.sessionId,
+        leaseId,
+        contextEpoch: deletion.contextEpoch,
+      });
+      const pending =
+        await this.models.projectResource.listPendingSessionBlobDeletions(
+          deletion.id
+        );
+      for (const blob of pending) {
+        await this.projectBlobs.deletePendingSessionBlob({
+          deletionId: deletion.id,
+          projectId: blob.projectId,
+          key: blob.key,
+        });
+      }
+      await this.models.copilotSession.completeSessionDeletion({
+        sessionId: job.sessionId,
+        leaseId,
+        contextEpoch: deletion.contextEpoch,
+      });
+    } catch (error) {
+      await this.models.copilotSession.failSessionDeletion({
+        sessionId: job.sessionId,
+        leaseId,
+        failureCode:
+          error instanceof Error &&
+          ['SESSION_DELETE_EPOCH_STALE', 'SESSION_DELETE_LEASE_LOST'].includes(
+            error.message
+          )
+            ? error.message
+            : 'SESSION_DELETE_PURGE_FAILED',
+      });
+      throw error;
+    }
   }
 
   async getMessage(sessionId: string, messageId: string) {
@@ -696,7 +1195,7 @@ export class ChatSessionService {
    *     // allocate a session, can be reused chat in about 12 hours with same session
    *     await using session = await session.get(sessionId);
    *     session.pushTurn(turn);
-   *     copilot.text({ modelId }, session.finish());
+   *     copilot.text({ modelId }, await session.finishAsync({}, { modelId }));
    * }
    * // session will be disposed after the block
    * @param sessionId session id
@@ -710,16 +1209,22 @@ export class ChatSessionService {
           sessionId,
           actorId: state.conversation.userId,
           projectId: state.conversation.selectedContextProjectId,
+          workOrderId: state.conversation.workOrderId,
           sources: [
             {
               workspaceId: state.conversation.workspaceId,
-              kind: 'workspace',
+              kind:
+                state.conversation.scopeType === 'work_order'
+                  ? 'work_order'
+                  : 'workspace',
               sourceId: `system-prompt:${createHash('sha256').update(JSON.stringify(state.prompt)).digest('hex')}`,
             },
           ],
         });
       }
-      const contextEnabled = state.prompt.category === 'text';
+      const contextEnabled =
+        state.prompt.category === 'text' &&
+        state.conversation.scopeType !== 'work_order';
       const contextScope = contextEnabled
         ? await this.contextScopeResolver.resolve({
             userId: state.conversation.userId,
@@ -747,6 +1252,8 @@ export class ChatSessionService {
           workspaceId: state.conversation.workspaceId,
           docId: state.conversation.docId,
           selectedContextProjectId: state.conversation.selectedContextProjectId,
+          scopeType: state.conversation.scopeType,
+          workOrderId: state.conversation.workOrderId,
           turns: state.turns,
           prompt: state.prompt,
         },
@@ -783,6 +1290,12 @@ export class ChatSessionService {
               },
               retrieveMemories: async query =>
                 await this.retrieveContextMemories(contextScope, query),
+              compactCheckpoint: async input =>
+                await this.compactCheckpoint({
+                  sessionId,
+                  actorUserId: state.conversation.userId,
+                  ...input,
+                }),
             }
           : undefined
       );
@@ -816,6 +1329,9 @@ export class ChatSessionService {
   @OnJob('copilot.session.generateTitle')
   async generateSessionTitle(job: Jobs['copilot.session.generateTitle']) {
     const { sessionId } = job;
+    const claim =
+      await this.models.copilotSession.beginTitleGeneration(sessionId);
+    if (!claim) return;
 
     try {
       const state = await this.getState(sessionId);
@@ -837,6 +1353,10 @@ export class ChatSessionService {
           turns,
         })
       ) {
+        await this.models.copilotSession.failTitleGeneration(
+          sessionId,
+          claim.titleRevision
+        );
         return;
       }
 
@@ -852,14 +1372,22 @@ export class ChatSessionService {
         this.logger.warn(
           `Generated empty title for session ${sessionId}, skip updating`
         );
+        await this.models.copilotSession.failTitleGeneration(
+          sessionId,
+          claim.titleRevision
+        );
         return;
       }
-      await this.models.copilotSession.update({
-        userId: conversation.userId,
+      await this.models.copilotSession.applyGeneratedTitle({
         sessionId,
+        expectedRevision: claim.titleRevision,
         title: generatedTitle,
       });
     } catch (error) {
+      await this.models.copilotSession.failTitleGeneration(
+        sessionId,
+        claim.titleRevision
+      );
       const context = {
         sessionId,
         cause: error instanceof Error ? error.cause : error,

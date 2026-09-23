@@ -475,7 +475,15 @@ const WorkspacePage = ({
             workspaceSwitchService.remoteConnected(switchId);
           }
 
-          if (!committed && state.syncErrorMessage && !state.ready) {
+          // Keep the engine alive while its remote connection is retrying.
+          // Disposing here prevents recovery after a server restart, even when
+          // the local root can still finish loading.
+          if (
+            !committed &&
+            state.syncErrorMessage &&
+            !state.syncRetrying &&
+            !state.ready
+          ) {
             failBeforeCommit(
               'local-root',
               new Error('Workspace root is unavailable')

@@ -6,6 +6,54 @@ Make Rule, Automatic Memory, rolling conversation summaries, and cross-session
 recall scope-correct, permission-aware, trust-separated, and auditable before
 adding more sophisticated extraction or retrieval.
 
+## Shared Project Memory Remediation
+
+The corrected 2026-09-21 [Workspace / Project context and session implementation plan](../workspace-project-context-session-remediation.zh-CN.md)
+defines one shared Memory library per Project, available to current active members.
+Conversation history, private attachments and rolling summaries remain private to
+each owned session. Members manage their independent contributions; Owners manage
+the shared library, with version checks and conflict handling for multi-author facts.
+Project-level automatic capture is independent of Workspace settings and retains
+source-sharing checks; a session may opt out of automatic contribution without
+creating a personal Project Memory library.
+
+This supersedes the earlier per-user Project Memory target. Legitimate multi-author
+shared records are not contamination. Any data actually created under a private
+contract must not become shared just by removing owner filters; migration status,
+provenance and explicit publication of private records require separate checks.
+The source implementation now includes Project-wide shared identity and recall,
+contribution/conflict evidence, Owner/member management boundaries, Project and
+session capture revisions, native Project context refresh, session authorization,
+durable deletion tasks, and immutable checkpoint revisions. It also preserves
+source authorization while preventing old private-contract rows from becoming
+active shared memory automatically. Rolling checkpoint publication now uses a
+persisted asynchronous task with stable deduplication identity, leases, takeover,
+bounded retry, cancellation and strict CAS over the source prefix, session epoch,
+current checkpoint, source ledger, Project context version, Project Memory revision
+and live membership.
+The task result is now a strict provider-neutral summary containing goals,
+decisions, corrections, constraints, open work, source spans, receipts and
+material coverage/omission evidence. Budgeting is conservative for CJK and tool
+schemas, oversized messages are split without dropping the middle, and Project
+documents support frozen-version range reads. Chat exposes persisted timeline
+state, manual compaction, cancel/retry, token evidence and reconnect-safe
+Project/session isolation.
+
+Session deletion now records normalized Project Blob references and physically
+deletes only session-exclusive objects after a final transaction recheck. Legal
+hold immediately revokes session access but pauses destructive cleanup. Signed,
+versioned private audit archives are read back and verified before hot deletion;
+a signed recovery barrier replays session deletion, Memory isolation and source
+grant revocation before application workers/read endpoints start after restore.
+Content-free user/Admin status reports cleanup, hold, receipt and backup-retention
+state.
+
+This is not a production-deployment or full A01-A40 acceptance claim. Remaining
+work includes production data classification, real database/object-store restore,
+complete privacy scanning, authorized real-model summary evaluation, the browser
+interaction matrix and runtime cutover evidence. The strict model path has mock
+behavioral coverage but no real Project BYOK quality/cost/latency claim.
+
 ## Implemented Foundation
 
 The 2026-09-16 [Workspace/Project AI 写入授权与工具作用域重构方案](../workspace-project-ai-write-authorization-remediation.zh-CN.md) supersedes the former actor-only destination policy for ordinary Workspace AI writes.
@@ -144,8 +192,8 @@ The v6 foundation still has follow-up work before broad production rollout:
 - local deterministic embeddings and reranking provide a stable fallback, but
   production Sparkclaw embedding/reranker quality and cost still require online
   evaluation;
-- rolling summaries are heuristic rather than model-generated structured
-  summaries;
+- structured rolling summaries have source-level and mock-model coverage, but
+  production-model quality, latency and cost have not been measured;
 - traces support replay diagnostics but do not yet join answer-quality,
   user-feedback, and online experiment outcomes;
 - scheduled expiry cleanup and large-corpus query performance still need
@@ -164,8 +212,8 @@ The v6 foundation still has follow-up work before broad production rollout:
    retrieval interfaces and add shadow evaluation before rollout.
 4. Join planner traces with explicit user correction/undo and answer-quality
    outcomes without persisting sensitive prompt content.
-5. Add model-generated structured rolling summaries with provenance and
-   conflict-safe refresh.
+5. Evaluate and tune model-generated structured rolling summaries with real
+   Project BYOK while preserving provenance and conflict-safe refresh.
 6. Add strategy shadowing, staged rollout, and online A/B controls after offline
    baselines are representative and benchmark-specific production rules are
    prohibited.

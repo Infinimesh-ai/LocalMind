@@ -1,0 +1,36 @@
+mutation prepareWorkOrderDispatch(
+  $sourceSessionId: ID!
+  $requestKey: String!
+  $recipients: [WorkOrderRecipientDraftInput!]!
+) {
+  prepareWorkOrderDispatch(
+    sourceSessionId: $sourceSessionId
+    requestKey: $requestKey
+    recipients: $recipients
+  ) {
+    dispatchId
+    draftVersion
+    draftFingerprint
+    confirmationToken
+    confirmationRequired
+    expiresAt
+  }
+}
+
+mutation confirmWorkOrderDispatch(
+  $dispatchId: ID!
+  $confirmationToken: String!
+  $expectedDraftVersion: Int!
+  $requestKey: String!
+) {
+  confirmWorkOrderDispatch(
+    dispatchId: $dispatchId
+    confirmationToken: $confirmationToken
+    expectedDraftVersion: $expectedDraftVersion
+    requestKey: $requestKey
+  ) {
+    dispatchId
+    workOrderIds
+    recipientSessionIds
+  }
+}

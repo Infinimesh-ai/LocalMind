@@ -1,0 +1,38 @@
+query copilotWorkbenchConversationsGet(
+  $column: String
+  $first: Int = 30
+  $after: String
+) {
+  currentUser {
+    copilot {
+      myConversationCards(column: $column, first: $first, after: $after) {
+        items {
+          sessionId
+          scopeType
+          title
+          titleRevision
+          column
+          attentionReasons
+          activeRunCount
+          project {
+            id
+            name
+          }
+          workOrderId
+          workOrderStatus
+          lastBusinessAt
+          version
+        }
+        counts {
+          todo
+          progress
+          done
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}

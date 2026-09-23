@@ -1144,6 +1144,7 @@ const AIContextDashboard = ({
           variables: {
             input: {
               id: memory.id,
+              expectedRevision: memory.revision,
               ...update,
             },
           },
@@ -1171,7 +1172,10 @@ const AIContextDashboard = ({
           try {
             await graphqlService.gql({
               query: copilotContextMemoryDeleteMutation,
-              variables: { id: memory.id },
+              variables: {
+                id: memory.id,
+                expectedRevision: memory.revision,
+              },
             });
             setDrafts(current => {
               const next = { ...current };

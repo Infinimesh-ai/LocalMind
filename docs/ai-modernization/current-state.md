@@ -1,5 +1,39 @@
 # Current State
 
+## Workspace / Project Context And Sessions
+
+The corrected 2026-09-21
+[context and session remediation contract](workspace-project-context-session-remediation.zh-CN.md)
+is implemented in source for its core authorization and shared-memory boundary:
+one Project has one shared Memory library for current members, while conversations,
+private attachments and rolling checkpoints remain owned by one user/session.
+The implementation adds contribution and conflict evidence, Owner/member management
+rules, independent Project/session capture revisions, native context refresh,
+immutable checkpoint revisions, and a leased session-deletion task that removes
+private online payloads without cascading into lawful Project Memory. The real
+chat/action preparation path now publishes rolling checkpoints through a durable
+asynchronous compaction task with deduplication, bounded retry, cancellation,
+lease takeover and strict source/dependency/pointer CAS before any model request.
+Compaction uses a provider-neutral structured result with provenance validation,
+conservative CJK/tool budgets, oversized-message splitting and explicit material
+coverage/omission ranges. The chat UI exposes durable progress, manual start,
+cancel/retry, token evidence and a reviewable result while ignoring late events
+from another Project or session.
+
+Fresh-database migration and focused Linux tests cover scope mismatch, non-owner
+access, source authorization, conflict resolution, account/member removal,
+checkpoint tamper rejection, deletion lease takeover, shared-memory retention,
+exclusive/shared Project Blob cleanup, signed audit archive tamper/key-rotation,
+legal hold, and deletion-before-backup barrier replay. Admin exposes content-free
+deletion and archive status. Recovery barriers are verified and replayed before
+AppModule loads when configured. The detailed source and isolated-test evidence is
+in the [execution record](workspace-project-context-session-remediation.execution.zh-CN.md).
+
+This source state has not been synchronized to a business runtime. Production data
+classification, a real business backup plus object-store restore, full privacy
+scan, real-model quality/cost/latency evaluation, complete browser interaction
+matrix and final A01-A40 deployment acceptance remain explicit follow-up work.
+
 ## Direct MCP Resources
 
 The [direct resource contract](mcp-direct-resource-tools-design.zh-CN.md) is implemented

@@ -900,7 +900,7 @@ class StreamObjectType {
 }
 
 @ObjectType('ChatMessage')
-class ChatMessageType implements Partial<ChatMessage> {
+export class ChatMessageType implements Partial<ChatMessage> {
   // id will be null if message is a prompt message
   @Field(() => ID, { nullable: true })
   id!: string | undefined;
@@ -925,7 +925,7 @@ class ChatMessageType implements Partial<ChatMessage> {
 }
 
 @ObjectType('CopilotHistories')
-class CopilotHistoriesType implements Omit<ChatHistory, 'userId'> {
+export class CopilotHistoriesType implements Omit<ChatHistory, 'userId'> {
   @Field(() => String)
   sessionId!: string;
 
@@ -26223,7 +26223,19 @@ export class CopilotResolver {
     @CurrentUser() user: CurrentUser,
     @Args('sessionId') sessionId: string
   ): Promise<CopilotSessionType> {
-    await this.assertPermission(user, copilot);
+    const owned = await this.chatSession.assertOwnedSession(user.id, sessionId);
+    if (
+      copilot.workspaceId !== undefined &&
+      copilot.workspaceId !== owned.workspaceId
+    ) {
+      throw new NotFoundException('Session not found');
+    }
+    if (owned.workspaceId) {
+      await this.assertPermission(user, {
+        workspaceId: owned.workspaceId,
+        docId: owned.docId ?? undefined,
+      });
+    }
     const state = await this.chatSession.getMetaState(sessionId);
     if (!state) {
       throw new NotFoundException('Session not found');
@@ -26231,7 +26243,6 @@ export class CopilotResolver {
 
     const projected = this.historyProjector.projectSession(state, {
       requestUserId: user.id,
-      skipVisibilityFilter: true,
     });
     if (!projected) {
       throw new NotFoundException('Session not found');
@@ -26566,13 +26577,16 @@ export class CopilotResolver {
     @Args({ name: 'options', type: () => UpdateChatSessionInput })
     options: UpdateChatSessionInput
   ): Promise<string> {
+    const owned = await this.chatSession.assertOwnedSession(
+      user.id,
+      options.sessionId
+    );
     const session = await this.chatSession.get(options.sessionId);
     if (!session) {
       throw new CopilotSessionNotFound();
     }
 
-    if (!session.config.workspaceId) {
-      await this.chatSession.assertOwnedSession(user.id, options.sessionId);
+    if (!owned.workspaceId) {
       if (
         options.docId ||
         (options.selectedContextProjectId !== undefined &&

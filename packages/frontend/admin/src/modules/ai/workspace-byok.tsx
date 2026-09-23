@@ -52,6 +52,7 @@ import {
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { translateAdminText as text } from '../../localized-text';
 import { formatByokError } from './byok-feedback';
 import { WorkspaceAiProfilesEditor } from './workspace-ai-profiles';
 
@@ -136,7 +137,7 @@ function testFingerprint(draft: KeyDraft, customEndpointSupported: boolean) {
 }
 
 function formatTimestamp(value: string | null) {
-  if (!value) return 'Never';
+  if (!value) return text('Never');
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -182,10 +183,14 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     [draft, settings.customEndpointSupported]
   );
   const isTested = testedFingerprint === currentTestFingerprint;
+  const modelOptions = [
+    ...new Set([draft.modelId, ...availableModels].filter(Boolean)),
+  ];
   const canTest = Boolean(draft.id || draft.apiKey.trim());
   const canSave =
     settings.serverEntitled &&
     Boolean(draft.name.trim()) &&
+    Boolean(draft.modelId.trim()) &&
     Boolean(draft.id || draft.apiKey.trim()) &&
     isTested &&
     !isSaving;
@@ -222,7 +227,12 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
         toast.error(formatByokError(result.testWorkspaceByokConfig.message));
         return;
       }
-      setAvailableModels(result.testWorkspaceByokConfig.models ?? []);
+      setAvailableModels(current => [
+        ...new Set([
+          ...current,
+          ...(result.testWorkspaceByokConfig.models ?? []),
+        ]),
+      ]);
       setTestedFingerprint(currentTestFingerprint);
       await mutate();
       toast.success(i18n['com.affine.admin.byok-connection-verified']());
@@ -416,7 +426,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                       }
                     >
                       {key.enabled
-                        ? TEST_STATUS_LABELS[key.testStatus]
+                        ? text(TEST_STATUS_LABELS[key.testStatus])
                         : i18n[
                             'com.affine.integration.external-mcp.status.disabled'
                           ]()}
@@ -545,6 +555,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                 setDraft(current => ({
                   ...current,
                   provider: value as ByokProvider,
+                  modelId: '',
                 }));
                 setTestedFingerprint(null);
                 setAvailableModels([]);
@@ -571,7 +582,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                 value={draft.apiStyle}
                 disabled={isTesting || isSaving}
                 onValueChange={apiStyle => {
-                  setDraft(current => ({ ...current, apiStyle }));
+                  setDraft(current => ({ ...current, apiStyle, modelId: '' }));
                   setTestedFingerprint(null);
                   setAvailableModels([]);
                 }}
@@ -602,44 +613,31 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`byok-model-${scope.id}`}>
-              {i18n['com.affine.admin.model-id']()}
+            <Label htmlFor={`byok-model-options-${scope.id}`}>
+              {i18n['com.affine.admin.byok-available-models']()}
             </Label>
-            <Input
-              id={`byok-model-${scope.id}`}
+            <Select
               value={draft.modelId}
-              placeholder={i18n['com.affine.admin.provider-model-identifier']()}
-              onChange={event => {
-                setDraft(current => ({
-                  ...current,
-                  modelId: event.target.value,
-                }));
+              disabled={!modelOptions.length || isTesting || isSaving}
+              onValueChange={value => {
+                if (!value) return;
+                setDraft(current => ({ ...current, modelId: value }));
                 setTestedFingerprint(null);
               }}
-            />
-            {availableModels.length ? (
-              <Select
-                value={draft.modelId}
-                onValueChange={value => {
-                  setDraft(current => ({ ...current, modelId: value }));
-                  setTestedFingerprint(null);
-                }}
-              >
-                <SelectTrigger
-                  id={`byok-model-options-${scope.id}`}
-                  aria-label="Available models"
-                >
-                  <SelectValue placeholder="Select a verified model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableModels.map(model => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
+            >
+              <SelectTrigger id={`byok-model-options-${scope.id}`}>
+                <SelectValue
+                  placeholder={i18n['com.affine.admin.byok-select-model']()}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {modelOptions.map(model => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2 md:col-span-2 xl:col-span-1">
             <Label htmlFor={`byok-key-${scope.id}`}>
@@ -661,8 +659,10 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                 setDraft(current => ({
                   ...current,
                   apiKey: event.target.value,
+                  modelId: '',
                 }));
                 setTestedFingerprint(null);
+                setAvailableModels([]);
               }}
             />
           </div>
@@ -683,6 +683,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                 setDraft(current => ({
                   ...current,
                   endpoint: event.target.value,
+                  modelId: '',
                 }));
                 setTestedFingerprint(null);
                 setAvailableModels([]);

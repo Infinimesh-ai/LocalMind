@@ -60,6 +60,14 @@ export type AIChatAction =
     }
   | { type: 'removeContextItem'; item: AIChatContextItem }
   | { type: 'loadContext' }
+  | { type: 'refreshProjectContext' }
+  | { type: 'loadProjectMemoryCapture' }
+  | { type: 'setProjectMemoryCapture'; allowMemoryCapture: boolean }
+  | { type: 'loadContextCompaction' }
+  | { type: 'requestContextCompaction' }
+  | { type: 'retryContextCompaction' }
+  | { type: 'cancelContextCompaction' }
+  | { type: 'dismissContextCompaction' }
   | { type: 'pollContext' }
   | { type: 'startContextPolling' }
   | { type: 'stopContextPolling' }

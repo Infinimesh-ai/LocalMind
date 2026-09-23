@@ -6,6 +6,7 @@ import { BlobInvalid } from '../base';
 import { BaseModel } from './base';
 
 export const COPILOT_COPY_BLOB_PREFIX = 'ai-copy-';
+export const GENERATED_FILE_BLOB_PREFIX = 'ai-file-';
 
 export function copyAttachmentDocumentId(key: string) {
   if (key.length > 256) return null;
@@ -22,7 +23,10 @@ export type CreateBlobInput = Prisma.BlobUncheckedCreateInput;
 @Injectable()
 export class BlobModel extends BaseModel {
   assertMutableUploadKey(key: string) {
-    if (key.startsWith(COPILOT_COPY_BLOB_PREFIX))
+    if (
+      key.startsWith(COPILOT_COPY_BLOB_PREFIX) ||
+      key.startsWith(GENERATED_FILE_BLOB_PREFIX)
+    )
       throw new BlobInvalid(
         'Copy attachments can only be published by their document operation'
       );
@@ -37,7 +41,8 @@ export class BlobModel extends BaseModel {
     mime: string;
   }) {
     if (
-      !input.key.startsWith(COPILOT_COPY_BLOB_PREFIX) ||
+      (!input.key.startsWith(COPILOT_COPY_BLOB_PREFIX) &&
+        !input.key.startsWith(GENERATED_FILE_BLOB_PREFIX)) ||
       input.key.length > 256 ||
       !input.uploadId ||
       input.uploadId.length > 128
@@ -161,6 +166,11 @@ export class BlobModel extends BaseModel {
   }
 
   async lockForDelete(workspaceId: string, key: string) {
+    if (key.startsWith(GENERATED_FILE_BLOB_PREFIX)) {
+      throw new BlobInvalid(
+        'Generated files must be managed through their resource, not raw blob deletion'
+      );
+    }
     await this.db.$queryRaw<Array<{ key: string }>>`
       SELECT "key"
       FROM "blobs"

@@ -52,6 +52,8 @@ export type CopilotInputSource = {
     | 'document'
     | 'project_resource'
     | 'project_blob'
+    | 'work_order'
+    | 'work_order_delivery'
     | 'private'
     | 'private_attachment'
     | 'unknown';
@@ -136,7 +138,7 @@ export class CopilotContextModel extends BaseModel {
   async recordWorkspaceWriteAudit(input: {
     sessionId?: string | null;
     actorId: string;
-    sink: SharedWriteSourceSink & { workspaceId: string; documentId: string };
+    sink: SharedWriteSourceSink & { workspaceId: string; documentId?: string };
   }) {
     const sources = input.sessionId
       ? await this.db.aiSessionContextSource.findMany({
@@ -191,12 +193,13 @@ export class CopilotContextModel extends BaseModel {
   /** Caller holds the domain transaction; ACL mutations use the same locks. */
   async lockWorkspaceWriteAuthorization(
     workspaceId: string,
-    documentId: string
+    documentId?: string
   ) {
     await this.db
       .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
-    await this.db
-      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, documentId)}, 0))`;
+    if (documentId)
+      await this.db
+        .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, documentId)}, 0))`;
   }
 
   @Transactional()
@@ -218,16 +221,22 @@ export class CopilotContextModel extends BaseModel {
   // ================ contexts ================
 
   async create(sessionId: string) {
-    const session = await this.db.aiSession.findFirst({
-      where: { id: sessionId },
-      select: { workspaceId: true },
+    const session = await this.db.aiSession.findUnique({
+      where: { id: sessionId, deletedAt: null },
+      select: { workspaceId: true, selectedContextProjectId: true },
     });
     if (!session) {
       throw new CopilotSessionNotFound();
     }
+    if (!session.workspaceId || session.selectedContextProjectId) {
+      throw new BadRequest(
+        'Native Project conversations do not use Workspace AI Context records'
+      );
+    }
 
-    const row = await this.db.aiContext.create({
-      data: {
+    return await this.db.aiContext.upsert({
+      where: { sessionId },
+      create: {
         sessionId,
         config: {
           workspaceId: session.workspaceId,
@@ -237,8 +246,8 @@ export class CopilotContextModel extends BaseModel {
           categories: [],
         },
       },
+      update: {},
     });
-    return row;
   }
 
   async get(id: string) {
@@ -304,8 +313,16 @@ export class CopilotContextModel extends BaseModel {
   }
 
   async getBySessionId(sessionId: string) {
-    const row = await this.db.aiContext.findFirst({
+    const row = await this.db.aiContext.findUnique({
       where: { sessionId },
+      include: {
+        session: {
+          select: {
+            workspaceId: true,
+            selectedContextProjectId: true,
+          },
+        },
+      },
     });
     return row;
   }
@@ -332,7 +349,7 @@ export class CopilotContextModel extends BaseModel {
         source.kind === 'private_attachment' || source.kind === 'private'
     );
     const valid = evidence.every(source => source.kind !== 'unknown');
-    const row = await this.db.aiContext.findFirst({
+    const row = await this.db.aiContext.findUnique({
       where: { sessionId },
       select: { config: true },
     });
@@ -404,9 +421,16 @@ export class CopilotContextModel extends BaseModel {
     sessionId: string;
     actorId: string;
     projectId: string | null;
+    workOrderId?: string | null;
     sources: CopilotInputSource[];
   }) {
-    if (input.projectId) {
+    if (input.workOrderId) {
+      await this.lockWorkOrderSourceSession({
+        sessionId: input.sessionId,
+        actorId: input.actorId,
+        workOrderId: input.workOrderId,
+      });
+    } else if (input.projectId) {
       await this.lockProjectSourceSession({
         ...input,
         projectId: input.projectId,
@@ -425,9 +449,12 @@ export class CopilotContextModel extends BaseModel {
       input.sources.length > 4096 ||
       input.sources.some(
         source =>
-          (!source.workspaceId && !input.projectId) ||
+          (!source.workspaceId && !input.projectId && !input.workOrderId) ||
           (source.workspaceId?.length ?? 0) > 256 ||
           (source.kind === 'document' && !source.workspaceId) ||
+          (input.workOrderId &&
+            (source.workspaceId !== null ||
+              !['work_order', 'work_order_delivery'].includes(source.kind))) ||
           !source.sourceId ||
           source.sourceId.length > 256
       )
@@ -437,7 +464,9 @@ export class CopilotContextModel extends BaseModel {
       data: input.sources.map(source => ({
         ...source,
         sessionId: input.sessionId,
-        projectId: source.workspaceId ? null : input.projectId,
+        projectId:
+          source.workspaceId || input.workOrderId ? null : input.projectId,
+        workOrderId: input.workOrderId ?? null,
         kind:
           !source.workspaceId && source.kind === 'workspace'
             ? 'project'
@@ -473,6 +502,7 @@ export class CopilotContextModel extends BaseModel {
         memory?.scope === 'project' &&
         memory.projectId === input.projectId &&
         memory.status === 'active' &&
+        memory.sharingStatus === 'shared' &&
         memory.content === content &&
         !memory.quarantinedAt &&
         (memory.sources.length > 0 ||
@@ -522,6 +552,38 @@ export class CopilotContextModel extends BaseModel {
         'Project source evidence requires an active owned project conversation'
       );
     return sessions[0];
+  }
+
+  private async lockWorkOrderSourceSession(input: {
+    sessionId: string;
+    actorId: string;
+    workOrderId: string;
+  }) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'context-source:' + input.sessionId}, 0))`;
+    const sessions = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT session.id
+      FROM ai_sessions_metadata session
+      JOIN work_order_session_bindings binding
+        ON binding.session_id = session.id
+       AND binding.owner_user_id = session.user_id
+      JOIN work_orders work_order
+        ON work_order.id = binding.work_order_id
+       AND work_order.recipient_id = binding.owner_user_id
+      WHERE session.id = ${input.sessionId}
+        AND session.user_id = ${input.actorId}
+        AND session.scope_type = 'work_order'
+        AND session.workspace_id IS NULL
+        AND session.selected_context_project_id IS NULL
+        AND session.deleted_at IS NULL
+        AND binding.work_order_id = ${input.workOrderId}
+      FOR SHARE OF session, binding, work_order
+    `;
+    if (!sessions.length) {
+      throw new BadRequest(
+        'Work-order source evidence requires its private owned conversation'
+      );
+    }
   }
 
   @Transactional()
@@ -606,6 +668,7 @@ export class CopilotContextModel extends BaseModel {
       select: {
         workspaceId: true,
         projectId: true,
+        workOrderId: true,
         kind: true,
         sourceId: true,
         evidence: true,
@@ -645,9 +708,12 @@ export class CopilotContextModel extends BaseModel {
       )
         continue;
       if (
-        ['project-input:', 'system-prompt:', 'derived-tool:'].some(prefix =>
-          source.sourceId.startsWith(prefix)
-        )
+        [
+          'conversation-input:',
+          'project-input:',
+          'system-prompt:',
+          'derived-tool:',
+        ].some(prefix => source.sourceId.startsWith(prefix))
       ) {
         projectInputs++;
       } else if (source.sourceId.startsWith('recalled-memory:')) {
@@ -655,6 +721,7 @@ export class CopilotContextModel extends BaseModel {
         const memories = await this.db.$queryRaw<Array<{ content: string }>>`
           SELECT content FROM ai_context_memories
           WHERE id = ${id} AND project_id = ${input.projectId} AND scope = 'project'
+            AND sharing_status = 'shared'
             AND status = 'active' AND quarantined_at IS NULL
             AND (expires_at IS NULL OR expires_at > now())
             AND (valid_until IS NULL OR valid_until > now())

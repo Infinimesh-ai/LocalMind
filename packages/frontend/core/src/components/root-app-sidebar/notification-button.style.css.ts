@@ -1,6 +1,13 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
+export const iconBadge = style({
+  position: 'absolute',
+  top: -2,
+  right: -4,
+  pointerEvents: 'none',
+});
+
 export const badge = style({
   backgroundColor: cssVarV2('button/primary'),
   color: cssVarV2('text/pureWhite'),

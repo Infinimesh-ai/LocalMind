@@ -1,0 +1,110 @@
+mutation askWorkOrderQuestion(
+  $workOrderId: ID!
+  $body: String!
+  $expectedVersion: Int!
+  $requestKey: String!
+) {
+  askWorkOrderQuestion(
+    workOrderId: $workOrderId
+    body: $body
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}
+
+mutation answerWorkOrderQuestion(
+  $workOrderId: ID!
+  $body: String!
+  $expectedVersion: Int!
+  $requestKey: String!
+) {
+  answerWorkOrderQuestion(
+    workOrderId: $workOrderId
+    body: $body
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}
+
+mutation refuseWorkOrder(
+  $workOrderId: ID!
+  $reason: String!
+  $expectedVersion: Int!
+  $requestKey: String!
+) {
+  refuseWorkOrder(
+    workOrderId: $workOrderId
+    reason: $reason
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}
+
+mutation cancelWorkOrder(
+  $workOrderId: ID!
+  $reason: String
+  $expectedVersion: Int!
+  $requestKey: String!
+) {
+  cancelWorkOrder(
+    workOrderId: $workOrderId
+    reason: $reason
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+  }
+}
+
+mutation submitWorkOrderDelivery(
+  $workOrderId: ID!
+  $expectedVersion: Int!
+  $requestKey: String!
+  $items: [WorkOrderDeliveryItemInput!]!
+) {
+  submitWorkOrderDelivery(
+    workOrderId: $workOrderId
+    expectedVersion: $expectedVersion
+    requestKey: $requestKey
+    items: $items
+  ) {
+    workOrderId
+    status
+    version
+    deliveryRevisionId
+    revision
+    receiptFingerprint
+  }
+}
+
+mutation adoptWorkOrderDeliveries(
+  $sourceSessionId: ID!
+  $expectedContextVersion: Int!
+  $requestKey: String!
+  $revisions: [WorkOrderAdoptionRevisionInput!]!
+) {
+  adoptWorkOrderDeliveries(
+    sourceSessionId: $sourceSessionId
+    expectedContextVersion: $expectedContextVersion
+    requestKey: $requestKey
+    revisions: $revisions
+  ) {
+    id
+    contextVersion
+    revisionSetFingerprint
+  }
+}

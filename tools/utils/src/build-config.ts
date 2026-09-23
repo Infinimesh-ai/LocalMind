@@ -8,6 +8,8 @@ export interface BuildFlags {
 }
 
 const DEFAULT_LOCALMIND_CLOUD_URL = 'https://localmind.infinimesh.cloud';
+const workerBuildId =
+  process.env.LOCALMIND_WORKER_BUILD_ID || Date.now().toString(36);
 
 function normalizeCloudUrl(value: string) {
   let url: URL;
@@ -81,6 +83,7 @@ export function getBuildConfig(
 
         appBuildType: 'stable' as const,
         appVersion: pkg.version,
+        workerBuildId,
         // editorVersion: pkg.dependencies['@blocksuite/affine'],
         editorVersion: pkg.version,
         cloudUrl,

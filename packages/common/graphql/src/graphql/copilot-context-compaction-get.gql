@@ -1,0 +1,25 @@
+#import "./fragments/copilot-context-compaction.gql"
+
+query copilotContextCompactionGet($sessionId: ID!, $afterSequence: SafeInt) {
+  currentUser {
+    copilot {
+      contextCompaction(sessionId: $sessionId) {
+        ...CopilotContextCompactionFields
+      }
+      contextCompactionEvents(
+        sessionId: $sessionId
+        afterSequence: $afterSequence
+      ) {
+        id
+        sequence
+        taskId
+        sessionId
+        contextEpoch
+        status
+        attempt
+        statistics
+        createdAt
+      }
+    }
+  }
+}

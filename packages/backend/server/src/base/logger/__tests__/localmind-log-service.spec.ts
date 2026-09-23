@@ -1,13 +1,79 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Prisma } from '@prisma/client';
 import test from 'ava';
 
+import {
+  createLocalMindLogArchiveEnvelope,
+  LOCALMIND_LOG_ARCHIVE_SCHEMA,
+  readAndVerifyLocalMindLogArchiveEnvelope,
+  verifyLocalMindLogArchiveEnvelope,
+  writeLocalMindLogArchiveEnvelope,
+} from '../localmind-log-archive';
 import { LocalMindLogService } from '../localmind-log-service';
 import { redact } from '../redactor';
 import { LocalMindLogSpool } from '../spool';
+
+test('log queries treat nullable GraphQL filters as absent', async t => {
+  const prisma = {
+    localMindLogEvent: {
+      findMany: async (args: Prisma.LocalMindLogEventFindManyArgs) => {
+        t.false(JSON.stringify(args.where).includes('null'));
+        t.is(args.take, 100);
+        return [];
+      },
+    },
+  };
+  const service = new LocalMindLogService(
+    prisma as unknown as ConstructorParameters<typeof LocalMindLogService>[0]
+  );
+  t.deepEqual(
+    await service.query({
+      from: null,
+      to: null,
+      severity: null,
+      service: null,
+      component: null,
+      eventName: null,
+      requestId: null,
+      traceId: null,
+      workspaceId: null,
+      projectId: null,
+      runId: null,
+      jobId: null,
+      status: null,
+      errorCode: null,
+      keyword: null,
+      limit: null,
+    }),
+    []
+  );
+});
+
+test('log queries preserve explicit filters and bounded limits', async t => {
+  const prisma = {
+    localMindLogEvent: {
+      findMany: async (args: Prisma.LocalMindLogEventFindManyArgs) => {
+        t.is(args.where?.severity, 'error');
+        t.is(args.where?.requestId, 'request-1');
+        t.is(args.where?.projectId, 'project-1');
+        t.is(args.take, 1000);
+        return [];
+      },
+    },
+  };
+  const service = new LocalMindLogService(
+    prisma as unknown as ConstructorParameters<typeof LocalMindLogService>[0]
+  );
+  await service.query({
+    severity: 'error',
+    requestId: 'request-1',
+    projectId: 'project-1',
+    limit: 2000,
+  });
+});
 
 test('redactor removes sensitive keys and bounds strings', t => {
   const value = redact({
@@ -58,11 +124,13 @@ test('spool rejects a corrupted batch after process restart', async t => {
 test('audit writes log and immutable envelope in one transaction', async t => {
   const writes: string[] = [];
   let persistedAudit: string | null = null;
+  let persistedFingerprint: string | null = null;
   const tx = {
     localMindLogEvent: { create: async () => writes.push('log') },
     localMindAuditEnvelope: {
-      create: async () => {
+      create: async (args: Prisma.LocalMindAuditEnvelopeCreateArgs) => {
         persistedAudit = 'audit-1';
+        persistedFingerprint = args.data.fingerprint;
         writes.push('audit');
       },
     },
@@ -70,7 +138,12 @@ test('audit writes log and immutable envelope in one transaction', async t => {
   const prisma = {
     localMindAuditEnvelope: {
       findUnique: async () =>
-        persistedAudit ? { auditEventId: persistedAudit } : null,
+        persistedAudit
+          ? {
+              auditEventId: persistedAudit,
+              fingerprint: persistedFingerprint,
+            }
+          : null,
     },
     $transaction: async (callback: (value: typeof tx) => Promise<void>) =>
       callback(tx),
@@ -89,10 +162,20 @@ test('audit writes log and immutable envelope in one transaction', async t => {
       auditEventId: 'audit-1',
       action: 'settings.update',
       outcome: 'success',
+      metadata: { apiKey: 'hidden' },
     }),
     'audit-1'
   );
   t.deepEqual(writes, ['log', 'audit']);
+  await t.throwsAsync(
+    () =>
+      service.writeAudit({
+        auditEventId: 'audit-1',
+        action: 'settings.update',
+        outcome: 'failure',
+      }),
+    { message: 'LOCALMIND_AUDIT_EVENT_ID_CONFLICT' }
+  );
 });
 
 test('regular log replay treats event_id uniqueness as idempotent success', async t => {
@@ -142,5 +225,57 @@ test('retention cleanup is fail-closed under legal hold or freeze', async t => {
     skipped: true,
     dryRun: true,
     archived: 0,
+  });
+});
+
+test('signed archive detects tampering and preserves old keys during rotation', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'localmind-archive-'));
+  t.teardown(() => rm(directory, { recursive: true, force: true }));
+  const oldKeys = {
+    activeKeyVersion: '2026-09-a',
+    keys: { '2026-09-a': 'a'.repeat(32) },
+  };
+  const envelope = createLocalMindLogArchiveEnvelope(
+    {
+      schemaVersion: LOCALMIND_LOG_ARCHIVE_SCHEMA,
+      batchId: 'batch-1',
+      instanceId: 'instance-1',
+      createdAt: new Date(0).toISOString(),
+      itemCount: 1,
+      fromOccurredAt: new Date(0).toISOString(),
+      toOccurredAt: new Date(0).toISOString(),
+      entries: [{ eventId: 'event-1', metadata: { token: '[redacted]' } }],
+    },
+    oldKeys
+  );
+  const path = await writeLocalMindLogArchiveEnvelope(directory, envelope);
+  t.is((await stat(directory)).mode & 0o777, 0o700);
+  t.is((await stat(path)).mode & 0o777, 0o600);
+  t.deepEqual(
+    (await readAndVerifyLocalMindLogArchiveEnvelope(path, oldKeys))
+      .verification,
+    {
+      fingerprint: envelope.fingerprint,
+      keyVersion: '2026-09-a',
+      itemCount: 1,
+    }
+  );
+
+  const rotatedKeys = {
+    activeKeyVersion: '2026-10-b',
+    keys: {
+      '2026-09-a': 'a'.repeat(32),
+      '2026-10-b': 'b'.repeat(32),
+    },
+  };
+  t.is(
+    verifyLocalMindLogArchiveEnvelope(envelope, rotatedKeys).keyVersion,
+    '2026-09-a'
+  );
+
+  const tampered = structuredClone(envelope);
+  tampered.manifest.entries[0] = { eventId: 'event-1', metadata: 'changed' };
+  t.throws(() => verifyLocalMindLogArchiveEnvelope(tampered, rotatedKeys), {
+    message: 'LOCALMIND_AUDIT_ARCHIVE_FINGERPRINT_MISMATCH',
   });
 });

@@ -40,6 +40,7 @@ export const toolbar = style({
   alignItems: 'center',
   gap: 4,
   padding: '4px 6px',
+  '@media': { print: { display: 'none' } },
 });
 export const heading = style({
   flex: 1,
@@ -216,3 +217,41 @@ export const officeChat = style({
   borderLeft: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 export const officeConversation = style({ flex: 1, minWidth: 0, minHeight: 0 });
+
+export const documentBody = style({
+  minHeight: '100%',
+  selectors: {
+    '&[data-mode="page"]': { padding: '32px 24px 80px' },
+    '&[data-mode="edgeless"]': { height: '100%' },
+  },
+  '@media': {
+    '(max-width: 760px)': {
+      selectors: { '&[data-mode="page"]': { padding: '24px 12px 64px' } },
+    },
+  },
+});
+export const documentTitle = style({
+  margin: '0 auto 24px',
+  maxWidth: 800,
+  fontSize: 32,
+  fontWeight: 700,
+  lineHeight: 1.3,
+  overflowWrap: 'anywhere',
+});
+
+export const filePreview = style([content, { padding: 24 }]);
+globalStyle(`${filePreview} img, ${filePreview} video`, {
+  display: 'block',
+  maxWidth: '100%',
+  maxHeight: '100%',
+  margin: '0 auto',
+  objectFit: 'contain',
+});
+globalStyle(`${filePreview} audio`, { width: '100%' });
+export const fileText = style({
+  margin: 0,
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  fontFamily: 'var(--affine-font-code-family)',
+  fontSize: 14,
+});

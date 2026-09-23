@@ -100,6 +100,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { translateAdminText } from '../../localized-text';
 import { useMutateQueryResource } from '../../use-mutation';
 import { Header } from '../header';
 import { ProjectByokAdmin } from './project-byok';
@@ -716,7 +717,9 @@ const PROVIDER_SOURCE_LABELS: Record<string, string> = {
 
 function formatFeatureKind(featureKind: string) {
   return (
-    FEATURE_LABELS[featureKind] ??
+    (FEATURE_LABELS[featureKind]
+      ? translateAdminText(FEATURE_LABELS[featureKind])
+      : undefined) ??
     featureKind
       .split('_')
       .filter(Boolean)
@@ -726,7 +729,7 @@ function formatFeatureKind(featureKind: string) {
 }
 
 function formatProviderMetadata(value: string, labels: Record<string, string>) {
-  return labels[value] ?? formatFeatureKind(value);
+  return translateAdminText(labels[value] ?? formatFeatureKind(value));
 }
 
 function formatProviderIdentity(
@@ -1244,7 +1247,7 @@ function StatusBadge({ status }: { status: AIModelTaskRouteReadinessStatus }) {
       className={cn('border text-xs', STATUS_STYLES[status])}
       variant="outline"
     >
-      {STATUS_LABELS[status]}
+      {translateAdminText(STATUS_LABELS[status])}
     </Badge>
   );
 }

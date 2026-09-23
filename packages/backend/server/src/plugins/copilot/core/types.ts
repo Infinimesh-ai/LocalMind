@@ -16,6 +16,8 @@ export const ConversationSchema = z
     workspaceId: z.string().nullable(),
     docId: z.string().nullable(),
     selectedContextProjectId: z.string().nullable(),
+    scopeType: z.enum(['workspace', 'project', 'work_order']),
+    workOrderId: z.string().nullable(),
     pinned: z.boolean(),
     parentId: z.string().nullable(),
     title: z.string().nullable(),

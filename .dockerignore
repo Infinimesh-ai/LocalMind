@@ -17,6 +17,9 @@
 /playwright-report
 /coverage
 /.coverage
+/backups
+/.docker/dev/.env
+/.docker/dev/localmind-hot
 /.docker/selfhost/data
 /.docker/selfhost/.env
 

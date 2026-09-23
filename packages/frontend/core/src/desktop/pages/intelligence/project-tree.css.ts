@@ -44,6 +44,12 @@ export const heading = style({
   letterSpacing: 0,
 });
 
+export const newConversation = style({
+  width: 'calc(100% - 8px)',
+  margin: '0 4px 10px',
+  justifyContent: 'center',
+});
+
 export const inlineEditor = style({
   display: 'flex',
   flexDirection: 'column',
@@ -176,6 +182,19 @@ export const documents = style({
   padding: '1px 0 5px 20px',
 });
 
+export const personalSection = style({
+  marginTop: 10,
+  paddingTop: 8,
+  borderTop: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+});
+globalStyle(`${personalSection} h3`, {
+  margin: 0,
+  padding: '4px 8px 4px 16px',
+  color: cssVarV2('text/tertiary'),
+  fontSize: 11,
+  fontWeight: 600,
+});
+
 export const groupLabel = style({
   padding: '5px 8px 2px 16px',
   overflow: 'hidden',
@@ -204,6 +223,11 @@ export const documentButton = style({
       cursor: 'default',
       opacity: 1,
       color: cssVarV2('text/tertiary'),
+    },
+    '&[aria-current="page"]': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+      fontWeight: 600,
     },
     '&[data-placeholder="true"]:hover': {
       background: 'transparent',
@@ -250,6 +274,23 @@ export const emptyState = style({
   fontSize: 12,
   lineHeight: '18px',
   textAlign: 'center',
+});
+
+export const conversationPageState = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  padding: '12px 8px',
+  color: cssVarV2('text/secondary'),
+  fontSize: 12,
+  textAlign: 'center',
+});
+
+export const loadMoreConversations = style({
+  width: 'calc(100% - 16px)',
+  margin: '10px 8px 4px',
+  justifyContent: 'center',
 });
 
 globalStyle(`${allProjects} > svg, ${projectButton} > svg`, {

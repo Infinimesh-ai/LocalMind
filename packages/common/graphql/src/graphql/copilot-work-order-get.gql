@@ -1,0 +1,62 @@
+query copilotWorkOrderGet($workOrderId: ID!) {
+  currentUser {
+    copilot {
+      myWorkOrder(workOrderId: $workOrderId) {
+        id
+        sourceSessionId
+        ownSessionId
+        sourceContextVersion
+        viewerRole
+        title
+        purpose
+        relationKind
+        status
+        version
+        requirements {
+          id
+          itemKey
+          kind
+          title
+          instructions
+          required
+          acceptedMimeTypes
+          minCount
+          maxCount
+          validationMode
+        }
+        exchanges {
+          id
+          kind
+          body
+          createdAt
+        }
+        deliveries {
+          id
+          revision
+          receiptFingerprint
+          submittedAt
+          items {
+            requirementId
+            blobId
+            textValue
+            fileName
+            mimeType
+            byteSize
+          }
+        }
+        stagedBlobs {
+          id
+          requirementId
+          fileName
+          mimeType
+          byteSize
+          fingerprint
+          createdAt
+        }
+        deliveriesReleased
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

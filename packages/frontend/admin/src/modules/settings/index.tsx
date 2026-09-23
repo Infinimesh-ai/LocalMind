@@ -10,6 +10,7 @@ import { useI18n } from '@affine/i18n';
 import { get } from 'lodash-es';
 import { useCallback, useState } from 'react';
 
+import { translateAdminText as text } from '../../localized-text';
 import { Header } from '../header';
 import {
   ALL_CONFIG_DESCRIPTORS,
@@ -163,10 +164,11 @@ const AdminPanel = ({
               >
                 <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex flex-col items-start text-left gap-1">
-                    <div className="text-base font-semibold">{name}</div>
+                    <div className="text-base font-semibold">{text(name)}</div>
                     <div className="text-xs text-muted-foreground">
-                      {i18n['com.affine.admin.manage']()} {name.toLowerCase()}{' '}
-                      {i18n['com.affine.admin.settings']()}{' '}
+                      {i18n['com.affine.admin.ui.manage-settings']({
+                        name: text(name),
+                      })}
                     </div>
                   </div>
                 </AccordionTrigger>
@@ -183,7 +185,7 @@ const AdminPanel = ({
                           ALL_CONFIG_DESCRIPTORS[module][field];
                         props = {
                           field: `${module}/${field}`,
-                          desc: descriptor.desc,
+                          desc: text(descriptor.desc),
                           type: descriptor.type,
                           options: [],
                           defaultValue: get(sourceConfig, field),
@@ -194,7 +196,7 @@ const AdminPanel = ({
                           ALL_CONFIG_DESCRIPTORS[module][field.key];
                         props = {
                           field: `${module}/${field.key}${field.sub ? `/${field.sub}` : ''}`,
-                          desc: field.desc ?? descriptor.desc,
+                          desc: text(field.desc ?? descriptor.desc),
                           type: field.type ?? descriptor.type,
                           // @ts-expect-error for enum type
                           options: field.options,

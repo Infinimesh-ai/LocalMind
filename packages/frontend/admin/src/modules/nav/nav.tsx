@@ -70,7 +70,7 @@ export function Nav({ isCollapsed = false }: NavProps) {
         <NavItem
           to={ROUTES.admin.observability.logs}
           icon={<ScrollTextIcon size={18} />}
-          label="Logs"
+          label={i18n['com.affine.admin.ui.logs']()}
           isCollapsed={isCollapsed}
         />
         <SettingsItem isCollapsed={isCollapsed} />

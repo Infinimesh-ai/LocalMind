@@ -27,7 +27,9 @@ export class KeyboardControl {
   };
 
   private readonly _shouldTrigger = (event: KeyboardEvent) => {
-    if (event.isComposing) {
+    // Some IMEs end composition before dispatching the confirming keydown.
+    // That event can have isComposing=false while still carrying keyCode 229.
+    if (this.composition || event.isComposing || event.keyCode === 229) {
       return false;
     }
     const mod = IS_MAC ? event.metaKey : event.ctrlKey;

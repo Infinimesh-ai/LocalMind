@@ -5,7 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@affine/admin/components/ui/popover';
-import type { FeatureType } from '@affine/graphql';
+import { FeatureType } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useCallback } from 'react';
 
@@ -23,7 +23,7 @@ export const FeatureFilterPopover = ({
   availableFeatures,
   onChange,
   align = 'start',
-  buttonLabel = 'Features',
+  buttonLabel,
   disabled = false,
 }: FeatureFilterPopoverProps) => {
   const i18n = useI18n();
@@ -57,7 +57,7 @@ export const FeatureFilterPopover = ({
           className="h-8 px-2 lg:px-3 space-x-1"
           disabled={disabled}
         >
-          <span>{buttonLabel}</span>
+          <span>{buttonLabel ?? i18n['com.affine.admin.ui.features']()}</span>
           {selectedFeatures.length > 0 ? (
             <span className="text-xs text-muted-foreground">
               ({selectedFeatures.length})
@@ -85,7 +85,11 @@ export const FeatureFilterPopover = ({
                 }
                 disabled={disabled}
               />
-              <span className="text-sm truncate">{feature}</span>
+              <span className="text-sm truncate">
+                {feature === FeatureType.Admin
+                  ? i18n['com.affine.admin.admin']()
+                  : feature}
+              </span>
             </label>
           ))}
         </div>

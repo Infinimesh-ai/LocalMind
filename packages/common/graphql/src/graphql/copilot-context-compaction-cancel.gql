@@ -1,0 +1,7 @@
+#import "./fragments/copilot-context-compaction.gql"
+
+mutation copilotContextCompactionCancel($taskId: ID!) {
+  cancelCopilotContextCompaction(taskId: $taskId) {
+    ...CopilotContextCompactionFields
+  }
+}

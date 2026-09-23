@@ -1,8 +1,22 @@
 import type {
+  CopilotCollaborationGraphGetQuery,
+  CopilotWorkbenchConversationsGetQuery,
   CopilotWorkbenchProjectsGetQuery,
   CopilotWorkbenchTaskItemFieldsFragment,
   CopilotWorkbenchTaskPanelGetQuery,
 } from '@affine/graphql';
+
+type ConversationCards = NonNullable<
+  CopilotWorkbenchConversationsGetQuery['currentUser']
+>['copilot']['myConversationCards'];
+
+export type WorkbenchConversationCard = ConversationCards['items'][number];
+export type WorkbenchConversationCounts = ConversationCards['counts'];
+export type WorkbenchConversationColumn = 'todo' | 'progress' | 'done';
+
+export type WorkbenchCollaborationGraph = NonNullable<
+  CopilotCollaborationGraphGetQuery['currentUser']
+>['copilot']['myCollaborationGraph'];
 
 type WorkbenchProjects = NonNullable<
   CopilotWorkbenchProjectsGetQuery['currentUser']

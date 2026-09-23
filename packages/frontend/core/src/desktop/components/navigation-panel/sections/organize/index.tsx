@@ -15,7 +15,13 @@ import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { AddOrganizeIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { CollapsibleSection } from '../../layouts/collapsible-section';
 import { NavigationPanelFolderNode } from '../../nodes/folder';
@@ -23,12 +29,20 @@ import { NavigationPanelTreeRoot } from '../../tree';
 import { organizeChildrenDropEffect } from './dnd';
 import { RootEmpty } from './empty';
 
-export const NavigationPanelOrganize = () => {
+export const NavigationPanelOrganize = ({
+  children,
+  title,
+  sectionPath = 'organize',
+}: {
+  children?: ReactNode;
+  title?: string;
+  sectionPath?: string;
+}) => {
   const { organizeService, navigationPanelService } = useServices({
     OrganizeService,
     NavigationPanelService,
   });
-  const path = useMemo(() => ['organize'], []);
+  const path = useMemo(() => [sectionPath], [sectionPath]);
   const collapsed = useLiveData(navigationPanelService.collapsed$(path));
   const [newFolderId, setNewFolderId] = useState<string | null>(null);
   const t = useI18n();
@@ -44,7 +58,7 @@ export const NavigationPanelOrganize = () => {
   const handleCreateFolder = useCallback(async () => {
     try {
       const newFolderId = await rootFolder.createFolder(
-        'New Folder',
+        t['com.affine.rootAppSidebar.organize.new-folders'](),
         rootFolder.indexAt('before')
       );
       track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
@@ -57,7 +71,7 @@ export const NavigationPanelOrganize = () => {
       );
       return undefined;
     }
-  }, [navigationPanelService, path, rootFolder]);
+  }, [navigationPanelService, path, rootFolder, t]);
 
   const handleOnChildrenDrop = useCallback(
     async (data: DropTargetDropEvent<AffineDNDData>, node?: FolderNode) => {
@@ -135,7 +149,7 @@ export const NavigationPanelOrganize = () => {
   return (
     <CollapsibleSection
       path={path}
-      title={t['com.affine.rootAppSidebar.organize']()}
+      title={title ?? t['com.affine.rootAppSidebar.organize']()}
       actions={
         <IconButton
           data-testid="navigation-panel-bar-add-organize-button"
@@ -166,16 +180,18 @@ export const NavigationPanelOrganize = () => {
       ) : null}
       <NavigationPanelTreeRoot
         placeholder={
-          <RootEmpty
-            onClickCreate={() => {
-              handleCreateFolder().catch(console.error);
-            }}
-            isLoading={isLoading}
-            readOnly={!canMutate}
-            onDrop={(...args) => {
-              createFolderAndDrop(...args).catch(console.error);
-            }}
-          />
+          children ? null : (
+            <RootEmpty
+              onClickCreate={() => {
+                handleCreateFolder().catch(console.error);
+              }}
+              isLoading={isLoading}
+              readOnly={!canMutate}
+              onDrop={(...args) => {
+                createFolderAndDrop(...args).catch(console.error);
+              }}
+            />
+          )
         }
       >
         {folders.map(child => (
@@ -195,6 +211,7 @@ export const NavigationPanelOrganize = () => {
             parentPath={path}
           />
         ))}
+        {children}
       </NavigationPanelTreeRoot>
     </CollapsibleSection>
   );

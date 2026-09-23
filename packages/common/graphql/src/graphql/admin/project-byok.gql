@@ -17,3 +17,15 @@ mutation setProjectByokEnabled($expectedRevision: SafeInt!, $enabled: Boolean!) 
     ...ProjectByokSettings
   }
 }
+
+mutation setWorkOrderByokEnabled(
+  $expectedRevision: SafeInt!
+  $enabled: Boolean!
+) {
+  setWorkOrderByokEnabled(
+    expectedRevision: $expectedRevision
+    enabled: $enabled
+  ) {
+    ...ProjectByokSettings
+  }
+}

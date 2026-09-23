@@ -103,6 +103,33 @@ test('owned context rechecks live access before using cached configuration', asy
   t.is(cached.callCount, 1);
 });
 
+test('project conversation ignores a legacy Workspace context row', async t => {
+  const getAccessInfo = Sinon.stub();
+  const service = new CopilotContextService(
+    {} as never,
+    {} as never,
+    {
+      copilotContext: {
+        getBySessionId: async (sessionId: string) => {
+          t.is(sessionId, 'project-session-1');
+          return {
+            id: 'legacy-context-1',
+            session: {
+              workspaceId: null,
+              selectedContextProjectId: 'project-1',
+            },
+          };
+        },
+        getAccessInfo,
+      },
+    } as never,
+    {} as never
+  );
+
+  t.is(await service.getOwnedBySessionId('user-1', 'project-session-1'), null);
+  t.false(getAccessInfo.called);
+});
+
 test('document context checks personal read access before cached attachments', async t => {
   let readable = true;
   const service = new CopilotContextService(
@@ -292,7 +319,8 @@ test('context mutations expose validation failures as user-friendly errors', asy
     {} as never,
     {} as never,
     {} as never,
-    workbenchModels()
+    workbenchModels(),
+    {} as never
   );
 
   const error = await t.throwsAsync(
@@ -312,7 +340,8 @@ test('context GraphQL mutations reject sensitive memory and rule content', async
     permissionAccess(),
     {} as never,
     {} as never,
-    workbenchModels()
+    workbenchModels(),
+    {} as never
   );
 
   const memoryError = await t.throwsAsync(
@@ -348,7 +377,8 @@ test('context rule mutations hide rules owned by another user', async t => {
         ownerUserId: 'user-2',
       }),
     } as never,
-    workbenchModels()
+    workbenchModels(),
+    {} as never
   );
 
   await t.throwsAsync(
@@ -369,7 +399,8 @@ test('workspace policy mutations require workspace settings permission', async t
     }),
     {} as never,
     {} as never,
-    workbenchModels()
+    workbenchModels(),
+    {} as never
   );
 
   await t.throwsAsync(
@@ -400,7 +431,8 @@ test('context memory undo stays bound to the current user and workspace', async 
       },
     } as never,
     {} as never,
-    workbenchModels()
+    workbenchModels(),
+    {} as never
   );
 
   const error = await t.throwsAsync(
@@ -429,7 +461,8 @@ test('global context project direct lookup fails closed for a non-member', async
       },
     } as never,
     {} as never,
-    workbenchModels()
+    workbenchModels(),
+    {} as never
   );
 
   await t.throwsAsync(

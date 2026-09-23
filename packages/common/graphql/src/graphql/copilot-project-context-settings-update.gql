@@ -1,0 +1,8 @@
+mutation copilotProjectContextSettingsUpdate(
+  $input: UpdateCopilotProjectContextSettingsInput!
+) {
+  updateCopilotProjectContextSettings(input: $input) {
+    autoMemoryEnabled
+    revision
+  }
+}
