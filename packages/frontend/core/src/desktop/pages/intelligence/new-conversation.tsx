@@ -123,6 +123,7 @@ export function NewConversation({
           <Menu
             contentOptions={{
               align: 'start',
+              side: 'top',
               sideOffset: 6,
               style: { minWidth: 260, maxWidth: 'calc(100vw - 32px)' },
             }}
