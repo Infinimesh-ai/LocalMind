@@ -14,9 +14,15 @@ export const root = style({
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
-  padding: 12,
+  padding: 0,
+  background: cssVarV2('layer/background/secondary'),
 });
-export const fileScroll = style({ flex: 1, minHeight: 0, overflow: 'auto' });
+export const fileScroll = style({
+  flex: 1,
+  minHeight: 0,
+  overflow: 'auto',
+  padding: '14px 12px 22px',
+});
 export const uploads = style({
   margin: 0,
   padding: 0,
@@ -38,16 +44,19 @@ export const toolbar = style({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
-  gap: 4,
-  padding: '4px 6px',
+  gap: 6,
+  minHeight: 64,
+  padding: '10px 18px',
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
   '@media': { print: { display: 'none' } },
 });
 export const heading = style({
   flex: 1,
   minWidth: 0,
   margin: 0,
-  fontSize: 14,
-  fontWeight: 600,
+  fontSize: 13,
+  fontWeight: 650,
   overflowWrap: 'anywhere',
 });
 export const list = style({
@@ -61,8 +70,8 @@ export const row = style({
   display: 'flex',
   alignItems: 'center',
   minWidth: 0,
-  minHeight: 34,
-  borderRadius: 4,
+  minHeight: 44,
+  borderRadius: 7,
   selectors: {
     '&:hover': { background: cssVarV2('layer/background/hoverOverlay') },
     '&[data-dragging="true"]': { opacity: 0.45 },
@@ -84,22 +93,23 @@ export const open = style({
   gap: 6,
   alignItems: 'center',
   minWidth: 0,
-  minHeight: 34,
-  padding: '4px 6px',
+  minHeight: 44,
+  padding: '7px 8px',
   border: 0,
-  borderRadius: 4,
+  borderRadius: 7,
   textAlign: 'left',
   background: 'transparent',
   color: cssVarV2('text/primary'),
   cursor: 'pointer',
-  fontSize: 14,
+  fontSize: 12,
   selectors: {
     '&:focus-visible': {
       outline: `2px solid ${cssVarV2('button/primary')}`,
       outlineOffset: -2,
     },
     '&[aria-current="true"]': {
-      background: cssVarV2('layer/background/hoverOverlay'),
+      background: cssVarV2('layer/background/primary'),
+      boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
     },
   },
 });

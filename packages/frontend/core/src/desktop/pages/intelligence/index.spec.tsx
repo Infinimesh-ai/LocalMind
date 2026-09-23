@@ -245,6 +245,7 @@ vi.mock('./project-shell-settings', () => ({
     open ? <div data-testid="project-settings" /> : null,
 }));
 vi.mock('./project-summary', () => ({ ProjectSummary: () => null }));
+vi.mock('./project-tasks', () => ({ ProjectTasks: () => null }));
 vi.mock('@affine/core/modules/notification', () => ({
   NotificationCountService: tokens.NotificationCountService,
 }));
@@ -311,7 +312,6 @@ vi.mock('@affine/graphql', async importOriginal => ({
   rejectCopilotAccessRequestMutation: Symbol('rejectAccess'),
   removeCopilotContextProjectMemberMutation: Symbol('removeMember'),
   sendCopilotProjectInvitationMutation: Symbol('sendInvitation'),
-  setCopilotContextProjectAiPolicyMutation: Symbol('setPolicy'),
   transferCopilotContextProjectOwnershipMutation: Symbol('transferOwnership'),
   withdrawCopilotAccessRequestMutation: Symbol('withdrawAccess'),
   withdrawCopilotProjectInvitationMutation: Symbol('withdrawInvitation'),
@@ -612,6 +612,10 @@ const Component = () => (
   <Routes>
     <Route path="/project/:projectId?" element={<ProjectComponent />} />
     <Route
+      path="/project/:projectId/conversations/:sessionId"
+      element={<ProjectComponent />}
+    />
+    <Route
       path="/project/:projectId/resources/:resourceId"
       element={<ProjectComponent />}
     />
@@ -861,6 +865,25 @@ describe('Intelligence workbench shell', () => {
       expect(document.activeElement).toBe(
         screen.getByRole('button', { name: 'Open native resource' })
       )
+    );
+  });
+
+  test('returns from a resource to its conversation URL', () => {
+    renderWorkbench('/project/project-1/conversations/session-1');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.showFileTree',
+      })
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open native resource' })
+    );
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/resources/native-doc?sessionId=session-1'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close resource' }));
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/conversations/session-1'
     );
   });
 

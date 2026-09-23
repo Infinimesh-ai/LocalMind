@@ -8,7 +8,7 @@ export const root = style({
   minWidth: 0,
   minHeight: 0,
   display: 'grid',
-  gridTemplateColumns: '264px minmax(0, 1fr)',
+  gridTemplateColumns: '250px minmax(0, 1fr)',
   overflow: 'hidden',
   background: cssVarV2('layer/background/primary'),
   color: cssVarV2('text/primary'),
@@ -78,10 +78,33 @@ export const railScrim = style({
 export const railHeader = style({
   flexShrink: 0,
   display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  padding: '8px 8px 10px',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  minHeight: 58,
+  padding: '0 16px',
   borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
+});
+
+export const brand = style({
+  minWidth: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 10,
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  color: cssVarV2('text/primary'),
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: '0.07em',
+  cursor: 'pointer',
+  selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 4,
+    },
+  },
 });
 
 export const workspaceAndAccount = style({
@@ -111,10 +134,35 @@ export const workspaceSelector = style({
 
 export const railUtilities = style({
   display: 'flex',
-  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 6,
+});
+
+export const tasksTrigger = style({
+  minHeight: 30,
+  flexShrink: 0,
+  padding: '0 10px',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 6,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/secondary'),
+  fontSize: 12,
+  whiteSpace: 'nowrap',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover, &[aria-expanded="true"]': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+    },
+  },
 });
 
 export const workArea = style({
+  position: 'relative',
   minWidth: 0,
   minHeight: 0,
   display: 'flex',
@@ -138,13 +186,34 @@ export const conversationAndPeek = style({
   overflow: 'hidden',
   selectors: {
     '&[data-project="true"][data-fullscreen="false"]': {
-      gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)',
+      gridTemplateColumns: 'minmax(0, 1fr) 260px',
+    },
+    '&[data-project="true"][data-panel="projectTree"][data-fullscreen="false"]':
+      {
+        gridTemplateColumns: 'minmax(0, 1fr) 320px',
+      },
+    '&[data-project="true"][data-panel="resource"][data-fullscreen="false"]': {
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(420px, 45%)',
+    },
+    '&[data-work-order="true"]': {
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(380px, 38%)',
     },
   },
   '@media': {
     'screen and (max-width: 1040px)': {
       selectors: {
         '&[data-project="true"][data-fullscreen="false"]': {
+          gridTemplateColumns: 'minmax(0, 1fr)',
+        },
+        '&[data-project="true"][data-panel="projectTree"][data-fullscreen="false"]':
+          {
+            gridTemplateColumns: 'minmax(0, 1fr)',
+          },
+        '&[data-project="true"][data-panel="resource"][data-fullscreen="false"]':
+          {
+            gridTemplateColumns: 'minmax(0, 1fr)',
+          },
+        '&[data-work-order="true"]': {
           gridTemplateColumns: 'minmax(0, 1fr)',
         },
       },
@@ -219,12 +288,13 @@ export const filesPane = style({
 });
 export const projectHeader = style({
   display: 'flex',
-  minHeight: 48,
+  minHeight: 58,
   flexShrink: 0,
-  padding: '8px 12px',
+  padding: '0 18px 0 24px',
   gap: 8,
   alignItems: 'center',
   borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
 });
 export const projectBreadcrumbs = style({
   flex: 1,
@@ -258,7 +328,34 @@ export const rightPanelTrigger = style({
   flexShrink: 0,
   display: 'inline-flex',
 });
-export const taskArea = style({ order: 3, flexShrink: 0, minWidth: 0 });
+export const taskArea = style({
+  position: 'absolute',
+  zIndex: 5,
+  top: 58,
+  right: 0,
+  bottom: 0,
+  width: 'min(520px, 100%)',
+  minWidth: 0,
+  overflow: 'auto',
+  background: cssVarV2('layer/background/primary'),
+  boxShadow: '-12px 0 32px rgba(25, 29, 34, 0.12)',
+  selectors: {
+    '&[data-open="false"], &[hidden]': { display: 'none' },
+  },
+});
+
+export const taskScrim = style({
+  position: 'absolute',
+  zIndex: 4,
+  inset: '58px 0 0',
+  width: '100%',
+  border: 0,
+  background: 'rgba(25, 29, 34, 0.1)',
+  cursor: 'default',
+  selectors: {
+    '&[hidden]': { display: 'none' },
+  },
+});
 
 export const workOrderSenderState = style({
   height: '100%',

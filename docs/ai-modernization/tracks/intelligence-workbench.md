@@ -1,5 +1,14 @@
 # Track: Intelligence Workbench
 
+## Project AI Permission Update (2026-09-23)
+
+Project AI now has fixed internal read and write capability. The owner-controlled
+read-only/read-write choice described in historical sections below is retired.
+Existing projects are upgraded to read-write; project membership, source grants,
+destination ACL, editing leases, explicit user intent and tool approval continue
+to govern individual operations. The current UI rule is R17 in
+[Project Workbench Redesign](project-workbench-redesign.md).
+
 ## Project Native Resources Contract
 
 [Project Native Resources](project-native-resources.md) records the newer

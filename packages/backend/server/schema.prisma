@@ -1876,7 +1876,7 @@ model AiContextProject {
   name                    String    @db.VarChar
   description             String    @default("") @db.Text
   status                  String    @default("active") @db.VarChar
-  aiPolicy                String    @default("read_only") @map("ai_policy") @db.VarChar
+  aiPolicy                String    @default("read_write") @map("ai_policy") @db.VarChar
   aiPolicyUpdatedByUserId String?   @map("ai_policy_updated_by_user_id") @db.VarChar
   aiPolicyUpdatedAt       DateTime? @map("ai_policy_updated_at") @db.Timestamptz(3)
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)

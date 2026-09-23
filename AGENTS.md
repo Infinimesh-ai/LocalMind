@@ -151,6 +151,8 @@ LocalMind AI 的关键不变量：
    `docs/ai-modernization/tracks/project-ai-boundaries.md`，资源归属、内部文件树、
    独立副本与显式发布以
    `docs/ai-modernization/tracks/project-native-resources.md` 的新契约为准。
+   Project AI 默认且固定具备项目内读取与写入能力，不提供用户可修改的只读策略；
+   有效成员身份、来源授权、目标 ACL、编辑租约及工具审批仍需实时检查。
    AI 不得创建 Project、管理成员、修改权限策略或批准/拒绝授权，也不得用
    文件夹代替 Project。
 10. 所有 Project 会话统一使用实例管理员在 `/admin` 配置的全局 Project BYOK。
@@ -160,7 +162,9 @@ LocalMind AI 的关键不变量：
 11. Project Memory 的新实施契约为“一个 Project 一份共享记忆”，当前有效成员可召回；
     个人会话历史、私人附件和滚动摘要不因此共享。成员管理自己的独立贡献，Owner 管理
     全部共享记录；多人事实合并、冲突和撤销须检查贡献关系与版本。自动记忆采用项目级
-    设置，保留来源共享权限检查。完整目标、旧个人化迁移分支与验收要求见
+    设置，保留来源共享权限检查。正常 Project 会话均允许自动贡献，不提供会话级
+    开关；项目级开关仍决定是否提炼，已删除会话和私人工单保持隔离。完整目标、
+    旧个人化迁移分支与验收要求见
     `docs/ai-modernization/workspace-project-context-session-remediation.zh-CN.md`。
     当前源码已实现共享身份、贡献/冲突、会话绑定、删除任务、不可变 checkpoint，
     以及带租约、重试、取消和严格 CAS 的持久化上下文整理任务基础；结构化摘要模型、

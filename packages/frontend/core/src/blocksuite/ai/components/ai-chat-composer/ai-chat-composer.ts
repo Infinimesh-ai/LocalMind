@@ -154,26 +154,6 @@ export class AIChatComposer extends SignalWatcher(
       color: var(--affine-text-primary-color);
       background: var(--affine-background-primary-color);
     }
-
-    .project-memory-capture {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 6px 8px;
-      border-top: 1px solid var(--affine-border-color);
-      color: var(--affine-text-secondary-color);
-      font-size: 12px;
-    }
-
-    .project-memory-capture input {
-      margin-top: 2px;
-    }
-
-    .project-memory-capture-copy {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
   `;
 
   @property({ attribute: false })
@@ -308,7 +288,6 @@ export class AIChatComposer extends SignalWatcher(
         }
       ></ai-chat-document-update-alert>
       ${this.renderProjectSelector()}
-      ${this.renderProjectMemoryCapture()}
       <ai-chat-input
         .independentMode=${this.independentMode}
         .host=${this.host}
@@ -439,58 +418,6 @@ export class AIChatComposer extends SignalWatcher(
       </label>
     `;
   }
-
-  private renderProjectMemoryCapture() {
-    if (
-      this.runtimeSnapshot?.scope.kind !== 'project' ||
-      !this.runtimeSnapshot.activeSessionId
-    ) {
-      return null;
-    }
-    const capture = this.runtimeSnapshot.composer.projectMemoryCapture;
-    return html`
-      <label class="project-memory-capture">
-        <input
-          type="checkbox"
-          .checked=${capture.allowMemoryCapture}
-          ?disabled=${capture.loading || capture.revision === null}
-          @change=${this.setProjectMemoryCapture}
-        />
-        <span class="project-memory-capture-copy">
-          <strong
-            >${I18n.t(
-              'com.affine.localmind.project-memory.sessionCapture'
-            )}</strong
-          >
-          <span
-            >${I18n.t(
-              'com.affine.localmind.project-memory.sessionCaptureExplanation'
-            )}</span
-          >
-          ${capture.error
-            ? html`<span role="alert"
-                >${I18n.t(
-                  'com.affine.localmind.project-memory.sessionCaptureError'
-                )}</span
-              >`
-            : null}
-        </span>
-      </label>
-    `;
-  }
-
-  private readonly setProjectMemoryCapture = async (event: Event) => {
-    const allowMemoryCapture = (event.currentTarget as HTMLInputElement)
-      .checked;
-    try {
-      await this.runtime?.dispatch({
-        type: 'setProjectMemoryCapture',
-        allowMemoryCapture,
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   private readonly selectContextProject = async (event: Event) => {
     const value = (event.currentTarget as HTMLSelectElement).value;

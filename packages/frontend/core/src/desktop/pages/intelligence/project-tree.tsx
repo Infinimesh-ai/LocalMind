@@ -157,6 +157,29 @@ export const ProjectTree = ({
       className={styles.root}
       aria-label={t['com.affine.localmind.workbench.projects']()}
     >
+      <Button
+        className={styles.newConversation}
+        variant="primary"
+        onClick={onNewConversation}
+      >
+        <PlusIcon />
+        <span>{t['com.affine.localmind.workbench.v9.newConversation']()}</span>
+      </Button>
+
+      <div className={styles.overviewLabel}>
+        {t['com.affine.localmind.workbench.v9.collaborationHub']()}
+      </div>
+      <button
+        type="button"
+        className={styles.allProjects}
+        data-selected={selectedProjectId === null}
+        onClick={() => onSelectProject(null)}
+      >
+        <AiIcon />
+        <span>{t['com.affine.localmind.workbench.v9.overview']()}</span>
+        <span className={styles.projectCount}>{activeProjects.length}</span>
+      </button>
+
       <div className={styles.headingRow}>
         <h2 className={styles.heading}>
           {t['com.affine.localmind.workbench.projects']()}
@@ -170,14 +193,6 @@ export const ProjectTree = ({
           onClick={() => setCreating(true)}
         />
       </div>
-
-      <Button
-        className={styles.newConversation}
-        variant="primary"
-        onClick={onNewConversation}
-      >
-        {t['com.affine.localmind.workbench.v9.newConversation']()}
-      </Button>
 
       {creating ? (
         <div className={styles.inlineEditor}>
@@ -213,17 +228,6 @@ export const ProjectTree = ({
           </div>
         </div>
       ) : null}
-
-      <button
-        type="button"
-        className={styles.allProjects}
-        data-selected={selectedProjectId === null}
-        onClick={() => onSelectProject(null)}
-      >
-        <FolderIcon />
-        <span>{t['com.affine.localmind.workbench.projects.all']()}</span>
-        <span className={styles.projectCount}>{activeProjects.length}</span>
-      </button>
 
       <div className={styles.treeScroll}>
         {loading ? (

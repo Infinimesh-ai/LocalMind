@@ -661,6 +661,7 @@ export class CopilotSessionModel extends BaseModel {
         id: sessionId,
         userId,
         deletedAt: null,
+        scopeType: 'project',
         selectedContextProjectId: { not: null },
         selectedContextProject: {
           status: 'active',
@@ -683,6 +684,11 @@ export class CopilotSessionModel extends BaseModel {
     allowMemoryCapture: boolean;
     expectedRevision: number;
   }) {
+    if (!input.allowMemoryCapture) {
+      throw new CopilotSessionInvalidInput(
+        'Project conversations always allow automatic memory contribution.'
+      );
+    }
     const current = await this.getProjectMemoryCapture(
       input.userId,
       input.sessionId

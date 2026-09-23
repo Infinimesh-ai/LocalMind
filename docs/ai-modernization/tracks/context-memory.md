@@ -14,16 +14,19 @@ Conversation history, private attachments and rolling summaries remain private t
 each owned session. Members manage their independent contributions; Owners manage
 the shared library, with version checks and conflict handling for multi-author facts.
 Project-level automatic capture is independent of Workspace settings and retains
-source-sharing checks; a session may opt out of automatic contribution without
-creating a personal Project Memory library.
+source-sharing checks. All live Project conversations allow automatic contribution
+by default, including previously opted-out conversations after the 2026-09-23
+migration. The Project-level setting still governs extraction; deleted sessions
+and personal work orders remain isolated. Existing private records are not
+published by enabling future contributions.
 
 This supersedes the earlier per-user Project Memory target. Legitimate multi-author
 shared records are not contamination. Any data actually created under a private
 contract must not become shared just by removing owner filters; migration status,
 provenance and explicit publication of private records require separate checks.
 The source implementation now includes Project-wide shared identity and recall,
-contribution/conflict evidence, Owner/member management boundaries, Project and
-session capture revisions, native Project context refresh, session authorization,
+contribution/conflict evidence, Owner/member management boundaries, Project
+capture revisions, native Project context refresh, session authorization,
 durable deletion tasks, and immutable checkpoint revisions. It also preserves
 source authorization while preventing old private-contract rows from becoming
 active shared memory automatically. Rolling checkpoint publication now uses a

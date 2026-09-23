@@ -74,10 +74,11 @@ with their former Workspace write semantics.
   to the Project session Workspace as a BYOK host.
 - Project reads use personal ACL union current-project grants. Document-side
   AI uses personal ACL only. Grants from other projects never contribute.
-- Existing-document project writes require a current-project write grant,
-  active project membership, read-write AI policy, and satisfied tool approval.
-  Execution, approval, retry, and recovery recheck these conditions. Invalid
-  context fails explicitly without a broader fallback.
+- Project AI has fixed read and write capability; users cannot change it to
+  read-only. Existing-document project writes still require the current-project
+  write grant, active project membership, and satisfied tool approval. Execution,
+  approval, retry, and recovery recheck these conditions. Invalid context fails
+  explicitly without a broader fallback.
 - Personal content not granted to the project must not automatically enter
   shared documents or project memory.
 - Creation requires an explicit destination workspace and location, including

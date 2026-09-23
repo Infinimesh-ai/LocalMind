@@ -3,10 +3,8 @@ import {
   Button,
   Input,
   Modal,
-  RadioGroup,
   useConfirmModal,
 } from '@affine/component';
-import { reportProjectError } from '@affine/core/modules/project-resources/error';
 import { useI18n } from '@affine/i18n';
 import { useEffect, useState } from 'react';
 
@@ -15,7 +13,6 @@ import type { WorkbenchProject, WorkbenchProjectMember } from './types';
 
 export type ProjectCollaborationPendingKey =
   | 'invite'
-  | 'policy'
   | 'leave'
   | `remove:${string}`
   | `transfer:${string}`;
@@ -26,7 +23,6 @@ type ProjectCollaborationProps = {
   pendingKey: ProjectCollaborationPendingKey | null;
   onOpenChange: (open: boolean) => void;
   onInvite: (email: string) => Promise<boolean>;
-  onPolicyChange: (policy: 'read_only' | 'read_write') => Promise<boolean>;
   onRemoveMember: (member: WorkbenchProjectMember) => Promise<boolean>;
   onTransferOwnership: (member: WorkbenchProjectMember) => Promise<boolean>;
   onLeave: () => Promise<boolean>;
@@ -38,7 +34,6 @@ export const ProjectCollaboration = ({
   pendingKey,
   onOpenChange,
   onInvite,
-  onPolicyChange,
   onRemoveMember,
   onTransferOwnership,
   onLeave,
@@ -161,61 +156,29 @@ export const ProjectCollaboration = ({
         </section>
 
         {isOwner ? (
-          <>
-            <section className={styles.section}>
-              <h3>{t['com.affine.localmind.workbench.project.invite']()}</h3>
-              <div className={styles.inviteRow}>
-                <Input
-                  value={email}
-                  type="email"
-                  placeholder={t[
-                    'com.affine.localmind.workbench.project.invitePlaceholder'
-                  ]()}
-                  disabled={pendingKey !== null}
-                  onChange={setEmail}
-                  onEnter={() => void submitInvite()}
-                />
-                <Button
-                  variant="primary"
-                  disabled={!email.trim() || pendingKey !== null}
-                  loading={pendingKey === 'invite'}
-                  onClick={() => void submitInvite()}
-                >
-                  {t['Invite']()}
-                </Button>
-              </div>
-            </section>
-
-            <section className={styles.section}>
-              <h3>{t['com.affine.localmind.workbench.project.aiPolicy']()}</h3>
-              <RadioGroup
-                width="100%"
-                value={project.aiPolicy}
+          <section className={styles.section}>
+            <h3>{t['com.affine.localmind.workbench.project.invite']()}</h3>
+            <div className={styles.inviteRow}>
+              <Input
+                value={email}
+                type="email"
+                placeholder={t[
+                  'com.affine.localmind.workbench.project.invitePlaceholder'
+                ]()}
                 disabled={pendingKey !== null}
-                onChange={(policy: 'read_only' | 'read_write') => {
-                  if (policy !== project.aiPolicy) {
-                    onPolicyChange(policy).catch(reportProjectError);
-                  }
-                }}
-                items={[
-                  {
-                    value: 'read_only',
-                    label:
-                      t[
-                        'com.affine.localmind.workbench.project.aiPolicy.readOnly'
-                      ](),
-                  },
-                  {
-                    value: 'read_write',
-                    label:
-                      t[
-                        'com.affine.localmind.workbench.project.aiPolicy.readWrite'
-                      ](),
-                  },
-                ]}
+                onChange={setEmail}
+                onEnter={() => void submitInvite()}
               />
-            </section>
-          </>
+              <Button
+                variant="primary"
+                disabled={!email.trim() || pendingKey !== null}
+                loading={pendingKey === 'invite'}
+                onClick={() => void submitInvite()}
+              >
+                {t['Invite']()}
+              </Button>
+            </div>
+          </section>
         ) : null}
 
         <div className={styles.footer}>

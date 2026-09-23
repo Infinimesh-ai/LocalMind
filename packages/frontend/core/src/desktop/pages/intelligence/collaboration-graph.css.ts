@@ -3,12 +3,14 @@ import { globalStyle, style } from '@vanilla-extract/css';
 
 export const root = style({
   minWidth: 0,
-  minHeight: 0,
   flex: 1,
   display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) 280px',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(250px, 32%)',
   gap: 0,
   overflow: 'hidden',
+  minHeight: 520,
+  borderRadius: 18,
+  boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}, 0 20px 54px rgba(25, 29, 34, 0.055)`,
   '@media': {
     'screen and (max-width: 1040px)': {
       gridTemplateColumns: 'minmax(0, 1fr) 240px',
@@ -22,7 +24,7 @@ export const root = style({
 export const canvas = style({
   position: 'relative',
   minWidth: 0,
-  minHeight: 360,
+  minHeight: 520,
   overflow: 'hidden',
   backgroundImage: `radial-gradient(${cssVarV2('layer/insideBorder/border')} 0.7px, transparent 0.7px)`,
   backgroundSize: '18px 18px',
@@ -30,7 +32,7 @@ export const canvas = style({
 export const gfxHost = style({
   width: '100%',
   height: '100%',
-  minHeight: 360,
+  minHeight: 520,
   overflow: 'hidden',
 });
 export const zoomControls = style({
@@ -65,7 +67,7 @@ globalStyle(`${gfxHost} affine-edgeless-zoom-toolbar`, { display: 'none' });
 export const list = style({
   minWidth: 0,
   overflowY: 'auto',
-  padding: 12,
+  padding: '20px 18px',
   borderLeft: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
   '@media': {
     'screen and (max-width: 760px)': {
@@ -82,9 +84,10 @@ globalStyle(`${list} button`, {
   display: 'flex',
   flexDirection: 'column',
   gap: 3,
-  padding: 8,
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: 5,
+  padding: '12px 8px',
+  border: 0,
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 0,
   background: cssVarV2('layer/background/primary'),
   color: cssVarV2('text/primary'),
   textAlign: 'left',
@@ -99,12 +102,14 @@ export const notice = style({
   fontSize: 11,
 });
 export const state = style({
-  minHeight: 260,
+  minHeight: 520,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
   gap: 8,
+  borderRadius: 18,
+  boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
   color: cssVarV2('text/secondary'),
   textAlign: 'center',
 });

@@ -42,7 +42,6 @@ vi.mock('@affine/component', () => ({
   ),
   Modal: ({ children, open }: PropsWithChildren<{ open: boolean }>) =>
     open ? <div>{children}</div> : null,
-  RadioGroup: () => <div data-testid="policy" />,
   useConfirmModal: () => ({ openConfirmModal: state.confirm }),
 }));
 
@@ -93,7 +92,6 @@ const renderModal = (
     pendingKey: null,
     onOpenChange: vi.fn(),
     onInvite: vi.fn().mockResolvedValue(true),
-    onPolicyChange: vi.fn().mockResolvedValue(true),
     onRemoveMember: vi.fn().mockResolvedValue(true),
     onTransferOwnership: vi.fn().mockResolvedValue(true),
     onLeave: vi.fn().mockResolvedValue(true),
@@ -119,6 +117,13 @@ describe('ProjectCollaboration', () => {
     const confirmation = state.confirm.mock.calls[0][0];
     await confirmation.onConfirm();
     expect(props.onTransferOwnership).toHaveBeenCalledWith(project.members[1]);
+  });
+
+  test('does not expose a mutable AI permission setting', () => {
+    renderModal();
+    expect(
+      screen.queryByText('com.affine.localmind.workbench.project.aiPolicy')
+    ).toBeNull();
   });
 
   test('requires confirmation before removing a member and permits retry', async () => {

@@ -103,113 +103,145 @@ export function NewConversation({
 
   return (
     <section className={styles.root} aria-labelledby="new-conversation-title">
-      <div className={styles.empty}>
-        <h1 id="new-conversation-title">
-          <input
-            className={styles.titleInput}
-            aria-label={t['com.affine.localmind.workbench.v9.optionalTitle']()}
-            value={title}
-            maxLength={80}
-            placeholder={t[
-              'com.affine.localmind.workbench.v9.newConversation'
-            ]()}
-            onChange={event => setTitle(event.currentTarget.value)}
-          />
-        </h1>
-        <p>{t['com.affine.localmind.workbench.v9.newConversationHelp']()}</p>
-      </div>
-      <div className={styles.composerGroup}>
-        <div className={styles.projectBar}>
-          <Menu
-            contentOptions={{
-              align: 'start',
-              sideOffset: 6,
-              style: { minWidth: 260, maxWidth: 'calc(100vw - 32px)' },
-            }}
-            items={
-              projects.length ? (
-                projects.map(project => (
-                  <MenuItem
-                    key={project.id}
-                    prefixIcon={<FolderIcon />}
-                    selected={project.id === projectId}
-                    onSelect={() => {
-                      setProjectId(project.id);
-                      setError(false);
-                    }}
-                  >
-                    {project.name}
-                  </MenuItem>
-                ))
-              ) : (
-                <MenuItem disabled>
-                  {t[
-                    'com.affine.localmind.workbench.v9.chooseProjectPlaceholder'
-                  ]()}
-                </MenuItem>
-              )
-            }
-          >
-            <button
-              ref={projectTriggerRef}
-              className={styles.projectTrigger}
-              type="button"
+      <div className={styles.main}>
+        <span className={styles.breadcrumb}>
+          {t['com.affine.localmind.workbench.v9.overview']()} /{' '}
+          {t['com.affine.localmind.workbench.v9.newConversation']()}
+        </span>
+        <div className={styles.empty}>
+          <h1 id="new-conversation-title">
+            <input
+              className={styles.titleInput}
               aria-label={t[
-                'com.affine.localmind.workbench.v9.chooseProject'
+                'com.affine.localmind.workbench.v9.optionalTitle'
               ]()}
-              aria-invalid={error || undefined}
-              aria-describedby={error ? 'project-selection-error' : undefined}
-            >
-              <FolderIcon />
-              <span>
-                {selectedProject?.name ??
-                  t[
-                    'com.affine.localmind.workbench.v9.chooseProjectPlaceholder'
-                  ]()}
-              </span>
-            </button>
-          </Menu>
+              value={title}
+              maxLength={80}
+              placeholder={t[
+                'com.affine.localmind.workbench.v9.newConversation'
+              ]()}
+              onChange={event => setTitle(event.currentTarget.value)}
+            />
+          </h1>
+          <p>{t['com.affine.localmind.workbench.v9.newConversationHelp']()}</p>
         </div>
-        <div className={styles.composer}>
-          <textarea
-            rows={3}
-            value={draft}
-            placeholder={t[
-              'com.affine.localmind.workbench.v9.taskPlaceholder'
-            ]()}
-            onChange={event => setDraft(event.currentTarget.value)}
-            onKeyDown={event => {
-              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                event.preventDefault();
-                start();
+        <div className={styles.composerGroup}>
+          <div className={styles.projectBar}>
+            <Menu
+              contentOptions={{
+                align: 'start',
+                side: 'top',
+                sideOffset: 6,
+                style: {
+                  minWidth: 260,
+                  maxWidth: 'calc(100vw - 32px)',
+                  maxHeight:
+                    'min(360px, var(--radix-dropdown-menu-content-available-height))',
+                  overflowY: 'auto',
+                },
+              }}
+              items={
+                projects.length ? (
+                  projects.map(project => (
+                    <MenuItem
+                      key={project.id}
+                      prefixIcon={<FolderIcon />}
+                      selected={project.id === projectId}
+                      onSelect={() => {
+                        setProjectId(project.id);
+                        setError(false);
+                      }}
+                    >
+                      {project.name}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem disabled>
+                    {t[
+                      'com.affine.localmind.workbench.v9.chooseProjectPlaceholder'
+                    ]()}
+                  </MenuItem>
+                )
               }
-            }}
-          />
-          {error ? (
-            <span
-              id="project-selection-error"
-              className={styles.error}
-              role="alert"
             >
-              {t['com.affine.localmind.workbench.v9.chooseProjectError']()}
-            </span>
-          ) : null}
-          <div className={styles.footer}>
-            <span>
-              {t['com.affine.localmind.workbench.v9.draftLifetime']()}
-            </span>
-            <button
-              className={styles.sendButton}
-              type="button"
-              aria-label={t['Send']()}
-              disabled={!draft.trim()}
-              onClick={start}
-            >
-              <ArrowUpSmallIcon />
-            </button>
+              <button
+                ref={projectTriggerRef}
+                className={styles.projectTrigger}
+                type="button"
+                aria-label={t[
+                  'com.affine.localmind.workbench.v9.chooseProject'
+                ]()}
+                aria-invalid={error || undefined}
+                aria-describedby={error ? 'project-selection-error' : undefined}
+              >
+                <FolderIcon />
+                <span>
+                  {selectedProject?.name ??
+                    t[
+                      'com.affine.localmind.workbench.v9.chooseProjectPlaceholder'
+                    ]()}
+                </span>
+              </button>
+            </Menu>
+          </div>
+          <div className={styles.composer}>
+            <textarea
+              rows={2}
+              value={draft}
+              placeholder={t[
+                'com.affine.localmind.workbench.v9.taskPlaceholder'
+              ]()}
+              onChange={event => setDraft(event.currentTarget.value)}
+              onKeyDown={event => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  event.preventDefault();
+                  start();
+                }
+              }}
+            />
+            {error ? (
+              <span
+                id="project-selection-error"
+                className={styles.error}
+                role="alert"
+              >
+                {t['com.affine.localmind.workbench.v9.chooseProjectError']()}
+              </span>
+            ) : null}
+            <div className={styles.footer}>
+              <span>
+                {t['com.affine.localmind.workbench.v9.draftLifetime']()}
+              </span>
+              <button
+                className={styles.sendButton}
+                type="button"
+                aria-label={t['Send']()}
+                disabled={!draft.trim()}
+                onClick={start}
+              >
+                <ArrowUpSmallIcon />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+      <aside
+        className={styles.context}
+        aria-label={t['com.affine.localmind.workbench.v9.contextPanel']()}
+      >
+        <h2>{t['com.affine.localmind.workbench.v9.contextPanel']()}</h2>
+        <section>
+          <h3>{t['com.affine.localmind.workbench.v9.chooseProject']()}</h3>
+          <p>
+            {selectedProject?.name ??
+              t['com.affine.localmind.workbench.v9.chooseProjectPlaceholder']()}
+          </p>
+        </section>
+        <section>
+          <h3>{t['com.affine.localmind.aiContext.memories.title']()}</h3>
+          <p>{t['com.affine.localmind.workbench.v9.projectMemoryHelp']()}</p>
+        </section>
+      </aside>
     </section>
   );
 }

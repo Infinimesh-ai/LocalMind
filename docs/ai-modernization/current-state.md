@@ -2,13 +2,17 @@
 
 ## Workspace / Project Context And Sessions
 
+Project AI has fixed internal read and write capability. The project AI policy
+selector is removed; active membership, source authorization, destination ACL,
+edit leases, and tool approvals remain enforced at execution time.
+
 The corrected 2026-09-21
 [context and session remediation contract](workspace-project-context-session-remediation.zh-CN.md)
 is implemented in source for its core authorization and shared-memory boundary:
 one Project has one shared Memory library for current members, while conversations,
 private attachments and rolling checkpoints remain owned by one user/session.
 The implementation adds contribution and conflict evidence, Owner/member management
-rules, independent Project/session capture revisions, native context refresh,
+rules, a Project capture revision, native context refresh,
 immutable checkpoint revisions, and a leased session-deletion task that removes
 private online payloads without cascading into lawful Project Memory. The real
 chat/action preparation path now publishes rolling checkpoints through a durable

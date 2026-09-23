@@ -11,18 +11,18 @@ export const root = style({
   background: cssVarV2('layer/background/primary'),
 });
 export const header = style({
-  minHeight: 62,
+  minHeight: 82,
   flexShrink: 0,
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'flex-start',
   gap: 12,
-  padding: '10px 14px',
+  padding: '20px 20px 16px',
   borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 globalStyle(`${header} h2`, {
-  margin: '2px 0 0',
-  fontSize: 15,
+  margin: '6px 0 0',
+  fontSize: 18,
   overflowWrap: 'anywhere',
 });
 export const eyebrow = style({
@@ -39,7 +39,7 @@ export const status = style({
 });
 export const scroll = style({ minHeight: 0, flex: 1, overflowY: 'auto' });
 export const section = style({
-  padding: '14px',
+  padding: '18px 20px',
   borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 globalStyle(`${section} h3`, { margin: '0 0 8px', fontSize: 12 });
@@ -81,9 +81,9 @@ export const requirements = style({
 export const requirement = style({
   minWidth: 0,
   margin: 0,
-  padding: 10,
+  padding: 12,
   border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: 5,
+  borderRadius: 8,
 });
 globalStyle(`${requirement} legend`, {
   padding: '0 4px',

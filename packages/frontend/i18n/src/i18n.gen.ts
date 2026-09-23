@@ -9023,29 +9023,9 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.project.transferFailed"](): string;
     /**
-      * `Project AI permissions`
-      */
-    ["com.affine.localmind.workbench.project.aiPolicy"](): string;
-    /**
       * `Project AI is not configured. Contact your LocalMind instance administrator to configure the global Project model.`
       */
     ["com.affine.localmind.project.aiNotConfigured"](): string;
-    /**
-      * `Read only`
-      */
-    ["com.affine.localmind.workbench.project.aiPolicy.readOnly"](): string;
-    /**
-      * `Read and write`
-      */
-    ["com.affine.localmind.workbench.project.aiPolicy.readWrite"](): string;
-    /**
-      * `AI permissions updated`
-      */
-    ["com.affine.localmind.workbench.project.aiPolicyUpdated"](): string;
-    /**
-      * `Could not update AI permissions`
-      */
-    ["com.affine.localmind.workbench.project.aiPolicyFailed"](): string;
     /**
       * `Leave project`
       */
@@ -12116,7 +12096,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.project-memory.automatic"](): string;
     /**
-      * `Each Project has one shared long-term memory. Active members can use it; private chats and attachments are never exposed. Each conversation controls whether it may contribute.`
+      * `Each Project has one shared long-term memory for active members. When enabled, Project conversations may contribute facts that pass source-sharing checks. Private chats and attachments remain private.`
       */
     ["com.affine.localmind.project-memory.explanation"](): string;
     /**
@@ -12190,18 +12170,6 @@ export function useAFFiNEI18N(): {
       * `Remove this item from shared Project memory and delete its derived search data? Items with multiple contributors can only be removed by the Project Owner.`
       */
     ["com.affine.localmind.project-memory.deleteDescription"](): string;
-    /**
-      * `Contribute from this conversation`
-      */
-    ["com.affine.localmind.project-memory.sessionCapture"](): string;
-    /**
-      * `When enabled, this private conversation may add distilled facts to shared Project memory. The conversation and attachments remain private.`
-      */
-    ["com.affine.localmind.project-memory.sessionCaptureExplanation"](): string;
-    /**
-      * `Could not update this conversation's memory contribution setting. Try again.`
-      */
-    ["com.affine.localmind.project-memory.sessionCaptureError"](): string;
     /**
       * `Using v{{frozen}}; latest is v{{current}}.`
       */
@@ -20687,6 +20655,22 @@ export function useAFFiNEI18N(): {
       * `My work`
       */
     ["com.affine.localmind.workbench.v9.overview"](): string;
+    /**
+      * `Collaboration`
+      */
+    ["com.affine.localmind.workbench.v9.collaborationHub"](): string;
+    /**
+      * `Your action needed`
+      */
+    ["com.affine.localmind.workbench.v9.todoHint"](): string;
+    /**
+      * `In progress · including waiting on others`
+      */
+    ["com.affine.localmind.workbench.v9.progressHint"](): string;
+    /**
+      * `Review or continue the conversation`
+      */
+    ["com.affine.localmind.workbench.v9.doneHint"](): string;
     /**
       * `Private conversations and personal work orders that require your attention.`
       */

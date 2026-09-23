@@ -160,13 +160,6 @@ export type AIChatProjectScopeState = {
   candidates: Array<{ id: string; name: string }>;
 };
 
-export type AIChatProjectMemoryCaptureState = {
-  loading: boolean;
-  error: Error | null;
-  allowMemoryCapture: boolean;
-  revision: number | null;
-};
-
 export type AIChatContextCompactionTask =
   CopilotContextCompactionFieldsFragment;
 
@@ -188,7 +181,6 @@ export type AIChatComposerState = {
   attachments: (string | Blob | File)[];
   context: AIChatContextState;
   projectScope: AIChatProjectScopeState;
-  projectMemoryCapture: AIChatProjectMemoryCaptureState;
   reasoning: boolean;
   toolsConfig?: AIToolsConfig;
   modelId?: string;
@@ -260,12 +252,6 @@ export function createInitialComposerState(): AIChatComposerState {
       projectResolution: 'none',
       selectedProjectId: null,
       candidates: [],
-    },
-    projectMemoryCapture: {
-      loading: false,
-      error: null,
-      allowMemoryCapture: false,
-      revision: null,
     },
     reasoning: false,
   };
