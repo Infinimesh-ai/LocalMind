@@ -3,18 +3,19 @@ import { globalStyle, style } from '@vanilla-extract/css';
 
 export const root = style({
   minWidth: 0,
+  minHeight: '100%',
   flexShrink: 0,
-  borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
   background: cssVarV2('layer/background/primary'),
 });
 
 export const summary = style({
   minWidth: 0,
-  minHeight: 44,
+  minHeight: 58,
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  padding: '6px 12px',
+  padding: '10px 18px',
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 
 export const mobileNavigationToggle = style({
@@ -95,36 +96,25 @@ export const attentionCount = style([
 
 export const expandedContent = style({
   minWidth: 0,
-  height: 280,
-  borderTop: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  overflow: 'hidden',
+  height: 'calc(100dvh - 116px)',
+  overflow: 'auto',
   selectors: {
     '&[data-compact="true"]': {
       height: 'auto',
       minHeight: 64,
     },
   },
-  '@media': {
-    'screen and (max-height: 720px)': {
-      height: 220,
-    },
-  },
 });
 
 export const board = style({
   width: '100%',
-  height: '100%',
+  minHeight: '100%',
   display: 'grid',
-  gridTemplateColumns: 'repeat(3, minmax(220px, 1fr))',
-  overflowX: 'auto',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  overflowX: 'hidden',
   overscrollBehaviorX: 'contain',
   scrollbarColor: `${cssVarV2('layer/insideBorder/border')} transparent`,
   scrollbarWidth: 'thin',
-  '@media': {
-    'screen and (max-width: 760px)': {
-      gridTemplateColumns: 'repeat(3, minmax(240px, 82vw))',
-    },
-  },
 });
 
 export const column = style({
@@ -134,18 +124,18 @@ export const column = style({
   flexDirection: 'column',
   selectors: {
     '&:not(:last-child)': {
-      borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+      borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
     },
   },
 });
 
 export const columnHeader = style({
-  minHeight: 38,
+  minHeight: 48,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 8,
-  padding: '8px 12px',
+  padding: '12px 18px',
 });
 
 export const todoHeaderActions = style({
@@ -161,7 +151,7 @@ export const columnBody = style({
   minHeight: 0,
   flex: 1,
   overflowY: 'auto',
-  padding: '0 8px 8px',
+  padding: '0 18px 16px',
   scrollbarColor: `${cssVarV2('layer/insideBorder/border')} transparent`,
   scrollbarWidth: 'thin',
 });

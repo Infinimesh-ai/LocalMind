@@ -82,8 +82,9 @@ Implemented outcome:
   conversations, private attachments and rolling checkpoints remain private;
 - contribution and conflict records preserve real actors, ordinary members cannot
   rewrite multi-author facts, and Owners resolve conflicts with revision checks;
-- Project and per-session automatic-contribution switches use independent revisions,
-  and native Project context refresh preserves frozen historical versions;
+- Project automatic-contribution settings use a project revision; all live Project
+  conversations allow contribution, and native Project context refresh preserves
+  frozen historical versions;
 - session deletion immediately revokes reads, then a leased durable task purges
   private messages/context/checkpoints and redacts runtime payloads while preserving
   lawful shared Project Memory and a minimal receipt;

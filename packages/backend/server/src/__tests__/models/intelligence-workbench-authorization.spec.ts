@@ -529,7 +529,7 @@ test('invites, membership removal, and archived projects fail closed', async t =
       actorUserId: owner.id,
       policy: 'read_write',
     }),
-    { message: 'Project not found' }
+    { message: 'Project AI permissions are fixed to read and write' }
   );
 });
 
@@ -601,29 +601,46 @@ test('ownership transfer is authorized, atomic, and serialized', async t => {
   );
 });
 
-test('only project owners can update the AI policy', async t => {
+test('project AI permissions default to read-write and cannot be changed', async t => {
   const owner = await createUser(t.context, 'policy-owner');
   const member = await createUser(t.context, 'policy-member');
   const project = await createProject(t.context, owner, [{ user: member }]);
+  t.is(project.aiPolicy, 'read_write');
   await t.throwsAsync(
     t.context.authorization.setProjectAiPolicy({
       projectId: project.id,
       actorUserId: member.id,
       policy: 'read_write',
     }),
-    { message: 'Project not found' }
+    { message: 'Project AI permissions are fixed to read and write' }
   );
-  const updated = await t.context.authorization.setProjectAiPolicy({
-    projectId: project.id,
-    actorUserId: owner.id,
-    policy: 'read_write',
-  });
-  t.is(updated?.aiPolicy, 'read_write');
+  await t.throwsAsync(
+    t.context.authorization.setProjectAiPolicy({
+      projectId: project.id,
+      actorUserId: owner.id,
+      policy: 'read_only',
+    }),
+    { message: 'Project AI permissions are fixed to read and write' }
+  );
+  await t.throwsAsync(
+    t.context.db.aiContextProject.update({
+      where: { id: project.id },
+      data: { aiPolicy: 'read_only' },
+    })
+  );
+  t.is(
+    (
+      await t.context.db.aiContextProject.findUniqueOrThrow({
+        where: { id: project.id },
+      })
+    ).aiPolicy,
+    'read_write'
+  );
   t.is(
     await t.context.db.aiContextProjectPolicyAuditEvent.count({
       where: { projectId: project.id },
     }),
-    1
+    0
   );
 });
 

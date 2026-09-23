@@ -1,4 +1,5 @@
 import { IconButton, notify, useConfirmModal } from '@affine/component';
+import { LocalMindLogo } from '@affine/component/localmind-logo';
 import type { BlockerSuggestion } from '@affine/core/blocksuite/ai/components/ai-chat-messages';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { ProjectFileRequestModal } from '@affine/core/components/project-file-request/detail';
@@ -11,7 +12,6 @@ import {
   getWorkOrderPath,
   PROJECT_NEW_CONVERSATION_PATH,
 } from '@affine/core/desktop/route-paths';
-import { MenuItem as SidebarMenuItem } from '@affine/core/modules/app-sidebar/views';
 import {
   DefaultServerService,
   GraphQLService,
@@ -41,13 +41,11 @@ import {
   removeCopilotContextProjectMemberMutation,
   renameConversationMutation,
   sendCopilotProjectInvitationMutation,
-  setCopilotContextProjectAiPolicyMutation,
   transferCopilotContextProjectOwnershipMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
   AiIcon,
-  ArrowLeftSmallIcon,
   CloseIcon,
   FolderIcon,
   SearchIcon,
@@ -139,8 +137,25 @@ export const Component = () => {
   }, [location, navigate, selectedProjectId, selectedResourceId]);
 
   const selectResource = useCallback(
-    (projectId: string, resourceId: string | null) => {
-      navigate(getProjectPath(projectId, resourceId));
+    (
+      projectId: string,
+      resourceId: string | null,
+      returnSessionId?: string | null
+    ) => {
+      if (resourceId) {
+        const path = getProjectPath(projectId, resourceId);
+        navigate(
+          returnSessionId
+            ? `${path}?sessionId=${encodeURIComponent(returnSessionId)}`
+            : path
+        );
+      } else {
+        navigate(
+          returnSessionId
+            ? getProjectConversationPath(projectId, returnSessionId)
+            : getProjectPath(projectId)
+        );
+      }
     },
     [navigate]
   );
@@ -189,7 +204,11 @@ type IntelligenceWorkbenchProps = {
   selectedSessionId: string | null;
   workOrderId: string | null;
   newConversation: boolean;
-  onSelectResource: (projectId: string, resourceId: string | null) => void;
+  onSelectResource: (
+    projectId: string,
+    resourceId: string | null,
+    returnSessionId?: string | null
+  ) => void;
   onSelectProject: (projectId: string | null) => void;
 };
 
@@ -215,9 +234,20 @@ const IntelligenceWorkbench = ({
   const t = useI18n();
   const navigate = useNavigate();
   const [workbenchSearchParams] = useSearchParams();
+  const resourceReturnSessionId =
+    selectedSessionId ?? workbenchSearchParams.get('sessionId');
   const framework = useFramework();
   const quickSearch = useService(QuickSearchService).quickSearch;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
+  useEffect(() => {
+    if (!tasksOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTasksOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [tasksOpen]);
   const [fullscreen, setFullscreen] = useState(false);
   const [officeContext, setOfficeContext] = useState<OfficeAiContext>();
   const [mobileView, setMobileView] = useState<'files' | 'chat'>('files');
@@ -671,40 +701,6 @@ const IntelligenceWorkbench = ({
     ]
   );
 
-  const updateProjectAiPolicy = useCallback(
-    async (policy: 'read_only' | 'read_write') => {
-      if (!collaborationProject || collaborationPendingKey) return false;
-      setCollaborationPendingKey('policy');
-      try {
-        await graphqlService.gql({
-          query: setCopilotContextProjectAiPolicyMutation,
-          variables: { input: { projectId: collaborationProject.id, policy } },
-        });
-        await refreshProjects();
-        notify.success({
-          title: t['com.affine.localmind.workbench.project.aiPolicyUpdated'](),
-        });
-        return true;
-      } catch (caught) {
-        reportMutationError(
-          caught,
-          t['com.affine.localmind.workbench.project.aiPolicyFailed']()
-        );
-        return false;
-      } finally {
-        setCollaborationPendingKey(null);
-      }
-    },
-    [
-      collaborationPendingKey,
-      collaborationProject,
-      graphqlService,
-      refreshProjects,
-      reportMutationError,
-      t,
-    ]
-  );
-
   const removeProjectMember = useCallback(
     async (member: WorkbenchProjectMember) => {
       if (!collaborationProject || collaborationPendingKey) return false;
@@ -1011,9 +1007,9 @@ const IntelligenceWorkbench = ({
           (current.kind === 'projectTree' ? 'projectTree' : 'context'),
         treeOpen: current.kind === 'resource' ? current.treeOpen : false,
       }));
-      onSelectResource(selectedProject.id, resourceId);
+      onSelectResource(selectedProject.id, resourceId, resourceReturnSessionId);
     },
-    [onSelectResource, selectedProject]
+    [onSelectResource, resourceReturnSessionId, selectedProject]
   );
 
   const closeProjectResource = useCallback(() => {
@@ -1023,7 +1019,8 @@ const IntelligenceWorkbench = ({
     setRightPanel({ kind: next });
     onSelectResource(
       selectedProject.id,
-      next === 'projectTree' ? directoryId : null
+      next === 'projectTree' ? directoryId : null,
+      resourceReturnSessionId
     );
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
@@ -1037,7 +1034,13 @@ const IntelligenceWorkbench = ({
         (opener ?? rightPanelTrigger.current?.querySelector('button'))?.focus();
       })
     );
-  }, [directoryId, onSelectResource, rightPanel, selectedProject]);
+  }, [
+    directoryId,
+    onSelectResource,
+    resourceReturnSessionId,
+    rightPanel,
+    selectedProject,
+  ]);
 
   const toggleRightPanel = useCallback(() => {
     setRightPanel(current =>
@@ -1050,6 +1053,11 @@ const IntelligenceWorkbench = ({
     setMobileView('files');
   }, []);
 
+  const secondaryViewLabel =
+    rightPanel.kind === 'context'
+      ? t['com.affine.localmind.workbench.v9.contextPanel']()
+      : t['com.affine.localmind.project-files.title']();
+
   return (
     <main className={styles.root} data-testid="intelligence-workbench">
       <aside
@@ -1059,35 +1067,24 @@ const IntelligenceWorkbench = ({
         aria-label={t['com.affine.localmind.workbench.navigation']()}
       >
         <div className={styles.railHeader}>
-          <div className={styles.workspaceAndAccount}>
-            <SidebarMenuItem
-              icon={<ArrowLeftSmallIcon />}
-              onClick={() => navigate('/')}
-            >
-              {t['com.affine.localmind.workbench.returnToWorkspace']()}
-            </SidebarMenuItem>
-            <UserInfo />
-            <span className={styles.mobileRailClose}>
-              <IconButton
-                size="20"
-                icon={<CloseIcon />}
-                aria-label={t['com.affine.sidebarSwitch.collapse']()}
-                onClick={() => setMobileNavigationOpen(false)}
-              />
-            </span>
-          </div>
-          <div className={styles.railUtilities}>
-            <NotificationButton />
-            <SidebarMenuItem
-              icon={<SettingsIcon />}
-              onClick={() => setSettingsOpen(true)}
-            >
-              {t['com.affine.settingSidebar.title']()}
-            </SidebarMenuItem>
-            <SidebarMenuItem icon={<SearchIcon />} onClick={openSearch}>
-              {t['Quick search']()}
-            </SidebarMenuItem>
-          </div>
+          <button
+            type="button"
+            className={styles.brand}
+            title={t['com.affine.localmind.workbench.returnToWorkspace']()}
+            aria-label={t['com.affine.localmind.workbench.returnToWorkspace']()}
+            onClick={() => navigate('/')}
+          >
+            <LocalMindLogo size={28} />
+            <span>LOCALMIND</span>
+          </button>
+          <span className={styles.mobileRailClose}>
+            <IconButton
+              size="20"
+              icon={<CloseIcon />}
+              aria-label={t['com.affine.sidebarSwitch.collapse']()}
+              onClick={() => setMobileNavigationOpen(false)}
+            />
+          </span>
         </div>
 
         <ProjectTree
@@ -1188,7 +1185,11 @@ const IntelligenceWorkbench = ({
               onClick={() => {
                 if (!selectedProject) return;
                 setRightPanel({ kind: 'projectTree' });
-                onSelectResource(selectedProject.id, null);
+                onSelectResource(
+                  selectedProject.id,
+                  null,
+                  resourceReturnSessionId
+                );
               }}
             >
               {workOrderId
@@ -1263,7 +1264,8 @@ const IntelligenceWorkbench = ({
                 size="20"
                 icon={<FolderIcon />}
                 aria-selected={mobileView === 'files'}
-                aria-label={t['com.affine.localmind.project-files.title']()}
+                aria-label={secondaryViewLabel}
+                tooltip={secondaryViewLabel}
                 onClick={() => setMobileView('files')}
               />
               <IconButton
@@ -1272,14 +1274,43 @@ const IntelligenceWorkbench = ({
                 icon={<AiIcon />}
                 aria-selected={mobileView === 'chat'}
                 aria-label={t['com.affine.localmind.project-files.chat']()}
+                tooltip={t['com.affine.localmind.project-files.chat']()}
                 onClick={() => setMobileView('chat')}
               />
             </div>
           ) : null}
+          <div className={styles.railUtilities}>
+            <button
+              type="button"
+              className={styles.tasksTrigger}
+              aria-expanded={tasksOpen}
+              onClick={() => setTasksOpen(value => !value)}
+            >
+              {t['com.affine.localmind.workbench.tasks']()}
+            </button>
+            <IconButton
+              size="20"
+              icon={<SearchIcon />}
+              tooltip={t['Quick search']()}
+              aria-label={t['Quick search']()}
+              onClick={openSearch}
+            />
+            <NotificationButton />
+            <IconButton
+              size="20"
+              icon={<SettingsIcon />}
+              tooltip={t['com.affine.settingSidebar.title']()}
+              aria-label={t['com.affine.settingSidebar.title']()}
+              onClick={() => setSettingsOpen(true)}
+            />
+            <UserInfo />
+          </div>
         </header>
         <div
           className={styles.conversationAndPeek}
           data-project={!!selectedProject || !!workOrderId}
+          data-work-order={!!workOrderId}
+          data-panel={rightPanel.kind}
           data-fullscreen={fullscreen}
           data-view={mobileView}
         >
@@ -1335,6 +1366,7 @@ const IntelligenceWorkbench = ({
                   projectId={selectedProject.id}
                   sessionId={selectedSessionId}
                   state={contextPanel}
+                  onDocumentsChanged={refreshWorkbench}
                   onOpenResource={resourceId =>
                     openProjectResource(resourceId, 'context')
                   }
@@ -1424,11 +1456,20 @@ const IntelligenceWorkbench = ({
             </>
           ) : null}
         </div>
+        <button
+          type="button"
+          className={styles.taskScrim}
+          hidden={!tasksOpen || !!workOrderId || newConversation}
+          aria-label={t['Close']()}
+          onClick={() => setTasksOpen(false)}
+        />
         <div
           className={styles.taskArea}
+          data-open={tasksOpen}
           hidden={!!workOrderId || newConversation}
         >
           <TaskPanel
+            drawerMode
             panel={taskPanel}
             loading={taskPanelLoading}
             error={
@@ -1455,7 +1496,6 @@ const IntelligenceWorkbench = ({
             }
           }}
           onInvite={inviteProjectMember}
-          onPolicyChange={updateProjectAiPolicy}
           onRemoveMember={removeProjectMember}
           onTransferOwnership={transferProjectOwnership}
           onLeave={leaveProject}

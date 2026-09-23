@@ -250,12 +250,6 @@ export class AIChatRuntime {
       case 'refreshProjectContext':
         await this.refreshProjectContext();
         return;
-      case 'loadProjectMemoryCapture':
-        await this.loadProjectMemoryCapture();
-        return;
-      case 'setProjectMemoryCapture':
-        await this.setProjectMemoryCapture(action.allowMemoryCapture);
-        return;
       case 'loadContextCompaction':
         await this.loadContextCompaction();
         return;
@@ -725,17 +719,6 @@ export class AIChatRuntime {
     });
   }
 
-  private updateProjectMemoryCaptureState(
-    patch: Partial<AIChatSnapshot['composer']['projectMemoryCapture']>
-  ) {
-    this.updateComposer({
-      projectMemoryCapture: {
-        ...this.snapshot.composer.projectMemoryCapture,
-        ...patch,
-      },
-    });
-  }
-
   private updateContextCompactionState(
     patch: Partial<AIChatSnapshot['contextCompaction']>
   ) {
@@ -1007,67 +990,6 @@ export class AIChatRuntime {
   private dismissContextCompaction() {
     const taskId = this.snapshot.contextCompaction.task?.id ?? null;
     this.updateContextCompactionState({ dismissedTaskId: taskId, error: null });
-  }
-
-  private async loadProjectMemoryCapture() {
-    if (this.snapshot.scope.kind !== 'project') return;
-    const sessionId = this.snapshot.activeSessionId;
-    if (!sessionId) {
-      this.updateProjectMemoryCaptureState({
-        loading: false,
-        error: null,
-        allowMemoryCapture: false,
-        revision: null,
-      });
-      return;
-    }
-    this.updateProjectMemoryCaptureState({ loading: true, error: null });
-    try {
-      const capture =
-        await this.options.request.projectMemoryCapture.get(sessionId);
-      if (this.snapshot.activeSessionId !== sessionId) return;
-      this.updateProjectMemoryCaptureState({
-        loading: false,
-        error: null,
-        allowMemoryCapture: capture?.allowMemoryCapture ?? false,
-        revision: capture?.revision ?? null,
-      });
-    } catch (error) {
-      if (this.snapshot.activeSessionId !== sessionId) return;
-      this.updateProjectMemoryCaptureState({
-        loading: false,
-        error: this.toError(error),
-      });
-    }
-  }
-
-  private async setProjectMemoryCapture(allowMemoryCapture: boolean) {
-    if (this.snapshot.scope.kind !== 'project') return;
-    const sessionId = this.snapshot.activeSessionId;
-    const revision = this.snapshot.composer.projectMemoryCapture.revision;
-    if (!sessionId || revision === null) return;
-    this.updateProjectMemoryCaptureState({ loading: true, error: null });
-    try {
-      const capture = await this.options.request.projectMemoryCapture.update(
-        sessionId,
-        allowMemoryCapture,
-        revision
-      );
-      if (this.snapshot.activeSessionId !== sessionId) return;
-      this.updateProjectMemoryCaptureState({
-        loading: false,
-        error: null,
-        allowMemoryCapture: capture.allowMemoryCapture,
-        revision: capture.revision,
-      });
-    } catch (error) {
-      if (this.snapshot.activeSessionId !== sessionId) return;
-      this.updateProjectMemoryCaptureState({
-        loading: false,
-        error: this.toError(error),
-      });
-      throw error;
-    }
   }
 
   private async loadProjectScope() {
@@ -1640,7 +1562,6 @@ export class AIChatRuntime {
       const seq = ++this.contextRequestSeq;
       await this.loadProjectScope();
       if (seq !== this.contextRequestSeq || !sessionId) return;
-      await this.loadProjectMemoryCapture();
       this.updateContextState({ loading: true, error: null });
       try {
         const context = await this.options.request.projectContext.get(

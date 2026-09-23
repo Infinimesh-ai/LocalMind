@@ -23,7 +23,15 @@ export const root = style({
   flex: 1,
   display: 'flex',
   flexDirection: 'column',
-  padding: '14px 8px 8px',
+  padding: '16px 12px 14px',
+});
+
+export const overviewLabel = style({
+  margin: '0 8px 7px',
+  color: cssVarV2('text/tertiary'),
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
 });
 
 export const headingRow = style({
@@ -32,6 +40,7 @@ export const headingRow = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 8,
+  marginTop: 22,
   padding: '0 6px 6px 8px',
 });
 
@@ -45,9 +54,27 @@ export const heading = style({
 });
 
 export const newConversation = style({
-  width: 'calc(100% - 8px)',
-  margin: '0 4px 10px',
-  justifyContent: 'center',
+  width: '100%',
+  minHeight: 39,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  gap: 9,
+  marginBottom: 22,
+  padding: '0 13px',
+  borderRadius: 8,
+  background: '#20242a',
+  color: '#fff',
+  fontSize: 13,
+  fontWeight: 600,
+  selectors: {
+    '&:hover': { background: '#111419' },
+  },
+});
+globalStyle(`${newConversation} svg`, {
+  width: 16,
+  height: 16,
+  color: '#ff786c',
 });
 
 export const inlineEditor = style({
@@ -66,19 +93,20 @@ export const inlineEditorActions = style({
 export const allProjects = style({
   ...interactive,
   width: '100%',
-  minHeight: 34,
+  minHeight: 36,
   display: 'grid',
   gridTemplateColumns: '20px minmax(0, 1fr) auto',
   alignItems: 'center',
   gap: 8,
   padding: '6px 8px',
-  borderRadius: 4,
+  borderRadius: 7,
   textAlign: 'left',
   fontSize: 13,
   selectors: {
     ...interactive.selectors,
     '&[data-selected="true"]': {
-      background: cssVarV2('layer/background/secondary'),
+      background: cssVarV2('layer/background/primary'),
+      boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
       fontWeight: 600,
     },
   },
@@ -111,7 +139,7 @@ export const projectRow = style({
   minHeight: 34,
   display: 'flex',
   alignItems: 'center',
-  borderRadius: 4,
+  borderRadius: 7,
   selectors: {
     '&[data-selected="true"]': {
       background: cssVarV2('layer/background/secondary'),
@@ -132,7 +160,7 @@ export const projectButton = style({
   alignItems: 'center',
   gap: 8,
   padding: '6px 4px 6px 8px',
-  borderRadius: 4,
+  borderRadius: 7,
   textAlign: 'left',
   fontSize: 13,
   selectors: {
@@ -179,7 +207,7 @@ export const documents = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 1,
-  padding: '1px 0 5px 20px',
+  padding: '3px 0 7px 18px',
 });
 
 export const personalSection = style({
@@ -213,7 +241,7 @@ export const documentButton = style({
   alignItems: 'center',
   gap: 7,
   padding: '5px 8px',
-  borderRadius: 4,
+  borderRadius: 6,
   color: cssVarV2('text/secondary'),
   textAlign: 'left',
   fontSize: 12,
@@ -225,9 +253,10 @@ export const documentButton = style({
       color: cssVarV2('text/tertiary'),
     },
     '&[aria-current="page"]': {
-      background: cssVarV2('layer/background/hoverOverlay'),
+      background: cssVarV2('layer/background/primary'),
       color: cssVarV2('text/primary'),
       fontWeight: 600,
+      boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
     },
     '&[data-placeholder="true"]:hover': {
       background: 'transparent',

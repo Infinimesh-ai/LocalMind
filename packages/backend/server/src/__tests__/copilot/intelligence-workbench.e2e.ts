@@ -550,11 +550,6 @@ async function createProjectWriteFixture(input: {
       throw new Error('Expected source owner to create a direct project grant');
     }
   }
-  await models.intelligenceWorkbenchAuthorization.setProjectAiPolicy({
-    projectId,
-    actorUserId: input.owner.id,
-    policy: 'read_write',
-  });
   return {
     docWriter,
     hostWorkspace,

@@ -5,46 +5,55 @@ export const root = style({
   minWidth: 0,
   minHeight: 0,
   height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'space-between',
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) 238px',
   background: cssVarV2('layer/background/primary'),
-});
-export const empty = style({
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 24,
-  textAlign: 'center',
   '@media': {
-    'screen and (max-width: 600px)': {
-      padding: 16,
-    },
+    'screen and (max-width: 1040px)': { gridTemplateColumns: '1fr' },
   },
 });
-globalStyle(`${empty} h1`, { width: 'min(520px, 100%)', margin: 0 });
+export const main = style({
+  minWidth: 0,
+  minHeight: 0,
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  padding: '32px 32px 24px',
+  '@media': {
+    'screen and (max-width: 600px)': { padding: '20px 16px 12px' },
+  },
+});
+export const breadcrumb = style({
+  color: cssVarV2('text/tertiary'),
+  fontSize: 12,
+});
+export const empty = style({
+  width: 'min(100%, 880px)',
+  marginTop: 17,
+  padding: '0 0 22px',
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+});
+globalStyle(`${empty} h1`, { width: '100%', margin: 0 });
 globalStyle(`${empty} p`, {
-  maxWidth: 480,
-  margin: '8px 0 0',
+  maxWidth: 720,
+  margin: '7px 0 0',
   color: cssVarV2('text/secondary'),
-  fontSize: 13,
+  fontSize: 12,
   lineHeight: '20px',
 });
 export const titleInput = style({
   width: '100%',
-  padding: '4px 8px',
+  padding: 0,
   border: 0,
   borderRadius: 6,
   outline: 'none',
   background: 'transparent',
   color: cssVarV2('text/primary'),
   font: 'inherit',
-  fontSize: 22,
+  fontSize: 26,
   fontWeight: 600,
   lineHeight: '30px',
-  textAlign: 'center',
+  textAlign: 'left',
   selectors: {
     '&::placeholder': {
       color: cssVarV2('text/primary'),
@@ -57,29 +66,28 @@ export const titleInput = style({
 });
 export const composerGroup = style({
   width: 'min(680px, calc(100% - 32px))',
-  margin: '0 auto 24px',
+  margin: 'auto auto 0',
   '@media': {
     'screen and (max-width: 600px)': {
       width: 'calc(100% - 24px)',
-      marginBottom: 12,
+      marginBottom: 0,
     },
   },
 });
 export const projectBar = style({
   position: 'relative',
   zIndex: 0,
-  width: 'calc(100% - 48px)',
-  minHeight: 66,
+  width: '100%',
+  minHeight: 40,
   display: 'flex',
   alignItems: 'center',
-  margin: '0 auto -18px',
-  padding: '0 20px 18px',
-  borderRadius: '16px 16px 0 0',
-  background: cssVarV2('layer/background/secondary'),
+  margin: '0 0 10px',
+  padding: 0,
+  borderRadius: 0,
+  background: 'transparent',
   '@media': {
     'screen and (max-width: 600px)': {
-      width: 'calc(100% - 28px)',
-      paddingInline: 12,
+      width: '100%',
     },
   },
 });
@@ -130,21 +138,20 @@ export const composer = style({
   width: '100%',
   display: 'flex',
   flexDirection: 'column',
-  gap: 10,
-  padding: '16px 16px 12px',
-  borderRadius: 16,
+  gap: 8,
+  padding: '12px 16px 10px',
+  borderRadius: 11,
   background: cssVarV2('layer/background/primary'),
-  boxShadow: '0 2px 7px rgba(0, 0, 0, 0.08), 0 18px 44px rgba(0, 0, 0, 0.07)',
+  boxShadow: `0 14px 36px rgba(25, 29, 34, 0.1), inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
   selectors: {
     '&:focus-within': {
-      boxShadow:
-        '0 2px 8px rgba(0, 0, 0, 0.1), 0 20px 48px rgba(0, 0, 0, 0.09)',
+      boxShadow: '0 16px 38px rgba(25, 29, 34, 0.12), inset 0 0 0 1px #9ba4ae',
     },
   },
 });
 globalStyle(`${composer} textarea`, {
   width: '100%',
-  minHeight: 76,
+  minHeight: 42,
   maxHeight: 200,
   padding: 0,
   border: 0,
@@ -212,4 +219,34 @@ export const started = style({
   minHeight: 0,
   height: '100%',
   gridColumn: '1 / -1',
+});
+export const context = style({
+  minWidth: 0,
+  padding: '32px 20px',
+  borderLeft: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  color: cssVarV2('text/secondary'),
+  '@media': {
+    'screen and (max-width: 1040px)': { display: 'none' },
+  },
+});
+globalStyle(`${context} h2`, {
+  margin: '0 0 20px',
+  color: cssVarV2('text/primary'),
+  fontSize: 13,
+  fontWeight: 650,
+});
+globalStyle(`${context} section`, {
+  padding: '16px 0',
+  borderTop: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+});
+globalStyle(`${context} h3`, {
+  margin: '0 0 8px',
+  color: cssVarV2('text/primary'),
+  fontSize: 12,
+  fontWeight: 600,
+});
+globalStyle(`${context} p`, {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: '18px',
 });

@@ -31,6 +31,7 @@ import type {
 } from './types';
 
 type TaskPanelProps = {
+  drawerMode?: boolean;
   panel: WorkbenchTaskPanelData;
   loading: boolean;
   error?: string;
@@ -93,6 +94,7 @@ const isBlocker = (
   task.kind === 'blocker' && task.blocker !== null;
 
 export const TaskPanel = ({
+  drawerMode = false,
   panel,
   loading,
   error,
@@ -108,7 +110,7 @@ export const TaskPanel = ({
   const t = useI18n();
   const fileRequestStatus = useFileRequestStatus();
   const [showFileRequest, setShowFileRequest] = useState(false);
-  const [expanded, setExpanded] = useState(!selectedProjectId);
+  const [expanded, setExpanded] = useState(drawerMode || !selectedProjectId);
   const [showBlockerForm, setShowBlockerForm] = useState(false);
   const [blockerTitle, setBlockerTitle] = useState('');
   const [blockerType, setBlockerType] =
@@ -153,7 +155,7 @@ export const TaskPanel = ({
   const compact = loading || !!error || (empty && !showBlockerForm);
 
   useEffect(() => {
-    setExpanded(!selectedProjectId);
+    setExpanded(drawerMode || !selectedProjectId);
     setShowFileRequest(false);
     setShowBlockerForm(false);
     setBlockerTitle('');
@@ -161,7 +163,7 @@ export const TaskPanel = ({
     setBlockerWaitingOn('');
     setBlockerDueAt('');
     setBlockerCreateError(null);
-  }, [selectedProjectId]);
+  }, [drawerMode, selectedProjectId]);
 
   useEffect(() => {
     if (showBlockerForm) {

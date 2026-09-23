@@ -184,7 +184,7 @@ test.serial(
 );
 
 test.serial(
-  'Project session memory contribution toggle uses owner binding and revision CAS',
+  'Project session memory contribution cannot be disabled and uses owner binding and revision CAS',
   async t => {
     const { db, ...scope } = await fixture();
     const query = `query($sessionId: ID!) {
@@ -219,6 +219,15 @@ test.serial(
       allowMemoryCapture: true,
       revision: 1,
     });
+    await t.throwsAsync(
+      app.gql(mutation, {
+        input: {
+          sessionId: scope.sessionId,
+          allowMemoryCapture: false,
+          expectedRevision: 1,
+        },
+      })
+    );
     const updated = await app.gql<{
       updateCopilotProjectSessionMemoryCapture: {
         allowMemoryCapture: boolean;
@@ -227,12 +236,12 @@ test.serial(
     }>(mutation, {
       input: {
         sessionId: scope.sessionId,
-        allowMemoryCapture: false,
+        allowMemoryCapture: true,
         expectedRevision: 1,
       },
     });
     t.like(updated.updateCopilotProjectSessionMemoryCapture, {
-      allowMemoryCapture: false,
+      allowMemoryCapture: true,
       revision: 2,
     });
     await t.throwsAsync(
@@ -246,7 +255,7 @@ test.serial(
     );
     t.like(
       await db.aiSession.findUniqueOrThrow({ where: { id: scope.sessionId } }),
-      { allowMemoryCapture: false, memoryCaptureRevision: 2 }
+      { allowMemoryCapture: true, memoryCaptureRevision: 2 }
     );
 
     const stranger = await app.createUser();

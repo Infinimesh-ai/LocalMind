@@ -114,20 +114,6 @@ function requireGrantLevel(value: unknown): IntelligenceWorkbenchGrantLevel {
   return value as IntelligenceWorkbenchGrantLevel;
 }
 
-function requireProjectAiPolicy(
-  value: unknown
-): IntelligenceWorkbenchProjectAiPolicy {
-  if (
-    typeof value !== 'string' ||
-    !INTELLIGENCE_WORKBENCH_PROJECT_AI_POLICIES.includes(
-      value as IntelligenceWorkbenchProjectAiPolicy
-    )
-  ) {
-    throw new BadRequest('Project AI policy must be read_only or read_write');
-  }
-  return value as IntelligenceWorkbenchProjectAiPolicy;
-}
-
 function fingerprint(parts: Array<string | null | undefined>) {
   return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }
@@ -1142,57 +1128,12 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     return result.count === 1;
   }
 
-  @Transactional()
-  async setProjectAiPolicy(input: {
+  async setProjectAiPolicy(_input: {
     projectId: string;
     actorUserId: string;
     policy: IntelligenceWorkbenchProjectAiPolicy;
   }) {
-    const projectId = requireString(input.projectId, 'projectId');
-    const actorUserId = requireString(input.actorUserId, 'actorUserId');
-    const policy = requireProjectAiPolicy(input.policy);
-    await this.lockProjectMembership(projectId);
-    const membership = await this.requireActiveProjectMembership(
-      projectId,
-      actorUserId
-    );
-    if (membership.role !== 'owner') throw new NotFound('Project not found');
-    const project = await this.db.aiContextProject.findUnique({
-      where: { id: projectId },
-      select: { aiPolicy: true },
-    });
-    if (!project) throw new NotFound('Project not found');
-    if (project.aiPolicy === policy) {
-      return await this.db.aiContextProject.findUnique({
-        where: { id: projectId },
-      });
-    }
-    const now = new Date();
-    const updated = await this.db.aiContextProject.update({
-      where: { id: projectId },
-      data: {
-        aiPolicy: policy,
-        aiPolicyUpdatedByUserId: actorUserId,
-        aiPolicyUpdatedAt: now,
-      },
-    });
-    await this.db.aiContextProjectPolicyAuditEvent.create({
-      data: {
-        projectId,
-        actorUserId,
-        actorUserIdSnapshot: actorUserId,
-        previousPolicy: project.aiPolicy,
-        policy,
-        eventFingerprint: fingerprint([
-          'intelligence-workbench-project-policy/v1',
-          projectId,
-          project.aiPolicy,
-          policy,
-          now.toISOString(),
-        ]),
-      },
-    });
-    return updated;
+    throw new BadRequest('Project AI permissions are fixed to read and write');
   }
 
   private async projectMembership(projectId: string, userId: string) {

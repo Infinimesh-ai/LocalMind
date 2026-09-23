@@ -205,6 +205,17 @@ describe('TaskPanel', () => {
     expect(container.querySelector('[data-segment]')).toBeNull();
   });
 
+  test('opens the task sections when launched from the Project drawer', () => {
+    const { container } = renderPanel({
+      selectedProjectId: 'project-1',
+      drawerMode: true,
+    });
+    expect(
+      container.querySelector('button[aria-expanded="true"]')
+    ).not.toBeNull();
+    expect(screen.getByText('waiting title')).not.toBeNull();
+  });
+
   test('keeps waiting tasks visible even when no task needs my action', () => {
     const { container } = renderPanel({
       panel: {

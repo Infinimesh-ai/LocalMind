@@ -303,6 +303,35 @@ async function waitUntilReady() {
   throw new Error(`LocalMind did not become ready at ${localUrl}`);
 }
 
+async function verifyWebEntrypoint() {
+  // Hashed assets are not usable while the HTML entrypoint points to an older
+  // build. Refresh both HTML variants after restart and check the served page.
+  for (const name of ['index.html', 'selfhost.html']) {
+    await run('docker', [
+      'cp',
+      `packages/frontend/apps/web/dist/${name}`,
+      `${container}:/app/static/${name}`,
+    ]);
+  }
+
+  const html = await readFile(
+    resolve(repoRoot, 'packages/frontend/apps/web/dist/selfhost.html'),
+    'utf8'
+  );
+  const entryScript = html.match(/\/js\/index\.[a-f0-9]+\.js/)?.[0];
+  if (!entryScript) throw new Error('Built web entry script was not found');
+
+  const response = await fetch(localUrl, {
+    headers: { 'Cache-Control': 'no-cache' },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok || !(await response.text()).includes(entryScript)) {
+    throw new Error(
+      `LocalMind is still serving an older web entrypoint than ${entryScript}`
+    );
+  }
+}
+
 await assertContainerIsRunning();
 
 if (target === 'backend' || target === 'all') {
@@ -314,6 +343,9 @@ if (target === 'web' || target === 'all') {
 
 await run('docker', ['restart', container]);
 await waitUntilReady();
+if (target === 'web' || target === 'all') {
+  await verifyWebEntrypoint();
+}
 console.log(
   `LocalMind ${target} synced without rebuilding the image: ${localUrl}`
 );

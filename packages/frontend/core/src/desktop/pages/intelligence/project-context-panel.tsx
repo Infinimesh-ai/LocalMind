@@ -9,6 +9,7 @@ import { PageIcon } from '@blocksuite/icons/rc';
 import { useMemo } from 'react';
 
 import * as styles from './project-context-panel.css';
+import { ProjectTasks } from './project-tasks';
 import type { WorkbenchContextPanelState } from './workbench-conversation';
 
 function ContextResource({
@@ -48,11 +49,13 @@ export function ProjectContextPanel({
   sessionId,
   state,
   onOpenResource,
+  onDocumentsChanged,
 }: {
   projectId: string;
   sessionId: string | null;
   state: WorkbenchContextPanelState | null;
   onOpenResource: (resourceId: string) => void;
+  onDocumentsChanged: () => Promise<unknown>;
 }) {
   const t = useI18n();
   const graphQuery = useQuery(
@@ -148,6 +151,15 @@ export function ProjectContextPanel({
           {t['com.affine.localmind.workbench.v9.contextEmpty']()}
         </div>
       )}
+      <div className={styles.projectActivity}>
+        <ProjectTasks
+          key={`${projectId}:${sessionId ?? ''}`}
+          projectId={projectId}
+          sessionId={sessionId ?? undefined}
+          onCompleted={() => onDocumentsChanged()}
+          onOpenResource={onOpenResource}
+        />
+      </div>
     </section>
   );
 }

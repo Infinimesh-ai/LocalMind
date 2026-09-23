@@ -106,24 +106,6 @@ function createRequest(
       upload: vi.fn(),
       resource: vi.fn(),
     },
-    projectMemoryCapture: {
-      get: vi.fn().mockResolvedValue({
-        sessionId: 'session-1',
-        projectId: 'project-1',
-        allowMemoryCapture: false,
-        revision: 1,
-      }),
-      update: vi
-        .fn()
-        .mockImplementation(
-          async (sessionId, allowMemoryCapture, expectedRevision) => ({
-            sessionId,
-            projectId: 'project-1',
-            allowMemoryCapture,
-            revision: expectedRevision + 1,
-          })
-        ),
-    },
     contextCompaction: {
       get: vi.fn().mockResolvedValue({ task: null, events: [] }),
       request: vi.fn().mockResolvedValue(null),
@@ -262,49 +244,6 @@ describe('AIChatRuntime', () => {
     expect(request.cleanupSessions).not.toHaveBeenCalled();
     expect(request.context.getContextId).not.toHaveBeenCalled();
     expect(request.context.getSessionScope).not.toHaveBeenCalled();
-    runtime.dispose();
-  });
-
-  test('Project conversation memory contribution is disabled by default and updated with revision CAS', async () => {
-    const projectSession = session({
-      workspaceId: null,
-      docId: null,
-      selectedContextProjectId: 'project-1',
-    });
-    const request = createRequest({
-      createSessionWithHistory: vi.fn().mockResolvedValue(projectSession),
-    });
-    const runtime = new AIChatRuntime({
-      request,
-      scope: { kind: 'project', projectId: 'project-1' },
-      strategy: new ProjectAIChatSessionStrategy(),
-    });
-
-    await runtime.dispatch({ type: 'initialize' });
-    await runtime.dispatch({
-      type: 'openSessionObject',
-      session: projectSession,
-    });
-    await runtime.dispatch({ type: 'loadProjectMemoryCapture' });
-    expect(
-      runtime.getSnapshot().composer.projectMemoryCapture.allowMemoryCapture
-    ).toBe(false);
-    await runtime.dispatch({
-      type: 'setProjectMemoryCapture',
-      allowMemoryCapture: true,
-    });
-
-    expect(request.projectMemoryCapture.update).toHaveBeenCalledWith(
-      'session-1',
-      true,
-      1
-    );
-    expect(runtime.getSnapshot().composer.projectMemoryCapture).toMatchObject({
-      allowMemoryCapture: true,
-      revision: 2,
-      loading: false,
-      error: null,
-    });
     runtime.dispose();
   });
 

@@ -31,7 +31,6 @@ import { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import { reportProjectError as report } from '@affine/core/modules/project-resources/error';
 import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import { AppThemeService } from '@affine/core/modules/theme';
-import type { ProjectAgentTaskFieldsFragment } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import type { OfficeAiContext } from '@localmind/office';
 import { useFramework, useLiveData, useService } from '@toeverything/infra';
@@ -39,7 +38,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProjectChatConfig } from './project-chat-config';
 import { ProjectFilePicker } from './project-file-picker';
-import { ProjectTasks } from './project-tasks';
 import type { WorkbenchConversationCard } from './types';
 import {
   type WorkOrderAgentDraft,
@@ -156,7 +154,6 @@ type WorkbenchConversationProps = {
   onOpenResource: (resourceId: string) => void;
   onConfirmBlockerSuggestion?: (suggestion: BlockerSuggestion) => Promise<void>;
   officeContext?: OfficeAiContext;
-  onTaskCompleted?: (task: ProjectAgentTaskFieldsFragment) => Promise<unknown>;
   selectedSessionId?: string;
   selectedCard?: WorkbenchConversationCard;
   onCompleteConversation?: (card: WorkbenchConversationCard) => Promise<void>;
@@ -195,7 +192,6 @@ export const WorkbenchConversation = ({
   onOpenResource,
   onConfirmBlockerSuggestion,
   officeContext,
-  onTaskCompleted,
   selectedSessionId,
   selectedCard,
   onCompleteConversation,
@@ -279,13 +275,6 @@ export const WorkbenchConversation = ({
   );
   const snapshot = useAIChatRuntime(runtime);
   const previousStatus = useRef(snapshot?.status);
-  const handleTaskCompleted = useCallback(
-    async (task: ProjectAgentTaskFieldsFragment) => {
-      if (onTaskCompleted) await onTaskCompleted(task);
-      else await onDocumentsChanged?.();
-    },
-    [onDocumentsChanged, onTaskCompleted]
-  );
   useEffect(() => {
     const previous = previousStatus.current;
     previousStatus.current = snapshot?.status;
@@ -614,13 +603,6 @@ export const WorkbenchConversation = ({
           )}
         </div>
       ) : null}
-      <ProjectTasks
-        key={`${selectedProjectId}:${snapshot?.activeSessionId ?? ''}`}
-        projectId={selectedProjectId}
-        sessionId={snapshot?.activeSessionId ?? undefined}
-        onCompleted={handleTaskCompleted}
-        onOpenResource={onOpenResource}
-      />
       <div className={styles.content} ref={setContentContainer} />
       {documentPicker ? (
         <ProjectFilePicker

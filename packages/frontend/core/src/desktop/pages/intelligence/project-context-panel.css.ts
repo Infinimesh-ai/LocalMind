@@ -7,7 +7,9 @@ export const root = style({
   minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
-  background: cssVarV2('layer/background/secondary'),
+  padding: '24px 18px',
+  overflowY: 'auto',
+  background: cssVarV2('layer/background/primary'),
 });
 
 export const header = style({
@@ -15,32 +17,31 @@ export const header = style({
   alignItems: 'flex-start',
   justifyContent: 'space-between',
   gap: 12,
-  padding: 16,
+  padding: '0 0 17px',
   borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 
 globalStyle(`${header} h2`, {
   margin: 0,
-  fontSize: 14,
+  fontSize: 13,
   lineHeight: '20px',
 });
 
 globalStyle(`${header} p`, {
   maxWidth: 320,
-  margin: '4px 0 0',
+  margin: '7px 0 0',
   color: cssVarV2('text/secondary'),
   fontSize: 12,
   lineHeight: '18px',
 });
 
 export const memoryNotice = style({
-  margin: 12,
-  padding: 12,
+  margin: 0,
+  padding: '18px 0',
   display: 'flex',
   flexDirection: 'column',
   gap: 3,
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: 8,
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   background: cssVarV2('layer/background/primary'),
   fontSize: 12,
 });
@@ -51,13 +52,12 @@ globalStyle(`${memoryNotice} span`, {
 });
 
 export const roles = style({
-  margin: '0 12px 12px',
-  padding: 12,
+  margin: 0,
+  padding: '18px 0',
   display: 'flex',
   flexDirection: 'column',
   gap: 6,
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: 8,
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   background: cssVarV2('layer/background/primary'),
   fontSize: 12,
 });
@@ -80,9 +80,9 @@ globalStyle(`${roles} li`, {
   flexWrap: 'wrap',
   alignItems: 'baseline',
   gap: 5,
-  padding: '6px 8px',
-  borderRadius: 5,
-  background: cssVarV2('layer/background/secondary'),
+  padding: '6px 0',
+  borderRadius: 0,
+  background: 'transparent',
 });
 globalStyle(`${roles} li > span:nth-last-child(-n + 2)`, {
   color: cssVarV2('text/secondary'),
@@ -104,7 +104,7 @@ export const rolesError = style({
 export const resources = style({
   minHeight: 0,
   margin: 0,
-  padding: '0 12px 16px',
+  padding: '12px 0 0',
   overflowY: 'auto',
   listStyle: 'none',
 });
@@ -116,9 +116,10 @@ globalStyle(`${resources} button`, {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  padding: '8px 10px',
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: 6,
+  padding: '8px 0',
+  border: 0,
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 0,
   background: cssVarV2('layer/background/primary'),
   color: cssVarV2('text/primary'),
   textAlign: 'start',
@@ -141,4 +142,9 @@ export const state = style({
   color: cssVarV2('text/secondary'),
   fontSize: 12,
   textAlign: 'center',
+});
+
+export const projectActivity = style({
+  marginTop: 16,
+  borderTop: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });

@@ -6,8 +6,6 @@ import {
   copilotContextCompactionGetQuery,
   copilotContextCompactionRequestMutation,
   copilotContextCompactionRetryMutation,
-  copilotProjectSessionMemoryCaptureGetQuery,
-  copilotProjectSessionMemoryCaptureUpdateMutation,
   type getCopilotHistoriesQuery,
   type GraphQLQuery,
   type ProjectChatContextItemInput,
@@ -133,29 +131,6 @@ export class AIRequestService {
         sequence,
       } satisfies ProjectChatContextItemInput;
     },
-  };
-
-  readonly projectMemoryCapture = {
-    get: async (sessionId: string) =>
-      (
-        await this.client.gql({
-          query: copilotProjectSessionMemoryCaptureGetQuery,
-          variables: { sessionId },
-        })
-      ).currentUser?.copilot.projectSessionMemoryCapture ?? null,
-    update: async (
-      sessionId: string,
-      allowMemoryCapture: boolean,
-      expectedRevision: number
-    ) =>
-      (
-        await this.client.gql({
-          query: copilotProjectSessionMemoryCaptureUpdateMutation,
-          variables: {
-            input: { sessionId, allowMemoryCapture, expectedRevision },
-          },
-        })
-      ).updateCopilotProjectSessionMemoryCapture,
   };
 
   readonly contextCompaction = {
