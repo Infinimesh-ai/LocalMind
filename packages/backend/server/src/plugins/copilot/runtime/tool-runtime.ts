@@ -571,6 +571,7 @@ export class ToolRuntime {
               createWorkOrderDraftTools(this.models, {
                 actorId: options.user,
                 sourceSessionId: options.session,
+                turnId: options.billingUnitId,
               })
             );
           }

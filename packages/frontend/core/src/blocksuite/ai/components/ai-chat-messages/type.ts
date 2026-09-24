@@ -65,6 +65,106 @@ export type BlockerSuggestionConfirmation = {
   };
 };
 
+const WorkOrderAgentDraftSchema = z.object({
+  kind: z.literal('work_order_draft'),
+  draftId: z.string().uuid(),
+  sourceSessionId: z.string().uuid(),
+  origin: z.literal('ai_generated'),
+  confirmationRequired: z.literal(true),
+  recipients: z
+    .array(
+      z
+        .object({
+          recipient: z.object({
+            id: z.string().min(1).max(256),
+            name: z.string().max(320),
+            email: z.string().email().max(320),
+          }),
+          title: z.string().trim().min(1).max(256),
+          purpose: z.string().trim().min(1).max(20_000),
+          relationKind: z.enum(['original', 'supplement', 'replacement']),
+          relatedWorkOrderId: z.string().min(1).max(256).nullable(),
+          requirements: z
+            .array(
+              z
+                .object({
+                  kind: z.enum(['text', 'file']),
+                  title: z.string().trim().min(1).max(256),
+                  instructions: z.string().trim().min(1).max(20_000),
+                  required: z.boolean(),
+                  acceptedMimeTypes: z
+                    .array(z.string().min(1).max(256))
+                    .max(32),
+                  minCount: z.number().int().min(0).max(32),
+                  maxCount: z.number().int().min(1).max(32),
+                })
+                .refine(
+                  item =>
+                    item.maxCount >= item.minCount &&
+                    (item.kind !== 'file' || item.acceptedMimeTypes.length > 0)
+                )
+            )
+            .min(1)
+            .max(32),
+        })
+        .refine(item =>
+          item.relationKind === 'original'
+            ? item.relatedWorkOrderId === null
+            : !!item.relatedWorkOrderId
+        )
+    )
+    .min(1)
+    .max(20),
+});
+
+export type WorkOrderAgentDraft = z.infer<typeof WorkOrderAgentDraftSchema>;
+
+export function workOrderDraftFromToolResult(
+  toolName: string,
+  result: unknown,
+  isError = false
+): WorkOrderAgentDraft | null {
+  if (toolName !== 'work_order_draft' || isError) return null;
+  const parsed = WorkOrderAgentDraftSchema.safeParse(result);
+  return parsed.success ? parsed.data : null;
+}
+
+export type WorkOrderProposalActions = {
+  sourceProjectName?: string;
+  onSend: (draft: WorkOrderAgentDraft) => Promise<void>;
+  onRequestRevision: (
+    draft: WorkOrderAgentDraft,
+    feedback: string
+  ) => Promise<void>;
+  errorMessage?: (error: unknown) => string;
+  labels: {
+    title: string;
+    notice: string;
+    sourceProject: string;
+    sourceProjectDisclosure: string;
+    recipient: string;
+    requirements: string;
+    required: string;
+    optional: string;
+    file: string;
+    text: string;
+    formats: string;
+    count: string;
+    relation: string;
+    relationNames: Record<'original' | 'supplement' | 'replacement', string>;
+    feedback: string;
+    send: string;
+    sending: string;
+    sent: string;
+    revise: string;
+    revising: string;
+    revisionRequested: string;
+    cancel: string;
+    cancelled: string;
+    failed: string;
+  };
+};
+
 const ChatMessageSchema = z.object({
   id: z.string(),
   content: z.string(),

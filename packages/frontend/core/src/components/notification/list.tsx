@@ -53,6 +53,7 @@ import {
 } from './cleanup-actions';
 import * as styles from './list.style.css';
 import { ProjectFileRequestNotificationItem } from './project-file-request';
+import { ProjectInvitationNotificationItem } from './project-invitation';
 import { WorkOrderNotificationItem } from './work-order';
 
 export const NotificationList = () => {
@@ -293,7 +294,9 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
   const t = useI18n();
   const type = notification.type;
 
-  return type === NotificationType.ProjectFileRequest ? (
+  return type === NotificationType.ProjectInvitation ? (
+    <ProjectInvitationNotificationItem notification={notification} />
+  ) : type === NotificationType.ProjectFileRequest ? (
     <ProjectFileRequestNotificationItem notification={notification} />
   ) : type === NotificationType.WorkOrder ? (
     <WorkOrderNotificationItem notification={notification} />

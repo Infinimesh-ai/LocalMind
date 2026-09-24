@@ -43,6 +43,9 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
   ) => void;
 
   @property({ attribute: false })
+  accessor onPinChanged: (() => void) | undefined;
+
+  @property({ attribute: false })
   accessor docDisplayConfig!: DocDisplayConfig;
 
   @property({ attribute: false })
@@ -147,6 +150,7 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
       return;
     }
     await this.runtime.dispatch({ type: 'togglePinActiveSession' });
+    this.onPinChanged?.();
   };
 
   private readonly unpinConfirm = async () => {
@@ -172,6 +176,7 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
           return false;
         }
         await this.runtime.dispatch({ type: 'togglePinActiveSession' });
+        this.onPinChanged?.();
       } catch {
         this.notificationService.toast(
           I18n['com.affine.ui.failed-to-unpin-the-chat']()

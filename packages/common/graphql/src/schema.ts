@@ -587,6 +587,7 @@ export interface CollaborationEdgeType {
   label: Scalars['String']['output'];
   ownSessionId: Maybe<Scalars['ID']['output']>;
   ownWorkOrderId: Maybe<Scalars['ID']['output']>;
+  project: Maybe<CollaborationProjectType>;
   status: Scalars['String']['output'];
   to: Scalars['ID']['output'];
 }
@@ -603,6 +604,12 @@ export interface CollaborationNodeType {
   id: Scalars['ID']['output'];
   label: Scalars['String']['output'];
   self: Scalars['Boolean']['output'];
+}
+
+export interface CollaborationProjectType {
+  __typename?: 'CollaborationProjectType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
 }
 
 /** Comment change action */
@@ -745,6 +752,7 @@ export interface ConversationCardType {
   attentionReasons: Array<Scalars['String']['output']>;
   column: Scalars['String']['output'];
   lastBusinessAt: Scalars['DateTime']['output'];
+  pinned: Scalars['Boolean']['output'];
   project: Maybe<ConversationCardProjectType>;
   scopeType: Scalars['String']['output'];
   sessionId: Scalars['ID']['output'];
@@ -7641,6 +7649,7 @@ export enum NotificationType {
   InvitationReviewRequest = 'InvitationReviewRequest',
   Mention = 'Mention',
   ProjectFileRequest = 'ProjectFileRequest',
+  ProjectInvitation = 'ProjectInvitation',
   WorkOrder = 'WorkOrder',
 }
 
@@ -8167,6 +8176,18 @@ export interface ProjectImportWorkspaceType {
   name: Scalars['String']['output'];
 }
 
+export interface ProjectInvitationNotificationBodyType {
+  __typename?: 'ProjectInvitationNotificationBodyType';
+  /** The user who created the notification, maybe null when user is deleted or sent by system */
+  createdByUser: Maybe<PublicUserType>;
+  invitationId: Scalars['ID']['output'];
+  projectName: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  /** The type of the notification */
+  type: NotificationType;
+  workspace: Maybe<NotificationWorkspaceType>;
+}
+
 export interface ProjectOfficeArtifactType {
   __typename?: 'ProjectOfficeArtifactType';
   compatibility: Scalars['JSONObject']['output'];
@@ -8436,6 +8457,7 @@ export interface Query {
   externalMcpSettings: ExternalMcpSettingsType;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
+  hello: Scalars['String']['output'];
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   localmindAuditEnvelopes: Array<Scalars['JSONObject']['output']>;
   localmindLogArchiveBatches: Array<Scalars['JSONObject']['output']>;
@@ -9441,6 +9463,7 @@ export type UnionNotificationBodyType =
   | InvitationReviewRequestNotificationBodyType
   | MentionNotificationBodyType
   | ProjectFileRequestNotificationBodyType
+  | ProjectInvitationNotificationBodyType
   | WorkOrderNotificationBodyType;
 
 export interface UnknownOauthProviderDataType {
@@ -9894,6 +9917,7 @@ export interface WorkOrderType {
   relationKind: Scalars['String']['output'];
   requirements: Array<WorkOrderRequirementType>;
   sourceContextVersion: Maybe<Scalars['Int']['output']>;
+  sourceProjectNameSnapshot: Maybe<Scalars['String']['output']>;
   sourceSessionId: Maybe<Scalars['ID']['output']>;
   stagedBlobs: Array<WorkOrderStagedBlobType>;
   status: Scalars['String']['output'];
@@ -12835,6 +12859,11 @@ export type CopilotCollaborationGraphGetQuery = {
           label: string;
           ownSessionId: string | null;
           ownWorkOrderId: string | null;
+          project: {
+            __typename?: 'CollaborationProjectType';
+            id: string;
+            name: string;
+          } | null;
         }>;
       };
     };
@@ -19883,6 +19912,7 @@ export type CopilotWorkOrderGetQuery = {
         __typename?: 'WorkOrderType';
         id: string;
         sourceSessionId: string | null;
+        sourceProjectNameSnapshot: string | null;
         ownSessionId: string | null;
         sourceContextVersion: number | null;
         viewerRole: string;
@@ -20066,6 +20096,7 @@ export type CopilotWorkbenchConversationsGetQuery = {
           __typename?: 'ConversationCardType';
           sessionId: string;
           scopeType: string;
+          pinned: boolean;
           title: string | null;
           titleRevision: number;
           column: string;

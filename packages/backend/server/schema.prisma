@@ -1329,23 +1329,25 @@ model WorkOrderDispatch {
 }
 
 model WorkOrder {
-  id                      String    @id @default(uuid()) @db.VarChar
-  dispatchId              String    @map("dispatch_id") @db.VarChar
-  sourceSessionId         String?   @map("source_session_id") @db.VarChar
-  senderId                String?   @map("sender_id") @db.VarChar
-  recipientId             String?   @map("recipient_id") @db.VarChar
-  relatedWorkOrderId      String?   @map("related_work_order_id") @db.VarChar
-  relationKind            String    @default("original") @map("relation_kind") @db.VarChar(16)
-  status                  String    @default("open") @db.VarChar(24)
-  version                 Int       @default(1)
-  title                   String    @db.VarChar(256)
-  purpose                 String    @db.Text
-  requirementsFingerprint String    @map("requirements_fingerprint") @db.VarChar(64)
-  background              Json      @default("{}") @db.JsonB
-  terminalReason          String?   @map("terminal_reason") @db.Text
-  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  completedAt             DateTime? @map("completed_at") @db.Timestamptz(3)
+  id                        String    @id @default(uuid()) @db.VarChar
+  dispatchId                String    @map("dispatch_id") @db.VarChar
+  sourceSessionId           String?   @map("source_session_id") @db.VarChar
+  sourceProjectIdSnapshot   String?   @map("source_project_id_snapshot") @db.VarChar
+  sourceProjectNameSnapshot String?   @map("source_project_name_snapshot") @db.VarChar
+  senderId                  String?   @map("sender_id") @db.VarChar
+  recipientId               String?   @map("recipient_id") @db.VarChar
+  relatedWorkOrderId        String?   @map("related_work_order_id") @db.VarChar
+  relationKind              String    @default("original") @map("relation_kind") @db.VarChar(16)
+  status                    String    @default("open") @db.VarChar(24)
+  version                   Int       @default(1)
+  title                     String    @db.VarChar(256)
+  purpose                   String    @db.Text
+  requirementsFingerprint   String    @map("requirements_fingerprint") @db.VarChar(64)
+  background                Json      @default("{}") @db.JsonB
+  terminalReason            String?   @map("terminal_reason") @db.Text
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt               DateTime? @map("completed_at") @db.Timestamptz(3)
 
   dispatch       WorkOrderDispatch           @relation(fields: [dispatchId], references: [id], onDelete: Restrict)
   sourceSession  AiSession?                  @relation("work_order_source_session", fields: [sourceSessionId], references: [id], onDelete: SetNull)
@@ -4002,6 +4004,7 @@ model OfficeCommandRequest {
 
 enum NotificationType {
   ProjectFileRequest
+  ProjectInvitation
   WorkOrder
   AccessRequest
   AccessRequestResolved

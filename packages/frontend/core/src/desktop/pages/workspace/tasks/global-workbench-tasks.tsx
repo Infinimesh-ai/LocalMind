@@ -5,7 +5,10 @@ import {
   ProjectFileRequestDetail,
   useFileRequestStatus,
 } from '@affine/core/components/project-file-request/detail';
-import { getWorkspaceDocPath } from '@affine/core/desktop/route-paths';
+import {
+  getProjectPath,
+  getWorkspaceDocPath,
+} from '@affine/core/desktop/route-paths';
 import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
 import {
   projectErrorMessage,
@@ -537,6 +540,9 @@ export const GlobalWorkbenchTasks = () => {
                       : `${getWorkspaceDocPath(workspaceId, id)}?${docParams}`
                   );
                 }}
+                onOpenProjectResource={(projectId, resourceId) =>
+                  navigate(getProjectPath(projectId, resourceId))
+                }
               />
             ) : (
               <div className={styles.centerState}>
@@ -562,6 +568,7 @@ const GlobalTaskDetail = ({
   actionLabel,
   onAction,
   onOpenArtifact,
+  onOpenProjectResource,
 }: {
   task: WorkbenchTaskDetail;
   onChanged: () => Promise<void>;
@@ -575,6 +582,7 @@ const GlobalTaskDetail = ({
     action: WorkbenchPanelTaskAction
   ) => Promise<void>;
   onOpenArtifact: (kind: string, id: string, workspaceId: string) => void;
+  onOpenProjectResource: (projectId: string, resourceId: string) => void;
 }) => {
   const t = useI18n();
   const record = (value: unknown): Record<string, unknown> | null =>
@@ -583,6 +591,31 @@ const GlobalTaskDetail = ({
       : null;
   const approval = record(task.run?.approvalSummary);
   const preview = record(approval?.previewSummary);
+  const projectTask = task.projectTask;
+  const projectPreview = record(projectTask?.preview);
+  const projectReceipt = record(projectTask?.receipt);
+  const projectResourceId =
+    typeof projectReceipt?.resourceId === 'string'
+      ? projectReceipt.resourceId
+      : typeof projectReceipt?.artifactId === 'string'
+        ? projectReceipt.artifactId
+        : null;
+  const projectReason =
+    typeof projectPreview?.reason === 'string' ? projectPreview.reason : null;
+  const projectArtifactTitle =
+    typeof projectPreview?.artifactTitle === 'string'
+      ? projectPreview.artifactTitle
+      : null;
+  const projectCommandCount =
+    typeof projectPreview?.commandCount === 'number' &&
+    Number.isFinite(projectPreview.commandCount)
+      ? projectPreview.commandCount
+      : null;
+  const projectRevision =
+    typeof projectPreview?.revisionSequence === 'number' &&
+    Number.isFinite(projectPreview.revisionSequence)
+      ? projectPreview.revisionSequence
+      : null;
   const stats = Object.entries(record(preview?.stats) ?? {})
     .filter(
       (entry): entry is [string, number] =>
@@ -853,6 +886,84 @@ const GlobalTaskDetail = ({
           </>
         ) : null}
       </dl>
+
+      {projectTask &&
+      (projectReason ||
+        projectArtifactTitle ||
+        projectCommandCount !== null ||
+        projectRevision !== null ||
+        task.status === 'waiting_lease' ||
+        projectTask.failureMessage ||
+        (task.status === 'completed' && projectResourceId)) ? (
+        <section className={styles.detailSection}>
+          <h2 className={styles.detailSectionTitle}>
+            {t['com.affine.localmind.tasks.details']()}
+          </h2>
+          {projectReason ? (
+            <p className={styles.detailSectionText}>{projectReason}</p>
+          ) : null}
+          {projectArtifactTitle ||
+          projectCommandCount !== null ||
+          projectRevision !== null ? (
+            <dl className={styles.metadata}>
+              {projectArtifactTitle ? (
+                <div>
+                  <dt className={styles.metadataLabel}>
+                    {t['com.affine.localmind.tasks.authorization.document']()}
+                  </dt>
+                  <dd className={styles.metadataValue}>
+                    {projectArtifactTitle}
+                  </dd>
+                </div>
+              ) : null}
+              {projectCommandCount !== null ? (
+                <div>
+                  <dt className={styles.metadataLabel}>
+                    {t['com.affine.localmind.tasks.approval.commandCount']()}
+                  </dt>
+                  <dd className={styles.metadataValue}>
+                    {projectCommandCount}
+                  </dd>
+                </div>
+              ) : null}
+              {projectRevision !== null ? (
+                <div>
+                  <dt className={styles.metadataLabel}>
+                    {t['com.affine.localmind.tasks.approval.revision']()}
+                  </dt>
+                  <dd className={styles.metadataValue}>{projectRevision}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+          {task.status === 'waiting_lease' ? (
+            <p className={styles.detailSectionText}>
+              {projectTask.leaseHolderName
+                ? t['com.affine.localmind.project-tasks.waitingEditor']({
+                    name: projectTask.leaseHolderName,
+                  })
+                : t[
+                    'com.affine.localmind.project-tasks.waitingEditorUnknown'
+                  ]()}
+            </p>
+          ) : null}
+          {projectTask.failureMessage ? (
+            <p className={styles.detailSectionText} data-failure="true">
+              {projectErrorMessage(projectTask.failureMessage)}
+            </p>
+          ) : null}
+          {task.status === 'completed' && projectResourceId ? (
+            <Button
+              prefix={<PageIcon />}
+              onClick={() =>
+                onOpenProjectResource(projectTask.projectId, projectResourceId)
+              }
+            >
+              {t['com.affine.localmind.project-tasks.openResource']()}
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
 
       {task.run?.failureMessage ? (
         <section className={styles.detailSection}>

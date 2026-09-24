@@ -628,6 +628,96 @@ describe('Global Tasks page', () => {
     );
   });
 
+  test('shows Project Agent preview and opens the completed project resource', () => {
+    state.detailOverrides[tasks[0].id] = {
+      kind: 'project_run',
+      projectId: 'project-1',
+      workspaceId: null,
+      status: 'completed',
+      segment: 'done',
+      run: null,
+      projectTask: {
+        id: 'project-task-1',
+        projectId: 'project-1',
+        status: 'completed',
+        leaseHolderName: null,
+        failureMessage: null,
+        preview: {
+          reason: 'Update the forecast',
+          artifactTitle: 'Budget.xlsx',
+          commandCount: 2,
+          revisionSequence: 4,
+        },
+        receipt: { resourceId: 'saved-resource' },
+      },
+    };
+    render(
+      <MemoryRouter
+        initialEntries={['/tasks?filter=all&taskId=run%3Aworkspace-a-task']}
+      >
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    const details = screen
+      .getByRole('heading', { name: 'com.affine.localmind.tasks.details' })
+      .closest('section');
+    expect(details?.textContent).toContain('Update the forecast');
+    expect(details?.textContent).toContain('Budget.xlsx');
+    expect(details?.textContent).toContain('2');
+    expect(details?.textContent).toContain('4');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.project-tasks.openResource',
+      })
+    );
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/resources/saved-resource'
+    );
+  });
+
+  test('keeps Project Agent lease and failure details in the task view', () => {
+    state.detailOverrides[tasks[0].id] = {
+      kind: 'project_run',
+      projectId: 'project-1',
+      workspaceId: null,
+      status: 'waiting_lease',
+      run: null,
+      projectTask: {
+        id: 'project-task-1',
+        projectId: 'project-1',
+        status: 'waiting_lease',
+        leaseHolderName: 'Editor',
+        failureMessage: 'Lease changed',
+        preview: null,
+        receipt: null,
+      },
+    };
+    render(
+      <MemoryRouter
+        initialEntries={['/tasks?filter=all&taskId=run%3Aworkspace-a-task']}
+      >
+        <Component />
+      </MemoryRouter>
+    );
+
+    const details = screen
+      .getByRole('heading', { name: 'com.affine.localmind.tasks.details' })
+      .closest('section');
+    expect(details?.textContent).toContain(
+      'com.affine.localmind.project-tasks.waitingEditor'
+    );
+    expect(details?.textContent).toContain(
+      'com.affine.localmind.project-error.failed'
+    );
+    expect(
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.project-tasks.openResource',
+      })
+    ).toBeNull();
+  });
+
   test('keeps an old deep-link target outside the current page and opens its document source workspace', () => {
     state.listTaskIds = [tasks[0].id];
     render(

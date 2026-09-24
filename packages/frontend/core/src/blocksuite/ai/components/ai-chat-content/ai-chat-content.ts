@@ -41,6 +41,7 @@ import {
   type BlockerSuggestionConfirmation,
   type HistoryMessage,
   isChatMessage,
+  type WorkOrderProposalActions,
 } from '../ai-chat-messages';
 import type { ChatContextValue } from './type';
 
@@ -184,6 +185,9 @@ export class AIChatContent extends SignalWatcher(
   accessor blockerSuggestionConfirmation:
     | BlockerSuggestionConfirmation
     | undefined;
+
+  @property({ attribute: false })
+  accessor workOrderProposalActions: WorkOrderProposalActions | undefined;
 
   @property({ attribute: false })
   accessor width: Signal<number | undefined> | undefined;
@@ -404,6 +408,7 @@ export class AIChatContent extends SignalWatcher(
         .peekViewService=${this.peekViewService}
         .onOpenDoc=${this.onOpenDoc}
         .blockerSuggestionConfirmation=${this.blockerSuggestionConfirmation}
+        .workOrderProposalActions=${this.workOrderProposalActions}
       ></ai-chat-messages>
       <ai-context-compaction-status
         .runtime=${this.runtime}

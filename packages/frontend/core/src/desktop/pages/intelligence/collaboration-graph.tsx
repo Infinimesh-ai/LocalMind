@@ -12,7 +12,8 @@ import {
   type GfxController,
   GfxControllerIdentifier,
 } from '@blocksuite/affine/std/gfx';
-import { MinusIcon, PlusIcon } from '@blocksuite/icons/rc';
+import { Point } from '@blocksuite/global/gfx';
+import { MinusIcon, PlusIcon, SidebarIcon } from '@blocksuite/icons/rc';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Doc as YDoc } from 'yjs';
@@ -22,10 +23,14 @@ import type { WorkbenchConversationCard } from './types';
 
 type CollaborationGraphProps = {
   cards: WorkbenchConversationCard[];
+  projectFilter: string;
   onOpenCard: (card: WorkbenchConversationCard) => void;
+  onOpenRelation: (
+    sessionId: string | null,
+    workOrderId: string | null,
+    projectId: string | null
+  ) => void;
 };
-
-type Position = { x: number; y: number };
 
 type GraphNode = {
   id: string;
@@ -38,23 +43,17 @@ type GraphEdge = {
   from: string;
   to: string;
   label: string;
+  project: { id: string; name: string } | null;
+  status: string;
 };
 
-function layoutNodes(ids: string[], selfId: string | undefined) {
-  const result = new Map<string, Position>();
-  const center = { x: 450, y: 280 };
-  if (selfId) result.set(selfId, center);
-  const others = ids.filter(id => id !== selfId);
-  const radius = Math.max(150, Math.min(245, 92 + others.length * 7));
-  others.forEach((id, index) => {
-    const angle =
-      (Math.PI * 2 * index) / Math.max(others.length, 1) - Math.PI / 2;
-    result.set(id, {
-      x: center.x + Math.cos(angle) * radius,
-      y: center.y + Math.sin(angle) * radius,
-    });
-  });
-  return result;
+function fitGraph(controller: GfxController, animated = false) {
+  const bound = controller.elementsBound;
+  if (!bound) return;
+  controller.viewport.setViewportByBound(bound, [48, 48, 48, 48], animated);
+  const boundedZoom = Math.max(0.25, Math.min(2, controller.viewport.zoom));
+  if (boundedZoom !== controller.viewport.zoom)
+    controller.viewport.setZoom(boundedZoom, undefined, animated);
 }
 
 function CollaborationGfxCanvas({
@@ -68,14 +67,8 @@ function CollaborationGfxCanvas({
   const container = useRef<HTMLDivElement>(null);
   const gfx = useRef<GfxController | null>(null);
   const [zoom, setZoom] = useState(1);
-  const positions = useMemo(
-    () =>
-      layoutNodes(
-        nodes.map(node => node.id),
-        nodes.find(node => node.self)?.id
-      ),
-    [nodes]
-  );
+  const personalWorkOrderLabel =
+    t['com.affine.localmind.workbench.v9.personalWorkOrder']();
 
   useEffect(() => {
     const mountPoint = container.current;
@@ -91,35 +84,55 @@ function CollaborationGfxCanvas({
     const rootId = store.addBlock('affine:page', {});
     const surfaceId = store.addBlock('affine:surface', {}, rootId);
     const surface = store.getModelById(surfaceId) as SurfaceBlockModel;
-    const elementIds = new Map<string, string>();
-    for (const node of nodes) {
-      const point = positions.get(node.id);
-      if (!point) continue;
-      const elementId = surface.addElement({
-        type: 'shape',
-        xywh: `[${point.x - 70},${point.y - 28},140,56]`,
-        text: node.label.slice(0, 42),
-        shapeType: node.self ? 'ellipse' : 'rect',
-        radius: node.self ? 0 : 0.12,
-        filled: node.self,
-        // `shapeTextColor` is intentionally pure black in the editor palette.
-        // This read-only projection follows the app theme instead.
-        color: DefaultTheme.black,
-      });
-      elementIds.set(node.id, elementId);
-    }
-    for (const edge of edges) {
-      const source = elementIds.get(edge.from);
-      const target = elementIds.get(edge.to);
-      if (!source || !target) continue;
+    const people = new Map(nodes.map(node => [node.id, node]));
+    edges.forEach((edge, index) => {
+      const sender = people.get(edge.from);
+      const recipient = people.get(edge.to);
+      if (!sender || !recipient) return;
+      const y = 48 + index * 112;
+      const addShape = (
+        x: number,
+        width: number,
+        text: string,
+        self: boolean
+      ) =>
+        surface.addElement({
+          type: 'shape',
+          xywh: `[${x},${y},${width},68]`,
+          text,
+          shapeType: self ? 'ellipse' : 'rect',
+          radius: self ? 0 : 0.12,
+          filled: false,
+          color: DefaultTheme.black,
+        });
+      const source = addShape(24, 152, sender.label.slice(0, 32), sender.self);
+      const task = addShape(
+        260,
+        288,
+        `${edge.project?.name ?? personalWorkOrderLabel}\n${edge.label}`.slice(
+          0,
+          100
+        ),
+        false
+      );
+      const target = addShape(
+        632,
+        152,
+        recipient.label.slice(0, 32),
+        recipient.self
+      );
       surface.addElement({
         type: 'connector',
         source: { id: source },
+        target: { id: task },
+      });
+      surface.addElement({
+        type: 'connector',
+        source: { id: task },
         target: { id: target },
         rearEndpointStyle: 'Arrow',
-        text: edge.label.slice(0, 64),
       });
-    }
+    });
     store.resetHistory();
     // The graph is an ephemeral projection. Readonly is enforced by BlockSuite's
     // store and selects the pan tool; hiding editing chrome is only secondary UI.
@@ -131,25 +144,48 @@ function CollaborationGfxCanvas({
     mountPoint.replaceChildren(std.render());
     const controller = std.get(GfxControllerIdentifier);
     gfx.current = controller;
+    const zoomAtPointer = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = mountPoint.getBoundingClientRect();
+      const [x, y] = controller.viewport.toModelCoord(
+        event.clientX - rect.left,
+        event.clientY - rect.top
+      );
+      const nextZoom = Math.max(
+        0.25,
+        Math.min(2, controller.viewport.zoom * Math.exp(-event.deltaY * 0.001))
+      );
+      controller.viewport.setZoom(nextZoom, new Point(x, y), true);
+    };
+    mountPoint.addEventListener('wheel', zoomAtPointer, {
+      capture: true,
+      passive: false,
+    });
     const subscription = controller.viewport.viewportUpdated.subscribe(value =>
       setZoom(value.zoom)
     );
     const frame = requestAnimationFrame(() => {
       controller.viewport.onResize();
-      const bound = controller.elementsBound;
-      if (bound)
-        controller.viewport.setViewportByBound(bound, [48, 48, 48, 48]);
+      fitGraph(controller);
       setZoom(controller.viewport.zoom);
     });
+    const resizeObserver = new ResizeObserver(() => {
+      controller.viewport.onResize();
+      fitGraph(controller);
+    });
+    resizeObserver.observe(mountPoint);
     return () => {
       cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      mountPoint.removeEventListener('wheel', zoomAtPointer, true);
       subscription.unsubscribe();
       if (gfx.current === controller) gfx.current = null;
       mountPoint.replaceChildren();
       collection.dispose();
       root.destroy();
     };
-  }, [edges, nodes, positions]);
+  }, [edges, nodes, personalWorkOrderLabel]);
 
   const changeZoom = useCallback((delta: number) => {
     const controller = gfx.current;
@@ -164,9 +200,7 @@ function CollaborationGfxCanvas({
   const fit = useCallback(() => {
     const controller = gfx.current;
     if (!controller) return;
-    const bound = controller.elementsBound;
-    if (bound)
-      controller.viewport.setViewportByBound(bound, [48, 48, 48, 48], true);
+    fitGraph(controller, true);
   }, []);
 
   return (
@@ -194,27 +228,57 @@ function CollaborationGfxCanvas({
         role="img"
         aria-label={t['com.affine.localmind.workbench.v9.relations']()}
       />
+      <span className={styles.panHint}>
+        {t['com.affine.localmind.workbench.v9.graphPanHint']()}
+      </span>
     </div>
   );
 }
 
 export function CollaborationGraph({
   cards,
+  projectFilter,
   onOpenCard,
+  onOpenRelation,
 }: CollaborationGraphProps) {
   const t = useI18n();
+  const [listCollapsed, setListCollapsed] = useState(false);
   const query = useQuery(
     { query: copilotCollaborationGraphGetQuery },
     { suspense: false, shouldRetryOnError: false }
   );
   const graph = query.data?.currentUser?.copilot.myCollaborationGraph;
-  const openEdge = (sessionId: string | null, workOrderId: string | null) => {
+  const statusLabels: Record<string, string> = {
+    open: t['com.affine.localmind.workbench.v9.workOrderStatusOpen'](),
+    delivered:
+      t['com.affine.localmind.workbench.v9.workOrderStatusDelivered'](),
+    refused: t['com.affine.localmind.workbench.v9.workOrderStatusRefused'](),
+    cancelled:
+      t['com.affine.localmind.workbench.v9.workOrderStatusCancelled'](),
+  };
+  const visibleEdges = useMemo(
+    () =>
+      graph?.edges.filter(edge =>
+        projectFilter === 'work_order'
+          ? graph.nodes.some(node => node.self && node.id === edge.to)
+          : projectFilter
+            ? edge.project?.id === projectFilter
+            : true
+      ) ?? [],
+    [graph, projectFilter]
+  );
+  const openEdge = (
+    sessionId: string | null,
+    workOrderId: string | null,
+    projectId: string | null
+  ) => {
     const card = cards.find(
       candidate =>
         (!!sessionId && candidate.sessionId === sessionId) ||
         (!!workOrderId && candidate.workOrderId === workOrderId)
     );
     if (card) onOpenCard(card);
+    else onOpenRelation(sessionId, workOrderId, projectId);
   };
   if (query.isLoading)
     return (
@@ -229,34 +293,74 @@ export function CollaborationGraph({
         <Button onClick={() => void query.mutate()}>{t['Retry']()}</Button>
       </div>
     );
-  if (!graph?.edges.length)
+  if (!graph || !visibleEdges.length)
     return (
       <div className={styles.state}>
         {t['com.affine.localmind.workbench.v9.graphEmpty']()}
+        {graph?.truncated ? (
+          <span>{t['com.affine.localmind.workbench.v9.graphTruncated']()}</span>
+        ) : null}
       </div>
     );
 
   return (
-    <div className={styles.root}>
-      <CollaborationGfxCanvas nodes={graph.nodes} edges={graph.edges} />
-      <section className={styles.list} aria-labelledby="relation-list-title">
-        <h2 id="relation-list-title">
-          {t['com.affine.localmind.workbench.v9.relationList']()}
-        </h2>
-        {graph.truncated ? (
+    <div
+      className={`${styles.root} ${listCollapsed ? styles.rootCollapsed : ''}`}
+      data-list-collapsed={listCollapsed}
+    >
+      <CollaborationGfxCanvas nodes={graph.nodes} edges={visibleEdges} />
+      <section
+        className={`${styles.list} ${listCollapsed ? styles.listCollapsed : ''}`}
+        aria-labelledby="relation-list-title"
+      >
+        <div
+          className={`${styles.listHeader} ${listCollapsed ? styles.listHeaderCollapsed : ''}`}
+        >
+          <h2 id="relation-list-title">
+            {t['com.affine.localmind.workbench.v9.relationList']()}
+          </h2>
+          <IconButton
+            size="20"
+            icon={<SidebarIcon />}
+            className={styles.listToggle}
+            aria-label={
+              listCollapsed
+                ? t['com.affine.localmind.workbench.v9.expandRelationList']()
+                : t['com.affine.localmind.workbench.v9.collapseRelationList']()
+            }
+            aria-expanded={!listCollapsed}
+            aria-controls="relation-list-items"
+            onClick={() => setListCollapsed(value => !value)}
+          />
+        </div>
+        {!listCollapsed && graph.truncated ? (
           <p className={styles.notice}>
             {t['com.affine.localmind.workbench.v9.graphTruncated']()}
           </p>
         ) : null}
-        <ul>
-          {graph.edges.map(edge => (
+        <ul id="relation-list-items" hidden={listCollapsed}>
+          {visibleEdges.map(edge => (
             <li key={edge.id}>
               <button
                 type="button"
-                onClick={() => openEdge(edge.ownSessionId, edge.ownWorkOrderId)}
+                onClick={() =>
+                  openEdge(
+                    edge.ownSessionId,
+                    edge.ownWorkOrderId,
+                    edge.project?.id ?? null
+                  )
+                }
               >
+                <span>
+                  {edge.project?.name ??
+                    t['com.affine.localmind.workbench.v9.personalWorkOrder']()}
+                </span>
                 <strong>{edge.label}</strong>
-                <span>{edge.status}</span>
+                <span>
+                  {graph.nodes.find(node => node.id === edge.from)?.label} →{' '}
+                  {graph.nodes.find(node => node.id === edge.to)?.label}
+                </span>
+                <span>{statusLabels[edge.status] ?? edge.status}</span>
               </button>
             </li>
           ))}

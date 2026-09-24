@@ -13,6 +13,10 @@ query copilotCollaborationGraphGet {
           to
           status
           label
+          project {
+            id
+            name
+          }
           ownSessionId
           ownWorkOrderId
         }

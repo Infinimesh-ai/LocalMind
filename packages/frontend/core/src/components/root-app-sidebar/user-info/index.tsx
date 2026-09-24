@@ -83,7 +83,7 @@ const OperationMenu = () => {
   return (
     <>
       <Account />
-      <Divider />
+      {workspace ? <Divider /> : null}
       {workspace ? <CloudUsage /> : null}
       {workspace && serverFeatures?.copilot ? <AIUsage /> : null}
       <Divider />

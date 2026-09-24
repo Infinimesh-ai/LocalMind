@@ -16,6 +16,7 @@ export interface MenuItemProps extends React.HTMLAttributes<HTMLDivElement> {
   onCollapsedChange?: (collapsed: boolean) => void;
   postfix?: React.ReactElement;
   postfixDisplay?: 'always' | 'hover';
+  expandOnHover?: boolean;
 }
 
 export interface MenuLinkItemProps extends MenuItemProps {
@@ -43,6 +44,7 @@ export const MenuItem = React.forwardRef<HTMLDivElement, MenuItemProps>(
       onCollapsedChange,
       postfix,
       postfixDisplay = 'hover',
+      expandOnHover = true,
       ...props
     },
     ref
@@ -58,6 +60,7 @@ export const MenuItem = React.forwardRef<HTMLDivElement, MenuItemProps>(
         data-disabled={disabled}
         aria-disabled={disabled || undefined}
         data-collapsible={collapsible}
+        data-expand-on-hover={expandOnHover}
         role={props.role ?? 'button'}
         tabIndex={props.tabIndex ?? 0}
         onKeyDown={event => {

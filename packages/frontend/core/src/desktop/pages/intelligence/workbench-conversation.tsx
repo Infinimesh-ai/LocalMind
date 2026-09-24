@@ -1,4 +1,4 @@
-import { Button, useConfirmModal } from '@affine/component';
+import { Button, notify, useConfirmModal } from '@affine/component';
 import {
   AIChatRuntime,
   createAIRequestService,
@@ -10,6 +10,8 @@ import { AIChatContent } from '@affine/core/blocksuite/ai/components/ai-chat-con
 import type {
   BlockerSuggestion,
   BlockerSuggestionConfirmation,
+  WorkOrderAgentDraft,
+  WorkOrderProposalActions,
 } from '@affine/core/blocksuite/ai/components/ai-chat-messages';
 import {
   AIChatToolbar,
@@ -28,9 +30,17 @@ import {
 } from '@affine/core/modules/cloud';
 import { useSignalValue } from '@affine/core/modules/doc-info/utils';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
-import { reportProjectError as report } from '@affine/core/modules/project-resources/error';
+import {
+  projectErrorMessage,
+  reportProjectError as report,
+} from '@affine/core/modules/project-resources/error';
 import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import { AppThemeService } from '@affine/core/modules/theme';
+import { UserFriendlyError } from '@affine/error';
+import {
+  confirmWorkOrderDispatchMutation,
+  prepareWorkOrderDispatchMutation,
+} from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import type { OfficeAiContext } from '@localmind/office';
 import { useFramework, useLiveData, useService } from '@toeverything/infra';
@@ -39,112 +49,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectChatConfig } from './project-chat-config';
 import { ProjectFilePicker } from './project-file-picker';
 import type { WorkbenchConversationCard } from './types';
-import {
-  type WorkOrderAgentDraft,
-  WorkOrderComposer,
-} from './work-order-composer';
 import * as styles from './workbench-conversation.css';
 
-function object(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function workOrderDraftFromStreamObject(
-  value: unknown
-): WorkOrderAgentDraft | null {
-  const stream = object(value);
-  if (
-    stream?.type !== 'tool-result' ||
-    stream.toolName !== 'work_order_draft' ||
-    stream.isError === true
-  )
-    return null;
-  const result = object(stream.result);
-  if (
-    result?.kind !== 'work_order_draft' ||
-    result.origin !== 'ai_generated' ||
-    result.confirmationRequired !== true ||
-    typeof result.draftId !== 'string' ||
-    typeof result.sourceSessionId !== 'string' ||
-    !Array.isArray(result.recipients) ||
-    !result.recipients.length ||
-    result.recipients.length > 20
-  )
-    return null;
-  const recipients: WorkOrderAgentDraft['recipients'] = [];
-  for (const candidate of result.recipients) {
-    const row = object(candidate);
-    const recipient = object(row?.recipient);
-    if (
-      !row ||
-      !recipient ||
-      typeof recipient.id !== 'string' ||
-      typeof recipient.name !== 'string' ||
-      typeof recipient.email !== 'string' ||
-      typeof row.title !== 'string' ||
-      typeof row.purpose !== 'string' ||
-      !['original', 'supplement', 'replacement'].includes(
-        String(row.relationKind)
-      ) ||
-      !Array.isArray(row.requirements) ||
-      !row.requirements.length ||
-      row.requirements.length > 32
-    )
-      return null;
-    const requirements: WorkOrderAgentDraft['recipients'][number]['requirements'] =
-      [];
-    for (const candidateRequirement of row.requirements) {
-      const requirement = object(candidateRequirement);
-      if (
-        !requirement ||
-        !['text', 'file'].includes(String(requirement.kind)) ||
-        typeof requirement.title !== 'string' ||
-        typeof requirement.instructions !== 'string' ||
-        typeof requirement.required !== 'boolean' ||
-        !Array.isArray(requirement.acceptedMimeTypes) ||
-        !requirement.acceptedMimeTypes.every(
-          mimeType => typeof mimeType === 'string'
-        ) ||
-        typeof requirement.minCount !== 'number' ||
-        typeof requirement.maxCount !== 'number'
-      )
-        return null;
-      requirements.push({
-        kind: requirement.kind as 'text' | 'file',
-        title: requirement.title,
-        instructions: requirement.instructions,
-        required: requirement.required,
-        acceptedMimeTypes: requirement.acceptedMimeTypes as string[],
-        minCount: requirement.minCount,
-        maxCount: requirement.maxCount,
-      });
-    }
-    recipients.push({
-      recipient: {
-        id: recipient.id,
-        name: recipient.name,
-        email: recipient.email,
-      },
-      title: row.title,
-      purpose: row.purpose,
-      relationKind: row.relationKind as
-        | 'original'
-        | 'supplement'
-        | 'replacement',
-      relatedWorkOrderId:
-        typeof row.relatedWorkOrderId === 'string'
-          ? row.relatedWorkOrderId
-          : null,
-      requirements,
-    });
-  }
-  return {
-    draftId: result.draftId,
-    sourceSessionId: result.sourceSessionId,
-    recipients,
-  };
+function recipientsForDispatch(draft: WorkOrderAgentDraft) {
+  return draft.recipients.map(recipient => ({
+    recipientId: recipient.recipient.id,
+    title: recipient.title,
+    purpose: recipient.purpose,
+    relationKind: recipient.relationKind,
+    relatedWorkOrderId: recipient.relatedWorkOrderId ?? undefined,
+    backgroundLabel: undefined,
+    sharedMaterialIds: [],
+    requirements: recipient.requirements.map((item, index) => ({
+      itemKey: String(index + 1),
+      kind: item.kind,
+      title: item.title,
+      instructions: item.instructions,
+      required: item.required,
+      acceptedMimeTypes: item.kind === 'file' ? item.acceptedMimeTypes : [],
+      minCount: item.required ? item.minCount : 0,
+      maxCount: item.maxCount,
+      validationMode:
+        item.kind === 'file' ? 'mime_and_container' : 'non_empty_text',
+    })),
+  }));
 }
 
 type WorkbenchConversationProps = {
@@ -161,6 +89,7 @@ type WorkbenchConversationProps = {
   initialDraftText?: string;
   autoSendInitialDraft?: boolean;
   onSessionCreated?: (sessionId: string) => Promise<unknown> | unknown;
+  onPinChanged?: () => void;
   onContextPanelChange?: (state: WorkbenchContextPanelState | null) => void;
 };
 
@@ -199,10 +128,12 @@ export const WorkbenchConversation = ({
   initialDraftText,
   autoSendInitialDraft = false,
   onSessionCreated,
+  onPinChanged,
   onContextPanelChange,
 }: WorkbenchConversationProps) => {
   const t = useI18n();
   const framework = useFramework();
+  const graphql = useService(GraphQLService);
   const requestService = useAIRequestService();
   const projectModel = useMemo(
     () =>
@@ -217,10 +148,6 @@ export const WorkbenchConversation = ({
   );
   const [bodyReady, setBodyReady] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
-  const [workOrderComposerOpen, setWorkOrderComposerOpen] = useState(false);
-  const [agentWorkOrderDraft, setAgentWorkOrderDraft] =
-    useState<WorkOrderAgentDraft | null>(null);
-  const seenAgentDrafts = useRef(new Set<string>());
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const toolbarContainerRef = useRef<HTMLDivElement>(null);
   const blockerSuggestionConfirmation = useMemo<
@@ -289,31 +216,107 @@ export const WorkbenchConversation = ({
     snapshot?.sessions.find(
       session => session.sessionId === snapshot.activeSessionId
     ) ?? null;
-  useEffect(() => {
-    if (!snapshot?.messages.length || !activeSession) return;
-    for (let index = snapshot.messages.length - 1; index >= 0; index--) {
-      const message = snapshot.messages[index];
-      for (
-        let objectIndex = (message.streamObjects?.length ?? 0) - 1;
-        objectIndex >= 0;
-        objectIndex--
-      ) {
-        const draft = workOrderDraftFromStreamObject(
-          message.streamObjects?.[objectIndex]
-        );
+  const workOrderProposalActions = useMemo<WorkOrderProposalActions>(() => {
+    const errorMessage = (error: unknown) =>
+      UserFriendlyError.fromAny(error).message ===
+      'New personal work orders are disabled by the instance administrator'
+        ? t['com.affine.localmind.workbench.v9.workOrderModelMissing']()
+        : projectErrorMessage(error);
+    return {
+      sourceProjectName: selectedProjectName,
+      onSend: async draft => {
+        if (runtime.getSnapshot().activeSessionId !== draft.sourceSessionId) {
+          throw new Error('Work order draft belongs to another conversation');
+        }
+        try {
+          const result = await graphql.gql({
+            query: prepareWorkOrderDispatchMutation,
+            variables: {
+              sourceSessionId: draft.sourceSessionId,
+              requestKey: `agent-draft:${draft.draftId}`,
+              recipients: recipientsForDispatch(draft),
+            },
+          });
+          const prepared = result.prepareWorkOrderDispatch;
+          if (prepared.confirmationToken) {
+            await graphql.gql({
+              query: confirmWorkOrderDispatchMutation,
+              variables: {
+                dispatchId: prepared.dispatchId,
+                confirmationToken: prepared.confirmationToken,
+                expectedDraftVersion: prepared.draftVersion,
+                requestKey: `confirm-agent-draft:${draft.draftId}`,
+              },
+            });
+          }
+          const refresh = onDocumentsChanged?.();
+          if (refresh) void refresh.catch(report);
+          notify.success({
+            title: t['com.affine.localmind.workbench.v9.workOrdersSent'](),
+          });
+        } catch (error) {
+          notify.error({
+            title: t['com.affine.localmind.workbench.v9.sendFailed'](),
+            message: errorMessage(error),
+          });
+          throw error;
+        }
+      },
+      errorMessage,
+      onRequestRevision: async (draft, feedback) => {
+        const current = runtime.getSnapshot();
         if (
-          !draft ||
-          draft.sourceSessionId !== activeSession.sessionId ||
-          seenAgentDrafts.current.has(draft.draftId)
-        )
-          continue;
-        seenAgentDrafts.current.add(draft.draftId);
-        setAgentWorkOrderDraft(draft);
-        setWorkOrderComposerOpen(true);
-        return;
-      }
-    }
-  }, [activeSession, snapshot?.messages]);
+          current.activeSessionId !== draft.sourceSessionId ||
+          !current.uiPolicy.canSend
+        ) {
+          throw new Error('Conversation is not ready for work order revision');
+        }
+        const titles = draft.recipients.map(item => item.title).join('、');
+        await runtime.dispatch({
+          type: 'send',
+          input: `${t['com.affine.localmind.workbench.v9.revisionPrompt']()}\n${titles}\n${feedback.trim()}`,
+        });
+        const result = runtime.getSnapshot();
+        if (result.status !== 'success') {
+          throw result.error ?? new Error('Work order revision was not sent');
+        }
+      },
+      labels: {
+        title: t['com.affine.localmind.workbench.v9.workOrderDraft'](),
+        notice: t['com.affine.localmind.workbench.v9.proposalNotice'](),
+        sourceProject: t['com.affine.localmind.workbench.v9.sourceProject'](),
+        sourceProjectDisclosure:
+          t['com.affine.localmind.workbench.v9.sourceProjectDisclosure'](),
+        recipient: t['com.affine.localmind.workbench.v9.recipient'](),
+        requirements: t['com.affine.localmind.workbench.v9.requirements'](),
+        required: t['com.affine.localmind.workbench.v9.required'](),
+        optional: t['com.affine.localmind.workbench.v9.proposalOptional'](),
+        file: t['com.affine.localmind.workbench.v9.proposalFile'](),
+        text: t['com.affine.localmind.workbench.v9.proposalText'](),
+        formats: t['com.affine.localmind.workbench.v9.proposalFormats'](),
+        count: t['com.affine.localmind.workbench.v9.proposalCount'](),
+        relation: t['com.affine.localmind.workbench.v9.relationKind'](),
+        relationNames: {
+          original: t['com.affine.localmind.workbench.v9.proposalOriginal'](),
+          supplement:
+            t['com.affine.localmind.workbench.v9.proposalSupplement'](),
+          replacement:
+            t['com.affine.localmind.workbench.v9.proposalReplacement'](),
+        },
+        feedback: t['com.affine.localmind.workbench.v9.proposalFeedback'](),
+        send: t['com.affine.localmind.workbench.v9.proposalSend'](),
+        sending: t['com.affine.localmind.workbench.v9.proposalSending'](),
+        sent: t['com.affine.localmind.workbench.v9.proposalSent'](),
+        revise: t['com.affine.localmind.workbench.v9.proposalRevise'](),
+        revising: t['com.affine.localmind.workbench.v9.proposalRevising'](),
+        revisionRequested:
+          t['com.affine.localmind.workbench.v9.proposalRevisionRequested'](),
+        cancel: t['com.affine.localmind.workbench.v9.proposalCancel'](),
+        cancelled: t['com.affine.localmind.workbench.v9.proposalCancelled'](),
+        failed: t['com.affine.localmind.workbench.v9.proposalFailed'](),
+      },
+    };
+  }, [graphql, onDocumentsChanged, runtime, selectedProjectName, t]);
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
@@ -339,10 +342,15 @@ export const WorkbenchConversation = ({
 
   const createdSessionReported = useRef(false);
   useEffect(() => {
+    const createdWhileSending =
+      !startEmpty &&
+      snapshot?.activeSessionId !== selectedSessionId &&
+      (snapshot?.status === 'loading' || snapshot?.status === 'transmitting');
     if (
-      startEmpty &&
       snapshot?.activeSessionId &&
-      (snapshot.status === 'success' || snapshot.status === 'error') &&
+      (createdWhileSending ||
+        (startEmpty &&
+          (snapshot.status === 'success' || snapshot.status === 'error'))) &&
       !createdSessionReported.current
     ) {
       createdSessionReported.current = true;
@@ -353,16 +361,25 @@ export const WorkbenchConversation = ({
     snapshot?.activeSessionId,
     snapshot?.status,
     startEmpty,
+    selectedSessionId,
   ]);
 
+  const requestedSessionId = useRef<string | null>(null);
   useEffect(() => {
+    if (snapshot?.activeSessionId === selectedSessionId) {
+      requestedSessionId.current = null;
+    }
     if (
       !selectedSessionId ||
       snapshot?.readiness !== 'ready' ||
-      snapshot.activeSessionId === selectedSessionId
+      snapshot.activeSessionId === selectedSessionId ||
+      snapshot.status === 'loading' ||
+      snapshot.status === 'transmitting' ||
+      requestedSessionId.current === selectedSessionId
     ) {
       return;
     }
+    requestedSessionId.current = selectedSessionId;
     runtime
       .dispatch({ type: 'openSession', sessionId: selectedSessionId })
       .catch(report);
@@ -371,6 +388,7 @@ export const WorkbenchConversation = ({
     selectedSessionId,
     snapshot?.activeSessionId,
     snapshot?.readiness,
+    snapshot?.status,
   ]);
 
   useEffect(() => {
@@ -511,6 +529,7 @@ export const WorkbenchConversation = ({
       content.aiModelService = projectModel;
       content.onOpenDoc = onOpenResource;
       content.blockerSuggestionConfirmation = blockerSuggestionConfirmation;
+      content.workOrderProposalActions = workOrderProposalActions;
     },
     onElementReady: content => {
       content.independentMode = true;
@@ -534,6 +553,7 @@ export const WorkbenchConversation = ({
         onSessionDelete: session => {
           deleteSession(session).catch(report);
         },
+        onPinChanged,
       });
     },
   });
@@ -562,16 +582,6 @@ export const WorkbenchConversation = ({
           <span>{selectedProjectName}</span>
         </div>
         <div className={styles.tools}>
-          {activeSession ? (
-            <Button
-              onClick={() => {
-                setAgentWorkOrderDraft(null);
-                setWorkOrderComposerOpen(true);
-              }}
-            >
-              {t['com.affine.localmind.workbench.v9.sendWorkOrder']()}
-            </Button>
-          ) : null}
           {selectedCard &&
           selectedCard.column !== 'done' &&
           selectedCard.scopeType !== 'work_order' &&
@@ -618,18 +628,6 @@ export const WorkbenchConversation = ({
               resourceIds,
             })
           }
-        />
-      ) : null}
-      {activeSession ? (
-        <WorkOrderComposer
-          sourceSessionId={activeSession.sessionId}
-          open={workOrderComposerOpen}
-          onOpenChange={setWorkOrderComposerOpen}
-          agentDraft={agentWorkOrderDraft}
-          onSent={() => {
-            setAgentWorkOrderDraft(null);
-            return onDocumentsChanged?.();
-          }}
         />
       ) : null}
     </section>

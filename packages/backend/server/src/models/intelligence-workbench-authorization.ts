@@ -972,7 +972,10 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     const existing = await this.db.aiContextProjectInvitation.findFirst({
       where: { projectId, inviteeUserId, status: 'pending' },
     });
-    if (existing) return { created: false, invitation: existing };
+    if (existing) {
+      await this.models.notification.syncProjectInvitation(existing);
+      return { created: false, invitation: existing };
+    }
     const invitation = await this.db.aiContextProjectInvitation.create({
       data: {
         projectId,
@@ -989,6 +992,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       toStatus: 'pending',
       actorUserId: inviterUserId,
     });
+    await this.models.notification.syncProjectInvitation(invitation);
     return { created: true, invitation };
   }
 
@@ -1773,6 +1777,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       actorUserId: input.actorUserId,
       actorUserIdSnapshot,
     });
+    await this.models.notification.syncProjectInvitation(updated);
     return updated;
   }
 

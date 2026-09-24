@@ -94,8 +94,8 @@ vi.mock('@blocksuite/icons/rc', () => ({
   PageIcon: () => <svg />,
 }));
 
-vi.mock('./project-tasks', () => ({
-  ProjectTasks: () => <div data-testid="project-activity" />,
+vi.mock('./project-publications', () => ({
+  ProjectPublications: () => <div data-testid="project-publications" />,
 }));
 
 import { ProjectContextPanel } from './project-context-panel';
@@ -121,14 +121,16 @@ describe('ProjectContextPanel', () => {
           referenceResource: vi.fn(),
         }}
         onOpenResource={onOpenResource}
-        onDocumentsChanged={vi.fn()}
       />
     );
 
     expect(screen.getByText('Recipient')).not.toBeNull();
     expect(screen.getByText('Presentation')).not.toBeNull();
     expect(screen.queryByText('Hidden from this session')).toBeNull();
-    expect(screen.getByTestId('project-activity')).not.toBeNull();
+    expect(screen.getByTestId('project-publications')).not.toBeNull();
+    expect(
+      screen.queryByText('com.affine.localmind.project-tasks.title')
+    ).toBeNull();
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Resource resource-1' })
@@ -149,7 +151,6 @@ describe('ProjectContextPanel', () => {
           referenceResource: vi.fn(),
         }}
         onOpenResource={vi.fn()}
-        onDocumentsChanged={vi.fn()}
       />
     );
 

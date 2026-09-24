@@ -6,7 +6,7 @@ import {
   useConfirmModal,
 } from '@affine/component';
 import { useI18n } from '@affine/i18n';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import * as styles from './project-collaboration.css';
 import type { WorkbenchProject, WorkbenchProjectMember } from './types';
@@ -28,24 +28,23 @@ type ProjectCollaborationProps = {
   onLeave: () => Promise<boolean>;
 };
 
-export const ProjectCollaboration = ({
-  open,
+export type ProjectCollaborationContentProps = Omit<
+  ProjectCollaborationProps,
+  'open' | 'onOpenChange'
+>;
+
+export const ProjectCollaborationContent = ({
   project,
   pendingKey,
-  onOpenChange,
   onInvite,
   onRemoveMember,
   onTransferOwnership,
   onLeave,
-}: ProjectCollaborationProps) => {
+}: ProjectCollaborationContentProps) => {
   const t = useI18n();
   const { openConfirmModal } = useConfirmModal();
   const [email, setEmail] = useState('');
   const isOwner = project.role === 'owner';
-
-  useEffect(() => {
-    if (!open) setEmail('');
-  }, [open]);
 
   const submitInvite = async () => {
     const normalized = email.trim();
@@ -94,104 +93,113 @@ export const ProjectCollaboration = ({
   };
 
   return (
+    <div className={styles.root}>
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h3>{t['com.affine.localmind.workbench.project.members']()}</h3>
+          <span>{project.members.length}</span>
+        </div>
+        <div className={styles.memberList}>
+          {project.members.map(member => (
+            <div className={styles.memberRow} key={member.userId}>
+              <Avatar
+                size={28}
+                name={member.name || member.email}
+                url={member.avatarUrl ?? undefined}
+              />
+              <div className={styles.memberIdentity}>
+                <strong title={member.name || member.email}>
+                  {member.name || member.email}
+                </strong>
+                <span title={member.email}>{member.email}</span>
+              </div>
+              <span className={styles.role} data-role={member.role}>
+                {member.role === 'owner'
+                  ? t['com.affine.localmind.workbench.project.role.owner']()
+                  : t['com.affine.localmind.workbench.project.role.member']()}
+              </span>
+              {isOwner && member.role === 'member' ? (
+                <div className={styles.memberActions}>
+                  <Button
+                    size="custom"
+                    disabled={pendingKey !== null}
+                    loading={pendingKey === `transfer:${member.userId}`}
+                    onClick={() => confirmTransfer(member)}
+                  >
+                    {t[
+                      'com.affine.localmind.workbench.project.transferOwnership'
+                    ]()}
+                  </Button>
+                  <Button
+                    size="custom"
+                    variant="error"
+                    disabled={pendingKey !== null}
+                    loading={pendingKey === `remove:${member.userId}`}
+                    onClick={() => confirmRemove(member)}
+                  >
+                    {t['com.affine.localmind.workbench.project.removeMember']()}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {isOwner ? (
+        <section className={styles.section}>
+          <h3>{t['com.affine.localmind.workbench.project.invite']()}</h3>
+          <div className={styles.inviteRow}>
+            <Input
+              value={email}
+              type="email"
+              placeholder={t[
+                'com.affine.localmind.workbench.project.invitePlaceholder'
+              ]()}
+              disabled={pendingKey !== null}
+              onChange={setEmail}
+              onEnter={() => void submitInvite()}
+            />
+            <Button
+              variant="primary"
+              disabled={!email.trim() || pendingKey !== null}
+              loading={pendingKey === 'invite'}
+              onClick={() => void submitInvite()}
+            >
+              {t['Invite']()}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      <div className={styles.footer}>
+        <Button
+          variant="error"
+          disabled={pendingKey !== null}
+          loading={pendingKey === 'leave'}
+          onClick={confirmLeave}
+        >
+          {t['com.affine.localmind.workbench.project.leave']()}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export const ProjectCollaboration = ({
+  open,
+  onOpenChange,
+  ...contentProps
+}: ProjectCollaborationProps) => {
+  const t = useI18n();
+  return (
     <Modal
       open={open}
       title={t['com.affine.localmind.workbench.project.collaboration']()}
       width={520}
       onOpenChange={onOpenChange}
     >
-      <div className={styles.root}>
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h3>{t['com.affine.localmind.workbench.project.members']()}</h3>
-            <span>{project.members.length}</span>
-          </div>
-          <div className={styles.memberList}>
-            {project.members.map(member => (
-              <div className={styles.memberRow} key={member.userId}>
-                <Avatar
-                  size={28}
-                  name={member.name || member.email}
-                  url={member.avatarUrl ?? undefined}
-                />
-                <div className={styles.memberIdentity}>
-                  <strong title={member.name || member.email}>
-                    {member.name || member.email}
-                  </strong>
-                  <span title={member.email}>{member.email}</span>
-                </div>
-                <span className={styles.role} data-role={member.role}>
-                  {member.role === 'owner'
-                    ? t['com.affine.localmind.workbench.project.role.owner']()
-                    : t['com.affine.localmind.workbench.project.role.member']()}
-                </span>
-                {isOwner && member.role === 'member' ? (
-                  <div className={styles.memberActions}>
-                    <Button
-                      size="custom"
-                      disabled={pendingKey !== null}
-                      loading={pendingKey === `transfer:${member.userId}`}
-                      onClick={() => confirmTransfer(member)}
-                    >
-                      {t[
-                        'com.affine.localmind.workbench.project.transferOwnership'
-                      ]()}
-                    </Button>
-                    <Button
-                      size="custom"
-                      variant="error"
-                      disabled={pendingKey !== null}
-                      loading={pendingKey === `remove:${member.userId}`}
-                      onClick={() => confirmRemove(member)}
-                    >
-                      {t[
-                        'com.affine.localmind.workbench.project.removeMember'
-                      ]()}
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {isOwner ? (
-          <section className={styles.section}>
-            <h3>{t['com.affine.localmind.workbench.project.invite']()}</h3>
-            <div className={styles.inviteRow}>
-              <Input
-                value={email}
-                type="email"
-                placeholder={t[
-                  'com.affine.localmind.workbench.project.invitePlaceholder'
-                ]()}
-                disabled={pendingKey !== null}
-                onChange={setEmail}
-                onEnter={() => void submitInvite()}
-              />
-              <Button
-                variant="primary"
-                disabled={!email.trim() || pendingKey !== null}
-                loading={pendingKey === 'invite'}
-                onClick={() => void submitInvite()}
-              >
-                {t['Invite']()}
-              </Button>
-            </div>
-          </section>
-        ) : null}
-
-        <div className={styles.footer}>
-          <Button
-            variant="error"
-            disabled={pendingKey !== null}
-            loading={pendingKey === 'leave'}
-            onClick={confirmLeave}
-          >
-            {t['com.affine.localmind.workbench.project.leave']()}
-          </Button>
-        </div>
-      </div>
+      {open ? <ProjectCollaborationContent {...contentProps} /> : null}
     </Modal>
   );
 };

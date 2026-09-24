@@ -24,14 +24,21 @@ import { useService } from '@toeverything/infra';
 import { useTheme } from 'next-themes';
 import { useMemo, useState } from 'react';
 
+import {
+  ProjectCollaborationContent,
+  type ProjectCollaborationContentProps,
+} from './project-collaboration';
+
 export const ProjectShellSettings = ({
   open,
   onOpenChange,
   projectId,
+  collaboration,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId?: string;
+  collaboration?: ProjectCollaborationContentProps;
 }) => {
   const t = useI18n();
   const { theme, setTheme } = useTheme();
@@ -162,7 +169,8 @@ export const ProjectShellSettings = ({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={t['com.affine.appearanceSettings.title']()}
+      title={t['com.affine.settingSidebar.title']()}
+      width={collaboration ? 560 : undefined}
     >
       <div
         style={{
@@ -172,6 +180,7 @@ export const ProjectShellSettings = ({
           paddingBlock: 16,
         }}
       >
+        <strong>{t['com.affine.appearanceSettings.title']()}</strong>
         <RadioGroup
           value={theme}
           onChange={setTheme}
@@ -182,6 +191,22 @@ export const ProjectShellSettings = ({
           ]}
         />
         <LanguageMenu />
+        {open && collaboration ? (
+          <section
+            aria-label={t[
+              'com.affine.localmind.workbench.project.collaboration'
+            ]()}
+            style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+          >
+            <strong>
+              {t['com.affine.localmind.workbench.project.collaboration']()}
+            </strong>
+            <ProjectCollaborationContent
+              key={collaboration.project.id}
+              {...collaboration}
+            />
+          </section>
+        ) : null}
         {projectId ? (
           <section
             aria-label={t['com.affine.localmind.project-memory.title']()}

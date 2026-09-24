@@ -40,6 +40,7 @@ import {
   type HistoryMessage,
   isChatAction,
   isChatMessage,
+  type WorkOrderProposalActions,
 } from './type';
 
 export class AIChatMessages extends WithDisposable(ShadowlessElement) {
@@ -227,6 +228,9 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
     | BlockerSuggestionConfirmation
     | undefined;
 
+  @property({ attribute: false })
+  accessor workOrderProposalActions: WorkOrderProposalActions | undefined;
+
   @property({
     type: String,
     attribute: 'data-testid',
@@ -396,6 +400,7 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
                     .onOpenDoc=${this.onOpenDoc}
                     .blockerSuggestionConfirmation=${this
                       .blockerSuggestionConfirmation}
+                    .workOrderProposalActions=${this.workOrderProposalActions}
                   ></chat-message-assistant>`;
                 } else if (isChatAction(item) && this.host) {
                   return html`<chat-message-action

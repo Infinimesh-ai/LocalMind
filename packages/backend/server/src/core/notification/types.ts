@@ -164,6 +164,13 @@ export class AccessRequestNotificationBodyType extends BaseNotificationBodyType 
 }
 
 @ObjectType()
+export class ProjectInvitationNotificationBodyType extends BaseNotificationBodyType {
+  @Field(() => ID) invitationId!: string;
+  @Field() projectName!: string;
+  @Field() status!: string;
+}
+
+@ObjectType()
 export class ProjectFileRequestNotificationBodyType extends BaseNotificationBodyType {
   @Field(() => ID) requestId!: string;
   @Field() title!: string;
@@ -187,6 +194,7 @@ export const UnionNotificationBodyType = createUnionType({
   name: 'UnionNotificationBodyType',
   types: () =>
     [
+      ProjectInvitationNotificationBodyType,
       ProjectFileRequestNotificationBodyType,
       WorkOrderNotificationBodyType,
       AccessRequestNotificationBodyType,

@@ -132,6 +132,8 @@ class WorkOrderStagedBlobType {
 class WorkOrderType {
   @Field(() => ID) id!: string;
   @Field(() => ID, { nullable: true }) sourceSessionId!: string | null;
+  @Field(() => String, { nullable: true })
+  sourceProjectNameSnapshot!: string | null;
   @Field(() => ID, { nullable: true }) ownSessionId!: string | null;
   @Field(() => Int, { nullable: true }) sourceContextVersion!: number | null;
   @Field(() => String) viewerRole!: string;
@@ -179,6 +181,7 @@ class ConversationCardProjectType {
 class ConversationCardType {
   @Field(() => ID) sessionId!: string;
   @Field(() => String) scopeType!: string;
+  @Field(() => Boolean) pinned!: boolean;
   @Field(() => String, { nullable: true }) title!: string | null;
   @Field(() => Int) titleRevision!: number;
   @Field(() => String) column!: string;
@@ -252,12 +255,20 @@ class CollaborationNodeType {
 }
 
 @ObjectType()
+class CollaborationProjectType {
+  @Field(() => ID) id!: string;
+  @Field(() => String) name!: string;
+}
+
+@ObjectType()
 class CollaborationEdgeType {
   @Field(() => ID) id!: string;
   @Field(() => ID) from!: string;
   @Field(() => ID) to!: string;
   @Field(() => String) status!: string;
   @Field(() => String) label!: string;
+  @Field(() => CollaborationProjectType, { nullable: true })
+  project!: CollaborationProjectType | null;
   @Field(() => ID, { nullable: true }) ownSessionId!: string | null;
   @Field(() => ID, { nullable: true }) ownWorkOrderId!: string | null;
 }

@@ -20,7 +20,7 @@ export const topline = style({
   minHeight: 36,
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
+  justifyContent: 'flex-end',
   gap: 16,
   marginBottom: 24,
   '@media': {
@@ -30,10 +30,6 @@ export const topline = style({
       marginBottom: 20,
     },
   },
-});
-export const path = style({
-  color: cssVarV2('text/tertiary'),
-  fontSize: 12,
 });
 export const header = style({
   display: 'flex',

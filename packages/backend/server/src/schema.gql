@@ -515,6 +515,7 @@ type CollaborationEdgeType {
   label: String!
   ownSessionId: ID
   ownWorkOrderId: ID
+  project: CollaborationProjectType
   status: String!
   to: ID!
 }
@@ -529,6 +530,11 @@ type CollaborationNodeType {
   id: ID!
   label: String!
   self: Boolean!
+}
+
+type CollaborationProjectType {
+  id: ID!
+  name: String!
 }
 
 """Comment change action"""
@@ -673,6 +679,7 @@ type ConversationCardType {
   attentionReasons: [String!]!
   column: String!
   lastBusinessAt: DateTime!
+  pinned: Boolean!
   project: ConversationCardProjectType
   scopeType: String!
   sessionId: ID!
@@ -5889,6 +5896,7 @@ enum NotificationType {
   InvitationReviewRequest
   Mention
   ProjectFileRequest
+  ProjectInvitation
   WorkOrder
 }
 
@@ -6379,6 +6387,20 @@ type ProjectImportWorkspaceType {
   name: String!
 }
 
+type ProjectInvitationNotificationBodyType {
+  """
+  The user who created the notification, maybe null when user is deleted or sent by system
+  """
+  createdByUser: PublicUserType
+  invitationId: ID!
+  projectName: String!
+  status: String!
+
+  """The type of the notification"""
+  type: NotificationType!
+  workspace: NotificationWorkspaceType
+}
+
 type ProjectOfficeArtifactType {
   compatibility: JSONObject!
   createdAt: DateTime!
@@ -6636,6 +6658,7 @@ type Query {
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
+  hello: String!
   latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
   localmindAuditEnvelopes(limit: Int, projectId: String, workspaceId: String!): [JSONObject!]!
   localmindLogArchiveBatches(limit: Int): [JSONObject!]!
@@ -7288,7 +7311,7 @@ input TransferCopilotProjectOwnershipInput {
   projectId: ID!
 }
 
-union UnionNotificationBodyType = AccessRequestNotificationBodyType | InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType | ProjectFileRequestNotificationBodyType | WorkOrderNotificationBodyType
+union UnionNotificationBodyType = AccessRequestNotificationBodyType | InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType | ProjectFileRequestNotificationBodyType | ProjectInvitationNotificationBodyType | WorkOrderNotificationBodyType
 
 type UnknownOauthProviderDataType {
   name: String!
@@ -7725,6 +7748,7 @@ type WorkOrderType {
   relationKind: String!
   requirements: [WorkOrderRequirementType!]!
   sourceContextVersion: Int
+  sourceProjectNameSnapshot: String
   sourceSessionId: ID
   stagedBlobs: [WorkOrderStagedBlobType!]!
   status: String!

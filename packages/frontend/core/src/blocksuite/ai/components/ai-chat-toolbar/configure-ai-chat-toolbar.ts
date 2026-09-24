@@ -14,6 +14,7 @@ export type ConfigureAIChatToolbarOptions = {
   notificationService: NotificationService;
   onOpenDoc: (docId: string, sessionId: string) => void;
   onSessionDelete: (session: BlockSuitePresets.AIRecentSession) => void;
+  onPinChanged?: () => void;
 };
 
 export function getOrCreateAIChatToolbar(
@@ -34,5 +35,6 @@ export function configureAIChatToolbar(
   tool.notificationService = options.notificationService;
   tool.onOpenDoc = options.onOpenDoc;
   tool.onSessionDelete = options.onSessionDelete;
+  tool.onPinChanged = options.onPinChanged;
   return tool;
 }

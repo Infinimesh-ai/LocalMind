@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
 
@@ -46,13 +46,25 @@ const recipientDraftSchema = z.object({
 
 export const WORK_ORDER_DRAFT_POLICY = [
   'For a personal work order, first call work_order_recipient_resolve with an exact LocalMind account ID or email. Never enumerate or guess accounts.',
-  'Then call work_order_draft with concrete, verifiable text/file requirements. Use exact supported MIME types; use PPTX rather than legacy PPT. A draft is only a proposal for the sender to review and explicitly confirm in the UI.',
+  'Then call work_order_draft once with every recipient and concrete, verifiable text/file requirement for this proposal. Do not repeat an identical draft call. Use exact supported MIME types; use PPTX rather than legacy PPT. A draft is only a proposal for the sender to review and explicitly confirm in the UI.',
+  'Summarize a successful proposal once. Do not list internal draft IDs or describe duplicate tool executions to the user.',
   'Never claim that a work order, notification, or recipient session exists after drafting. The draft tool has no recipient-visible effect. Do not use project_file_request_create as a substitute for a personal work order.',
 ].join('\n');
 
+function draftIdForTurn(turnId: string | null | undefined, content: unknown) {
+  if (!turnId) return randomUUID();
+  const bytes = createHash('sha256')
+    .update(JSON.stringify({ turnId, content }))
+    .digest();
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function createWorkOrderDraftTools(
   models: Models,
-  scope: { actorId: string; sourceSessionId: string }
+  scope: { actorId: string; sourceSessionId: string; turnId?: string | null }
 ) {
   return {
     work_order_recipient_resolve: {
@@ -101,7 +113,11 @@ export function createWorkOrderDraftTools(
           );
           return {
             kind: 'work_order_draft',
-            draftId: randomUUID(),
+            draftId: draftIdForTurn(scope.turnId, {
+              actorId: scope.actorId,
+              sourceSessionId: scope.sourceSessionId,
+              recipients: resolved,
+            }),
             sourceSessionId: scope.sourceSessionId,
             origin: 'ai_generated',
             confirmationRequired: true,

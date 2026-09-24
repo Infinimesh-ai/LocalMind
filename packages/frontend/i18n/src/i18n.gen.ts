@@ -502,6 +502,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.project-tasks.latest"](): string;
     /**
+      * `Open project resource`
+      */
+    ["com.affine.localmind.project-tasks.openResource"](): string;
+    /**
       * `AI chat`
       */
     ["com.affine.localmind.project-files.chat"](): string;
@@ -8839,6 +8843,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.tasks.authorization.invitation"](): string;
     /**
+      * `View invitation`
+      */
+    ["com.affine.localmind.projectInvitation.view"](): string;
+    /**
       * `Project document authorization`
       */
     ["com.affine.localmind.tasks.authorization.projectGrant"](): string;
@@ -10136,7 +10144,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.notification.loading-more"](): string;
     /**
-      * `You'll be notified here for @mentions and workspace invites.`
+      * `Project invitations, access requests, file requests, and other updates appear here.`
       */
     ["com.affine.notification.empty.description"](): string;
     /**
@@ -20652,7 +20660,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.compaction.retryStatus"](): string;
     /**
-      * `My work`
+      * `My projects`
       */
     ["com.affine.localmind.workbench.v9.overview"](): string;
     /**
@@ -20724,6 +20732,34 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.v9.graphEmpty"](): string;
     /**
+      * `Drag to pan · Scroll to zoom`
+      */
+    ["com.affine.localmind.workbench.v9.graphPanHint"](): string;
+    /**
+      * `Source project`
+      */
+    ["com.affine.localmind.workbench.v9.sourceProject"](): string;
+    /**
+      * `The recipient will see the source project name, without gaining access to the project.`
+      */
+    ["com.affine.localmind.workbench.v9.sourceProjectDisclosure"](): string;
+    /**
+      * `Awaiting delivery`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderStatusOpen"](): string;
+    /**
+      * `Delivered`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderStatusDelivered"](): string;
+    /**
+      * `Refused`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderStatusRefused"](): string;
+    /**
+      * `Cancelled`
+      */
+    ["com.affine.localmind.workbench.v9.workOrderStatusCancelled"](): string;
+    /**
       * `Zoom out`
       */
     ["com.affine.localmind.workbench.v9.zoomOut"](): string;
@@ -20735,6 +20771,22 @@ export function useAFFiNEI18N(): {
       * `Accessible relations`
       */
     ["com.affine.localmind.workbench.v9.relationList"](): string;
+    /**
+      * `Collapse work order list`
+      */
+    ["com.affine.localmind.workbench.v9.collapseRelationList"](): string;
+    /**
+      * `Expand work order list`
+      */
+    ["com.affine.localmind.workbench.v9.expandRelationList"](): string;
+    /**
+      * `Collapse work order details`
+      */
+    ["com.affine.localmind.workbench.v9.collapseWorkOrderPanel"](): string;
+    /**
+      * `Expand work order details`
+      */
+    ["com.affine.localmind.workbench.v9.expandWorkOrderPanel"](): string;
     /**
       * `Only the first 500 accessible relations are shown.`
       */
@@ -20871,6 +20923,86 @@ export function useAFFiNEI18N(): {
       * `Confirm exact existing accounts and the frozen delivery requirements. Recipients see nothing until you explicitly confirm sending.`
       */
     ["com.affine.localmind.workbench.v9.workOrderDraftHelp"](): string;
+    /**
+      * `Only you can see this Agent draft. Recipients receive the work order after you send it.`
+      */
+    ["com.affine.localmind.workbench.v9.proposalNotice"](): string;
+    /**
+      * `Optional`
+      */
+    ["com.affine.localmind.workbench.v9.proposalOptional"](): string;
+    /**
+      * `File`
+      */
+    ["com.affine.localmind.workbench.v9.proposalFile"](): string;
+    /**
+      * `Text`
+      */
+    ["com.affine.localmind.workbench.v9.proposalText"](): string;
+    /**
+      * `Accepted formats`
+      */
+    ["com.affine.localmind.workbench.v9.proposalFormats"](): string;
+    /**
+      * `Quantity`
+      */
+    ["com.affine.localmind.workbench.v9.proposalCount"](): string;
+    /**
+      * `New work order`
+      */
+    ["com.affine.localmind.workbench.v9.proposalOriginal"](): string;
+    /**
+      * `Supplement`
+      */
+    ["com.affine.localmind.workbench.v9.proposalSupplement"](): string;
+    /**
+      * `Replacement`
+      */
+    ["com.affine.localmind.workbench.v9.proposalReplacement"](): string;
+    /**
+      * `Changes to request`
+      */
+    ["com.affine.localmind.workbench.v9.proposalFeedback"](): string;
+    /**
+      * `Send work order`
+      */
+    ["com.affine.localmind.workbench.v9.proposalSend"](): string;
+    /**
+      * `Sending...`
+      */
+    ["com.affine.localmind.workbench.v9.proposalSending"](): string;
+    /**
+      * `Sent`
+      */
+    ["com.affine.localmind.workbench.v9.proposalSent"](): string;
+    /**
+      * `Request changes`
+      */
+    ["com.affine.localmind.workbench.v9.proposalRevise"](): string;
+    /**
+      * `Sending feedback...`
+      */
+    ["com.affine.localmind.workbench.v9.proposalRevising"](): string;
+    /**
+      * `Asked Agent to revise`
+      */
+    ["com.affine.localmind.workbench.v9.proposalRevisionRequested"](): string;
+    /**
+      * `This action failed. Try again.`
+      */
+    ["com.affine.localmind.workbench.v9.proposalFailed"](): string;
+    /**
+      * `Revise this work-order draft using the feedback below, then show a new draft card in our conversation. Related work-order titles:`
+      */
+    ["com.affine.localmind.workbench.v9.revisionPrompt"](): string;
+    /**
+      * `Cancel sending`
+      */
+    ["com.affine.localmind.workbench.v9.proposalCancel"](): string;
+    /**
+      * `Sending cancelled`
+      */
+    ["com.affine.localmind.workbench.v9.proposalCancelled"](): string;
     /**
       * `Recipient`
       */

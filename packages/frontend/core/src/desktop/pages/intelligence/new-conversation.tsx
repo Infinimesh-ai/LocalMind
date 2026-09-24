@@ -193,7 +193,11 @@ export function NewConversation({
               ]()}
               onChange={event => setDraft(event.currentTarget.value)}
               onKeyDown={event => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                if (
+                  event.key === 'Enter' &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
                   event.preventDefault();
                   start();
                 }

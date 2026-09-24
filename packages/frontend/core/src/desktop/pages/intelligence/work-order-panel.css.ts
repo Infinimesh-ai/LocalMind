@@ -29,6 +29,19 @@ export const eyebrow = style({
   color: cssVarV2('text/secondary'),
   fontSize: 10,
 });
+export const headerActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+});
+globalStyle(`${headerActions} button`, {
+  flexShrink: 0,
+  '@media': {
+    'screen and (max-width: 1040px)': {
+      display: 'none',
+    },
+  },
+});
 export const status = style({
   flexShrink: 0,
   padding: '3px 7px',

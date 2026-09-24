@@ -6,6 +6,7 @@ import ava, { type TestFn } from 'ava';
 import Sinon from 'sinon';
 
 import { EventBus } from '../../base';
+import { NotificationService } from '../../core/notification/service';
 import {
   IntelligenceWorkbenchAuthorizationModel,
   IntelligenceWorkbenchTaskProjectionModel,
@@ -530,6 +531,93 @@ test('invites, membership removal, and archived projects fail closed', async t =
       policy: 'read_write',
     }),
     { message: 'Project AI permissions are fixed to read and write' }
+  );
+});
+
+test('project invitations notify invitees while pending actions remain in tasks', async t => {
+  const owner = await createUser(t.context, 'invitation-notification-owner');
+  const invitee = await createUser(
+    t.context,
+    'invitation-notification-invitee'
+  );
+  const stranger = await createUser(
+    t.context,
+    'invitation-notification-stranger'
+  );
+  const project = await createProject(t.context, owner);
+
+  const sent = await t.context.authorization.sendProjectInvitation({
+    projectId: project.id,
+    inviterUserId: owner.id,
+    inviteeUserId: invitee.id,
+  });
+  const notificationId = `project-invitation:${sent.invitation.id}:${invitee.id}`;
+  const notification = await t.context.db.notification.findUniqueOrThrow({
+    where: { id: notificationId },
+  });
+  t.is(notification.type, 'ProjectInvitation');
+  t.is(notification.userId, invitee.id);
+  t.false(notification.read);
+  t.deepEqual(
+    await t.context.models.notification.getProjectInvitationDetails(
+      sent.invitation.id,
+      invitee.id
+    ),
+    { projectName: project.name, status: 'pending' }
+  );
+  t.deepEqual(
+    await t.context.models.notification.getProjectInvitationDetails(
+      sent.invitation.id,
+      stranger.id
+    ),
+    { projectName: '', status: 'unavailable' }
+  );
+  const delivered = await t.context.module
+    .get(NotificationService)
+    .findManyByUserId(invitee.id);
+  const invitationNotification = delivered.find(
+    item => item.id === notificationId
+  );
+  t.truthy(invitationNotification);
+  t.is(invitationNotification?.body.type, 'ProjectInvitation');
+  t.is(invitationNotification?.body.projectName, project.name);
+  t.is(invitationNotification?.body.status, 'pending');
+  t.true(
+    (
+      await t.context.projection.listPanel({ userId: invitee.id })
+    ).todo.items.some(
+      item => item.id === `project-invitation:${sent.invitation.id}`
+    )
+  );
+
+  const repeated = await t.context.authorization.sendProjectInvitation({
+    projectId: project.id,
+    inviterUserId: owner.id,
+    inviteeUserId: invitee.id,
+  });
+  t.false(repeated.created);
+  t.is(
+    await t.context.db.notification.count({ where: { id: notificationId } }),
+    1
+  );
+
+  await t.context.authorization.acceptProjectInvitation({
+    invitationId: sent.invitation.id,
+    actorUserId: invitee.id,
+  });
+  t.true(
+    (
+      await t.context.db.notification.findUniqueOrThrow({
+        where: { id: notificationId },
+      })
+    ).read
+  );
+  t.false(
+    (
+      await t.context.projection.listPanel({ userId: invitee.id })
+    ).todo.items.some(
+      item => item.id === `project-invitation:${sent.invitation.id}`
+    )
   );
 });
 

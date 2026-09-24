@@ -1,4 +1,4 @@
-import { Button, Loading, notify } from '@affine/component';
+import { Button, IconButton, Loading, notify } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
@@ -14,6 +14,7 @@ import {
   submitWorkOrderDeliveryMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
+import { SidebarIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
@@ -28,6 +29,7 @@ type WorkOrderPanelProps = {
   workOrderId: string;
   onLoaded?: (order: WorkOrder) => void;
   onChanged?: () => Promise<unknown> | unknown;
+  onCollapse?: () => void;
 };
 
 type StagedFile = {
@@ -90,6 +92,7 @@ export function WorkOrderPanel({
   workOrderId,
   onLoaded,
   onChanged,
+  onCollapse,
 }: WorkOrderPanelProps) {
   const t = useI18n();
   const graphql = useService(GraphQLService);
@@ -216,10 +219,27 @@ export function WorkOrderPanel({
         <div>
           <span className={styles.eyebrow}>
             {t['com.affine.localmind.workbench.v9.personalWorkOrder']()}
+            {order.sourceProjectNameSnapshot
+              ? ` · ${t['com.affine.localmind.workbench.v9.sourceProject']()}：${order.sourceProjectNameSnapshot}`
+              : null}
           </span>
           <h2 id="work-order-title">{order.title}</h2>
         </div>
-        <span className={styles.status}>{order.status}</span>
+        <div className={styles.headerActions}>
+          <span className={styles.status}>{order.status}</span>
+          {onCollapse ? (
+            <IconButton
+              size="20"
+              icon={<SidebarIcon />}
+              aria-label={t[
+                'com.affine.localmind.workbench.v9.collapseWorkOrderPanel'
+              ]()}
+              aria-controls="work-order-details"
+              aria-expanded={true}
+              onClick={onCollapse}
+            />
+          ) : null}
+        </div>
       </header>
       <div className={styles.scroll}>
         <section className={styles.section}>

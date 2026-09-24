@@ -17,6 +17,11 @@ type ConversationBoardProps = {
   cards: ConversationCardsState;
   projects: WorkbenchProject[];
   onOpenCard: (card: WorkbenchConversationCard) => void;
+  onOpenRelation: (
+    sessionId: string | null,
+    workOrderId: string | null,
+    projectId: string | null
+  ) => void;
   onNewConversation: () => void;
 };
 
@@ -92,6 +97,7 @@ export function ConversationBoard({
   cards,
   projects,
   onOpenCard,
+  onOpenRelation,
   onNewConversation,
 }: ConversationBoardProps) {
   const t = useI18n();
@@ -106,10 +112,6 @@ export function ConversationBoard({
     <section className={styles.root} aria-labelledby="workbench-board-title">
       <div className={styles.shell}>
         <div className={styles.topline}>
-          <span className={styles.path}>
-            {t['com.affine.localmind.workbench.v9.overview']()} /{' '}
-            {t['com.affine.localmind.workbench.v9.allProjects']()}
-          </span>
           <div className={styles.controls}>
             <div className={styles.segmented} role="tablist">
               <button
@@ -171,7 +173,12 @@ export function ConversationBoard({
           </button>
         </header>
         {view === 'relations' ? (
-          <CollaborationGraph cards={allCards} onOpenCard={onOpenCard} />
+          <CollaborationGraph
+            cards={allCards}
+            projectFilter={projectFilter}
+            onOpenCard={onOpenCard}
+            onOpenRelation={onOpenRelation}
+          />
         ) : (
           <div className={styles.columns}>
             {COLUMNS.map(column => {

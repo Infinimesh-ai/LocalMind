@@ -707,6 +707,14 @@ export class NotificationService {
             ? workspaceInfos.get(n.body.workspaceId)
             : undefined,
           createdByUser: userInfos.get(n.body.createdByUserId),
+          ...(n.type === NotificationType.ProjectInvitation &&
+          'invitationId' in n.body &&
+          typeof n.body.invitationId === 'string'
+            ? await this.models.notification.getProjectInvitationDetails(
+                n.body.invitationId,
+                userId
+              )
+            : {}),
           ...(n.type === NotificationType.ProjectFileRequest &&
           'requestId' in n.body &&
           typeof n.body.requestId === 'string'

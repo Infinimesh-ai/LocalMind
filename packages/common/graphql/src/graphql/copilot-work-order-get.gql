@@ -4,6 +4,7 @@ query copilotWorkOrderGet($workOrderId: ID!) {
       myWorkOrder(workOrderId: $workOrderId) {
         id
         sourceSessionId
+        sourceProjectNameSnapshot
         ownSessionId
         sourceContextVersion
         viewerRole

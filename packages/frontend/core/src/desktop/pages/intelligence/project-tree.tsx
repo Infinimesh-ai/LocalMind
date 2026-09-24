@@ -13,6 +13,7 @@ import {
   EditIcon,
   FolderIcon,
   MoreHorizontalIcon,
+  PinedIcon,
   PlusIcon,
 } from '@blocksuite/icons/rc';
 import { useEffect, useMemo, useState } from 'react';
@@ -349,6 +350,7 @@ export const ProjectTree = ({
                   <ul className={styles.documents}>
                     {conversations
                       .filter(card => card.project?.id === project.id)
+                      .toSorted((a, b) => Number(b.pinned) - Number(a.pinned))
                       .map(card => (
                         <li key={card.sessionId} className={styles.documentRow}>
                           {renamingSessionId === card.sessionId ? (
@@ -373,6 +375,7 @@ export const ProjectTree = ({
                             <button
                               type="button"
                               className={styles.documentButton}
+                              data-pinned={card.pinned}
                               aria-current={
                                 selectedSessionId === card.sessionId
                                   ? 'page'
@@ -387,7 +390,7 @@ export const ProjectTree = ({
                                 }
                               }}
                             >
-                              <AiIcon />
+                              {card.pinned ? <PinedIcon /> : <AiIcon />}
                               <span title={card.title ?? undefined}>
                                 {card.title ||
                                   t[

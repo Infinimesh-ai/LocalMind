@@ -234,6 +234,7 @@ export const groupLabel = style({
 
 export const documentButton = style({
   ...interactive,
+  flex: 1,
   minWidth: 0,
   minHeight: 30,
   display: 'grid',
@@ -257,6 +258,16 @@ export const documentButton = style({
       color: cssVarV2('text/primary'),
       fontWeight: 600,
       boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
+    },
+    '&[data-pinned="true"]': {
+      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 12%, ${cssVarV2('layer/background/primary')})`,
+      color: cssVarV2('text/link'),
+      fontWeight: 600,
+      boxShadow: `inset 3px 0 0 ${cssVarV2('button/primary')}`,
+    },
+    '&[data-pinned="true"][aria-current="page"]': {
+      color: cssVarV2('text/primary'),
+      boxShadow: `inset 3px 0 0 ${cssVarV2('button/primary')}, inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
     },
     '&[data-placeholder="true"]:hover': {
       background: 'transparent',
@@ -332,6 +343,10 @@ globalStyle(`${documentButton} > svg`, {
   width: 16,
   height: 16,
   color: cssVarV2('icon/secondary'),
+});
+
+globalStyle(`${documentButton}[data-pinned="true"] > svg`, {
+  color: cssVarV2('button/primary'),
 });
 
 globalStyle(`${documentButton} > span`, {

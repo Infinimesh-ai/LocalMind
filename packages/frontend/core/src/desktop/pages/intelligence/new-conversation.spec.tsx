@@ -183,6 +183,30 @@ describe('NewConversation', () => {
     );
   });
 
+  test('sends on Enter while Shift+Enter and IME confirmation keep the draft', () => {
+    render(
+      <NewConversation
+        projects={projects}
+        initialProjectId="project-1"
+        onChanged={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    );
+
+    const draft = screen.getByPlaceholderText(
+      'com.affine.localmind.workbench.v9.taskPlaceholder'
+    );
+    fireEvent.change(draft, { target: { value: 'First message' } });
+    fireEvent.keyDown(draft, { key: 'Enter', shiftKey: true });
+    fireEvent.keyDown(draft, { key: 'Enter', isComposing: true });
+    expect(screen.queryByTestId('started-conversation')).toBeNull();
+
+    fireEvent.keyDown(draft, { key: 'Enter' });
+    expect(screen.getByTestId('started-conversation').textContent).toContain(
+      'First message'
+    );
+  });
+
   test('preselects the newly chosen project and applies an optional manual title', async () => {
     const onChanged = vi.fn().mockResolvedValue(undefined);
     const onCreated = vi.fn();

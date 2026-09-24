@@ -28,6 +28,7 @@ import {
   type ChatStatus,
   isChatMessage,
   type StreamObject,
+  type WorkOrderProposalActions,
 } from '../../components/ai-chat-messages';
 import { AIChatErrorRenderer } from '../../messages/error';
 import { type AIError } from '../../provider';
@@ -103,6 +104,9 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
     | BlockerSuggestionConfirmation
     | undefined;
 
+  @property({ attribute: false })
+  accessor workOrderProposalActions: WorkOrderProposalActions | undefined;
+
   get state() {
     const { isLast, status } = this;
     return isLast
@@ -169,6 +173,7 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
       .peekViewService=${this.peekViewService}
       .onOpenDoc=${this.onOpenDoc}
       .blockerSuggestionConfirmation=${this.blockerSuggestionConfirmation}
+      .workOrderProposalActions=${this.workOrderProposalActions}
     ></chat-content-stream-objects>`;
   }
 

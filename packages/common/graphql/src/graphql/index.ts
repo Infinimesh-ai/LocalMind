@@ -2484,6 +2484,10 @@ export const copilotCollaborationGraphGetQuery = {
           to
           status
           label
+          project {
+            id
+            name
+          }
           ownSessionId
           ownWorkOrderId
         }
@@ -8491,6 +8495,7 @@ export const copilotWorkOrderGetQuery = {
       myWorkOrder(workOrderId: $workOrderId) {
         id
         sourceSessionId
+        sourceProjectNameSnapshot
         ownSessionId
         sourceContextVersion
         viewerRole
@@ -8637,6 +8642,7 @@ export const copilotWorkbenchConversationsGetQuery = {
         items {
           sessionId
           scopeType
+          pinned
           title
           titleRevision
           column

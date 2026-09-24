@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import {
   type AccessRequest,
+  type AiContextProjectInvitation,
   Notification,
   NotificationLevel,
   NotificationType,
@@ -127,6 +128,7 @@ export const CommentMentionNotificationCreateSchema =
   });
 
 export type UnionNotificationBody =
+  | ProjectInvitationNotificationBody
   | ProjectFileRequestNotificationBody
   | WorkOrderNotificationBody
   | AccessRequestNotificationBody
@@ -139,6 +141,12 @@ export type ProjectFileRequestNotificationBody = {
   workspaceId?: never;
   createdByUserId: string;
   requestId: string;
+};
+
+export type ProjectInvitationNotificationBody = {
+  workspaceId?: never;
+  createdByUserId: string;
+  invitationId: string;
 };
 
 export type WorkOrderNotificationBody = {
@@ -172,6 +180,7 @@ export type CommentNotification = Notification &
   z.infer<typeof CommentNotificationCreateSchema>;
 
 export type UnionNotification =
+  | (Notification & { body: ProjectInvitationNotificationBody })
   | (Notification & { body: ProjectFileRequestNotificationBody })
   | (Notification & { body: WorkOrderNotificationBody })
   | (Notification & { body: AccessRequestNotificationBody })
@@ -191,6 +200,47 @@ export class NotificationModel extends BaseModel {
       create: { userId, revision },
       update: { revision },
     });
+  }
+
+  async syncProjectInvitation(invitation: AiContextProjectInvitation) {
+    const id = `project-invitation:${invitation.id}:${invitation.inviteeUserId}`;
+    if (invitation.status === 'pending') {
+      const inserted = await this.db.notification.createMany({
+        data: {
+          id,
+          userId: invitation.inviteeUserId,
+          type: NotificationType.ProjectInvitation,
+          level: NotificationLevel.Default,
+          body: {
+            invitationId: invitation.id,
+            createdByUserId: invitation.inviterUserIdSnapshot,
+          } satisfies ProjectInvitationNotificationBody,
+        },
+        skipDuplicates: true,
+      });
+      if (inserted.count) await this.enqueueRefresh(invitation.inviteeUserId);
+      return;
+    }
+    await this.db.notification.updateMany({
+      where: { id, read: false },
+      data: { read: true },
+    });
+    await this.enqueueRefresh(invitation.inviteeUserId);
+  }
+
+  async getProjectInvitationDetails(invitationId: string, userId: string) {
+    const invitation = await this.db.aiContextProjectInvitation.findUnique({
+      where: { id: invitationId },
+      include: { project: { select: { name: true, status: true } } },
+    });
+    if (
+      !invitation ||
+      invitation.inviteeUserId !== userId ||
+      invitation.project.status !== 'active'
+    ) {
+      return { projectName: '', status: 'unavailable' };
+    }
+    return { projectName: invitation.project.name, status: invitation.status };
   }
 
   async pendingRefreshes() {

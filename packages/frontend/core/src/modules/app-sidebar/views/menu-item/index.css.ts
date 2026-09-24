@@ -40,12 +40,13 @@ export const root = style({
       paddingLeft: '4px',
       paddingRight: '4px',
     },
-    '&[data-collapsible="false"]:is([data-active="true"], :hover)': {
-      width: 'calc(100% + 8px + 8px)',
-      transform: 'translateX(-8px)',
-      paddingLeft: '8px',
-      paddingRight: '10px',
-    },
+    '&[data-collapsible="false"][data-expand-on-hover="true"]:is([data-active="true"], :hover)':
+      {
+        width: 'calc(100% + 8px + 8px)',
+        transform: 'translateX(-8px)',
+        paddingLeft: '8px',
+        paddingRight: '10px',
+      },
     [`${linkItemRoot}:first-of-type &`]: {
       marginTop: '0px',
     },

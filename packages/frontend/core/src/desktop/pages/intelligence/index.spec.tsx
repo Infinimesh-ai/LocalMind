@@ -241,11 +241,25 @@ vi.mock('@affine/core/modules/quicksearch', () => ({
   QuickSearchContainer: () => null,
 }));
 vi.mock('./project-shell-settings', () => ({
-  ProjectShellSettings: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="project-settings" /> : null,
+  ProjectShellSettings: ({
+    open,
+    projectId,
+    collaboration,
+  }: {
+    open: boolean;
+    projectId?: string;
+    collaboration?: { project: { id: string } };
+  }) =>
+    open ? (
+      <div
+        data-testid="project-settings"
+        data-project-id={projectId}
+        data-collaboration-id={collaboration?.project.id}
+      />
+    ) : null,
 }));
 vi.mock('./project-summary', () => ({ ProjectSummary: () => null }));
-vi.mock('./project-tasks', () => ({ ProjectTasks: () => null }));
+vi.mock('./project-publications', () => ({ ProjectPublications: () => null }));
 vi.mock('@affine/core/modules/notification', () => ({
   NotificationCountService: tokens.NotificationCountService,
 }));
@@ -428,6 +442,14 @@ vi.mock('./project-files', () => ({
   ),
 }));
 
+vi.mock('./new-conversation', () => ({
+  NewConversation: () => <div data-testid="new-conversation" />,
+}));
+
+vi.mock('./work-order-panel', () => ({
+  WorkOrderPanel: () => <div data-testid="work-order-panel" />,
+}));
+
 vi.mock('@affine/core/components/project-file-request/detail', () => ({
   ProjectFileRequestModal: () => null,
 }));
@@ -439,12 +461,14 @@ vi.mock('./project-tree', () => ({
     error,
     onRefresh,
     onSelectProject,
+    onManageCollaboration,
   }: {
     projects: Array<{ id: string; status: string }>;
     loading: boolean;
     error?: string;
     onRefresh: () => void;
     onSelectProject: (projectId: string | null) => void;
+    onManageCollaboration: (project: { id: string; status: string }) => void;
   }) => {
     const activeProjects = projects.filter(
       project => project.status === 'active'
@@ -467,9 +491,17 @@ vi.mock('./project-tree', () => ({
           <span>com.affine.localmind.workbench.projects.emptyTitle</span>
         ) : null}
         {activeProjects.length ? (
-          <button type="button" onClick={() => onSelectProject('project-1')}>
-            Select project
-          </button>
+          <>
+            <button type="button" onClick={() => onSelectProject('project-1')}>
+              Select project
+            </button>
+            <button
+              type="button"
+              onClick={() => onManageCollaboration(activeProjects[0])}
+            >
+              Manage project settings
+            </button>
+          </>
         ) : null}
       </>
     );
@@ -540,7 +572,9 @@ vi.mock('./task-panel', () => ({
 vi.mock('./workbench-conversation', () => ({
   WorkbenchConversation: ({
     onConfirmBlockerSuggestion,
+    onPinChanged,
   }: {
+    onPinChanged?: () => void;
     onConfirmBlockerSuggestion?: (suggestion: {
       aiSuggestionId: string;
       confirmationProof: string;
@@ -561,6 +595,9 @@ vi.mock('./workbench-conversation', () => ({
     }, []);
     return (
       <div data-testid="conversation">
+        <button type="button" onClick={onPinChanged}>
+          Pin conversation
+        </button>
         {onConfirmBlockerSuggestion ? (
           <>
             <button
@@ -610,6 +647,11 @@ import { Component as ProjectComponent } from './index';
 
 const Component = () => (
   <Routes>
+    <Route path="/project/conversations/new" element={<ProjectComponent />} />
+    <Route
+      path="/project/work-orders/:workOrderId"
+      element={<ProjectComponent />}
+    />
     <Route path="/project/:projectId?" element={<ProjectComponent />} />
     <Route
       path="/project/:projectId/conversations/:sessionId"
@@ -753,6 +795,11 @@ describe('Intelligence workbench shell', () => {
         name: 'com.affine.localmind.workbench.v9.overview',
       })
     ).not.toBeNull();
+    expect(
+      screen.queryByText(
+        'com.affine.localmind.workbench.v9.overview / com.affine.localmind.workbench.v9.allProjects'
+      )
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Select project' }));
     expect(screen.getByTestId('location').textContent).toBe(
@@ -1013,6 +1060,34 @@ describe('Intelligence workbench shell', () => {
     expect(screen.getByTestId('location').textContent).toBe('/');
   });
 
+  test('opens project collaboration through the single header settings entry', () => {
+    renderWorkbench();
+
+    expect(
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.workbench.project.actions',
+      })
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'com.affine.settingSidebar.title' })
+    );
+    expect(screen.getByTestId('project-settings').dataset).toMatchObject({
+      projectId: 'project-1',
+      collaborationId: 'project-1',
+    });
+  });
+
+  test('opens the same settings for project menu actions', () => {
+    renderWorkbench('/project');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage project settings' })
+    );
+    expect(screen.getByTestId('project-settings').dataset).toMatchObject({
+      projectId: 'project-1',
+      collaborationId: 'project-1',
+    });
+  });
+
   test('routes task cards and capped segments into the global full history', () => {
     renderWorkbench();
 
@@ -1039,6 +1114,40 @@ describe('Intelligence workbench shell', () => {
     expect(screen.getByTestId('location').textContent).toBe(
       '/tasks?filter=completed'
     );
+  });
+
+  test('refreshes the project conversation list after the pin changes', async () => {
+    renderWorkbench();
+    fireEvent.click(screen.getByRole('button', { name: 'Pin conversation' }));
+    await waitFor(() => {
+      expect(state.refreshTaskPanel).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  test.each([
+    '/project/work-orders/work-order-1',
+    '/project/conversations/new',
+  ])('opens and closes the task drawer from %s', route => {
+    renderWorkbench(route);
+
+    const trigger = screen.getByRole('button', {
+      name: 'com.affine.localmind.workbench.tasks',
+    });
+    const panel = document.getElementById('intelligence-tasks-panel');
+    expect(panel).not.toBeNull();
+    expect(panel?.dataset.open).toBe('false');
+
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(panel?.dataset.open).toBe('true');
+    expect(panel?.hasAttribute('hidden')).toBe(false);
+    expect(
+      screen.getByRole('button', { name: 'View all Todo' })
+    ).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(panel?.dataset.open).toBe('false');
   });
 
   test('creates a manual blocker only after the panel submits and refreshes the projection', async () => {

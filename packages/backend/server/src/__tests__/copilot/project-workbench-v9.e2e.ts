@@ -131,10 +131,125 @@ async function dispatchTextOrders(
 }
 
 test.serial(
+  'pinned project conversations lead the first card page',
+  async t => {
+    const { db, sender, project } = await fixture();
+    const pinned = await db.aiSession.create({
+      data: {
+        userId: sender.id,
+        workspaceId: null,
+        selectedContextProjectId: project.id,
+        scopeType: 'project',
+        promptName: 'Chat With LocalMind AI',
+        promptAction: '',
+        title: 'Older pinned conversation',
+        pinned: true,
+        workState: {
+          create: {
+            ownerUserId: sender.id,
+            lastBusinessAt: new Date('2025-01-01T00:00:00.000Z'),
+          },
+        },
+      },
+    });
+    const recent = Array.from({ length: 35 }, (_, index) => ({
+      id: randomUUID(),
+      userId: sender.id,
+      workspaceId: null,
+      selectedContextProjectId: project.id,
+      scopeType: 'project',
+      promptName: 'Chat With LocalMind AI',
+      promptAction: '',
+      title: `Recent ${index}`,
+    }));
+    await db.aiSession.createMany({ data: recent });
+    await db.aiSessionWorkState.createMany({
+      data: recent.map((session, index) => ({
+        sessionId: session.id,
+        ownerUserId: sender.id,
+        lastBusinessAt: new Date(Date.now() - index * 1_000),
+      })),
+    });
+
+    const first = await app.models.copilotWorkOrder.listCards({
+      actorId: sender.id,
+      first: 10,
+    });
+    t.is(first.items[0].sessionId, pinned.id);
+    t.true(first.items[0].pinned);
+    const second = await app.models.copilotWorkOrder.listCards({
+      actorId: sender.id,
+      first: 10,
+      after: first.pageInfo.endCursor,
+    });
+    t.is(
+      new Set([...first.items, ...second.items].map(item => item.sessionId))
+        .size,
+      20
+    );
+    t.false(second.items.some(item => item.sessionId === pinned.id));
+
+    await db.aiSession.update({
+      where: { id: pinned.id },
+      data: { pinned: false },
+    });
+    const unpinned = await app.models.copilotWorkOrder.listCards({
+      actorId: sender.id,
+      first: 10,
+    });
+    t.false(unpinned.items.some(item => item.sessionId === pinned.id));
+  }
+);
+
+test.serial(
+  'source project access is checked before disclosing its name',
+  async t => {
+    const { db, sender, recipientB, recipientC, project, sourceSession } =
+      await fixture();
+    const prepared = await app.models.copilotWorkOrder.prepareDispatch({
+      actorId: sender.id,
+      sourceSessionId: sourceSession.id,
+      requestKey: 'revoked-source-project',
+      recipients: [
+        {
+          recipientId: recipientB.id,
+          title: 'Private assignment',
+          purpose: 'Request a file.',
+          requirements: [textRequirement],
+        },
+      ],
+    });
+    await db.aiContextProjectMember.create({
+      data: { projectId: project.id, userId: recipientC.id, role: 'owner' },
+    });
+    await db.aiContextProjectMember.delete({
+      where: { projectId_userId: { projectId: project.id, userId: sender.id } },
+    });
+    await t.throwsAsync(
+      app.models.copilotWorkOrder.confirmDispatch({
+        actorId: sender.id,
+        dispatchId: prepared.dispatch.id,
+        confirmationToken: prepared.confirmationToken!,
+        expectedDraftVersion: prepared.dispatch.draftVersion,
+        requestKey: 'confirm-revoked-source-project',
+      })
+    );
+    t.is(await db.workOrder.count(), 0);
+  }
+);
+
+test.serial(
   'personal work orders isolate recipients, gate partial results and adopt immutable complete revisions once',
   async t => {
-    const { db, sender, recipientB, recipientC, outsider, sourceSession } =
-      await fixture();
+    const {
+      db,
+      sender,
+      recipientB,
+      recipientC,
+      outsider,
+      project,
+      sourceSession,
+    } = await fixture();
     const dispatch = await dispatchTextOrders(sourceSession.id, sender.id, [
       recipientB.id,
       recipientC.id,
@@ -145,6 +260,8 @@ test.serial(
     const orderC = dispatch.orders.find(
       order => order.recipientId === recipientC.id
     )!;
+    t.is(orderB.sourceProjectIdSnapshot, project.id);
+    t.is(orderB.sourceProjectNameSnapshot, project.name);
 
     for (const order of [orderB, orderC]) {
       const session = await db.aiSession.findUniqueOrThrow({
@@ -291,8 +408,12 @@ test.serial(
       graphB.edges.map(edge => edge.id),
       [orderB.id]
     );
-    t.is(graphB.edges[0].from, recipientB.id);
-    t.is(graphB.edges[0].to, sender.id);
+    t.is(graphB.edges[0].from, sender.id);
+    t.is(graphB.edges[0].to, recipientB.id);
+    t.deepEqual(graphB.edges[0].project, {
+      id: project.id,
+      name: project.name,
+    });
     t.deepEqual(
       await app.models.copilotWorkOrder.collaborationGraph(outsider.id),
       { nodes: [], edges: [], truncated: false }

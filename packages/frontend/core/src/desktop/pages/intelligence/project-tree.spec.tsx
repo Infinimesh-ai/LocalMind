@@ -94,6 +94,7 @@ vi.mock('@blocksuite/icons/rc', () => ({
   FolderIcon: () => <svg />,
   MoreHorizontalIcon: () => <svg />,
   PageIcon: () => <svg />,
+  PinedIcon: () => <svg />,
   PlusIcon: () => <svg />,
 }));
 
@@ -119,6 +120,7 @@ const project: WorkbenchProject = {
 const conversation: WorkbenchConversationCard = {
   sessionId: 'session-1',
   scopeType: 'project',
+  pinned: false,
   title: 'Conversation one',
   titleRevision: 1,
   column: 'progress',
@@ -193,6 +195,32 @@ describe('ProjectTree', () => {
         'Renamed session'
       );
     });
+  });
+
+  test('places a pinned conversation first and marks it for highlighting', () => {
+    const pinned = {
+      ...conversation,
+      sessionId: 'session-pinned',
+      title: 'Older pinned conversation',
+      pinned: true,
+      lastBusinessAt: '2025-01-01T00:00:00.000Z',
+    };
+    renderTree({
+      conversations: [conversation, pinned],
+      selectedSessionId: conversation.sessionId,
+    });
+
+    const buttons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('button[data-pinned]')
+    );
+    expect(buttons.map(button => button.textContent)).toEqual([
+      'Older pinned conversation',
+      'Conversation one',
+    ]);
+    expect(buttons[0].dataset.pinned).toBe('true');
+    expect(buttons[0].getAttribute('aria-current')).toBeNull();
+    expect(buttons[1].dataset.pinned).toBe('false');
+    expect(buttons[1].getAttribute('aria-current')).toBe('page');
   });
 
   test('renders conversation paging, retry, and loading states', () => {

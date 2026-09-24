@@ -18,11 +18,14 @@ import { property, state } from 'lit/decorators.js';
 
 import type { AffineAIPanelState } from '../../widgets/ai-panel/type';
 import type { DocDisplayConfig } from '../ai-chat-chips';
-import type {
-  BlockerSuggestion,
-  BlockerSuggestionConfirmation,
-  BlockerSuggestionType,
-  StreamObject,
+import {
+  type BlockerSuggestion,
+  type BlockerSuggestionConfirmation,
+  type BlockerSuggestionType,
+  type StreamObject,
+  type WorkOrderAgentDraft,
+  workOrderDraftFromToolResult,
+  type WorkOrderProposalActions,
 } from '../ai-chat-messages';
 import { isToolError } from '../ai-tools/tool-result-utils';
 
@@ -202,6 +205,31 @@ export function officeToolResultView(
   };
 }
 
+type WorkOrderDecision = 'sent' | 'revised' | 'cancelled';
+
+function workOrderDecisionKey(draftId: string) {
+  return `localmind:work-order-proposal:${draftId}`;
+}
+
+function storedWorkOrderDecision(draftId: string): WorkOrderDecision | null {
+  try {
+    const value = localStorage.getItem(workOrderDecisionKey(draftId));
+    return value === 'sent' || value === 'revised' || value === 'cancelled'
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWorkOrderDecision(draftId: string, value: WorkOrderDecision) {
+  try {
+    localStorage.setItem(workOrderDecisionKey(draftId), value);
+  } catch {
+    // The card still updates when browser storage is unavailable.
+  }
+}
+
 export class ChatContentStreamObjects extends WithDisposable(
   ShadowlessElement
 ) {
@@ -308,6 +336,120 @@ export class ChatContentStreamObjects extends WithDisposable(
       opacity: 0.55;
     }
 
+    .work-order-proposal {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+      margin: 10px 0;
+      padding: 16px;
+      border: 1px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
+      border-radius: 10px;
+      background: ${unsafeCSSVarV2('layer/background/secondary')};
+      color: ${unsafeCSSVarV2('text/primary')};
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .work-order-proposal h4,
+    .work-order-proposal h5,
+    .work-order-proposal p {
+      margin: 0;
+    }
+
+    .work-order-proposal h4 {
+      font-size: 15px;
+      line-height: 21px;
+    }
+
+    .work-order-proposal h5 {
+      font-size: 13px;
+    }
+
+    .work-order-proposal-recipient {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+      padding-top: 12px;
+      border-top: 1px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
+    }
+
+    .work-order-proposal-meta,
+    .work-order-proposal-detail {
+      color: ${unsafeCSSVarV2('text/secondary')};
+      overflow-wrap: anywhere;
+    }
+
+    .work-order-proposal ol {
+      margin: 0;
+      padding-left: 21px;
+    }
+
+    .work-order-proposal li + li {
+      margin-top: 8px;
+    }
+
+    .work-order-proposal-feedback {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .work-order-proposal textarea {
+      width: 100%;
+      min-height: 76px;
+      box-sizing: border-box;
+      resize: vertical;
+      padding: 8px 10px;
+      border: 1px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
+      border-radius: 6px;
+      background: ${unsafeCSSVarV2('layer/background/primary')};
+      color: ${unsafeCSSVarV2('text/primary')};
+      font: inherit;
+    }
+
+    .work-order-proposal-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .work-order-proposal-actions button {
+      min-height: 32px;
+      padding: 6px 12px;
+      border: 1px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
+      border-radius: 6px;
+      background: ${unsafeCSSVarV2('layer/background/primary')};
+      color: ${unsafeCSSVarV2('text/primary')};
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .work-order-proposal-actions button[data-primary='true'] {
+      border-color: ${unsafeCSSVarV2('button/primary')};
+      background: ${unsafeCSSVarV2('button/primary')};
+      color: ${unsafeCSSVarV2('text/pureWhite')};
+    }
+
+    .work-order-proposal-actions button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .work-order-proposal button:focus-visible,
+    .work-order-proposal textarea:focus-visible {
+      outline: 2px solid ${unsafeCSSVarV2('button/primary')};
+      outline-offset: 2px;
+    }
+
+    .work-order-proposal-error {
+      margin-right: auto;
+      color: ${unsafeCSSVarV2('button/error')};
+    }
+
     @media (max-width: 480px) {
       .blocker-suggestion-details {
         grid-template-columns: minmax(0, 1fr);
@@ -325,6 +467,15 @@ export class ChatContentStreamObjects extends WithDisposable(
 
       .blocker-suggestion button {
         width: 100%;
+        font-size: 16px;
+      }
+
+      .work-order-proposal-actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .work-order-proposal-actions button {
         font-size: 16px;
       }
     }
@@ -374,6 +525,9 @@ export class ChatContentStreamObjects extends WithDisposable(
     | BlockerSuggestionConfirmation
     | undefined;
 
+  @property({ attribute: false })
+  accessor workOrderProposalActions: WorkOrderProposalActions | undefined;
+
   @state()
   private accessor pendingBlockerSuggestions = new Set<string>();
 
@@ -382,6 +536,239 @@ export class ChatContentStreamObjects extends WithDisposable(
 
   @state()
   private accessor blockerSuggestionErrors = new Set<string>();
+
+  @state()
+  private accessor workOrderFeedback = new Map<string, string>();
+
+  @state()
+  private accessor pendingWorkOrderDrafts = new Map<
+    string,
+    'send' | 'revise'
+  >();
+
+  @state()
+  private accessor workOrderDecisions = new Map<string, WorkOrderDecision>();
+
+  @state()
+  private accessor workOrderDraftErrors = new Map<string, string>();
+
+  private workOrderDecision(draftId: string) {
+    return (
+      this.workOrderDecisions.get(draftId) ?? storedWorkOrderDecision(draftId)
+    );
+  }
+
+  private decideWorkOrder(draftId: string, decision: WorkOrderDecision) {
+    storeWorkOrderDecision(draftId, decision);
+    this.workOrderDecisions = new Map(this.workOrderDecisions).set(
+      draftId,
+      decision
+    );
+  }
+
+  private async sendWorkOrderDraft(draft: WorkOrderAgentDraft) {
+    const actions = this.workOrderProposalActions;
+    const id = draft.draftId;
+    if (
+      !actions ||
+      this.pendingWorkOrderDrafts.has(id) ||
+      this.workOrderDecision(id)
+    )
+      return;
+    this.pendingWorkOrderDrafts = new Map(this.pendingWorkOrderDrafts).set(
+      id,
+      'send'
+    );
+    const errors = new Map(this.workOrderDraftErrors);
+    errors.delete(id);
+    this.workOrderDraftErrors = errors;
+    try {
+      await actions.onSend(draft);
+      this.decideWorkOrder(id, 'sent');
+    } catch (error) {
+      this.workOrderDraftErrors = new Map(this.workOrderDraftErrors).set(
+        id,
+        actions.errorMessage?.(error) ?? actions.labels.failed
+      );
+    } finally {
+      const pending = new Map(this.pendingWorkOrderDrafts);
+      pending.delete(id);
+      this.pendingWorkOrderDrafts = pending;
+    }
+  }
+
+  private async requestWorkOrderRevision(draft: WorkOrderAgentDraft) {
+    const actions = this.workOrderProposalActions;
+    const id = draft.draftId;
+    const feedback = this.workOrderFeedback.get(id)?.trim();
+    if (
+      !actions ||
+      !feedback ||
+      this.pendingWorkOrderDrafts.has(id) ||
+      this.workOrderDecision(id)
+    )
+      return;
+    this.pendingWorkOrderDrafts = new Map(this.pendingWorkOrderDrafts).set(
+      id,
+      'revise'
+    );
+    const errors = new Map(this.workOrderDraftErrors);
+    errors.delete(id);
+    this.workOrderDraftErrors = errors;
+    try {
+      await actions.onRequestRevision(draft, feedback);
+      this.decideWorkOrder(id, 'revised');
+    } catch (error) {
+      this.workOrderDraftErrors = new Map(this.workOrderDraftErrors).set(
+        id,
+        actions.errorMessage?.(error) ?? actions.labels.failed
+      );
+    } finally {
+      const pending = new Map(this.pendingWorkOrderDrafts);
+      pending.delete(id);
+      this.pendingWorkOrderDrafts = pending;
+    }
+  }
+
+  private cancelWorkOrderDraft(draft: WorkOrderAgentDraft) {
+    const id = draft.draftId;
+    if (this.pendingWorkOrderDrafts.has(id) || this.workOrderDecision(id)) {
+      return;
+    }
+    this.decideWorkOrder(id, 'cancelled');
+  }
+
+  private renderWorkOrderDraft(streamObject: StreamObject) {
+    if (streamObject.type !== 'tool-result') return null;
+    const actions = this.workOrderProposalActions;
+    const draft = workOrderDraftFromToolResult(
+      streamObject.toolName,
+      streamObject.result,
+      streamObject.isError === true
+    );
+    if (!actions || !draft) return null;
+    const id = draft.draftId;
+    const feedback = this.workOrderFeedback.get(id) ?? '';
+    const pending = this.pendingWorkOrderDrafts.get(id);
+    const decision = this.workOrderDecision(id);
+    const sent = decision === 'sent';
+    const revised = decision === 'revised';
+    const cancelled = decision === 'cancelled';
+    const failureMessage = this.workOrderDraftErrors.get(id);
+    const { labels } = actions;
+    return html`<section
+      class="work-order-proposal"
+      aria-label=${labels.title}
+      aria-busy=${pending ? 'true' : 'false'}
+    >
+      <h4>${labels.title}</h4>
+      <p class="work-order-proposal-meta">${labels.notice}</p>
+      ${actions.sourceProjectName
+        ? html`<p class="work-order-proposal-meta">
+            ${labels.sourceProject}: ${actions.sourceProjectName}.
+            ${labels.sourceProjectDisclosure}
+          </p>`
+        : nothing}
+      ${draft.recipients.map(
+        recipient =>
+          html`<article class="work-order-proposal-recipient">
+            <h5>${recipient.title}</h5>
+            <p class="work-order-proposal-meta">
+              ${labels.recipient}:
+              ${recipient.recipient.name || recipient.recipient.email}
+              (${recipient.recipient.email})
+            </p>
+            ${recipient.relationKind !== 'original'
+              ? html`<p class="work-order-proposal-meta">
+                  ${labels.relation}:
+                  ${labels.relationNames[recipient.relationKind]}
+                </p>`
+              : nothing}
+            <p>${recipient.purpose}</p>
+            <strong>${labels.requirements}</strong>
+            <ol>
+              ${recipient.requirements.map(
+                item =>
+                  html`<li>
+                    <strong>${item.title}</strong>
+                    <span class="work-order-proposal-detail">
+                      · ${item.kind === 'file' ? labels.file : labels.text} ·
+                      ${item.required ? labels.required : labels.optional}
+                    </span>
+                    <div>${item.instructions}</div>
+                    ${item.acceptedMimeTypes.length
+                      ? html`<div class="work-order-proposal-detail">
+                          ${labels.formats}:
+                          ${item.acceptedMimeTypes.join(', ')}
+                        </div>`
+                      : nothing}
+                    ${item.kind === 'file'
+                      ? html`<div class="work-order-proposal-detail">
+                          ${labels.count}:
+                          ${item.minCount}${item.maxCount !== item.minCount
+                            ? `–${item.maxCount}`
+                            : ''}
+                        </div>`
+                      : nothing}
+                  </li>`
+              )}
+            </ol>
+          </article>`
+      )}
+      <label class="work-order-proposal-feedback">
+        <span>${labels.feedback}</span>
+        <textarea
+          maxlength="2000"
+          .value=${feedback}
+          ?disabled=${!!pending || !!decision}
+          @input=${(event: Event) => {
+            const value = (event.currentTarget as HTMLTextAreaElement).value;
+            this.workOrderFeedback = new Map(this.workOrderFeedback).set(
+              id,
+              value
+            );
+          }}
+        ></textarea>
+      </label>
+      <div class="work-order-proposal-actions">
+        ${failureMessage
+          ? html`<span class="work-order-proposal-error" role="alert"
+              >${failureMessage}</span
+            >`
+          : nothing}
+        <button
+          type="button"
+          ?disabled=${!!pending || !!decision}
+          @click=${() => this.cancelWorkOrderDraft(draft)}
+        >
+          ${cancelled ? labels.cancelled : labels.cancel}
+        </button>
+        <button
+          type="button"
+          ?disabled=${!!pending || !!decision || !feedback.trim()}
+          @click=${() => void this.requestWorkOrderRevision(draft)}
+        >
+          ${revised
+            ? labels.revisionRequested
+            : pending === 'revise'
+              ? labels.revising
+              : labels.revise}
+        </button>
+        <button
+          type="button"
+          data-primary="true"
+          ?disabled=${!!pending || !!decision}
+          @click=${() => void this.sendWorkOrderDraft(draft)}
+        >
+          ${sent
+            ? labels.sent
+            : pending === 'send'
+              ? labels.sending
+              : labels.send}
+        </button>
+      </div>
+    </section>`;
+  }
 
   private async confirmBlockerSuggestion(suggestion: BlockerSuggestion) {
     const confirmation = this.blockerSuggestionConfirmation;
@@ -526,6 +913,12 @@ export class ChatContentStreamObjects extends WithDisposable(
       ></tool-call-card>`;
     }
     switch (streamObject.toolName) {
+      case 'work_order_draft':
+        return html`<tool-call-card
+          .name=${this.workOrderProposalActions?.labels.title ??
+          streamObject.toolName}
+          .width=${this.width}
+        ></tool-call-card>`;
       case 'web_crawl_exa':
         return html`
           <web-crawl-tool
@@ -652,6 +1045,14 @@ export class ChatContentStreamObjects extends WithDisposable(
       );
     }
     switch (streamObject.toolName) {
+      case 'work_order_draft': {
+        const proposal = this.renderWorkOrderDraft(streamObject);
+        if (proposal) return proposal;
+        return html`<tool-result-card
+          .name=${streamObject.toolName}
+          .width=${this.width}
+        ></tool-result-card>`;
+      }
       case 'web_crawl_exa':
         return html`
           <web-crawl-tool
@@ -789,8 +1190,34 @@ export class ChatContentStreamObjects extends WithDisposable(
   }
 
   protected override render() {
+    const duplicateWorkOrderCalls = new Set<string>();
+    const seenWorkOrderDrafts = new Set<string>();
+    for (const data of this.answer) {
+      if (data.type !== 'tool-result') continue;
+      const draft = workOrderDraftFromToolResult(
+        data.toolName,
+        data.result,
+        data.isError === true
+      );
+      if (!draft) continue;
+      const content = JSON.stringify({
+        sourceSessionId: draft.sourceSessionId,
+        recipients: draft.recipients,
+      });
+      if (seenWorkOrderDrafts.has(content)) {
+        duplicateWorkOrderCalls.add(data.toolCallId);
+      } else {
+        seenWorkOrderDrafts.add(content);
+      }
+    }
     return html`<div>
       ${this.answer.map(data => {
+        if (
+          (data.type === 'tool-call' || data.type === 'tool-result') &&
+          duplicateWorkOrderCalls.has(data.toolCallId)
+        ) {
+          return nothing;
+        }
         switch (data.type) {
           case 'text-delta':
             return this.renderRichText(data.textDelta);

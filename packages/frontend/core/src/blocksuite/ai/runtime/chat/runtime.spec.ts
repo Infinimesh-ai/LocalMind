@@ -1461,6 +1461,37 @@ describe('AIChatRuntime', () => {
     expect(runtime.getSnapshot().messages).toEqual([]);
   });
 
+  test('failed session navigation clears a pending generation state', async () => {
+    let release!: () => void;
+    const delayedStream = {
+      async *[Symbol.asyncIterator]() {
+        await new Promise<void>(resolve => {
+          release = resolve;
+        });
+        yield 'late';
+      },
+    };
+    const request = createRequest({
+      executeAction: vi.fn().mockResolvedValue(delayedStream),
+      getSession: vi.fn().mockRejectedValue(new Error('Missing session')),
+    });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+    const send = runtime.dispatch({ type: 'send', input: 'hello' });
+    await waitUntil(() => {
+      expect(request.executeAction).toHaveBeenCalled();
+    });
+
+    await expect(
+      runtime.dispatch({ type: 'openSession', sessionId: 'missing' })
+    ).rejects.toThrow('Missing session');
+    release();
+    await send;
+
+    expect(runtime.getSnapshot().status).toBe('error');
+    expect(runtime.getSnapshot().error?.message).toBe('Missing session');
+  });
+
   test('stale session creation does not open after scope switch', async () => {
     let releaseSession!: (value: CopilotChatHistoryFragment) => void;
     const request = createRequest({

@@ -21,6 +21,14 @@ export const root = style({
     },
   },
 });
+export const rootCollapsed = style({
+  gridTemplateColumns: 'minmax(0, 1fr) 48px',
+  '@media': {
+    'screen and (max-width: 760px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
+  },
+});
 export const canvas = style({
   position: 'relative',
   minWidth: 0,
@@ -57,6 +65,18 @@ export const zoomValue = style({
   font: 'inherit',
   cursor: 'pointer',
 });
+export const panHint = style({
+  position: 'absolute',
+  zIndex: 1,
+  left: 16,
+  bottom: 12,
+  padding: '5px 8px',
+  borderRadius: 6,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/secondary'),
+  fontSize: 11,
+  pointerEvents: 'none',
+});
 globalStyle(`${gfxHost} editor-host`, { width: '100%', height: '100%' });
 globalStyle(`${gfxHost} affine-edgeless-root`, {
   width: '100%',
@@ -76,10 +96,46 @@ export const list = style({
     },
   },
 });
-globalStyle(`${list} h2`, { margin: '0 0 8px', fontSize: 13 });
+export const listCollapsed = style({
+  overflow: 'hidden',
+  padding: '12px 8px',
+  '@media': {
+    'screen and (max-width: 760px)': {
+      padding: '8px 12px',
+    },
+  },
+});
+export const listHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+});
+export const listHeaderCollapsed = style({
+  flexDirection: 'column-reverse',
+  '@media': {
+    'screen and (max-width: 760px)': {
+      flexDirection: 'row',
+    },
+  },
+});
+globalStyle(`${listHeader} h2`, { margin: 0, fontSize: 13 });
+globalStyle(`${listHeaderCollapsed} h2`, {
+  writingMode: 'vertical-rl',
+  whiteSpace: 'nowrap',
+  color: cssVarV2('text/secondary'),
+  '@media': {
+    'screen and (max-width: 760px)': {
+      writingMode: 'horizontal-tb',
+    },
+  },
+});
+export const listToggle = style({
+  flexShrink: 0,
+});
 globalStyle(`${list} ul`, { margin: 0, padding: 0, listStyle: 'none' });
 globalStyle(`${list} li + li`, { marginTop: 6 });
-globalStyle(`${list} button`, {
+globalStyle(`${list} li button`, {
   width: '100%',
   display: 'flex',
   flexDirection: 'column',

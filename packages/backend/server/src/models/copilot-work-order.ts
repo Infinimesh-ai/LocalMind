@@ -126,11 +126,16 @@ function confirmationHash(token: string) {
     .digest('hex');
 }
 
-function pageCursor(value: { lastBusinessAt: Date; sessionId: string }) {
+function pageCursor(value: {
+  lastBusinessAt: Date;
+  sessionId: string;
+  session: { pinned: boolean };
+}) {
   return Buffer.from(
     JSON.stringify({
       at: value.lastBusinessAt.toISOString(),
       id: value.sessionId,
+      pinned: value.session.pinned,
     })
   ).toString('base64url');
 }
@@ -141,13 +146,18 @@ function parsePageCursor(cursor?: string | null) {
     const value = JSON.parse(Buffer.from(cursor, 'base64url').toString()) as {
       at?: unknown;
       id?: unknown;
+      pinned?: unknown;
     };
-    if (typeof value.at !== 'string' || typeof value.id !== 'string') {
+    if (
+      typeof value.at !== 'string' ||
+      typeof value.id !== 'string' ||
+      (value.pinned !== undefined && typeof value.pinned !== 'boolean')
+    ) {
       throw new Error('invalid cursor');
     }
     const at = new Date(value.at);
     if (Number.isNaN(at.valueOf())) throw new Error('invalid cursor');
-    return { at, id: value.id };
+    return { at, id: value.id, pinned: value.pinned === true };
   } catch {
     throw new BadRequest('Conversation cursor is invalid');
   }
@@ -339,6 +349,19 @@ export class CopilotWorkOrderModel extends BaseModel {
     // the conversation; if confirmation wins, completion observes the new
     // outstanding work orders and refuses to close it.
     await this.lockSession(sourceSessionId);
+    const source = await this.assertSourceSession(sourceSessionId, actorId);
+    const sourceProject =
+      source.scopeType === 'project' && source.selectedContextProjectId
+        ? await this.db.aiContextProject.findFirst({
+            where: {
+              id: source.selectedContextProjectId,
+              members: { some: { userId: actorId } },
+            },
+            select: { id: true, name: true },
+          })
+        : null;
+    if (source.scopeType === 'project' && !sourceProject)
+      throw new NotFound('Source project unavailable');
     await this.db.workOrderDispatch.update({
       where: { id: dispatch.id },
       data: { status: 'confirmed', confirmedAt: new Date() },
@@ -377,6 +400,8 @@ export class CopilotWorkOrderModel extends BaseModel {
           id: workOrderId,
           dispatchId: dispatch.id,
           sourceSessionId,
+          sourceProjectIdSnapshot: sourceProject?.id ?? null,
+          sourceProjectNameSnapshot: sourceProject?.name ?? null,
           senderId: actorId,
           recipientId: recipientDraft.recipientId,
           relatedWorkOrderId: recipientDraft.relatedWorkOrderId,
@@ -1200,13 +1225,26 @@ export class CopilotWorkOrderModel extends BaseModel {
         ...(after
           ? {
               OR: [
-                { lastBusinessAt: { lt: after.at } },
-                { lastBusinessAt: after.at, sessionId: { gt: after.id } },
+                ...(after.pinned ? [{ session: { pinned: false } }] : []),
+                {
+                  session: { pinned: after.pinned },
+                  OR: [
+                    { lastBusinessAt: { lt: after.at } },
+                    {
+                      lastBusinessAt: after.at,
+                      sessionId: { gt: after.id },
+                    },
+                  ],
+                },
               ],
             }
           : {}),
       },
-      orderBy: [{ lastBusinessAt: 'desc' }, { sessionId: 'asc' }],
+      orderBy: [
+        { session: { pinned: 'desc' } },
+        { lastBusinessAt: 'desc' },
+        { sessionId: 'asc' },
+      ],
       take: first + 1,
       include: {
         session: {
@@ -1258,6 +1296,7 @@ export class CopilotWorkOrderModel extends BaseModel {
       return {
         sessionId: row.sessionId,
         scopeType: row.session.scopeType,
+        pinned: row.session.pinned,
         title: row.session.title,
         titleRevision: row.session.titleRevision,
         project: row.session.selectedContextProject,
@@ -1300,12 +1339,6 @@ export class CopilotWorkOrderModel extends BaseModel {
           orderBy: { ordinal: 'asc' },
           select: { id: true, title: true, kind: true },
         },
-        sourceSession: {
-          select: {
-            id: true,
-            selectedContextProject: { select: { id: true, name: true } },
-          },
-        },
       },
     });
     const truncated = rows.length > 500;
@@ -1335,14 +1368,18 @@ export class CopilotWorkOrderModel extends BaseModel {
           ? [
               {
                 id: order.id,
-                from: order.recipient.id,
-                to: order.sender.id,
+                from: order.sender.id,
+                to: order.recipient.id,
                 status: order.status,
                 label: order.title,
                 requirements: order.requirements,
                 project:
-                  order.senderId === userId
-                    ? order.sourceSession?.selectedContextProject
+                  order.sourceProjectIdSnapshot &&
+                  order.sourceProjectNameSnapshot
+                    ? {
+                        id: order.sourceProjectIdSnapshot,
+                        name: order.sourceProjectNameSnapshot,
+                      }
                     : null,
                 ownNavigation:
                   order.recipientId === userId

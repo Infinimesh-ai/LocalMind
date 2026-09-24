@@ -2055,7 +2055,15 @@ export class AIChatRuntime {
   private async openSession(sessionId: string) {
     const seq = ++this.requestSeq;
     this.streamAbortController?.abort();
-    const session = await this.getSession(sessionId);
+    let session: CopilotChatHistoryFragment | null | undefined;
+    try {
+      session = await this.getSession(sessionId);
+    } catch (error) {
+      if (seq === this.requestSeq) {
+        this.commit({ status: 'error', error: this.toError(error) });
+      }
+      throw error;
+    }
     if (seq !== this.requestSeq) return;
     if (session) {
       this.openSessionObject(session);

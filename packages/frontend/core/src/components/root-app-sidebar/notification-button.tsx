@@ -24,8 +24,10 @@ const Badge = ({ count, onClick }: { count: number; onClick?: () => void }) => {
 
 export const NotificationButton = ({
   iconOnly = false,
+  expandOnHover = true,
 }: {
   iconOnly?: boolean;
+  expandOnHover?: boolean;
 }) => {
   const notificationCountService = useService(NotificationCountService);
   const notificationCount = useLiveData(notificationCountService.count$);
@@ -91,6 +93,7 @@ export const NotificationButton = ({
           postfix={<Badge count={notificationCount} />}
           active={notificationListOpen}
           postfixDisplay="always"
+          expandOnHover={expandOnHover}
         >
           <span data-testid="notification-button">
             {t['com.affine.rootAppSidebar.notifications']()}
