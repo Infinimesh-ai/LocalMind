@@ -386,6 +386,8 @@ export default {
     ],
     executableName: productName,
     ignore: [
+      // Previous channel artifacts must not be embedded in the next package.
+      /\/out($|\/)/,
       /\.map$/,
       /\/test($|\/)/,
       /\/scripts($|\/)/,
