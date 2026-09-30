@@ -35,7 +35,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const linuxMimeTypes = protocolSchemes.map(
   scheme => `x-scheme-handler/${scheme}`
 );
-const appId = fromBuildIdentifier(appIdMap);
+const appId = appIdMap[buildType];
 const linuxMetainfoFileName = `${appId}.metainfo.xml`;
 const generatedLinuxMetainfoPath = path.join(
   __dirname,
