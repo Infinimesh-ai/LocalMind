@@ -28,6 +28,11 @@ export const PROJECT_NATIVE_TOOL_NAMES = new Set([
   'project_file_request_recipients',
   'project_file_request_create',
   'project_file_create',
+  'project_file_read',
+  'project_file_update',
+  'project_resource_history',
+  'project_resource_restore_version',
+  'project_resource_copy',
   'project_doc_create',
   'project_doc_read',
   'project_doc_update',
@@ -43,6 +48,8 @@ export const PROJECT_NATIVE_TOOL_NAMES = new Set([
 ]);
 
 const PROJECT_READ_TOOLS = new Set([
+  'project_resource_history',
+  'project_file_read',
   'project_doc_read',
   'project_resource_list',
   'project_doc_keyword_search',
@@ -384,6 +391,149 @@ export function createProjectResourceTools(
         };
       },
     }),
+    project_file_read: defineTool({
+      description:
+        'Read the complete UTF-8 TXT, Markdown, CSV or JSON file in this Project, with its immutable content version. Over-limit and non-UTF-8 files return errors, never truncated replacement text. Use project_file_update to edit the same ID.',
+      inputSchema: z
+        .object({
+          resource_id: id,
+          content_version: z.number().int().positive().optional(),
+        })
+        .strict(),
+      execute: async ({ resource_id, content_version }) => {
+        await authorize();
+        const current = await resources.readTextFile({
+          ...scope,
+          resourceId: resource_id,
+          sequence: content_version,
+        });
+        await models.copilotContext.recordInputSources({
+          ...scope,
+          sessionId: scope.sourceSessionId,
+          sources: [
+            {
+              workspaceId: null,
+              kind: 'project_resource',
+              sourceId: `${resource_id}@${current.revision.sequence}`,
+            },
+          ],
+        });
+        proof.set(resource_id, current.revision.sequence);
+        return {
+          ...(await receipt(resource_id)),
+          text: current.text,
+          complete: true,
+          contentVersion: current.revision.sequence,
+          byteSize: current.blob.byteSize,
+        };
+      },
+    }),
+    project_file_update: defineTool({
+      description:
+        'Replace the complete text of the exact Project file read by project_file_read, using its content version. Conflicts require rereading and merging; never create a replacement resource. JSON must remain valid. This uses Project tasks and edit leases.',
+      inputSchema: z
+        .object({
+          resource_id: id,
+          expected_content_version: z.number().int().positive(),
+          text: z.string().max(1024 * 1024),
+        })
+        .strict(),
+      execute: async (
+        { resource_id, expected_content_version, text },
+        execute
+      ) => {
+        await authorize();
+        const revision = await resources.saveFile({
+          ...scope,
+          resourceId: resource_id,
+          text,
+          expectedContentVersion: expected_content_version,
+          readContentVersion: proof.get(resource_id),
+          editLease: await editLease(resource_id),
+          requestKey: requestKey(execute),
+        });
+        return {
+          ...(await receipt(resource_id)),
+          appliedContentVersion: revision.sequence,
+        };
+      },
+    }),
+    project_resource_history: defineTool({
+      description:
+        'List immutable history versions of a Project document, Office resource or file. Historical reads remain subject to current Project access.',
+      inputSchema: z
+        .object({
+          resource_id: id,
+          before: z.number().int().positive().optional(),
+          limit: z.number().int().min(1).max(100).default(25),
+        })
+        .strict(),
+      execute: async ({ resource_id, before, limit }) => {
+        await authorize();
+        return resources.history({
+          ...scope,
+          resourceId: resource_id,
+          before,
+          limit,
+        });
+      },
+    }),
+    project_resource_restore_version: defineTool({
+      description:
+        'After an explicit user request, restore a chosen history version as a new current revision on the same Project resource. Requires the current content version and a task edit lease; never overwrites old history.',
+      inputSchema: z
+        .object({
+          resource_id: id,
+          sequence: z.number().int().positive(),
+          expected_content_version: z.number().int().positive(),
+        })
+        .strict(),
+      execute: async (
+        { resource_id, sequence, expected_content_version },
+        execute
+      ) => {
+        await authorize();
+        const revision = await resources.restoreVersion({
+          ...scope,
+          resourceId: resource_id,
+          sequence,
+          expectedContentVersion: expected_content_version,
+          requestKey: requestKey(execute),
+          editLease: await editLease(resource_id),
+        });
+        return {
+          ...(await receipt(resource_id)),
+          appliedContentVersion: revision.sequence,
+        };
+      },
+    }),
+    project_resource_copy: defineTool({
+      description:
+        'Create an independent copy with a new ID within this Project only when the user asks to copy. Bind to the selected source content version. Never use copying as a fallback for a failed update. Recursive folder copying is unsupported.',
+      inputSchema: z
+        .object({
+          resource_id: id,
+          title: z.string().trim().min(1).max(512),
+          parent_id: id.nullish(),
+          expected_content_version: z.number().int().positive(),
+        })
+        .strict(),
+      execute: async (
+        { resource_id, title, parent_id, expected_content_version },
+        execute
+      ) => {
+        await authorize();
+        const resource = await resources.copy({
+          ...scope,
+          resourceId: resource_id,
+          title,
+          parentId: parent_id,
+          expectedContentVersion: expected_content_version,
+          requestKey: requestKey(execute),
+        });
+        return receipt(resource.id);
+      },
+    }),
     project_resource_update_meta: defineTool({
       description:
         'Rename, move, reorder, trash or restore a Project resource using its current metadata version. All IDs must belong to this Project. For root moves use parent_id null; trash is reversible and never deletes external copies.',
@@ -430,8 +580,16 @@ export function createProjectResourceTools(
           return enabled.has('docCreate') || enabled.has('docUpdate');
         if (name === 'project_doc_create' || name === 'project_file_create')
           return enabled.has('docCreate');
-        if (name === 'project_doc_read') return enabled.has('docRead');
-        if (name === 'project_doc_update') return enabled.has('docUpdate');
+        if (name === 'project_doc_read' || name === 'project_file_read')
+          return enabled.has('docRead');
+        if (
+          name === 'project_doc_update' ||
+          name === 'project_file_update' ||
+          name === 'project_resource_restore_version'
+        )
+          return enabled.has('docUpdate');
+        if (name === 'project_resource_copy') return enabled.has('docCreate');
+        if (name === 'project_resource_history') return enabled.has('docRead');
         if (name === 'project_doc_keyword_search')
           return (
             enabled.has('docKeywordSearch') || enabled.has('docSemanticSearch')
@@ -460,7 +618,7 @@ export function createProjectResourceTools(
                   await authorize();
                   execute.signal?.throwIfAborted();
                   const command = {
-                    version: 2,
+                    version: 3,
                     toolName: name,
                     arguments: args,
                     toolCallId: execute.toolCallId,
@@ -470,13 +628,16 @@ export function createProjectResourceTools(
                       tools: options.tools,
                       billingUnitId: options.billingUnitId,
                     },
-                    ...(name === 'project_doc_update' &&
-                    typeof args.doc_id === 'string' &&
-                    proof.has(args.doc_id)
+                    ...((name === 'project_doc_update' ||
+                      name === 'project_file_update') &&
+                    typeof (args.doc_id ?? args.resource_id) === 'string' &&
+                    proof.has((args.doc_id ?? args.resource_id) as string)
                       ? {
                           readProof: {
-                            resourceId: args.doc_id,
-                            contentVersion: proof.get(args.doc_id),
+                            resourceId: args.doc_id ?? args.resource_id,
+                            contentVersion: proof.get(
+                              (args.doc_id ?? args.resource_id) as string
+                            ),
                           },
                         }
                       : {}),
@@ -553,7 +714,9 @@ export function createProjectResourceTools(
                     const resourceId =
                       name === 'project_doc_update'
                         ? parsed.arguments.doc_id
-                        : name === 'project_resource_update_meta'
+                        : name === 'project_resource_update_meta' ||
+                            name === 'project_file_update' ||
+                            name === 'project_resource_restore_version'
                           ? parsed.arguments.resource_id
                           : undefined;
                     if (typeof resourceId === 'string') {
@@ -614,9 +777,12 @@ export function createProjectResourceTools(
 
 export const ProjectResourceCommandSchema = z
   .object({
-    version: z.literal(2),
+    version: z.union([z.literal(2), z.literal(3)]),
     toolName: z.enum([
       'project_file_create',
+      'project_file_update',
+      'project_resource_restore_version',
+      'project_resource_copy',
       'project_doc_create',
       'project_doc_update',
       'project_resource_update_meta',

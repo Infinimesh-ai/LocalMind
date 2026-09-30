@@ -10,6 +10,10 @@ import { resolveOfficeCommentOwner } from '../../core/office/comment-types';
 import type { PermissionAccess } from '../../core/permission';
 import { RealtimeRegistry } from '../../core/realtime';
 import type { Models } from '../../models';
+import {
+  nativeAccessFixture,
+  withNativeStateFixture,
+} from './office-storage.fixture';
 
 test.before(() => {
   Sinon.stub(TransactionHost, 'getInstance').returns({
@@ -92,7 +96,20 @@ function serviceFixture(kind = 'document') {
     models,
     create,
     permission,
-    service: new OfficeCommentService(models, permission.value),
+    service: new OfficeCommentService(
+      withNativeStateFixture(models),
+      permission.value,
+      {
+        ...nativeAccessFixture,
+        write: async <T>(_input: unknown, operation: () => Promise<T>) => {
+          await permission.value
+            .user('user')
+            .workspace('workspace')
+            .assert('Workspace.Blobs.Write');
+          return operation();
+        },
+      } as unknown as typeof nativeAccessFixture
+    ),
   };
 }
 

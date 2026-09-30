@@ -15,6 +15,7 @@ import { BadRequest, Throttle } from '../../base';
 import { Models } from '../../models';
 import { CurrentUser, type CurrentUser as User } from '../auth';
 import { DocReader } from '../doc';
+import { WorkspaceNativeResourceService } from '../office/workspace-resource-service';
 import { ProjectEditLeaseProofInput } from '../project/edit-lease-resolver';
 import { ProjectResourceType } from '../project/types';
 import { ProjectImportService } from './import-service';
@@ -24,6 +25,7 @@ class ProjectResourceSourceType {
   @Field(() => ID) workspaceId!: string;
   @Field(() => ID) sourceResourceId!: string;
   @Field() title!: string;
+  @Field() sourceKind!: string;
   @Field() workspaceName!: string;
   @Field() sourceVersion!: string;
   @Field(() => Int) projectVersion!: number;
@@ -34,7 +36,8 @@ export class ProjectResourceSourceResolver {
   constructor(
     private readonly models: Models,
     private readonly imports: ProjectImportService,
-    private readonly reader: DocReader
+    private readonly reader: DocReader,
+    private readonly files: WorkspaceNativeResourceService
   ) {}
 
   @Query(() => [ProjectResourceSourceType])
@@ -63,6 +66,24 @@ export class ProjectResourceSourceResolver {
       try {
         await this.imports.authorizeSource({ ...actor, ...source });
       } catch {
+        continue;
+      }
+      if (source.sourceKind === 'workspace_file') {
+        if (resource.kind !== 'file') continue;
+        const file = await this.files.get({
+          ...source,
+          actorId: user.id,
+          resourceId: source.sourceResourceId,
+          kind: 'file',
+        });
+        const workspace = await this.models.workspace.get(source.workspaceId);
+        result.push({
+          ...source,
+          title: file.title,
+          workspaceName: workspace?.name ?? '',
+          sourceVersion: file.revisionId,
+          projectVersion: resource.contentVersion,
+        });
         continue;
       }
       const native = await this.models.officeArtifact.get(
@@ -115,7 +136,9 @@ export class ProjectResourceSourceResolver {
     expectedContentVersion: number,
     @Args('expectedSourceVersion') expectedSourceVersion: string,
     @Args('requestKey') requestKey: string,
-    @Args('editLease') editLease: ProjectEditLeaseProofInput
+    @Args('editLease') editLease: ProjectEditLeaseProofInput,
+    @Args('sourceKind', { type: () => String, nullable: true })
+    sourceKind?: 'document' | 'workspace_file'
   ) {
     const actor = { projectId, actorId: user.id };
     const resource = await this.models.projectResource.get({
@@ -132,7 +155,8 @@ export class ProjectResourceSourceResolver {
       !links.some(
         source =>
           source.workspaceId === workspaceId &&
-          source.sourceResourceId === sourceResourceId
+          source.sourceResourceId === sourceResourceId &&
+          source.sourceKind === (sourceKind ?? 'document')
       )
     )
       throw new BadRequest('Choose a source linked to this Project resource');
@@ -140,6 +164,7 @@ export class ProjectResourceSourceResolver {
       ...actor,
       workspaceId,
       sourceResourceId,
+      sourceKind,
       kind: resource.kind,
       requestKey,
       editLease: { ...editLease, kind: 'user' },

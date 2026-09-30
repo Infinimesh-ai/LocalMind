@@ -24,8 +24,10 @@ Project Owner 独占文档导入或对外发布的资格。讨论中提出的双
 
 模型可见工具按会话显式隔离：Project 原生资源使用 `project_*`（标题修改为
 `project_resource_update_meta`），普通 Workspace 资源使用 `workspace_*`。
-Project command 快照版本为 2。旧名称只用于历史展示，不恢复执行或注册别名。
+Project resource command 新快照版本为 3，包含普通文件更新、历史恢复和独立复制；版本 2 仅执行其原有工具集合。旧名称只用于历史展示，不恢复执行或注册别名。
 此次命名切换不改变导入权限、编辑租约或显式 Workspace 发布契约。
+
+2026-09-28 CRUD 补全延伸：Project 文本文件按 ID、内容版本和编辑租约原位保存，二进制文件显式替换；历史恢复追加修订，独立复制生成新 ID，Page/Edgeless 与 Office 保留原内容模型。WorkspaceFile 导入使用 `sourceKind=workspace_file` 的复制授权及命令 v2，不借用旧文档授权；普通文件的新发布写 WorkspaceFile，新回执绑定目标类型。旧命令 v1 和旧附件页面发布绑定保留原语义，不能按标题或重试自动改绑。详见 [CRUD 实施记录](../workspace-project-document-crud.execution.zh-CN.md)。
 
 ## 2. 已确认的产品规则
 

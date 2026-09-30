@@ -4,9 +4,10 @@ import { type OfficeArtifactKind, Prisma } from '@prisma/client';
 import { chunk } from 'lodash-es';
 import { z } from 'zod';
 
-import { BadRequest } from '../../base';
+import { BadRequest, NotFound } from '../../base';
 import { Models } from '../../models';
 import type { ProjectAgentRun } from '../../models/copilot-project-agent-runtime';
+import type { ProjectCopySourceKind } from '../../models/intelligence-workbench-authorization';
 import {
   type ProjectActor,
   projectResourceHash,
@@ -15,8 +16,9 @@ import {
   PROJECT_WORKSPACE_IMPORT_WORKFLOW,
   projectWorkspaceImportCommand,
 } from '../../models/project-workspace-import';
-import { DocReader } from '../doc';
+import { DocReader, WorkspaceNativeResourceAccess } from '../doc';
 import { readFileCopySnapshot } from '../doc/copy-snapshot';
+import { ResourceError } from '../doc/resource-types';
 import { PermissionAccess, PermissionService } from '../permission';
 import { ProjectImportService } from './import-service';
 
@@ -26,13 +28,14 @@ const selectionSchema = z
     actorId: z.string().min(1).max(256),
     workspaceId: z.string().min(1).max(256),
     sourceResourceId: z.string().min(1).max(256),
+    sourceKind: z.enum(['document', 'workspace_file']).default('document'),
     parentId: z.string().min(1).max(256).nullable(),
     requestKey: z.string().trim().min(1).max(256),
     requestApproval: z.boolean(),
   })
   .strict();
 const cursorSchema = z
-  .object({ scope: z.string(), query: z.string(), after: z.string().max(256) })
+  .object({ scope: z.string(), query: z.string(), after: z.string().max(600) })
   .strict();
 function page(scope: string, query = '', cursor?: string | null) {
   query = query.trim();
@@ -62,7 +65,8 @@ export class ProjectWorkspaceImportService {
     private readonly ac: PermissionAccess,
     private readonly permissions: PermissionService,
     private readonly reader: DocReader,
-    private readonly imports: ProjectImportService
+    private readonly imports: ProjectImportService,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess
   ) {}
 
   async workspaces(input: ProjectActor & { cursor?: string | null }) {
@@ -127,10 +131,12 @@ export class ProjectWorkspaceImportService {
       userId: input.actorId,
       workspaceId: input.workspaceId,
       projectId: null,
-      docs: rows.map(row => ({
-        docId: row.id,
-        actions: ['Doc.Read', 'Doc.Copy', 'Doc.Duplicate'],
-      })),
+      docs: rows
+        .filter(row => row.sourceKind === 'document')
+        .map(row => ({
+          docId: row.id,
+          actions: ['Doc.Read', 'Doc.Copy', 'Doc.Duplicate'],
+        })),
     });
     const allowed = new Map(
       decisions.map(doc => [
@@ -147,9 +153,21 @@ export class ProjectWorkspaceImportService {
       const sources = await Promise.all(
         batch.map(async row => {
           const actions = allowed.get(row.id);
-          if (!actions?.has('Doc.Read')) return null;
-          const sourceInput = { ...input, sourceResourceId: row.id };
-          const source = await this.describeResource(sourceInput, row);
+          if (row.sourceKind === 'document' && !actions?.has('Doc.Read'))
+            return null;
+          const sourceInput = {
+            ...input,
+            sourceResourceId: row.id,
+            sourceKind: row.sourceKind,
+          };
+          let source;
+          try {
+            source = await this.describeResource(sourceInput, row);
+          } catch (error) {
+            if (error instanceof NotFound || error instanceof ResourceError)
+              return null;
+            throw error;
+          }
           if (
             !source?.title
               .toLocaleLowerCase()
@@ -159,8 +177,8 @@ export class ProjectWorkspaceImportService {
           let permission: 'direct' | 'approval' | 'blocked' = 'blocked';
           if (
             sharing &&
-            actions.has('Doc.Copy') &&
-            actions.has('Doc.Duplicate')
+            (row.sourceKind === 'workspace_file' ||
+              (actions?.has('Doc.Copy') && actions.has('Doc.Duplicate')))
           ) {
             try {
               await this.models.intelligenceWorkbenchAuthorization.inspectProjectCopyPermission(
@@ -185,24 +203,76 @@ export class ProjectWorkspaceImportService {
       userId: input.actorId,
       workspaceId: input.workspaceId,
       projectId: null,
-      docs: items.map(item => ({ ...item, docId: item.id })),
+      docs: items
+        .filter(item => item.sourceKind === 'document')
+        .map(item => ({ ...item, docId: item.id })),
     });
+    const nativeItems = [];
+    for (const item of items.filter(
+      item => item.sourceKind === 'workspace_file'
+    )) {
+      try {
+        await this.nativeAccess.assert({
+          ...input,
+          resourceId: item.id,
+          kind: 'file',
+        });
+        nativeItems.push(item);
+      } catch (error) {
+        if (!(error instanceof NotFound) && !(error instanceof ResourceError))
+          throw error;
+      }
+    }
     await this.ac
       .user(input.actorId)
       .workspace(input.workspaceId)
       .assert('Workspace.Read');
     await this.models.projectResource.assertMember(input);
     return {
-      items: readable.map(({ docId: _, ...source }) => source),
-      nextCursor: rows.length === 30 ? next(scope, query, rows[29].id) : null,
+      items: [
+        ...readable.map(({ docId: _, ...source }) => source),
+        ...nativeItems,
+      ],
+      nextCursor:
+        rows.length === 30
+          ? next(scope, query, `${rows[29].id}:${rows[29].sourceKind}`)
+          : null,
     };
   }
 
   private async describe(
-    input: ProjectActor & { workspaceId: string; sourceResourceId: string }
+    input: ProjectActor & {
+      workspaceId: string;
+      sourceResourceId: string;
+      sourceKind?: ProjectCopySourceKind;
+    }
   ) {
     if (input.workspaceId === input.sourceResourceId)
       throw new BadRequest('Workspace root documents cannot be imported');
+    if (input.sourceKind === 'workspace_file') {
+      const resource = await this.nativeAccess.assert({
+        ...input,
+        resourceId: input.sourceResourceId,
+        kind: 'file',
+      });
+      let permission: 'direct' | 'approval' | 'blocked' = 'blocked';
+      if (await this.models.workspace.allowSharing(input.workspaceId)) {
+        try {
+          await this.imports.authorizeSource(input);
+          permission = 'direct';
+        } catch (error) {
+          if (!(error instanceof BadRequest)) throw error;
+          permission = 'approval';
+        }
+      }
+      return {
+        id: resource.resourceId,
+        title: resource.title,
+        kind: 'file' as const,
+        sourceKind: 'workspace_file' as const,
+        permission,
+      };
+    }
     const access = this.ac
       .user(input.actorId)
       .doc(input.workspaceId, input.sourceResourceId)
@@ -244,13 +314,37 @@ export class ProjectWorkspaceImportService {
   }
 
   private async describeResource(
-    input: { workspaceId: string; sourceResourceId: string },
+    input: {
+      workspaceId: string;
+      sourceResourceId: string;
+      actorId: string;
+      sourceKind?: ProjectCopySourceKind;
+    },
     meta: {
       title: string | null;
       mode: number;
-      kind: OfficeArtifactKind | null;
+      kind: OfficeArtifactKind | 'file' | null;
     }
   ) {
+    if (input.sourceKind === 'workspace_file') {
+      const file = await this.nativeAccess.assert({
+        ...input,
+        resourceId: input.sourceResourceId,
+        kind: 'file',
+      });
+      return {
+        id: file.resourceId,
+        title: file.title,
+        kind: 'file' as const,
+        sourceKind: 'workspace_file' as const,
+      };
+    }
+    if (meta.kind)
+      await this.nativeAccess.assert({
+        ...input,
+        resourceId: input.sourceResourceId,
+        kind: 'office',
+      });
     let kind: z.infer<typeof projectWorkspaceImportCommand>['kind'] =
       meta.kind ?? 'page';
     let title = meta.title;
@@ -278,6 +372,7 @@ export class ProjectWorkspaceImportService {
     }
     return {
       id: input.sourceResourceId,
+      sourceKind: 'document' as const,
       title: (title || 'Untitled').slice(0, 512),
       kind,
     };
@@ -296,6 +391,9 @@ export class ProjectWorkspaceImportService {
       sourceResourceId: input.sourceResourceId,
       parentId: input.parentId,
       requestApproval: input.requestApproval,
+      ...(input.sourceKind === 'workspace_file'
+        ? { sourceKind: input.sourceKind }
+        : {}),
     });
     const existing = await this.models.copilotProjectAgentRuntime.findRequest({
       ...input,
@@ -353,7 +451,8 @@ export class ProjectWorkspaceImportService {
       title: source.title,
       status: approval ? 'waiting_approval' : 'queued',
       command: {
-        version: 'project-workspace-import/v1',
+        version: 'project-workspace-import/v2',
+        sourceKind: input.sourceKind,
         workspaceId: input.workspaceId,
         sourceResourceId: input.sourceResourceId,
         parentId: input.parentId,
@@ -376,11 +475,19 @@ export class ProjectWorkspaceImportService {
       .user(input.actorId)
       .workspace(command.workspaceId)
       .assert('Workspace.Read');
-    await this.ac
-      .user(input.actorId)
-      .doc(command.workspaceId, command.sourceResourceId)
-      .projectScope(null)
-      .assert('Doc.Read');
+    if (command.sourceKind === 'workspace_file')
+      await this.nativeAccess.assert({
+        workspaceId: command.workspaceId,
+        actorId: input.actorId,
+        resourceId: command.sourceResourceId,
+        kind: 'file',
+      });
+    else
+      await this.ac
+        .user(input.actorId)
+        .doc(command.workspaceId, command.sourceResourceId)
+        .projectScope(null)
+        .assert('Doc.Read');
     await this.imports.authorizeSource({ ...input, ...command });
     return this.models.copilotProjectAgentRuntime.retryWorkspaceImport(input);
   }
@@ -399,20 +506,36 @@ export class ProjectWorkspaceImportService {
       .workspace(command.workspaceId)
       .assert('Workspace.Read');
     // An approved Project grant must not replace the importer's personal read access.
-    await this.ac
-      .user(run.actorId)
-      .doc(command.workspaceId, command.sourceResourceId)
-      .projectScope(null)
-      .assert('Doc.Read');
+    if (command.sourceKind === 'workspace_file')
+      await this.nativeAccess.assert({
+        workspaceId: command.workspaceId,
+        actorId: run.actorId,
+        resourceId: command.sourceResourceId,
+        kind: 'file',
+      });
+    else
+      await this.ac
+        .user(run.actorId)
+        .doc(command.workspaceId, command.sourceResourceId)
+        .projectScope(null)
+        .assert('Doc.Read');
     const resource = await this.imports.import({
       ...input,
       requestKey: `import-task:${run.id}`,
     });
-    await this.ac
-      .user(run.actorId)
-      .doc(command.workspaceId, command.sourceResourceId)
-      .projectScope(null)
-      .assert('Doc.Read');
+    if (command.sourceKind === 'workspace_file')
+      await this.nativeAccess.assert({
+        workspaceId: command.workspaceId,
+        actorId: run.actorId,
+        resourceId: command.sourceResourceId,
+        kind: 'file',
+      });
+    else
+      await this.ac
+        .user(run.actorId)
+        .doc(command.workspaceId, command.sourceResourceId)
+        .projectScope(null)
+        .assert('Doc.Read');
     await this.ac
       .user(run.actorId)
       .workspace(command.workspaceId)

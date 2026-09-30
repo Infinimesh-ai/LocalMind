@@ -12,10 +12,15 @@ import { WorkspaceDirectoryResolver } from './directory-resolver';
 import { DocumentDestinationService } from './document-destination';
 import { DocEventsListener } from './event';
 import { DocStorageCronJob } from './job';
+import { WorkspaceNativeResourceAccess } from './native-resource-access';
 import { DocStorageOptions } from './options';
 import { WorkspaceDocOutboxPublisher } from './outbox';
 import { DatabaseDocReader, DocReader, DocReaderProvider } from './reader';
 import { StructuredDocService } from './structured';
+import {
+  WorkspaceLifecycleResolver,
+  WorkspaceLifecycleService,
+} from './workspace-lifecycle';
 import { WorkspaceOrganizationService } from './workspace-organization';
 import { WorkspaceResourceService } from './workspace-resource';
 import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
@@ -23,6 +28,9 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
 @Module({
   imports: [BackendRuntimeModule, QuotaModule, PermissionModule, StorageModule],
   providers: [
+    WorkspaceLifecycleService,
+    WorkspaceLifecycleResolver,
+    WorkspaceNativeResourceAccess,
     DocStorageOptions,
     WorkspaceResourceService,
     WorkspaceDocOutboxPublisher,
@@ -39,6 +47,7 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
     DocumentDestinationService,
   ],
   exports: [
+    WorkspaceNativeResourceAccess,
     WorkspaceResourceService,
     DatabaseDocReader,
     DocReader,
@@ -60,6 +69,7 @@ export {
   PgUserspaceDocStorageAdapter,
   PgWorkspaceDocStorageAdapter,
   StructuredDocService,
+  WorkspaceNativeResourceAccess,
   WorkspaceOrganizationService,
 };
 export type { WorkspaceDocUpdatesPushedPayload };

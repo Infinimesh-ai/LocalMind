@@ -41,6 +41,7 @@ export function ProjectWorkspaceImportPicker({
     id: string;
     title: string;
     permission: string;
+    sourceKind: string;
     requestKey: string;
   } | null>(null);
   const [pending, setPending] = useState(false);
@@ -101,6 +102,7 @@ export function ProjectWorkspaceImportPicker({
             parentId,
             workspaceId: workspace.id,
             sourceResourceId: selected.id,
+            sourceKind: selected.sourceKind,
             requestKey: selected.requestKey,
             requestApproval: selected.permission === 'approval',
           },
@@ -187,7 +189,7 @@ export function ProjectWorkspaceImportPicker({
           ) : workspace ? (
             <ul className={styles.list}>
               {sources.data?.projectImportSources.items.map(source => (
-                <li key={source.id}>
+                <li key={`${source.id}:${source.sourceKind}`}>
                   <label
                     className={importStyles.source}
                     data-disabled={source.permission === 'blocked'}
@@ -196,7 +198,10 @@ export function ProjectWorkspaceImportPicker({
                       type="radio"
                       name="workspace-import-source"
                       className={styles.selectionCheckbox}
-                      checked={selected?.id === source.id}
+                      checked={
+                        selected?.id === source.id &&
+                        selected.sourceKind === source.sourceKind
+                      }
                       disabled={pending || source.permission === 'blocked'}
                       onChange={() => {
                         setSelected({

@@ -56,5 +56,14 @@ export async function readProjectFilePreview(
     reader.releaseLock();
   }
   const blob = new Blob(chunks, { type: mime });
-  return kind === 'text' ? { kind, text: await blob.text() } : { kind, blob };
+  if (kind !== 'text') return { kind, blob };
+  try {
+    const text = new TextDecoder('utf-8', {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(await blob.arrayBuffer());
+    return text.includes('\0') ? { kind: 'unsupported' } : { kind, text };
+  } catch {
+    return { kind: 'unsupported' };
+  }
 }

@@ -495,7 +495,7 @@ test('workspace_doc_read should return specific sync errors for unavailable docs
   for (const testCase of cases) {
     let docReaderCalled = false;
     const docReader = {
-      getDocMarkdown: async () => {
+      getVersionedDocMarkdown: async () => {
         docReaderCalled = true;
         return testCase.markdown;
       },

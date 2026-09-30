@@ -1236,7 +1236,10 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
       const result = await updateDoc(
         options,
         docId,
-        'Original daily log body.\n\nMerged deployment entry.'
+        'Original daily log body.\n\nMerged deployment entry.',
+        (await t.context
+          .app!.get(DocReader)
+          .getVersionedDocMarkdown(workspaceId, docId))!.version
       );
       yield {
         type: 'tool-result',

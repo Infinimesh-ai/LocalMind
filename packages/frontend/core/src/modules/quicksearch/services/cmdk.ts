@@ -9,6 +9,7 @@ import { CommandsQuickSearchSession } from '../impls/commands';
 import { CreationQuickSearchSession } from '../impls/creation';
 import { DocsQuickSearchSession } from '../impls/docs';
 import { LinksQuickSearchSession } from '../impls/links';
+import { NativeResourcesQuickSearchSession } from '../impls/native-resources';
 import { ProjectsQuickSearchSession } from '../impls/projects';
 import { RecentDocsQuickSearchSession } from '../impls/recent-docs';
 import { TagsQuickSearchSession } from '../impls/tags';
@@ -34,12 +35,26 @@ export class CMDKQuickSearchService extends Service {
           this.framework.createEntity(CommandsQuickSearchSession),
           this.framework.createEntity(CreationQuickSearchSession),
           this.framework.createEntity(DocsQuickSearchSession),
+          this.framework.createEntity(NativeResourcesQuickSearchSession),
           this.framework.createEntity(LinksQuickSearchSession),
           this.framework.createEntity(TagsQuickSearchSession),
           this.framework.createEntity(ProjectsQuickSearchSession),
         ],
         result => {
           if (!result) {
+            return;
+          }
+
+          if (result.source === 'workspace-native') {
+            const { kind, resourceId } = result.payload;
+            if (kind === 'office')
+              this.workbenchService.workbench.openOffice(resourceId, {
+                at: result.openMode,
+              });
+            else
+              this.workbenchService.workbench.openNativeFile(resourceId, {
+                at: result.openMode,
+              });
             return;
           }
 

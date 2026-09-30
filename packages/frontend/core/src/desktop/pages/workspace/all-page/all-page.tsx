@@ -6,6 +6,7 @@ import {
 import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
 import type { ExplorerDisplayPreference } from '@affine/core/components/explorer/types';
 import { Filters } from '@affine/core/components/filter';
+import { WorkspaceResourceExplorer } from '@affine/core/components/native-files/resource-explorer';
 import {
   CollectionService,
   PinnedCollectionService,
@@ -28,7 +29,6 @@ import * as styles from './all-page.css';
 import { AllDocsHeader } from './all-page-header';
 import { MigrationAllDocsDataNotification } from './migration-data';
 import { PinnedCollections } from './pinned-collections';
-import { WorkspaceFiles } from './workspace-files';
 
 const DefaultDisplayPreference: {
   [key in ViewMode]: ExplorerDisplayPreference;
@@ -367,7 +367,6 @@ export const AllPage = () => {
       <ViewBody>
         <div className={styles.body}>
           <MigrationAllDocsDataNotification />
-          {!selectedCollectionId && !tempFilters?.length && <WorkspaceFiles />}
           <div className={styles.pinnedCollection}>
             <PinnedCollections
               activeCollectionId={selectedCollectionId}
@@ -401,7 +400,14 @@ export const AllPage = () => {
             )}
           </div>
           <div className={styles.scrollArea}>
-            <DocsExplorer />
+            {!selectedCollectionId && !tempFilters?.length ? (
+              <WorkspaceResourceExplorer />
+            ) : (
+              <>
+                <p>{t['com.affine.localmind.resources.documentFilter']()}</p>
+                <DocsExplorer />
+              </>
+            )}
           </div>
         </div>
       </ViewBody>

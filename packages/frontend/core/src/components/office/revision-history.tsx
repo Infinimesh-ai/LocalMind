@@ -1,4 +1,4 @@
-import { Button, Loading, Modal } from '@affine/component';
+import { Button, Loading, Modal, useConfirmModal } from '@affine/component';
 import { useI18n } from '@affine/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -42,14 +42,20 @@ export function OfficeRevisionHistory({
   selectedRevision,
   onOpenChange,
   onSelect,
+  onRestore,
+  currentSequence,
 }: {
   open: boolean;
   adapter: OfficeResourceAdapter;
   selectedRevision: OfficeRevision;
   onOpenChange: (open: boolean) => void;
   onSelect: (revision: OfficeRevision) => void;
+  onRestore?: (revision: OfficeRevision) => Promise<void>;
+  currentSequence?: number;
 }) {
   const i18n = useI18n();
+  const { openConfirmModal } = useConfirmModal();
+  const [restoring, setRestoring] = useState<string | null>(null);
   const [compare, setCompare] = useState<OfficeRevisionCompare | null>(null);
   const [comparing, setComparing] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
@@ -179,6 +185,45 @@ export function OfficeRevisionHistory({
                     </span>
                   </span>
                 </button>
+                {onRestore && (
+                  <Button
+                    disabled={
+                      !!restoring || revision.sequence === currentSequence
+                    }
+                    onClick={() =>
+                      openConfirmModal({
+                        confirmText:
+                          i18n[
+                            'com.affine.localmind.native-files.restoreVersion'
+                          ](),
+                        cancelText: i18n['Cancel'](),
+                        title:
+                          i18n[
+                            'com.affine.localmind.native-files.restoreVersion'
+                          ](),
+                        description:
+                          i18n[
+                            'com.affine.localmind.native-files.restoreVersionHint'
+                          ](),
+                        onConfirm: async () => {
+                          setRestoring(revision.id);
+                          setCompareError(null);
+                          try {
+                            await onRestore(revision);
+                          } catch (caught) {
+                            setCompareError(
+                              officeErrorMessage(caught, adapter.owner)
+                            );
+                          } finally {
+                            setRestoring(null);
+                          }
+                        },
+                      })
+                    }
+                  >
+                    {i18n['com.affine.localmind.native-files.restoreVersion']()}
+                  </Button>
+                )}
                 <Button
                   variant="plain"
                   disabled={!!comparing || revision.id === selectedRevision.id}

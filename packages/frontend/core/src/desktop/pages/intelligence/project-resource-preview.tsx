@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { ProjectDocument } from './project-document';
 import { ProjectFile } from './project-file';
 import * as styles from './project-files.css';
+import { ProjectHistoryActions } from './project-history';
 import { ProjectOffice } from './project-office';
 import { ProjectPublicationActions } from './project-publications';
 import { ProjectSourceRefresh } from './project-source-refresh';
@@ -83,6 +84,15 @@ export function ProjectResourcePreview({
                 ? t['com.affine.localmind.project-files.title']()
                 : resource?.title}
             </h2>
+            {resource && !queryError && resource.kind !== 'folder' ? (
+              <ProjectHistoryActions
+                resource={resource}
+                onChanged={() => {
+                  setRefreshVersion(value => value + 1);
+                  void query.mutate().catch(reportProjectError);
+                }}
+              />
+            ) : null}
             {resource && !queryError ? (
               <ProjectPublicationActions
                 key={`publication:${projectId}:${resourceId}`}
@@ -176,7 +186,7 @@ export function ProjectResourcePreview({
             />
           ) : (
             <ProjectFile
-              key={`${resourceId}:${resource.contentVersion}`}
+              key={`${resourceId}:${refreshVersion}`}
               projectId={projectId}
               resourceId={resourceId}
               title={resource.title}

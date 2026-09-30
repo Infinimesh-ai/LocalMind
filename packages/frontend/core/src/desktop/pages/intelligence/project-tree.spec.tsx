@@ -109,7 +109,7 @@ const project: WorkbenchProject = {
   name: 'Project one',
   description: '',
   status: 'active',
-  aiPolicy: 'read_only',
+  aiPolicy: 'read_write',
   role: 'owner',
   members: [],
   canManage: true,
@@ -120,6 +120,8 @@ const project: WorkbenchProject = {
 const conversation: WorkbenchConversationCard = {
   sessionId: 'session-1',
   scopeType: 'project',
+  ownWorkspaceId: null,
+  ownDocId: null,
   pinned: false,
   title: 'Conversation one',
   titleRevision: 1,
@@ -128,6 +130,10 @@ const conversation: WorkbenchConversationCard = {
   activeRunCount: 0,
   workOrderId: null,
   workOrderStatus: null,
+  workOrderSenderName: null,
+  workOrderSourceProjectName: null,
+  workOrderRequiredReturnTitles: [],
+  workOrderMissingRequiredCount: null,
   lastBusinessAt: '2026-09-22T00:00:00.000Z',
   version: 1,
   project: { id: project.id, name: project.name },
@@ -306,4 +312,28 @@ describe('ProjectTree', () => {
       expect(onCreate).toHaveBeenCalledWith('New project');
     });
   });
+});
+
+test('archived projects offer restoration only to their owner', () => {
+  const onRestore = vi.fn();
+  const archived = { ...project, status: 'archived' };
+  renderTree({
+    projects: [
+      archived,
+      {
+        ...archived,
+        id: 'other',
+        name: 'Other archived',
+        role: 'member',
+        canManage: false,
+      },
+    ],
+    onRestore,
+  });
+  const actions = screen.getAllByText(
+    'com.affine.localmind.project-files.restore'
+  );
+  expect(actions).toHaveLength(1);
+  fireEvent.click(actions[0]);
+  expect(onRestore).toHaveBeenCalledWith(archived);
 });

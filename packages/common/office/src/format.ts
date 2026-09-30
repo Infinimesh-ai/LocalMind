@@ -8,6 +8,25 @@ export const OFFICE_PACKAGE_MIME_TYPE = {
 } as const;
 
 export type OfficeArtifactKind = keyof typeof OFFICE_PACKAGE_MIME_TYPE;
+
+const OFFICE_EXTENSION = {
+  document: 'docx',
+  workbook: 'xlsx',
+  presentation: 'pptx',
+  pdf: 'pdf',
+} as const;
+
+/** Current display title owns the download name; sourceFileName is evidence. */
+export function officeDownloadFileName(
+  title: string,
+  kind: OfficeArtifactKind
+) {
+  const stem = title
+    .trim()
+    .replace(/\.(docx|xlsx|pptx|pdf)$/i, '')
+    .trim();
+  return `${stem || 'document'}.${OFFICE_EXTENSION[kind]}`;
+}
 export type OfficePackageMimeType =
   (typeof OFFICE_PACKAGE_MIME_TYPE)[OfficeArtifactKind];
 

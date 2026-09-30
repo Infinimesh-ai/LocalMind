@@ -11,13 +11,13 @@ import {
   type CopilotWorkOrderGetQuery,
   copilotWorkOrderGetQuery,
   refuseWorkOrderMutation,
-  submitWorkOrderDeliveryMutation,
+  setWorkOrderDeliveryDraftItemMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { SidebarIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import * as styles from './work-order-panel.css';
 
@@ -29,6 +29,7 @@ type WorkOrderPanelProps = {
   workOrderId: string;
   onLoaded?: (order: WorkOrder) => void;
   onChanged?: () => Promise<unknown> | unknown;
+  onDraftStateChange?: (workOrderId: string, blocked: boolean) => void;
   onCollapse?: () => void;
 };
 
@@ -92,6 +93,7 @@ export function WorkOrderPanel({
   workOrderId,
   onLoaded,
   onChanged,
+  onDraftStateChange,
   onCollapse,
 }: WorkOrderPanelProps) {
   const t = useI18n();
@@ -104,6 +106,7 @@ export function WorkOrderPanel({
   const [textValues, setTextValues] = useState<Record<string, string>>(() =>
     readWorkOrderTextDraft(workOrderId)
   );
+  const lastServerTextValues = useRef<Record<string, string>>({});
   const [files, setFiles] = useState<Record<string, StagedFile[]>>({});
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState<string | null>(null);
@@ -114,9 +117,32 @@ export function WorkOrderPanel({
   }, [onLoaded, order]);
   useEffect(() => {
     if (!order) return;
+    const serverValues = Object.fromEntries(
+      (order.deliveryDraft?.items ?? [])
+        .filter(item => item.text)
+        .map(item => [item.requirementId, item.text ?? ''])
+    );
+    setTextValues(current => {
+      const next = { ...current };
+      for (const requirement of order.requirements) {
+        if (requirement.kind !== 'text') continue;
+        if (
+          (current[requirement.id] ?? '') ===
+          (lastServerTextValues.current[requirement.id] ?? '')
+        ) {
+          next[requirement.id] = serverValues[requirement.id] ?? '';
+        }
+      }
+      return next;
+    });
+    lastServerTextValues.current = serverValues;
+    const selectedBlobIds = new Set(
+      order.deliveryDraft?.items.flatMap(item => item.blobIds) ?? []
+    );
     setFiles(
-      order.stagedBlobs.reduce<Record<string, StagedFile[]>>(
-        (grouped, blob) => {
+      order.stagedBlobs
+        .filter(blob => selectedBlobIds.has(blob.id))
+        .reduce<Record<string, StagedFile[]>>((grouped, blob) => {
           (grouped[blob.requirementId] ??= []).push({
             id: blob.id,
             fileName: blob.fileName,
@@ -124,14 +150,30 @@ export function WorkOrderPanel({
             byteSize: blob.byteSize,
           });
           return grouped;
-        },
-        {}
-      )
+        }, {})
     );
   }, [order]);
   useEffect(() => {
     persistWorkOrderTextDraft(workOrderId, textValues);
   }, [textValues, workOrderId]);
+
+  const changedTextRequirements =
+    order?.requirements.filter(requirement => {
+      if (requirement.kind !== 'text') return false;
+      const saved =
+        order.deliveryDraft?.items.find(
+          item => item.requirementId === requirement.id
+        )?.text ?? '';
+      return (textValues[requirement.id] ?? '') !== saved;
+    }) ?? [];
+  const draftBlocked =
+    !order ||
+    changedTextRequirements.length > 0 ||
+    uploading !== null ||
+    pending === 'save-draft';
+  useEffect(() => {
+    onDraftStateChange?.(workOrderId, draftBlocked);
+  }, [onDraftStateChange, workOrderId, draftBlocked]);
 
   const refresh = async () => {
     await Promise.all([query.mutate(), onChanged?.()]);
@@ -158,6 +200,7 @@ export function WorkOrderPanel({
   };
   const upload = async (requirementId: string, selected: FileList | null) => {
     if (!selected?.length || !order) return;
+    onDraftStateChange?.(workOrderId, true);
     setUploading(requirementId);
     try {
       const staged: StagedFile[] = [];
@@ -213,6 +256,21 @@ export function WorkOrderPanel({
   const active = !['cancelled', 'refused'].includes(order.status);
   const recipient = order.viewerRole === 'recipient';
   const latestDelivery = order.deliveries[0];
+  const checkReasonText = (reason: string) => {
+    switch (reason) {
+      case 'Required text is missing':
+        return t['com.affine.localmind.workbench.v9.checkMissingText']();
+      case 'File count does not match the requirement':
+        return t['com.affine.localmind.workbench.v9.checkFileCount']();
+      case 'A selected file is unavailable or does not match':
+      case 'A selected file cannot be read or verified':
+        return t['com.affine.localmind.workbench.v9.checkFileUnavailable']();
+      case 'Semantic validation evidence is unavailable':
+        return t['com.affine.localmind.workbench.v9.checkSemanticEvidence']();
+      default:
+        return t['com.affine.localmind.workbench.v9.checkInvalidItem']();
+    }
+  };
   return (
     <aside className={styles.root} aria-labelledby="work-order-title">
       <header className={styles.header}>
@@ -260,88 +318,98 @@ export function WorkOrderPanel({
         <section className={styles.section}>
           <h3>{t['com.affine.localmind.workbench.v9.requirements']()}</h3>
           <div className={styles.requirements}>
-            {order.requirements.map(requirement => (
-              <fieldset key={requirement.id} className={styles.requirement}>
-                <legend>
-                  {requirement.title}
-                  {requirement.required ? ' *' : ''}
-                </legend>
-                <p>{requirement.instructions}</p>
-                {recipient && active ? (
-                  requirement.kind === 'text' ? (
-                    <textarea
-                      rows={4}
-                      value={textValues[requirement.id] ?? ''}
-                      onChange={event => {
-                        const value = event.currentTarget.value;
-                        setTextValues(current =>
-                          updateWorkOrderTextValues(
-                            current,
-                            requirement.id,
-                            value
-                          )
-                        );
-                      }}
-                    />
-                  ) : (
-                    <div className={styles.fileInput}>
-                      <input
-                        type="file"
-                        multiple={requirement.maxCount > 1}
-                        accept={requirement.acceptedMimeTypes.join(',')}
-                        disabled={uploading === requirement.id}
-                        onChange={event =>
-                          void upload(requirement.id, event.currentTarget.files)
-                        }
+            {order.requirements.map(requirement => {
+              const check = order.deliveryDraft?.checks.find(
+                candidate => candidate.requirementId === requirement.id
+              );
+              return (
+                <fieldset key={requirement.id} className={styles.requirement}>
+                  <legend>
+                    {requirement.title}
+                    {requirement.required ? ' *' : ''}
+                  </legend>
+                  <p>{requirement.instructions}</p>
+                  {recipient && check && !check.ready && check.reason ? (
+                    <p role="status">{checkReasonText(check.reason)}</p>
+                  ) : null}
+                  {recipient && active ? (
+                    requirement.kind === 'text' ? (
+                      <textarea
+                        rows={4}
+                        value={textValues[requirement.id] ?? ''}
+                        onChange={event => {
+                          const value = event.currentTarget.value;
+                          onDraftStateChange?.(workOrderId, true);
+                          setTextValues(current =>
+                            updateWorkOrderTextValues(
+                              current,
+                              requirement.id,
+                              value
+                            )
+                          );
+                        }}
                       />
-                      {uploading === requirement.id ? (
-                        <span>
-                          {t['com.affine.localmind.workbench.v9.uploading']()}
-                        </span>
-                      ) : null}
-                      {(files[requirement.id] ?? []).map(file => (
-                        <span key={file.id}>
-                          {file.fileName} · {file.byteSize.toLocaleString()} B
-                        </span>
-                      ))}
-                    </div>
-                  )
-                ) : null}
-              </fieldset>
-            ))}
+                    ) : (
+                      <div className={styles.fileInput}>
+                        <input
+                          type="file"
+                          multiple={requirement.maxCount > 1}
+                          accept={requirement.acceptedMimeTypes.join(',')}
+                          disabled={uploading === requirement.id}
+                          onChange={event =>
+                            void upload(
+                              requirement.id,
+                              event.currentTarget.files
+                            )
+                          }
+                        />
+                        {uploading === requirement.id ? (
+                          <span>
+                            {t['com.affine.localmind.workbench.v9.uploading']()}
+                          </span>
+                        ) : null}
+                        {(files[requirement.id] ?? []).map(file => (
+                          <span key={file.id}>
+                            {file.fileName} · {file.byteSize.toLocaleString()} B
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  ) : null}
+                </fieldset>
+              );
+            })}
           </div>
-          {recipient && active ? (
+          {recipient && active && changedTextRequirements.length ? (
             <Button
               variant="primary"
-              loading={pending === 'deliver'}
+              loading={pending === 'save-draft'}
               disabled={!!uploading}
               onClick={() =>
-                void act('deliver', async () => {
-                  await graphql.gql({
-                    query: submitWorkOrderDeliveryMutation,
-                    variables: {
-                      workOrderId: order.id,
-                      expectedVersion: order.version,
-                      requestKey: newRequestKey('delivery'),
-                      items: order.requirements.map(requirement => ({
+                void act('save-draft', async () => {
+                  let expectedDraftVersion = order.deliveryDraft?.version ?? 0;
+                  for (const requirement of changedTextRequirements) {
+                    const result = await graphql.gql({
+                      query: setWorkOrderDeliveryDraftItemMutation,
+                      variables: {
+                        workOrderId: order.id,
                         requirementId: requirement.id,
-                        blobIds: (files[requirement.id] ?? []).map(
-                          file => file.id
-                        ),
-                        text:
-                          requirement.kind === 'text'
-                            ? textValues[requirement.id]
-                            : undefined,
-                      })),
-                    },
-                  });
-                  setTextValues({});
+                        expectedDraftVersion,
+                        text: textValues[requirement.id] ?? '',
+                      },
+                    });
+                    expectedDraftVersion =
+                      result.setWorkOrderDeliveryDraftItem.version;
+                  }
                 })
               }
             >
-              {latestDelivery
-                ? t['com.affine.localmind.workbench.v9.submitRevision']()
-                : t['com.affine.localmind.workbench.v9.submitDelivery']()}
+              {t['com.affine.localmind.workbench.v9.saveDeliveryDraft']()}
+            </Button>
+          ) : null}
+          {recipient && active ? (
+            <Button onClick={() => void query.mutate()} disabled={!!pending}>
+              {t['com.affine.localmind.workbench.v9.recheckDeliveryDraft']()}
             </Button>
           ) : null}
         </section>
@@ -377,8 +445,7 @@ export function WorkOrderPanel({
                       {item.blobId ? (
                         <a
                           href={`/api/copilot/work-orders/${encodeURIComponent(order.id)}/files/${encodeURIComponent(item.blobId)}`}
-                          target="_blank"
-                          rel="noreferrer"
+                          download={item.fileName ?? 'download'}
                         >
                           {item.fileName ?? t['Download']()}
                         </a>

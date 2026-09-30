@@ -22,11 +22,14 @@ tools automatically. Workspace and Project tools remain mutually exclusive.
   a BlockSuite document.
 - Plain files in a Workspace use independent `WorkspaceFile` records, immutable
   blob evidence and authenticated download routes. They appear alongside native
-  Office files in the Files section of All pages. Office files open their native
-  editor; plain files download in their original format. The initial Workspace
-  entrypoint saves at the root and rejects a specified parent folder. These
-  plain files do not yet have an in-app text editor, rename/trash controls, tags,
-  favorites or collection filtering.
+  Office files in the unified All pages list, sidebar tree and quick search. Office files open their native
+  editor; plain files retain their original format. Both scopes now support
+  manual blank creation (DOCX/XLSX/PPTX/TXT/MD/CSV/JSON), uploads, native folder
+  placement, current metadata, trash/restore, version history and independent
+  copies. TXT/MD/CSV/JSON support complete UTF-8 editing up to 1 MiB; other files
+  use explicit version replacement. The upload/read limit is 32 MiB. PDF creation
+  remains import/export rather than an empty-PDF generator. Tags, favorites,
+  collections and local-only native file synchronization are not included.
 - Project files use the existing internal file tree, including `parent_id`, and
   the persisted Project agent workflow. Creating a file never publishes it to
   a Workspace. Ordinary Workspace calls save synchronously with live ACL and
@@ -37,6 +40,49 @@ tools automatically. Workspace and Project tools remain mutually exclusive.
   invalid OOXML text fail before storage. Unknown file formats are rejected.
 - MIME-aware blob identities allow identical bytes in TXT and Markdown without
   changing either file's MIME type. Existing Project blob keys remain valid.
+
+Workspace creation evidence remains immutable. `WorkspaceFileState` selects an
+immutable `WorkspaceFileRevision`; `WorkspaceOfficeState` adds lifecycle without
+replacing Office revisions. UI and internal `workspace_*` tools share live Blob
+and all-placement directory ACL, transactions, CAS, immutable receipts and a
+durable outbox. Replays return the applied result, never an unrelated later
+version. Raw Blob URLs and Office asset/comment/command routes enforce the same
+lifecycle and ACL. Historical Office `doc` placements remain permission-bearing;
+new placements use `office` nodes. Product permanent deletion prevents normal
+recovery while referenced packages remain subject to audit retention.
+
+Workspace and folder sidebar plus menus share creation and multi-file upload.
+The former standalone Files panel is removed; the existing Trash now includes
+Page/Edgeless, Office/PDF, ordinary files and folders. Restore defaults to the
+authorized original locations. Online document/folder lifecycle actions share
+the organization transaction, version checks and immutable actor-scoped receipts;
+local-only documents retain their local-first adapter. Mixed batches are bounded
+to 100 resources and preserve failed selections. Native catalog reconciliation
+is bounded to 10,000 items; exceeding the bound reports failure rather than
+presenting an incomplete result as a complete list. Folder Trash previews are
+bounded to 200 authorized children with an explicit truncation indicator.
+See [implementation and validation](../ai-modernization/workspace-unified-resource-experience-remediation.zh-CN.md).
+
+Workspace and Project native content use bounded derived search indexes;
+binary files without a parser support metadata search. Pending indexes are
+reported, old resources backfill in a durable bounded job, and stale versions
+cannot replace newer indexes. Trash and ACL are checked at query time.
+
+New Workspace file creation uses `contract_version: 2` for folder support.
+Native resource/folder tools are internal and unavailable to frozen delegated
+executions; the public MCP resource capability set is unchanged. Project file
+updates, history restoration and copy use Project resource command v3; v2 keeps
+its original tool allowlist. Workspace imports and Project publications carry
+explicit source/target kinds in v2 commands, retaining v1 attachment-page
+semantics. Native Workspace copy approvals never create document write grants.
+
+The additional migrations `20260928000000_workspace_native_resource_lifecycle`,
+`20260928001000_workspace_native_resource_integrity`,
+`20260928002000_native_resource_transfer_contracts` and
+`20260928003000_native_publication_receipt` must be applied before new writes.
+The unified document/folder lifecycle also requires
+`20260928004000_workspace_lifecycle_receipts`.
+See [CRUD implementation and validation](../ai-modernization/workspace-project-document-crud.execution.zh-CN.md).
 
 Apply migrations `20260920000000_workspace_files`,
 `20260920000100_project_blob_mime_identity`, and
@@ -130,6 +176,12 @@ The artifact owns stable Project or Workspace identity and immutable import evid
 
 The original imported blob is immutable evidence. Renaming an artifact must
 not rewrite its original filename or fingerprint.
+
+Package downloads use the current artifact title and the extension for its
+native kind; PDF exports replace an Office extension with `.pdf`. Both the
+browser download and authenticated HTTP response follow this rule. Workspace
+Files lists show the latest revision's package size, not the import size, and
+reconcile visible pages every 15 seconds and on focus/network recovery.
 
 The foundation currently accepts only the native package MIME for each kind:
 DOCX for `document`, XLSX for `workbook`, PPTX for `presentation`, and PDF for

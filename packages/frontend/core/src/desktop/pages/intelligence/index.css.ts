@@ -17,6 +17,11 @@ export const root = style({
   background: cssVarV2('layer/background/primary'),
   color: cssVarV2('text/primary'),
   letterSpacing: 0,
+  selectors: {
+    '&[data-workspace-expanded="true"]': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
+  },
   '@media': {
     'screen and (max-width: 1040px)': {
       gridTemplateColumns: `clamp(192px, ${railWidthVar}, min(420px, calc(100% - 400px))) minmax(0, 1fr)`,
@@ -28,6 +33,7 @@ export const root = style({
 });
 
 export const rail = style({
+  selectors: { '&[hidden]': { display: 'none' } },
   position: 'relative',
   minWidth: 0,
   minHeight: 0,

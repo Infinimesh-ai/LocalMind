@@ -16,9 +16,11 @@ import {
   type OfficeRevision,
 } from '@prisma/client';
 
-import { BadRequest, readBufferWithLimit } from '../../base';
+import { BadRequest, NotFound, readBufferWithLimit } from '../../base';
 import { Models } from '../../models';
 import type { OfficeOwner } from '../../models/office-owner';
+import { WorkspaceNativeResourceAccess } from '../doc/native-resource-access';
+import { ResourceError } from '../doc/resource-types';
 import { PermissionAccess } from '../permission';
 import { officeFingerprint } from './evidence';
 import { OfficeResourceStorage } from './resource-storage';
@@ -34,7 +36,8 @@ export class OfficeArtifactService {
   constructor(
     private readonly models: Models,
     private readonly storage: OfficeResourceStorage,
-    private readonly ac: PermissionAccess
+    private readonly ac: PermissionAccess,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess
   ) {}
 
   async list(
@@ -45,26 +48,20 @@ export class OfficeArtifactService {
   ) {
     await this.assertRead(owner, actorId);
     const artifacts = await this.models.officeArtifact.list(owner, limit, kind);
-    if (typeof owner !== 'string') {
-      const visible = [];
-      for (const artifact of artifacts) {
-        try {
-          visible.push(await this.get(owner, actorId, artifact.id));
-        } catch (error) {
-          if (!(error instanceof BadRequest)) throw error;
-        }
+    const visible = [];
+    for (const artifact of artifacts) {
+      try {
+        visible.push(await this.get(owner, actorId, artifact.id));
+      } catch (error) {
+        if (
+          !(error instanceof BadRequest) &&
+          !(error instanceof ResourceError) &&
+          !(error instanceof NotFound)
+        )
+          throw error;
       }
-      return visible;
     }
-    return await Promise.all(
-      artifacts.map(async artifact => ({
-        artifact,
-        revision: await this.models.officeArtifact.getCurrentRevision(
-          owner,
-          artifact.id
-        ),
-      }))
-    );
+    return visible;
   }
 
   async get(owner: OfficeOwner, actorId: string, artifactId: string) {
@@ -308,6 +305,13 @@ export class OfficeArtifactService {
     artifactId: string
   ) {
     await this.assertRead(owner, actorId);
+    if (typeof owner === 'string')
+      await this.nativeAccess.assert({
+        workspaceId: owner,
+        actorId,
+        resourceId: artifactId,
+        kind: 'office',
+      });
     const artifact = await this.requireArtifact(owner, artifactId);
     if (typeof owner !== 'string')
       await this.models.projectResource.assertOfficeResource({

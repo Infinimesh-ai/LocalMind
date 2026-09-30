@@ -2,7 +2,7 @@ mutation refreshProjectResourceSource(
   $projectId: String!
   $resourceId: String!
   $workspaceId: String!
-  $sourceResourceId: String!
+  $sourceResourceId: String!, $sourceKind: String
   $expectedContentVersion: Int!
   $expectedSourceVersion: String!
   $requestKey: String!
@@ -12,7 +12,7 @@ mutation refreshProjectResourceSource(
     projectId: $projectId
     resourceId: $resourceId
     workspaceId: $workspaceId
-    sourceResourceId: $sourceResourceId
+    sourceResourceId: $sourceResourceId, sourceKind: $sourceKind
     expectedContentVersion: $expectedContentVersion
     expectedSourceVersion: $expectedSourceVersion
     requestKey: $requestKey

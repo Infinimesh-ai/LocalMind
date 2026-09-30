@@ -457,7 +457,8 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       request.purpose !== 'project_copy' ||
       request.beneficiaryProjectId !== projectId ||
       request.workspaceId !== command.workspaceId ||
-      request.docId !== command.sourceResourceId
+      request.docId !== command.sourceResourceId ||
+      request.sourceKind !== (command.sourceKind ?? 'document')
     ) {
       await this.cancelCurrent(run);
       return;

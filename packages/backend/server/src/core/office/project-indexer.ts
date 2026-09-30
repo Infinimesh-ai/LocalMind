@@ -5,6 +5,7 @@ import { Models } from '../../models';
 import { parseYDocToMarkdown } from '../../native';
 import { ProjectResourceService } from '../project';
 import { OfficeArtifactService } from './artifact-service';
+import { nativeFileSearchText } from './file-content';
 import {
   OFFICE_FORMATS,
   officePackageSearchText,
@@ -73,6 +74,13 @@ export class ProjectResourceIndexer {
               resource.id,
               true
             ).markdown.slice(0, 250000),
+          });
+        } else if (resource.kind === 'file') {
+          const file = await this.resources.readFile(scope);
+          await this.models.projectResource.updateSearchText({
+            ...scope,
+            sequence: file.revision.sequence,
+            text: nativeFileSearchText(file.bytes, resource.title),
           });
         } else {
           await this.models.projectResource.updateSearchText({

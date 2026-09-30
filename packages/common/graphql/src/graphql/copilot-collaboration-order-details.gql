@@ -1,0 +1,16 @@
+query copilotCollaborationOrderDetails($workOrderId: ID!) {
+  currentUser {
+    copilot {
+      myWorkOrder(workOrderId: $workOrderId) {
+        id
+        purpose
+        requirements {
+          id
+          title
+          instructions
+          required
+        }
+      }
+    }
+  }
+}

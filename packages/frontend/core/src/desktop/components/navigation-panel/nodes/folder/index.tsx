@@ -3,14 +3,16 @@ import {
   AnimatedFolderIcon,
   type DropTargetDropEvent,
   type DropTargetOptions,
-  IconButton,
   MenuItem,
   MenuSeparator,
   MenuSub,
   notify,
   toast,
+  useConfirmModal,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { WorkspaceCreateMenu } from '@affine/core/components/native-files/create-menu';
+import { NativeResourceDropTarget } from '@affine/core/components/native-files/resource-drag';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
@@ -20,6 +22,8 @@ import {
   OrganizeService,
 } from '@affine/core/modules/organize';
 import { WorkspaceService } from '@affine/core/modules/workspace';
+import { WorkspaceLifecycleService } from '@affine/core/modules/workspace-resources';
+import { useWorkspaceResources } from '@affine/core/modules/workspace-resources/use-resources';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { Unreachable } from '@affine/env/constant';
 import { useI18n } from '@affine/i18n';
@@ -28,7 +32,6 @@ import {
   DeleteIcon,
   FolderIcon,
   PageIcon,
-  PlusIcon,
   PlusThickIcon,
   RemoveFolderIcon,
   TagsIcon,
@@ -48,6 +51,7 @@ import { NavigationPanelDocNode } from '../doc';
 import { NavigationPanelTagNode } from '../tag';
 import type { GenericNavigationPanelNode } from '../types';
 import { FolderEmpty } from './empty';
+import { NavigationPanelNativeFileNode } from './native-file';
 import { FavoriteFolderOperation } from './operations';
 
 export const NavigationPanelFolderNode = ({
@@ -73,6 +77,7 @@ export const NavigationPanelFolderNode = ({
   });
   const node = useLiveData(organizeService.folderTree.folderNode$(nodeId));
   const type = useLiveData(node?.type$);
+  const catalog = useWorkspaceResources();
   const data = useLiveData(node?.data$);
   const handleDrop = useCallback(
     (data: DropTargetDropEvent<AffineDNDData>) => {
@@ -97,6 +102,13 @@ export const NavigationPanelFolderNode = ({
     return;
   }
 
+  if (
+    type === 'doc' &&
+    data &&
+    catalog.items.some(item => item.id === data && item.kind === 'office')
+  ) {
+    return <NavigationPanelNativeFileNode resourceId={data} kind="office" />;
+  }
   if (type === 'folder') {
     return (
       <NavigationPanelFolderNodeFolder
@@ -126,6 +138,13 @@ export const NavigationPanelFolderNode = ({
         />
       )
     );
+  } else if (type === 'file' || type === 'office') {
+    return data ? (
+      <NavigationPanelNativeFileNode
+        resourceId={data}
+        kind={type === 'file' ? 'file' : 'office'}
+      />
+    ) : null;
   } else if (type === 'collection') {
     return (
       data && (
@@ -200,6 +219,9 @@ const NavigationPanelFolderNodeFolder = ({
     });
   const navigationPanelService = useService(NavigationPanelService);
   const name = useLiveData(node.name$);
+  const lifecycle = useService(WorkspaceLifecycleService);
+  const { openConfirmModal } = useConfirmModal();
+  const tree = useService(OrganizeService).folderTree;
   const canDelete = useLiveData(node.canDelete$);
   const canMutate = useLiveData(node.canMutate$);
   const enableEmojiIcon = useLiveData(
@@ -222,6 +244,25 @@ const NavigationPanelFolderNodeFolder = ({
     workspaceService.workspace.docCollection
   );
   const handleDelete = useCallback(async () => {
+    if (lifecycle.online && node.id) {
+      const folderId = node.id;
+      openConfirmModal({
+        title: t['com.affine.localmind.resources.moveToTrash'](),
+        description: name,
+        confirmText: t['Delete'](),
+        cancelText: t['Cancel'](),
+        confirmButtonOptions: { variant: 'error' },
+        onConfirm: async () => {
+          try {
+            await lifecycle.change('folder', folderId, 'trash');
+            await tree.refresh();
+          } catch {
+            toast(t['com.affine.localmind.project-files.operationFailed']());
+          }
+        },
+      });
+      return;
+    }
     try {
       if (!(await node.delete())) {
         toast(t['com.affine.rootAppSidebar.organize.delete.not-empty']());
@@ -243,7 +284,7 @@ const NavigationPanelFolderNodeFolder = ({
       );
       return undefined;
     }
-  }, [name, node, t]);
+  }, [name, node, t, lifecycle, openConfirmModal, tree]);
 
   const children = useLiveData(node.sortedChildren$);
 
@@ -647,23 +688,26 @@ const NavigationPanelFolderNodeFolder = ({
     [node]
   );
 
-  const handleNewDoc = useCallback(async () => {
-    try {
-      const newDoc = createPage();
-      await node.createLink('doc', newDoc.id, node.indexAt('before'));
-      track.$.navigationPanel.folders.createDoc();
-      track.$.navigationPanel.organize.createOrganizeItem({
-        type: 'link',
-        target: 'doc',
-      });
-      setCollapsed(false);
-    } catch (error) {
-      toast(
-        error instanceof Error ? error.message : 'Directory operation failed'
-      );
-      return undefined;
-    }
-  }, [createPage, node, setCollapsed]);
+  const handleNewDoc = useCallback(
+    async (mode?: 'page' | 'edgeless') => {
+      try {
+        const newDoc = createPage(mode);
+        await node.createLink('doc', newDoc.id, node.indexAt('before'));
+        track.$.navigationPanel.folders.createDoc();
+        track.$.navigationPanel.organize.createOrganizeItem({
+          type: 'link',
+          target: 'doc',
+        });
+        setCollapsed(false);
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
+    },
+    [createPage, node, setCollapsed]
+  );
 
   const handleCreateSubfolder = useCallback(async () => {
     try {
@@ -750,17 +794,12 @@ const NavigationPanelFolderNodeFolder = ({
         index: 0,
         inline: true,
         view: (
-          <IconButton
-            size="16"
-            onClick={() => {
-              handleNewDoc().catch(console.error);
-            }}
-            tooltip={t[
-              'com.affine.rootAppSidebar.explorer.organize-add-tooltip'
-            ]()}
-          >
-            <PlusIcon />
-          </IconButton>
+          <WorkspaceCreateMenu
+            parentId={node.id}
+            onPage={() => handleNewDoc('page')}
+            onEdgeless={() => handleNewDoc('edgeless')}
+            onFolder={handleCreateSubfolder}
+          />
         ),
       },
       {
@@ -836,17 +875,19 @@ const NavigationPanelFolderNodeFolder = ({
             onClick={() => {
               handleDelete().catch(console.error);
             }}
-            disabled={!canDelete}
-            aria-disabled={!canDelete}
+            disabled={!canDelete && !lifecycle.online}
+            aria-disabled={!canDelete && !lifecycle.online}
             title={
-              !canDelete
+              !canDelete && !lifecycle.online
                 ? t['com.affine.rootAppSidebar.organize.delete.not-empty']()
                 : undefined
             }
           >
-            {canDelete
-              ? t['com.affine.rootAppSidebar.organize.delete']()
-              : t['com.affine.rootAppSidebar.organize.delete.empty-only']()}
+            {lifecycle.online
+              ? t['com.affine.localmind.resources.moveToTrash']()
+              : canDelete
+                ? t['com.affine.rootAppSidebar.organize.delete']()
+                : t['com.affine.rootAppSidebar.organize.delete.empty-only']()}
           </MenuItem>
         ),
       },
@@ -854,6 +895,7 @@ const NavigationPanelFolderNodeFolder = ({
   }, [
     canMutate,
     canDelete,
+    lifecycle.online,
     handleAddToFolder,
     handleCreateSubfolder,
     handleDelete,
@@ -922,56 +964,58 @@ const NavigationPanelFolderNodeFolder = ({
   );
 
   return (
-    <NavigationPanelTreeNode
-      icon={NavigationPanelFolderIcon}
-      name={name}
-      dndData={dndData}
-      onDrop={(...args) => {
-        handleDropOnFolder(...args).catch(console.error);
-      }}
-      defaultRenaming={defaultRenaming}
-      renameable={canMutate}
-      extractEmojiAsIcon={enableEmojiIcon}
-      reorderable={canMutate && reorderable}
-      collapsed={collapsed}
-      setCollapsed={handleCollapsedChange}
-      onRename={(...args) => {
-        handleRename(...args).catch(console.error);
-      }}
-      operations={finalOperations}
-      canDrop={canMutate ? handleCanDrop : () => false}
-      childrenPlaceholder={
-        <FolderEmpty
-          canDrop={canMutate ? handleCanDrop : () => false}
-          onDrop={(...args) => {
-            handleDropOnPlaceholder(...args).catch(console.error);
-          }}
-        />
-      }
-      dropEffect={handleDropEffect}
-      data-testid={`navigation-panel-folder-${node.id}`}
-      explorerIconConfig={
-        canMutate && node.id ? { where: 'folder', id: node.id } : null
-      }
-    >
-      {children.map(child => (
-        <NavigationPanelFolderNode
-          key={child.id}
-          nodeId={child.id as string}
-          defaultRenaming={child.id === newFolderId}
-          onDrop={(data, child?: FolderNode) => {
-            handleDropOnChildren(data, child).catch(console.error);
-          }}
-          operations={childrenOperations}
-          dropEffect={handleDropEffectOnChildren}
-          canDrop={handleChildrenCanDrop}
-          location={{
-            at: 'navigation-panel:organize:folder-node',
-            nodeId: child.id as string,
-          }}
-          parentPath={path}
-        />
-      ))}
-    </NavigationPanelTreeNode>
+    <NativeResourceDropTarget folderId={node.id} disabled={!canMutate}>
+      <NavigationPanelTreeNode
+        icon={NavigationPanelFolderIcon}
+        name={name}
+        dndData={dndData}
+        onDrop={(...args) => {
+          handleDropOnFolder(...args).catch(console.error);
+        }}
+        defaultRenaming={defaultRenaming}
+        renameable={canMutate}
+        extractEmojiAsIcon={enableEmojiIcon}
+        reorderable={canMutate && reorderable}
+        collapsed={collapsed}
+        setCollapsed={handleCollapsedChange}
+        onRename={(...args) => {
+          handleRename(...args).catch(console.error);
+        }}
+        operations={finalOperations}
+        canDrop={canMutate ? handleCanDrop : () => false}
+        childrenPlaceholder={
+          <FolderEmpty
+            canDrop={canMutate ? handleCanDrop : () => false}
+            onDrop={(...args) => {
+              handleDropOnPlaceholder(...args).catch(console.error);
+            }}
+          />
+        }
+        dropEffect={handleDropEffect}
+        data-testid={`navigation-panel-folder-${node.id}`}
+        explorerIconConfig={
+          canMutate && node.id ? { where: 'folder', id: node.id } : null
+        }
+      >
+        {children.map(child => (
+          <NavigationPanelFolderNode
+            key={child.id}
+            nodeId={child.id as string}
+            defaultRenaming={child.id === newFolderId}
+            onDrop={(data, child?: FolderNode) => {
+              handleDropOnChildren(data, child).catch(console.error);
+            }}
+            operations={childrenOperations}
+            dropEffect={handleDropEffectOnChildren}
+            canDrop={handleChildrenCanDrop}
+            location={{
+              at: 'navigation-panel:organize:folder-node',
+              nodeId: child.id as string,
+            }}
+            parentPath={path}
+          />
+        ))}
+      </NavigationPanelTreeNode>
+    </NativeResourceDropTarget>
   );
 };

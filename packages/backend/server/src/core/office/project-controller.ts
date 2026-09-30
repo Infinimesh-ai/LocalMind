@@ -1,7 +1,8 @@
+import { officeDownloadFileName } from '@localmind/office';
 import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { applyAttachHeaders, BadRequest } from '../../base';
+import { BadRequest } from '../../base';
 import { CurrentUser, type CurrentUser as User } from '../auth';
 import { OfficeArtifactService } from './artifact-service';
 
@@ -52,10 +53,11 @@ export class ProjectOfficeController {
       "default-src 'none'; sandbox"
     );
     if (kind === 'package')
-      applyAttachHeaders(response, {
-        contentType: asset.revision.packageMimeType,
-        filename: asset.artifact.sourceFileName,
-      });
+      response
+        .attachment(
+          officeDownloadFileName(asset.artifact.title, asset.artifact.kind)
+        )
+        .type(asset.revision.packageMimeType);
     response.send(asset.bytes);
   }
 
@@ -75,10 +77,9 @@ export class ProjectOfficeController {
     );
     response.setHeader('cache-control', 'private, no-store');
     response.setHeader('x-content-type-options', 'nosniff');
-    applyAttachHeaders(response, {
-      contentType: asset.mimeType,
-      filename: `${asset.artifact.title}.pdf`,
-    });
+    response
+      .attachment(officeDownloadFileName(asset.artifact.title, 'pdf'))
+      .type(asset.mimeType);
     response.send(asset.bytes);
   }
 }

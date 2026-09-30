@@ -2,6 +2,10 @@
 
 日期：2026-09-22。版本：1.0。状态：实施方案，尚未执行。
 
+后续确认的接单对话与 AI 辅助交付流程以
+[Project 个人工单交付契约](project-work-order-ai-delivery-contract.zh-CN.md)为准；本文中
+右侧表单手工提交的交互描述仅作 v9 实施历史，其余存储、权限和回执边界继续有效。
+
 本方案将[设计讨论稿](project-workbench-v9-design.zh-CN.md)中已确认的决定（整理基线 v0.17），
 适配到当前 LocalMind 工作树。配套执行入口是
 [Project v9 Goal 指令](project-workbench-v9.goal.md)。生成这些文件不启动 Goal，
@@ -362,6 +366,12 @@ i18n 与所有消费者一起生成/升级。下载走经授权控制器，不�
 不新增邮件/推送外发。重新投递通知不能重复建会话、工单或交付。
 
 ### 8.3 关系图复用方式
+
+后续专项决定（2026-09-24）：当前已完成的临时 GFX 宿主将按
+[关系图 v9 对齐方案](project-relationship-graph-v9-implementation.zh-CN.md)
+替换为独立 React + SVG 只读视图。新方案采用交付方向的 SVG 箭头，保持旧 GraphQL
+`from/to` 派单语义兼容，并补有效本人草稿和按交付版本核对的 adoption 状态。
+以下 GFX 优先步骤属于旧 v9 Goal 的历史实施方案，不再指导这个后续专项。
 
 Agent 负责识别需求、生成经确认的结构化工单；程序从持久工单确定性生成图，不能让
 模型每次重新猜边和状态。方向固定为发单人 → 接单人，每张工单显示独立标题、

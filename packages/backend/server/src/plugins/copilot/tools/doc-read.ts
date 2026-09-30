@@ -56,10 +56,9 @@ export const buildDocContentGetter = (
       return documentSyncPendingError(docId);
     }
 
-    const content = await docReader.getDocMarkdown(
+    const content = await docReader.getVersionedDocMarkdown(
       options.workspace,
-      docId,
-      true
+      docId
     );
     if (!content) {
       return documentSyncPendingError(docId);
@@ -69,6 +68,7 @@ export const buildDocContentGetter = (
       docId,
       title: content.title,
       markdown: content.markdown,
+      version: content.version,
       createdAt: docMeta.createdAt.toISOString(),
       updatedAt: docMeta.updatedAt.toISOString(),
       createdByUser: docMeta.createdByUser,
@@ -87,7 +87,7 @@ export const createDocReadTool = (
 ) => {
   return defineTool({
     description:
-      'Return the complete text and basic metadata of a single document identified by docId; use this when the user needs the full content of a specific file rather than a search result.',
+      'Return the complete text, content version and basic metadata of a single document. Before workspace_doc_update, read the document and pass its version as expected_version. A conflict requires a new read and merge.',
     inputSchema: z.object({
       doc_id: z.string().describe('The target doc to read'),
     }),

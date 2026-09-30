@@ -6,9 +6,11 @@ import Sinon from 'sinon';
 import * as Y from 'yjs';
 
 import { DocReader, DocWriter } from '../../core/doc';
+import { WorkspaceNativeResourceService } from '../../core/office/workspace-resource-service';
 import { ProjectResourceService } from '../../core/project';
 import {
   ProjectDestinationFolderService,
+  ProjectImportService,
   ProjectPublicationService,
   ProjectTransferModule,
   ProjectWorkspaceImportService,
@@ -523,4 +525,206 @@ test('removed Project members and disabled source sharing cannot execute queued 
   });
   await worker.run({});
   t.is(await db.projectResource.count(), 0);
+});
+
+test('native Workspace files require typed copy approval and import independent versioned bytes', async t => {
+  const {
+    module,
+    service,
+    worker,
+    models,
+    db,
+    projectId,
+    workspaceId,
+    actorId,
+    ownerId,
+  } = t.context;
+  const files = module.get(WorkspaceNativeResourceService);
+  const file = await files.create({
+    workspaceId,
+    actorId: ownerId,
+    title: 'source.md',
+    content: { format: 'md', text: '# Native source' },
+    requestKey: 'native-create',
+  });
+  const selected = {
+    ...selection(t.context),
+    sourceResourceId: file.id,
+    sourceKind: 'workspace_file' as const,
+  };
+  const candidates = await service.sources({ projectId, workspaceId, actorId });
+  t.is(
+    candidates.items.find(item => item.id === file.id)?.permission,
+    'approval'
+  );
+  const run = await service.submit(selected);
+  const command = projectWorkspaceImportCommand.parse(
+    run.steps.find(step => step.stepKey === 'execute')?.input
+  );
+  t.is(command.version, 'project-workspace-import/v2');
+  t.is(command.sourceKind, 'workspace_file');
+  t.is(run.status, 'waiting_approval');
+  await t.throwsAsync(
+    models.intelligenceWorkbenchAuthorization.approveAccessRequest({
+      requestId: command.accessRequestId!,
+      actorUserId: actorId,
+    })
+  );
+  await models.intelligenceWorkbenchAuthorization.approveAccessRequest({
+    requestId: command.accessRequestId!,
+    actorUserId: ownerId,
+  });
+  const approval = await db.aiContextProjectCopyAuthorization.findUniqueOrThrow(
+    { where: { requestId: command.accessRequestId! } }
+  );
+  t.is(approval.sourceKind, 'workspace_file');
+  t.is(approval.grantId, null);
+  t.is(
+    await db.aiContextProjectGrant.count({
+      where: { workspaceId, docId: file.id },
+    }),
+    0
+  );
+  await t.throwsAsync(
+    models.intelligenceWorkbenchAuthorization.projectCopyPermission({
+      projectId,
+      workspaceId,
+      actorId,
+      docId: file.id,
+    })
+  );
+  await worker.run({});
+  const finished = await models.copilotProjectAgentRuntime.get({
+    projectId,
+    actorId,
+    runId: run.id,
+  });
+  t.is(finished.status, 'completed', finished.failureMessage ?? undefined);
+  const copy = await db.projectResource.findFirstOrThrow({
+    where: { projectId, kind: 'file' },
+  });
+  t.not(copy.id, file.id);
+  t.is(
+    (
+      await module
+        .get(ProjectResourceService)
+        .readTextFile({ projectId, actorId, resourceId: copy.id })
+    ).text,
+    '# Native source'
+  );
+  const changed = await files.save({
+    workspaceId,
+    actorId: ownerId,
+    resourceId: file.id,
+    kind: 'file',
+    expectedContentVersion: 1,
+    requestKey: 'edit-native',
+    text: '# Changed source',
+  });
+  const lease = await models.projectResourceEditLease.acquire({
+    projectId,
+    actorId,
+    resourceId: copy.id,
+    kind: 'user',
+    tabId: 'refresh-native',
+  });
+  const refresh = {
+    projectId,
+    workspaceId,
+    actorId,
+    sourceResourceId: file.id,
+    sourceKind: 'workspace_file' as const,
+    kind: 'file' as const,
+    requestKey: 'refresh-native',
+    editLease: {
+      kind: 'user' as const,
+      tabId: 'refresh-native',
+      leaseId: lease.lease!.leaseId,
+    },
+    replace: {
+      resourceId: copy.id,
+      expectedContentVersion: 1,
+      expectedSourceVersion: changed.revisionId,
+    },
+  };
+  await module.get(ProjectImportService).import(refresh);
+  t.is(
+    (
+      await module
+        .get(ProjectResourceService)
+        .readTextFile({ projectId, actorId, resourceId: copy.id })
+    ).text,
+    '# Changed source'
+  );
+  t.is(
+    (
+      await models.projectResource.linkedSources({
+        projectId,
+        actorId,
+        resourceId: copy.id,
+      })
+    )[0].sourceKind,
+    'workspace_file'
+  );
+  await files.change({
+    workspaceId,
+    actorId: ownerId,
+    resourceId: file.id,
+    kind: 'file',
+    action: 'trash',
+    expectedVersion: 1,
+    requestKey: 'trash-source',
+  });
+  await t.throwsAsync(
+    module.get(ProjectImportService).import({
+      ...refresh,
+      requestKey: 'after-trash',
+      replace: { ...refresh.replace, expectedContentVersion: 2 },
+    })
+  );
+  t.is(
+    (
+      await module
+        .get(ProjectResourceService)
+        .readTextFile({ projectId, actorId, resourceId: copy.id })
+    ).text,
+    '# Changed source'
+  );
+});
+
+test('legacy import commands cannot gain native resource authority', async t => {
+  const { module, service, ownerId, projectId, workspaceId } = t.context;
+  const file = await module.get(WorkspaceNativeResourceService).create({
+    workspaceId,
+    actorId: ownerId,
+    title: 'new.txt',
+    content: { format: 'txt', text: 'native' },
+    requestKey: 'native',
+  });
+  const run = await service.submit({
+    ...selection(t.context),
+    actorId: ownerId,
+    sourceResourceId: file.id,
+    sourceKind: 'workspace_file',
+    requestApproval: false,
+  });
+  const command = projectWorkspaceImportCommand.parse(
+    run.steps.find(step => step.stepKey === 'execute')?.input
+  );
+  t.false(
+    projectWorkspaceImportCommand.safeParse({
+      ...command,
+      version: 'project-workspace-import/v1',
+    }).success
+  );
+  await t.throwsAsync(
+    module.get(ProjectImportService).import({
+      projectId,
+      workspaceId,
+      actorId: ownerId,
+      sourceResourceId: file.id,
+      kind: 'file',
+      requestKey: 'legacy',
+    })
+  );
 });

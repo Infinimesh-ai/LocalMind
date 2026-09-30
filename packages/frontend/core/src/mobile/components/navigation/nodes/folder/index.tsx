@@ -5,12 +5,15 @@ import {
   MenuSub,
   notify,
   toast,
+  useConfirmModal,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { WorkspaceCreateMenu } from '@affine/core/components/native-files/create-menu';
 import type {
   NavigationPanelTreeNodeIcon,
   NodeOperation,
 } from '@affine/core/desktop/components/navigation-panel';
+import { NavigationPanelNativeFileNode } from '@affine/core/desktop/components/navigation-panel/nodes/folder/native-file';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import { NavigationPanelService } from '@affine/core/modules/navigation-panel';
@@ -19,6 +22,8 @@ import {
   OrganizeService,
 } from '@affine/core/modules/organize';
 import { WorkspaceService } from '@affine/core/modules/workspace';
+import { WorkspaceLifecycleService } from '@affine/core/modules/workspace-resources';
+import { useWorkspaceResources } from '@affine/core/modules/workspace-resources/use-resources';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import {
@@ -59,6 +64,7 @@ export const NavigationPanelFolderNode = ({
   });
   const node = useLiveData(organizeService.folderTree.folderNode$(nodeId));
   const type = useLiveData(node?.type$);
+  const catalog = useWorkspaceResources();
   const data = useLiveData(node?.data$);
 
   const additionalOperations = useMemo(() => {
@@ -75,6 +81,19 @@ export const NavigationPanelFolderNode = ({
     return;
   }
 
+  if (
+    type === 'doc' &&
+    data &&
+    catalog.items.some(item => item.id === data && item.kind === 'office')
+  ) {
+    return (
+      <NavigationPanelNativeFileNode
+        resourceId={data}
+        kind="office"
+        renderNode={renderNativeFileNode}
+      />
+    );
+  }
   if (type === 'folder') {
     return (
       <NavigationPanelFolderNodeFolder
@@ -92,6 +111,14 @@ export const NavigationPanelFolderNode = ({
         isInFolder
         operations={additionalOperations}
         parentPath={parentPath}
+      />
+    );
+  } else if (type === 'file' || type === 'office') {
+    return (
+      <NavigationPanelNativeFileNode
+        resourceId={data}
+        kind={type === 'file' ? 'file' : 'office'}
+        renderNode={renderNativeFileNode}
       />
     );
   } else if (type === 'collection') {
@@ -115,6 +142,23 @@ export const NavigationPanelFolderNode = ({
   return;
 };
 
+const ignoreNativeCollapse = () => {};
+const renderNativeFileNode = (
+  name: string,
+  onClick: () => void,
+  actions: ReactNode
+) => (
+  <NavigationPanelTreeNode
+    name={name}
+    icon={PageIcon}
+    collapsed
+    collapsible={false}
+    setCollapsed={ignoreNativeCollapse}
+    onClick={onClick}
+    postfix={<div onClick={event => event.stopPropagation()}>{actions}</div>}
+  />
+);
+
 const NavigationPanelFolderIcon: NavigationPanelTreeNodeIcon = ({
   collapsed,
   className,
@@ -130,6 +174,7 @@ const NavigationPanelFolderIcon: NavigationPanelTreeNodeIcon = ({
 );
 
 const NavigationPanelFolderMenu = ({
+  trash = false,
   nodeId,
   canDelete,
   name,
@@ -141,6 +186,7 @@ const NavigationPanelFolderMenu = ({
   additionalOperations,
 }: {
   nodeId: string;
+  trash?: boolean;
   canDelete: boolean;
   name: string;
   handleDelete: () => void;
@@ -237,9 +283,11 @@ const NavigationPanelFolderMenu = ({
                 : undefined
             }
           >
-            {canDelete
-              ? t['com.affine.rootAppSidebar.organize.delete']()
-              : t['com.affine.rootAppSidebar.organize.delete.empty-only']()}
+            {trash
+              ? t['com.affine.localmind.resources.moveToTrash']()
+              : canDelete
+                ? t['com.affine.rootAppSidebar.organize.delete']()
+                : t['com.affine.rootAppSidebar.organize.delete.empty-only']()}
           </MenuItem>
         ),
       },
@@ -247,6 +295,7 @@ const NavigationPanelFolderMenu = ({
     [
       canDelete,
       createSubTipRenderer,
+      trash,
       handleAddToFolder,
       handleCreateSubfolder,
       handleDelete,
@@ -277,13 +326,34 @@ export const NavigationPanelFolderNodeMenu = ({
   });
   const node = useLiveData(organizeService.folderTree.folderNode$(nodeId));
   const name = useLiveData(node?.name$) ?? '';
-  const canDelete = useLiveData(node?.canDelete$) ?? false;
+  const lifecycle = useService(WorkspaceLifecycleService);
+  const { openConfirmModal } = useConfirmModal();
+  const canDelete =
+    (useLiveData(node?.canDelete$) ?? false) || lifecycle.online;
   const canMutate = useLiveData(node?.canMutate$) ?? false;
   const children = useLiveData(node?.sortedChildren$);
 
   const handleDelete = useCallback(async () => {
     try {
-      if (!node) return;
+      if (!node?.id) return;
+      const folderId = node.id;
+      if (lifecycle.online) {
+        openConfirmModal({
+          title: t['com.affine.localmind.resources.moveToTrash'](),
+          description: name,
+          confirmText: t['Delete'](),
+          cancelText: t['Cancel'](),
+          onConfirm: async () => {
+            try {
+              await lifecycle.change('folder', folderId, 'trash');
+              await organizeService.folderTree.refresh();
+            } catch {
+              toast(t['com.affine.localmind.project-files.operationFailed']());
+            }
+          },
+        });
+        return;
+      }
       if (!(await node.delete())) {
         toast(t['com.affine.rootAppSidebar.organize.delete.not-empty']());
         return;
@@ -302,7 +372,7 @@ export const NavigationPanelFolderNodeMenu = ({
       );
       return undefined;
     }
-  }, [name, node, t]);
+  }, [name, node, t, lifecycle, openConfirmModal, organizeService]);
   const handleRename = useCallback(
     async (newName: string) => {
       try {
@@ -319,7 +389,7 @@ export const NavigationPanelFolderNodeMenu = ({
   const handleCreateSubfolder = useCallback(
     async (newName: string) => {
       try {
-        if (!node) return;
+        if (!node?.id) return;
         await node.createFolder(newName, node.indexAt('before'));
         track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
       } catch (error) {
@@ -333,7 +403,7 @@ export const NavigationPanelFolderNodeMenu = ({
   );
   const handleAddToFolder = useCallback(
     (type: 'doc' | 'collection' | 'tag') => {
-      if (!node) return;
+      if (!node?.id) return;
       const currentChildren = children ?? [];
       const initialIds = currentChildren
         .filter(child => child.type$.value === type)
@@ -390,6 +460,7 @@ export const NavigationPanelFolderNodeMenu = ({
   if (!node || !canMutate) return null;
   return (
     <NavigationPanelFolderMenu
+      trash={lifecycle.online}
       nodeId={nodeId}
       name={name}
       handleDelete={(...args) => {
@@ -446,23 +517,26 @@ const NavigationPanelFolderNodeFolder = ({
   );
   const children = useLiveData(node.sortedChildren$);
 
-  const handleNewDoc = useCallback(async () => {
-    try {
-      const newDoc = createPage();
-      await node.createLink('doc', newDoc.id, node.indexAt('before'));
-      track.$.navigationPanel.folders.createDoc();
-      track.$.navigationPanel.organize.createOrganizeItem({
-        type: 'link',
-        target: 'doc',
-      });
-      setCollapsed(false);
-    } catch (error) {
-      toast(
-        error instanceof Error ? error.message : 'Directory operation failed'
-      );
-      return undefined;
-    }
-  }, [createPage, node, setCollapsed]);
+  const handleNewDoc = useCallback(
+    async (mode?: 'page' | 'edgeless') => {
+      try {
+        const newDoc = createPage(mode);
+        await node.createLink('doc', newDoc.id, node.indexAt('before'));
+        track.$.navigationPanel.folders.createDoc();
+        track.$.navigationPanel.organize.createOrganizeItem({
+          type: 'link',
+          target: 'doc',
+        });
+        setCollapsed(false);
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
+    },
+    [createPage, node, setCollapsed]
+  );
 
   const menuTarget = useMemo(
     () => (
@@ -545,13 +619,16 @@ const NavigationPanelFolderNodeFolder = ({
         />
       ))}
       {canMutate ? (
-        <AddItemPlaceholder
-          label={t['com.affine.rootAppSidebar.organize.folder.new-doc']()}
-          onClick={() => {
-            handleNewDoc().catch(console.error);
-          }}
-          data-testid="new-folder-in-folder-button"
-        />
+        <WorkspaceCreateMenu
+          parentId={node.id}
+          onPage={() => handleNewDoc('page')}
+          onEdgeless={() => handleNewDoc('edgeless')}
+        >
+          <AddItemPlaceholder
+            label={t['com.affine.localmind.resources.create']()}
+            data-testid="new-folder-in-folder-button"
+          />
+        </WorkspaceCreateMenu>
       ) : null}
     </NavigationPanelTreeNode>
   );

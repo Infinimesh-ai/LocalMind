@@ -1,0 +1,6 @@
+query workspaceNativeFileText($input: WorkspaceNativeIdentityInput!, $sequence: Int) {
+  workspaceNativeFileText(input: $input, sequence: $sequence) { text contentVersion revisionId title byteSize mimeType }
+}
+query workspaceNativeRevisions($input: WorkspaceNativeIdentityInput!, $before: Int, $limit: Int) {
+  workspaceNativeRevisions(input: $input, before: $before, limit: $limit) { id sequence createdAt actorId byteSize }
+}

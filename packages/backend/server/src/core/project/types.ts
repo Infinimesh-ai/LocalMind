@@ -121,3 +121,52 @@ export class SaveProjectDocumentInput {
   @Field() requestKey!: string;
   @Field() snapshotBase64!: string;
 }
+
+@ObjectType()
+export class ProjectFileTextType {
+  @Field() text!: string;
+  @Field(() => Int) contentVersion!: number;
+  @Field() mimeType!: string;
+  @Field(() => Int) byteSize!: number;
+}
+
+@InputType()
+export class SaveProjectFileInput {
+  @Field(() => ProjectEditLeaseProofInput)
+  editLease!: ProjectEditLeaseProofInput;
+  @Field(() => ID) projectId!: string;
+  @Field(() => ID) resourceId!: string;
+  @Field(() => Int) expectedContentVersion!: number;
+  @Field() requestKey!: string;
+  @Field(() => String, { nullable: true }) text?: string;
+  @Field(() => String, { nullable: true }) blobKey?: string;
+}
+
+@ObjectType()
+export class ProjectContentHistoryType {
+  @Field(() => ID) id!: string;
+  @Field(() => Int) sequence!: number;
+  @Field(() => ID) actorId!: string;
+  @Field(() => GraphQLISODateTime) createdAt!: Date;
+}
+
+@InputType()
+export class RestoreProjectResourceVersionInput {
+  @Field(() => ID) projectId!: string;
+  @Field(() => ID) resourceId!: string;
+  @Field(() => Int) sequence!: number;
+  @Field(() => Int) expectedContentVersion!: number;
+  @Field() requestKey!: string;
+  @Field(() => ProjectEditLeaseProofInput)
+  editLease!: ProjectEditLeaseProofInput;
+}
+
+@InputType()
+export class CopyProjectResourceInput {
+  @Field(() => ID) projectId!: string;
+  @Field(() => ID) resourceId!: string;
+  @Field() title!: string;
+  @Field(() => ID, { nullable: true }) parentId?: string | null;
+  @Field(() => Int) expectedContentVersion!: number;
+  @Field() requestKey!: string;
+}

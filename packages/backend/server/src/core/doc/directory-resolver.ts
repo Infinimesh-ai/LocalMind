@@ -12,7 +12,7 @@ import {
 } from '@nestjs/graphql';
 import { z } from 'zod';
 
-import { BadRequest, Throttle } from '../../base';
+import { BadRequest, NotFound, Throttle } from '../../base';
 import { Models } from '../../models';
 import {
   WORKSPACE_DIRECTORY_MEMBERS,
@@ -22,6 +22,7 @@ import { type CurrentUser as Actor, CurrentUser } from '../auth/session';
 import { PermissionAccess } from '../permission';
 import { RealtimePublisher } from '../realtime/publisher';
 import { realtimeWorkspaceDirectoryPolicyRoom } from '../realtime/rooms';
+import { ResourceError } from './resource-types';
 import { WorkspaceOrganizationService } from './workspace-organization';
 
 @ObjectType()
@@ -147,7 +148,7 @@ class WorkspaceDirectoryMutationType {
 const entrySchema = z.object({
   id: z.string().min(1).max(256),
   parentId: z.string().min(1).max(256).nullish(),
-  type: z.enum(['folder', 'doc', 'tag', 'collection']),
+  type: z.enum(['folder', 'doc', 'tag', 'collection', 'file', 'office']),
   data: z.string().min(1).max(512),
   index: z.string().min(1).max(256),
 });
@@ -454,6 +455,29 @@ export class WorkspaceDirectoryResolver {
         const items: WorkspaceDirectoryEntryType[] = [];
         for (const row of candidates) {
           if (row.type === 'doc' && !readable.has(row.data)) continue;
+          if (row.type === 'file' || row.type === 'office') {
+            if (
+              !(await this.ac
+                .user(actor.id)
+                .workspace(workspaceId)
+                .can('Workspace.Blobs.Read'))
+            )
+              continue;
+            const identity = {
+              workspaceId,
+              actorId: actor.id,
+              resourceId: row.data,
+              kind: row.type,
+            };
+            try {
+              await this.models.workspaceNativeResource.get(identity);
+              await this.organization.nativeResourceLocations(identity);
+            } catch (error) {
+              if (error instanceof NotFound || error instanceof ResourceError)
+                continue;
+              throw error;
+            }
+          }
           items.push(row);
         }
         const { fullSyncAllowed, rootRights } = snapshot;

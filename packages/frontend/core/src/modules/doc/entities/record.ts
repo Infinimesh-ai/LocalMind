@@ -3,6 +3,7 @@ import type { DocMeta } from '@blocksuite/affine/store';
 import { Entity, LiveData } from '@toeverything/infra';
 
 import type { DocProperties } from '../../db';
+import type { WorkspaceLifecycleService } from '../../workspace-resources';
 import type { DocPropertiesStore } from '../stores/doc-properties';
 import type { DocsStore } from '../stores/docs';
 
@@ -15,7 +16,8 @@ export class DocRecord extends Entity<{ id: string }> {
   id: string = this.props.id;
   constructor(
     private readonly docsStore: DocsStore,
-    private readonly docPropertiesStore: DocPropertiesStore
+    private readonly docPropertiesStore: DocPropertiesStore,
+    private readonly lifecycle?: WorkspaceLifecycleService
   ) {
     super();
   }
@@ -83,11 +85,17 @@ export class DocRecord extends Entity<{ id: string }> {
   }
 
   moveToTrash() {
-    return this.setMeta({ trash: true, trashDate: Date.now() });
+    const local = () => this.setMeta({ trash: true, trashDate: Date.now() });
+    return this.lifecycle
+      ? this.lifecycle.change('doc', this.id, 'trash', local)
+      : Promise.resolve(local());
   }
 
   restoreFromTrash() {
-    return this.setMeta({ trash: false, trashDate: undefined });
+    const local = () => this.setMeta({ trash: false, trashDate: undefined });
+    return this.lifecycle
+      ? this.lifecycle.change('doc', this.id, 'restore', local)
+      : Promise.resolve(local());
   }
 
   title$ = this.meta$.map(meta => meta.title ?? '');

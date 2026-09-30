@@ -57,6 +57,13 @@ const requirementSchema = z
         message: 'Text requirements cannot use file validation',
       });
     }
+    if (value.validationMode === 'bounded_model') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Semantic validation is unavailable; revise this requirement to an explicitly verifiable return',
+      });
+    }
   });
 
 const recipientDraftSchema = z.object({
@@ -90,18 +97,68 @@ const deliveryItemSchema = z.object({
   text: z.string().trim().max(200_000).optional(),
 });
 
+const deliveryDraftItemsSchema = z
+  .array(deliveryItemSchema.strict())
+  .max(64)
+  .superRefine((items, context) => {
+    const seen = new Set<string>();
+    for (const [index, item] of items.entries()) {
+      if (seen.has(item.requirementId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'requirementId'],
+          message: 'Delivery draft repeats a requirement',
+        });
+      }
+      seen.add(item.requirementId);
+    }
+  });
+
 export type WorkOrderRequirementDraft = z.infer<typeof requirementSchema>;
 export type WorkOrderRecipientDraft = z.infer<typeof recipientDraftSchema>;
 export type PrepareWorkOrderDispatchInput = z.input<
   typeof prepareDispatchSchema
 >;
 export type WorkOrderDeliveryItemInput = z.infer<typeof deliveryItemSchema>;
+export type WorkOrderDeliveryDraftItem = z.infer<
+  typeof deliveryDraftItemsSchema
+>[number];
 
 export const WORK_ORDER_TERMINAL_STATUSES = [
   'delivered',
   'refused',
   'cancelled',
 ] as const;
+
+type CollaborationNavigation =
+  | { kind: 'work_order'; workOrderId: string }
+  | { kind: 'project_session'; sessionId: string; projectId: string }
+  | {
+      kind: 'workspace_session';
+      sessionId: string;
+      workspaceId: string;
+      docId: string;
+    }
+  | { kind: 'unavailable' };
+
+const conversationCreatedEvidence = z.object({ sessionId: id });
+
+type CollaborationEdge = {
+  id: string;
+  kind: 'sent' | 'draft';
+  from: string;
+  to: string;
+  status: string;
+  label: string;
+  requirementTitles: string[];
+  requirementItems: Array<{ id: string; title: string; kind: string }>;
+  ownConversationExists: boolean;
+  project: { id: string; name: string } | null;
+  sourceKind: string;
+  updatedAt: Date;
+  expiresAt: Date | null;
+  ownNavigation: CollaborationNavigation;
+};
 
 function stableStringify(value: unknown): string {
   if (Array.isArray(value)) {
@@ -268,6 +325,7 @@ export class CopilotWorkOrderModel extends BaseModel {
             expiresAt: new Date(Date.now() + 30 * 60 * 1000),
           },
         });
+        await this.notifyGraphChanged(data.actorId);
         return {
           dispatch: refreshed,
           confirmationToken: replacementToken,
@@ -294,6 +352,7 @@ export class CopilotWorkOrderModel extends BaseModel {
         confirmationHash: confirmationHash(token),
       },
     });
+    await this.notifyGraphChanged(data.actorId);
     return { dispatch, confirmationToken: token, confirmationRequired: true };
   }
 
@@ -398,6 +457,7 @@ export class CopilotWorkOrderModel extends BaseModel {
       await this.db.workOrder.create({
         data: {
           id: workOrderId,
+          templateVersion: 2,
           dispatchId: dispatch.id,
           sourceSessionId,
           sourceProjectIdSnapshot: sourceProject?.id ?? null,
@@ -461,6 +521,10 @@ export class CopilotWorkOrderModel extends BaseModel {
       });
     }
     await this.reopenConversationForNewWork(sourceSessionId, actorId);
+    await this.notifyGraphChanged(
+      actorId,
+      ...draft.map(item => item.recipientId)
+    );
     return this.dispatchResult(dispatch.id, actorId);
   }
 
@@ -472,7 +536,14 @@ export class CopilotWorkOrderModel extends BaseModel {
         exchanges: { orderBy: { createdAt: 'asc' } },
         sessionBinding: true,
         sourceSession: {
-          select: { contextEpoch: true, selectedContextProjectId: true },
+          select: {
+            contextEpoch: true,
+            selectedContextProjectId: true,
+            workspaceId: true,
+            docId: true,
+            scopeType: true,
+            userId: true,
+          },
         },
         blobs: {
           where: { ownerId: actorId, status: 'staged' },
@@ -505,6 +576,432 @@ export class CopilotWorkOrderModel extends BaseModel {
         : order.sourceSessionId
           ? { kind: 'source' as const, sessionId: order.sourceSessionId }
           : null,
+    };
+  }
+
+  async getDeliveryDraft(workOrderId: string, actorId: string) {
+    const order = await this.assertRecipient(workOrderId, actorId);
+    const [draft, requirements, blobs] = await Promise.all([
+      this.db.workOrderDeliveryDraft.findUnique({
+        where: { workOrderId: order.id, ownerId: actorId },
+      }),
+      this.db.workOrderRequirement.findMany({
+        where: { workOrderId: order.id },
+        orderBy: { ordinal: 'asc' },
+      }),
+      this.db.workOrderBlob.findMany({
+        where: { workOrderId: order.id, ownerId: actorId, status: 'staged' },
+      }),
+    ]);
+    const items = deliveryDraftItemsSchema.parse(draft?.items ?? []);
+    const itemByRequirement = new Map(
+      items.map(item => [item.requirementId, item])
+    );
+    const blobById = new Map(blobs.map(blob => [blob.id, blob]));
+    const checks = requirements.map(requirement => {
+      const item = itemByRequirement.get(requirement.id);
+      let reason: string | null = null;
+      if (requirement.kind === 'text') {
+        if (item?.blobIds.length) reason = 'Text requirement cannot use files';
+        else if (requirement.required && !item?.text?.trim())
+          reason = 'Required text is missing';
+        else if (requirement.validationMode === 'bounded_model')
+          reason = 'Semantic validation evidence is unavailable';
+      } else {
+        const blobIds = item?.blobIds ?? [];
+        if (item?.text?.trim()) reason = 'File requirement cannot use text';
+        else if (
+          blobIds.length < (requirement.required ? requirement.minCount : 0) ||
+          blobIds.length > requirement.maxCount
+        )
+          reason = 'File count does not match the requirement';
+        else if (new Set(blobIds).size !== blobIds.length)
+          reason = 'The same file is selected more than once';
+        else if (
+          blobIds.some(blobId => {
+            const blob = blobById.get(blobId);
+            return (
+              !blob ||
+              blob.requirementId !== requirement.id ||
+              blob.expiresAt === null ||
+              blob.expiresAt <= new Date() ||
+              !requirement.acceptedMimeTypes.includes(blob.mimeType)
+            );
+          })
+        )
+          reason = 'A selected file is unavailable or does not match';
+      }
+      return {
+        requirementId: requirement.id,
+        ready: reason === null,
+        reason,
+      };
+    });
+    const canSubmit = ['open', 'validating', 'delivered'].includes(
+      order.status
+    );
+    const ready =
+      canSubmit &&
+      items.length > 0 &&
+      checks.length > 0 &&
+      checks.every(check => check.ready) &&
+      items.every(item =>
+        requirements.some(requirement => requirement.id === item.requirementId)
+      );
+    const confirmationToken = ready
+      ? fingerprint({
+          workOrderId: order.id,
+          orderVersion: order.version,
+          requirementsFingerprint: order.requirementsFingerprint,
+          draftVersion: draft?.version ?? 0,
+          items,
+          files: items.flatMap(item =>
+            item.blobIds.map(blobId => {
+              const blob = blobById.get(blobId);
+              return {
+                blobId,
+                fingerprint: blob?.fingerprint,
+                expiresAt: blob?.expiresAt?.toISOString(),
+              };
+            })
+          ),
+        })
+      : null;
+    return {
+      workOrderId: order.id,
+      orderVersion: order.version,
+      version: draft?.version ?? 0,
+      updatedAt: draft?.updatedAt ?? null,
+      items,
+      checks,
+      ready,
+      confirmationToken,
+    };
+  }
+
+  @Transactional()
+  async setDeliveryDraftItem(input: {
+    workOrderId: string;
+    actorId: string;
+    requirementId: string;
+    text?: string;
+    blobIds?: string[];
+    expectedDraftVersion?: number;
+  }) {
+    const workOrderId = id.parse(input.workOrderId);
+    const actorId = id.parse(input.actorId);
+    const requirementId = id.parse(input.requirementId);
+    await this.lockWorkOrder(workOrderId);
+    const order = await this.assertRecipient(workOrderId, actorId);
+    if (
+      !['open', 'waiting_sender', 'validating', 'delivered'].includes(
+        order.status
+      )
+    ) {
+      throw new BadRequest('This work order no longer accepts delivery drafts');
+    }
+    const requirement = await this.db.workOrderRequirement.findFirst({
+      where: { id: requirementId, workOrderId },
+    });
+    if (!requirement) throw new NotFound('Work-order requirement unavailable');
+    const item = deliveryItemSchema.strict().parse({
+      requirementId,
+      text: input.text,
+      blobIds: input.blobIds ?? [],
+    });
+    if (
+      (requirement.kind === 'text' && item.blobIds.length) ||
+      (requirement.kind === 'file' && item.text?.trim())
+    ) {
+      throw new BadRequest('Delivery draft item has the wrong content kind');
+    }
+    if (requirement.kind === 'file') {
+      if (
+        item.blobIds.length > requirement.maxCount ||
+        new Set(item.blobIds).size !== item.blobIds.length
+      ) {
+        throw new BadRequest('Delivery draft file count is invalid');
+      }
+      const blobs = await this.db.workOrderBlob.findMany({
+        where: {
+          id: { in: item.blobIds },
+          workOrderId,
+          ownerId: actorId,
+          requirementId,
+          status: 'staged',
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (
+        blobs.length !== item.blobIds.length ||
+        blobs.some(
+          blob => !requirement.acceptedMimeTypes.includes(blob.mimeType)
+        )
+      ) {
+        throw new BadRequest('A selected delivery file is unavailable');
+      }
+    }
+    const draft = await this.db.workOrderDeliveryDraft.findUnique({
+      where: { workOrderId },
+    });
+    if (
+      input.expectedDraftVersion !== undefined &&
+      input.expectedDraftVersion !== (draft?.version ?? 0)
+    ) {
+      throw new BadRequest('Delivery draft changed; reload before saving');
+    }
+    const existingItems = deliveryDraftItemsSchema.parse(draft?.items ?? []);
+    const nextItems = deliveryDraftItemsSchema.parse([
+      ...existingItems.filter(value => value.requirementId !== requirementId),
+      item,
+    ]);
+    if (stableStringify(existingItems) === stableStringify(nextItems)) {
+      return this.getDeliveryDraft(workOrderId, actorId);
+    }
+    if (draft) {
+      await this.db.workOrderDeliveryDraft.update({
+        where: { workOrderId, version: draft.version },
+        data: { items: nextItems, version: { increment: 1 } },
+      });
+    } else {
+      await this.db.workOrderDeliveryDraft.create({
+        data: { workOrderId, ownerId: actorId, items: nextItems },
+      });
+    }
+    await this.db.projectRealtimeOutbox.create({
+      data: { topic: 'project.task.changed', scopeId: actorId },
+    });
+    return this.getDeliveryDraft(workOrderId, actorId);
+  }
+
+  @Transactional()
+  async confirmDeliveryDraft(input: {
+    workOrderId: string;
+    actorId: string;
+    expectedWorkOrderVersion: number;
+    expectedDraftVersion: number;
+    confirmationToken: string;
+    requestKey: string;
+  }) {
+    const workOrderId = id.parse(input.workOrderId);
+    const actorId = id.parse(input.actorId);
+    await this.lockWorkOrder(workOrderId);
+    const submissionRequestKey = requestKey.parse(input.requestKey);
+    const replay = await this.findDeliveryReplay(
+      workOrderId,
+      submissionRequestKey
+    );
+    if (replay) {
+      const evidence = z
+        .object({
+          confirmationToken: z.string(),
+          draftVersion: z.number().int(),
+          orderVersion: z.number().int(),
+        })
+        .safeParse(replay.delivery.validationEvidence);
+      if (
+        replay.delivery.submittedBy !== actorId ||
+        !evidence.success ||
+        evidence.data.confirmationToken !== input.confirmationToken ||
+        evidence.data.draftVersion !== input.expectedDraftVersion ||
+        evidence.data.orderVersion !== input.expectedWorkOrderVersion
+      ) {
+        throw new BadRequest('Delivery request key was reused');
+      }
+      return replay;
+    }
+    const preview = await this.getDeliveryDraft(workOrderId, actorId);
+    if (
+      !preview.ready ||
+      !preview.confirmationToken ||
+      preview.confirmationToken !== input.confirmationToken ||
+      preview.orderVersion !== input.expectedWorkOrderVersion ||
+      preview.version !== input.expectedDraftVersion
+    ) {
+      throw new BadRequest('Delivery changed; review the requirements again');
+    }
+    return this.submitDelivery({
+      workOrderId,
+      actorId,
+      expectedVersion: preview.orderVersion,
+      requestKey: submissionRequestKey,
+      items: preview.items,
+      confirmationToken: input.confirmationToken,
+      draftVersion: preview.version,
+    });
+  }
+
+  @Transactional()
+  async openOwnConversation(
+    workOrderId: string,
+    actorId: string
+  ): Promise<CollaborationNavigation> {
+    workOrderId = id.parse(workOrderId);
+    actorId = id.parse(actorId);
+    await this.lockWorkOrder(workOrderId);
+    const order = await this.getOwned(workOrderId, actorId);
+    const recipient = order.viewerRole === 'recipient';
+    const recovery = await this.db.workOrderEvent.findFirst({
+      where: { workOrderId, actorId, eventType: 'conversation_created' },
+      orderBy: { version: 'desc' },
+      select: { payload: true },
+    });
+    const evidence = conversationCreatedEvidence.safeParse(recovery?.payload);
+    const candidateIds = recipient
+      ? [order.sessionBinding?.sessionId]
+      : [
+          order.sourceSessionId,
+          evidence.success ? evidence.data.sessionId : null,
+        ];
+    const sessions = await this.db.aiSession.findMany({
+      where: {
+        id: { in: candidateIds.filter((value): value is string => !!value) },
+        userId: actorId,
+        deletedAt: null,
+      },
+    });
+    for (const sessionId of candidateIds) {
+      const session = sessions.find(value => value.id === sessionId);
+      if (!session) continue;
+      if (
+        recipient &&
+        session.scopeType === 'work_order' &&
+        order.sessionBinding?.ownerUserId === actorId
+      )
+        return { kind: 'work_order', workOrderId };
+      if (
+        !recipient &&
+        session.scopeType === 'project' &&
+        session.selectedContextProjectId
+      ) {
+        await this.models.projectResource.assertMember({
+          projectId: session.selectedContextProjectId,
+          actorId,
+        });
+        return {
+          kind: 'project_session',
+          sessionId: session.id,
+          projectId: session.selectedContextProjectId,
+        };
+      }
+      if (
+        !recipient &&
+        session.scopeType === 'workspace' &&
+        session.workspaceId &&
+        session.docId
+      ) {
+        const membership = await this.db.workspaceMember.findFirst({
+          where: {
+            workspaceId: session.workspaceId,
+            userId: actorId,
+            state: 'active',
+          },
+        });
+        if (!membership) throw new NotFound('Source conversation unavailable');
+        return {
+          kind: 'workspace_session',
+          sessionId: session.id,
+          workspaceId: session.workspaceId,
+          docId: session.docId,
+        };
+      }
+    }
+    // Never revive a deleted session or replace the immutable dispatch source.
+    const projectId = recipient ? null : order.sourceProjectIdSnapshot;
+    const workspaceId =
+      !recipient && !projectId ? order.sourceSession?.workspaceId : null;
+    const docId = workspaceId ? order.sourceSession?.docId : null;
+    if (!recipient) {
+      if (projectId)
+        await this.models.projectResource.assertMember({ projectId, actorId });
+      else if (
+        workspaceId &&
+        docId &&
+        order.sourceSession?.userId === actorId
+      ) {
+        const membership = await this.db.workspaceMember.findFirst({
+          where: { workspaceId, userId: actorId, state: 'active' },
+        });
+        if (!membership) throw new NotFound('Source conversation unavailable');
+      } else throw new NotFound('Source conversation unavailable');
+    }
+    await this.ensureChatPrompt();
+    const session = await this.db.aiSession.create({
+      data: {
+        userId: actorId,
+        scopeType: recipient
+          ? 'work_order'
+          : projectId
+            ? 'project'
+            : 'workspace',
+        selectedContextProjectId: projectId,
+        workspaceId: workspaceId ?? null,
+        docId: docId ?? null,
+        promptName: 'Chat With LocalMind AI',
+        promptAction: '',
+        title: order.title,
+        titleSource: 'manual',
+        titleGenerationStatus: 'complete',
+        allowMemoryCapture: !recipient,
+      },
+    });
+    const terminal = WORK_ORDER_TERMINAL_STATUSES.some(
+      status => status === order.status
+    );
+    await this.db.aiSessionWorkState.create({
+      data: {
+        sessionId: session.id,
+        ownerUserId: actorId,
+        completedAt: recipient && terminal ? new Date() : null,
+        completionReason: recipient && terminal ? 'work_order_terminal' : null,
+        completionRequestKey:
+          recipient && terminal ? `work-order-terminal:${workOrderId}` : null,
+      },
+    });
+    if (recipient) {
+      await this.db.workOrderSessionBinding.upsert({
+        where: { workOrderId },
+        create: {
+          workOrderId,
+          sessionId: session.id,
+          ownerUserId: actorId,
+          ownerUserIdSnapshot: actorId,
+        },
+        update: { sessionId: session.id },
+      });
+    }
+    const payload = { sessionId: session.id, role: order.viewerRole };
+    const version = order.version + 1;
+    await this.db.workOrderEvent.create({
+      data: {
+        workOrderId,
+        actorId,
+        eventType: 'conversation_created',
+        version,
+        payload,
+        eventFingerprint: fingerprint({
+          workOrderId,
+          actorId,
+          version,
+          payload,
+        }),
+      },
+    });
+    await this.db.workOrder.update({
+      where: { id: workOrderId, version: order.version },
+      data: { version },
+    });
+    await this.notifyGraphChanged(actorId);
+    if (recipient) return { kind: 'work_order', workOrderId };
+    if (projectId)
+      return { kind: 'project_session', projectId, sessionId: session.id };
+    if (!workspaceId || !docId)
+      throw new NotFound('Source conversation unavailable');
+    return {
+      kind: 'workspace_session',
+      workspaceId,
+      docId,
+      sessionId: session.id,
     };
   }
 
@@ -651,6 +1148,36 @@ export class CopilotWorkOrderModel extends BaseModel {
         expiresAt: input.expiresAt,
       },
     });
+    const draft = await this.db.workOrderDeliveryDraft.findUnique({
+      where: { workOrderId: order.id },
+    });
+    const currentItems = deliveryDraftItemsSchema.parse(draft?.items ?? []);
+    const currentItem = currentItems.find(
+      item => item.requirementId === requirement.id
+    );
+    const nextItems = deliveryDraftItemsSchema.parse([
+      ...currentItems.filter(item => item.requirementId !== requirement.id),
+      {
+        requirementId: requirement.id,
+        blobIds: [...(currentItem?.blobIds ?? []), blob.id].slice(
+          -requirement.maxCount
+        ),
+      },
+    ]);
+    if (draft) {
+      await this.db.workOrderDeliveryDraft.update({
+        where: { workOrderId: order.id, version: draft.version },
+        data: { items: nextItems, version: { increment: 1 } },
+      });
+    } else {
+      await this.db.workOrderDeliveryDraft.create({
+        data: {
+          workOrderId: order.id,
+          ownerId: input.actorId,
+          items: nextItems,
+        },
+      });
+    }
     await this.db.projectRealtimeOutbox.create({
       data: {
         topic: 'project.task.changed',
@@ -667,11 +1194,14 @@ export class CopilotWorkOrderModel extends BaseModel {
     expectedVersion: number;
     requestKey: string;
     items: WorkOrderDeliveryItemInput[];
+    confirmationToken?: string;
+    draftVersion?: number;
   }) {
     const workOrderId = id.parse(input.workOrderId);
     const actorId = id.parse(input.actorId);
     const deliveryRequestKey = requestKey.parse(input.requestKey);
-    const items = z.array(deliveryItemSchema).min(1).max(64).parse(input.items);
+    const items = deliveryDraftItemsSchema.parse(input.items);
+    if (!items.length) throw new BadRequest('Delivery is empty');
     await this.lockWorkOrder(workOrderId);
     const order = await this.db.workOrder.findFirst({
       where: { id: workOrderId, recipientId: actorId },
@@ -702,6 +1232,11 @@ export class CopilotWorkOrderModel extends BaseModel {
         continue;
       }
       if (requirement.kind === 'text') {
+        if (requirement.validationMode === 'bounded_model') {
+          throw new BadRequest(
+            `Semantic validation evidence is unavailable: ${requirement.title}`
+          );
+        }
         const text = item.text?.trim();
         if (!text && requirement.required)
           throw new BadRequest(`Missing required text: ${requirement.title}`);
@@ -730,7 +1265,8 @@ export class CopilotWorkOrderModel extends BaseModel {
             `File item cannot include text: ${requirement.title}`
           );
         if (
-          item.blobIds.length < requirement.minCount ||
+          item.blobIds.length <
+            (requirement.required ? requirement.minCount : 0) ||
           item.blobIds.length > requirement.maxCount
         ) {
           throw new BadRequest(
@@ -752,6 +1288,11 @@ export class CopilotWorkOrderModel extends BaseModel {
           );
         }
         for (const blob of blobs) {
+          if (blob.requirementId !== requirement.id) {
+            throw new BadRequest(
+              `File belongs to another requirement: ${requirement.title}`
+            );
+          }
           if (!requirement.acceptedMimeTypes.includes(blob.mimeType)) {
             throw new BadRequest(
               `File type does not match: ${requirement.title}`
@@ -809,6 +1350,13 @@ export class CopilotWorkOrderModel extends BaseModel {
         validationEvidence: {
           version: 'project-workbench-v9/delivery-validation/v1',
           requestKey: deliveryRequestKey,
+          ...(input.confirmationToken
+            ? {
+                confirmationToken: input.confirmationToken,
+                draftVersion: input.draftVersion,
+                orderVersion: input.expectedVersion,
+              }
+            : {}),
           requirements: evidence,
         },
       },
@@ -879,6 +1427,7 @@ export class CopilotWorkOrderModel extends BaseModel {
       order.sourceSessionId,
       order.senderId
     );
+    await this.notifyGraphChanged(actorId, order.senderId);
     return { order: updated, delivery };
   }
 
@@ -1003,6 +1552,7 @@ export class CopilotWorkOrderModel extends BaseModel {
       },
     });
     await this.touchConversation(sourceSessionId, actorId);
+    await this.notifyGraphChanged(actorId);
     return adoption;
   }
 
@@ -1258,6 +1808,27 @@ export class CopilotWorkOrderModel extends BaseModel {
                     title: true,
                     status: true,
                     senderId: true,
+                    sourceProjectNameSnapshot: true,
+                    sender: { select: { name: true } },
+                    requirements: {
+                      where: { required: true },
+                      orderBy: { ordinal: 'asc' },
+                      select: {
+                        id: true,
+                        title: true,
+                        kind: true,
+                        minCount: true,
+                      },
+                    },
+                    deliveryDraft: { select: { items: true } },
+                    blobs: {
+                      where: { status: 'staged' },
+                      select: {
+                        id: true,
+                        requirementId: true,
+                        expiresAt: true,
+                      },
+                    },
                   },
                 },
               },
@@ -1288,6 +1859,27 @@ export class CopilotWorkOrderModel extends BaseModel {
     const projected = rows.map(row => {
       const attention = row.session.attentions;
       const workOrder = row.session.workOrderBinding?.workOrder;
+      const draftItems = deliveryDraftItemsSchema.safeParse(
+        workOrder?.deliveryDraft?.items ?? []
+      );
+      const draftItemByRequirement = new Map(
+        draftItems.success
+          ? draftItems.data.map(item => [item.requirementId, item])
+          : []
+      );
+      const availableBlobIds = new Set(
+        workOrder?.blobs
+          .filter(blob => blob.expiresAt && blob.expiresAt > new Date())
+          .map(blob => blob.id) ?? []
+      );
+      const missingRequiredCount =
+        workOrder?.requirements.filter(requirement => {
+          const item = draftItemByRequirement.get(requirement.id);
+          return requirement.kind === 'text'
+            ? !item?.text?.trim()
+            : (item?.blobIds.filter(blobId => availableBlobIds.has(blobId))
+                .length ?? 0) < requirement.minCount;
+        }).length ?? null;
       const column = attention.length
         ? 'todo'
         : row.completedAt
@@ -1296,11 +1888,19 @@ export class CopilotWorkOrderModel extends BaseModel {
       return {
         sessionId: row.sessionId,
         scopeType: row.session.scopeType,
+        ownWorkspaceId: row.session.workspaceId,
+        ownDocId: row.session.docId,
         pinned: row.session.pinned,
         title: row.session.title,
         titleRevision: row.session.titleRevision,
         project: row.session.selectedContextProject,
         workOrder,
+        workOrderSenderName: workOrder?.sender?.name ?? null,
+        workOrderSourceProjectName:
+          workOrder?.sourceProjectNameSnapshot ?? null,
+        workOrderRequiredReturnTitles:
+          workOrder?.requirements.map(requirement => requirement.title) ?? [],
+        workOrderMissingRequiredCount: missingRequiredCount,
         column,
         attentionReasons: attention.map(item => item.reason),
         activeRunCount: runCount.get(row.sessionId) ?? 0,
@@ -1327,74 +1927,364 @@ export class CopilotWorkOrderModel extends BaseModel {
 
   async collaborationGraph(actorId: string) {
     const userId = id.parse(actorId);
-    const rows = await this.db.workOrder.findMany({
-      where: { OR: [{ senderId: userId }, { recipientId: userId }] },
-      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
-      take: 501,
-      include: {
-        sender: { select: { id: true, name: true } },
-        recipient: { select: { id: true, name: true } },
-        sessionBinding: { select: { sessionId: true } },
-        requirements: {
-          orderBy: { ordinal: 'asc' },
-          select: { id: true, title: true, kind: true },
+    const now = new Date();
+    const [rows, dispatches, actor] = await Promise.all([
+      this.db.workOrder.findMany({
+        where: { OR: [{ senderId: userId }, { recipientId: userId }] },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+        take: 501,
+        include: {
+          sender: { select: { id: true, name: true, avatarUrl: true } },
+          recipient: { select: { id: true, name: true, avatarUrl: true } },
+          sessionBinding: {
+            select: {
+              sessionId: true,
+              ownerUserId: true,
+              session: { select: { deletedAt: true } },
+            },
+          },
+          events: {
+            where: { actorId: userId, eventType: 'conversation_created' },
+            orderBy: { version: 'desc' },
+            take: 1,
+            select: { payload: true },
+          },
+          requirements: {
+            orderBy: { ordinal: 'asc' },
+            select: { id: true, title: true, kind: true, required: true },
+          },
+          deliveries: {
+            orderBy: { revision: 'desc' },
+            take: 1,
+            select: { id: true },
+          },
+        },
+      }),
+      this.db.workOrderDispatch.findMany({
+        where: {
+          senderId: userId,
+          status: 'draft',
+          expiresAt: { gt: now },
+          sourceSession: {
+            is: {
+              userId,
+              deletedAt: null,
+              scopeType: { in: ['project', 'workspace'] },
+            },
+          },
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+        take: 501,
+        select: {
+          id: true,
+          draft: true,
+          sourceSessionId: true,
+          senderId: true,
+          sender: { select: { id: true, name: true, avatarUrl: true } },
+          expiresAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.db.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, avatarUrl: true },
+      }),
+    ]);
+    const sourceIds = [
+      ...new Set(
+        [
+          ...rows
+            .filter(row => row.senderId === userId)
+            .map(row => row.sourceSessionId),
+          ...rows
+            .filter(row => row.senderId === userId)
+            .map(row => {
+              const evidence = conversationCreatedEvidence.safeParse(
+                row.events[0]?.payload
+              );
+              return evidence.success ? evidence.data.sessionId : null;
+            }),
+          ...dispatches.map(dispatch => dispatch.sourceSessionId),
+        ].filter((value): value is string => !!value)
+      ),
+    ];
+    const sources = await this.db.aiSession.findMany({
+      where: { id: { in: sourceIds }, userId, deletedAt: null },
+      select: {
+        id: true,
+        scopeType: true,
+        workspaceId: true,
+        docId: true,
+        selectedContextProjectId: true,
+      },
+    });
+    const projectIds = sources.flatMap(source =>
+      source.scopeType === 'project' && source.selectedContextProjectId
+        ? [source.selectedContextProjectId]
+        : []
+    );
+    const workspaceIds = sources.flatMap(source =>
+      source.scopeType === 'workspace' && source.workspaceId
+        ? [source.workspaceId]
+        : []
+    );
+    const [projects, memberships] = await Promise.all([
+      this.db.aiContextProject.findMany({
+        where: {
+          id: { in: projectIds },
+          status: 'active',
+          members: { some: { userId } },
+        },
+        select: { id: true, name: true },
+      }),
+      this.db.workspaceMember.findMany({
+        where: { workspaceId: { in: workspaceIds }, userId, state: 'active' },
+        select: { workspaceId: true },
+      }),
+    ]);
+    const projectById = new Map(projects.map(project => [project.id, project]));
+    const readableWorkspaces = new Set(
+      memberships.map(member => member.workspaceId)
+    );
+    const sourceById = new Map(sources.map(source => [source.id, source]));
+    const readableSource = (sessionId: string | null) => {
+      const source = sessionId ? sourceById.get(sessionId) : null;
+      if (!source) return null;
+      if (source.scopeType === 'project')
+        return source.selectedContextProjectId &&
+          projectById.has(source.selectedContextProjectId)
+          ? source
+          : null;
+      return source.scopeType === 'workspace' &&
+        source.workspaceId &&
+        readableWorkspaces.has(source.workspaceId)
+        ? source
+        : null;
+    };
+    const latestRevisionIds = rows.flatMap(row =>
+      row.status === 'delivered' && row.deliveries[0]
+        ? [row.deliveries[0].id]
+        : []
+    );
+    const adoptionItems = await this.db.workOrderAdoptionItem.findMany({
+      where: { deliveryRevisionId: { in: latestRevisionIds } },
+      select: {
+        workOrderId: true,
+        deliveryRevisionId: true,
+        adoptionRecord: {
+          select: { sourceSessionIdSnapshot: true, actorId: true },
         },
       },
     });
-    const truncated = rows.length > 500;
-    const orders = rows.slice(0, 500);
+    const adopted = new Set(
+      adoptionItems.map(
+        item =>
+          `${item.workOrderId}:${item.deliveryRevisionId}:${item.adoptionRecord.sourceSessionIdSnapshot}:${item.adoptionRecord.actorId}`
+      )
+    );
     const nodes = new Map<
       string,
-      { id: string; label: string; self: boolean }
+      { id: string; label: string; self: boolean; avatarUrl: string | null }
     >();
-    for (const order of orders) {
+    if (actor)
+      nodes.set(actor.id, {
+        id: actor.id,
+        label: actor.name,
+        self: true,
+        avatarUrl: actor.avatarUrl,
+      });
+    for (const order of rows) {
       if (order.sender)
         nodes.set(order.sender.id, {
           id: order.sender.id,
           label: order.sender.name,
           self: order.sender.id === userId,
+          avatarUrl: order.sender.avatarUrl,
         });
       if (order.recipient)
         nodes.set(order.recipient.id, {
           id: order.recipient.id,
           label: order.recipient.name,
           self: order.recipient.id === userId,
+          avatarUrl: order.recipient.avatarUrl,
         });
     }
+    const edges: CollaborationEdge[] = rows.flatMap(order => {
+      if (!order.sender || !order.recipient) return [];
+      const source =
+        order.senderId === userId
+          ? (readableSource(order.sourceSessionId) ??
+            (() => {
+              const evidence = conversationCreatedEvidence.safeParse(
+                order.events[0]?.payload
+              );
+              return evidence.success
+                ? readableSource(evidence.data.sessionId)
+                : null;
+            })())
+          : null;
+      const currentRevision = order.deliveries[0]?.id;
+      const isAdopted =
+        order.status === 'delivered' &&
+        !!currentRevision &&
+        !!order.sourceSessionId &&
+        !!order.senderId &&
+        adopted.has(
+          `${order.id}:${currentRevision}:${order.sourceSessionId}:${order.senderId}`
+        );
+      return [
+        {
+          id: order.id,
+          kind: 'sent' as const,
+          from: order.sender.id,
+          to: order.recipient.id,
+          status: isAdopted ? 'adopted' : order.status,
+          label: order.title,
+          requirementTitles: order.requirements
+            .filter(requirement => requirement.required)
+            .map(requirement => requirement.title),
+          requirementItems: order.requirements
+            .filter(requirement => requirement.required)
+            .map(({ id, title, kind }) => ({ id, title, kind })),
+          ownConversationExists:
+            order.recipientId === userId
+              ? !!order.sessionBinding &&
+                order.sessionBinding.ownerUserId === userId &&
+                !order.sessionBinding.session.deletedAt
+              : !!source,
+          project:
+            order.sourceProjectIdSnapshot && order.sourceProjectNameSnapshot
+              ? {
+                  id: order.sourceProjectIdSnapshot,
+                  name: order.sourceProjectNameSnapshot,
+                }
+              : null,
+          sourceKind:
+            source?.scopeType ??
+            (order.sourceProjectIdSnapshot ? 'project' : 'workspace'),
+          updatedAt: order.updatedAt,
+          expiresAt: null,
+          ownNavigation:
+            order.recipientId === userId
+              ? { kind: 'work_order' as const, workOrderId: order.id }
+              : source?.scopeType === 'project' &&
+                  source.selectedContextProjectId
+                ? {
+                    kind: 'project_session' as const,
+                    sessionId: source.id,
+                    projectId: source.selectedContextProjectId,
+                  }
+                : source?.scopeType === 'workspace' &&
+                    source.workspaceId &&
+                    source.docId
+                  ? {
+                      kind: 'workspace_session' as const,
+                      sessionId: source.id,
+                      workspaceId: source.workspaceId,
+                      docId: source.docId,
+                    }
+                  : { kind: 'work_order' as const, workOrderId: order.id },
+        },
+      ];
+    });
+    const parsedDispatches = dispatches.map(dispatch => ({
+      dispatch,
+      draft: z
+        .object({ recipients: z.array(recipientDraftSchema).max(20) })
+        .safeParse(dispatch.draft),
+    }));
+    const draftRecipientIds = parsedDispatches.flatMap(({ draft }) =>
+      draft.success
+        ? draft.data.recipients.map(recipient => recipient.recipientId)
+        : []
+    );
+    const draftRecipients = await this.db.user.findMany({
+      where: {
+        id: { in: draftRecipientIds },
+        registered: true,
+        disabled: false,
+      },
+      select: { id: true, name: true, avatarUrl: true },
+    });
+    const draftRecipientById = new Map(
+      draftRecipients.map(recipient => [recipient.id, recipient])
+    );
+    for (const { dispatch, draft: parsed } of parsedDispatches) {
+      const source = readableSource(dispatch.sourceSessionId);
+      if (!source || !parsed.success || !dispatch.sender) continue;
+      nodes.set(dispatch.sender.id, {
+        id: dispatch.sender.id,
+        label: dispatch.sender.name,
+        self: true,
+        avatarUrl: dispatch.sender.avatarUrl,
+      });
+      for (const [ordinal, recipient] of parsed.data.recipients.entries()) {
+        const account = draftRecipientById.get(recipient.recipientId);
+        if (!account || !dispatch.senderId) continue;
+        nodes.set(account.id, {
+          id: account.id,
+          label: account.name,
+          self: false,
+          avatarUrl: account.avatarUrl,
+        });
+        edges.push({
+          id: `draft:${dispatch.id}:${ordinal}`,
+          kind: 'draft',
+          from: dispatch.senderId,
+          to: account.id,
+          status: 'draft',
+          label: recipient.title,
+          requirementTitles: recipient.requirements
+            .filter(requirement => requirement.required)
+            .map(requirement => requirement.title),
+          requirementItems: recipient.requirements
+            .filter(requirement => requirement.required)
+            .map(requirement => ({
+              id: requirement.itemKey,
+              title: requirement.title,
+              kind: requirement.kind,
+            })),
+          ownConversationExists: true,
+          project: source.selectedContextProjectId
+            ? (projectById.get(source.selectedContextProjectId) ?? null)
+            : null,
+          sourceKind: source.scopeType,
+          updatedAt: dispatch.updatedAt,
+          expiresAt: dispatch.expiresAt,
+          ownNavigation:
+            source.scopeType === 'project' && source.selectedContextProjectId
+              ? {
+                  kind: 'project_session',
+                  sessionId: source.id,
+                  projectId: source.selectedContextProjectId,
+                }
+              : source.workspaceId && source.docId
+                ? {
+                    kind: 'workspace_session',
+                    sessionId: source.id,
+                    workspaceId: source.workspaceId,
+                    docId: source.docId,
+                  }
+                : { kind: 'unavailable' },
+        });
+      }
+    }
+    edges.sort(
+      (a, b) =>
+        b.updatedAt.getTime() - a.updatedAt.getTime() ||
+        a.id.localeCompare(b.id)
+    );
+    const visibleEdges = edges.slice(0, 500);
+    const visibleNodeIds = new Set(
+      visibleEdges.flatMap(edge => [edge.from, edge.to])
+    );
     return {
-      nodes: [...nodes.values()],
-      edges: orders.flatMap(order =>
-        order.sender && order.recipient
-          ? [
-              {
-                id: order.id,
-                from: order.sender.id,
-                to: order.recipient.id,
-                status: order.status,
-                label: order.title,
-                requirements: order.requirements,
-                project:
-                  order.sourceProjectIdSnapshot &&
-                  order.sourceProjectNameSnapshot
-                    ? {
-                        id: order.sourceProjectIdSnapshot,
-                        name: order.sourceProjectNameSnapshot,
-                      }
-                    : null,
-                ownNavigation:
-                  order.recipientId === userId
-                    ? { kind: 'work_order' as const, workOrderId: order.id }
-                    : order.sourceSessionId
-                      ? {
-                          kind: 'source' as const,
-                          sessionId: order.sourceSessionId,
-                        }
-                      : null,
-              },
-            ]
-          : []
+      nodes: [...nodes.values()].filter(
+        node => node.self || visibleNodeIds.has(node.id)
       ),
-      truncated,
+      edges: visibleEdges,
+      truncated:
+        rows.length > 500 || dispatches.length > 500 || edges.length > 500,
     };
   }
 
@@ -1636,6 +2526,7 @@ export class CopilotWorkOrderModel extends BaseModel {
       });
     }
     await this.resolveAttention(order.id, actorId);
+    await this.notifyGraphChanged(order.senderId, order.recipientId);
     return { order: updated, exchange };
   }
 
@@ -1753,6 +2644,7 @@ export class CopilotWorkOrderModel extends BaseModel {
             : 'work-order.cancelled',
       });
     }
+    await this.notifyGraphChanged(order.senderId, order.recipientId);
     return { order: updated, exchange };
   }
 
@@ -1902,6 +2794,16 @@ export class CopilotWorkOrderModel extends BaseModel {
       where: { sessionId },
       create: { sessionId, ownerUserId: actorId },
       update: { lastBusinessAt: new Date(), version: { increment: 1 } },
+    });
+  }
+
+  private async notifyGraphChanged(...actorIds: Array<string | null>) {
+    const ids = [
+      ...new Set(actorIds.filter((value): value is string => !!value)),
+    ];
+    if (!ids.length) return;
+    await this.db.projectRealtimeOutbox.createMany({
+      data: ids.map(scopeId => ({ topic: 'project.task.changed', scopeId })),
     });
   }
 

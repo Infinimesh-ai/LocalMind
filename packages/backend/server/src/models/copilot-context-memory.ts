@@ -2342,8 +2342,9 @@ export class CopilotContextMemoryModel extends BaseModel {
       status?: CopilotContextProjectStatus;
     }
   ) {
-    if (!(await this.lockActiveProjectOwner(id, actorUserId))) return null;
-    if (input.status === 'archived') {
+    const current = await this.lockProjectOwner(id, actorUserId);
+    if (!current) return null;
+    if (current.status === 'active' && input.status === 'archived') {
       await this.models.intelligenceWorkbenchAuthorization.withdrawPendingProjectWorkForArchive(
         { projectId: id, actorUserId }
       );
@@ -2364,18 +2365,18 @@ export class CopilotContextMemoryModel extends BaseModel {
     const memoryCount = await this.db.aiContextMemory.count({
       where: { projectId: id },
     });
-    if (memoryCount > 0) return false;
+    if (memoryCount > 0) return { deleted: false, reason: 'memories' } as const;
     try {
       const result = await this.db.aiContextProject.deleteMany({
         where: { id },
       });
-      return result.count > 0;
+      return result.count > 0 ? ({ deleted: true } as const) : null;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2003'
       ) {
-        return false;
+        return { deleted: false, reason: 'references' } as const;
       }
       throw error;
     }

@@ -3,16 +3,26 @@ import { Readable } from 'node:stream';
 
 import { Injectable } from '@nestjs/common';
 
-import type { PutObjectMetadata } from '../../base';
+import {
+  BlobQuotaExceeded,
+  type PutObjectMetadata,
+  StorageQuotaExceeded,
+} from '../../base';
+import { Models } from '../../models';
 import type { OfficeOwner } from '../../models/office-owner';
+import { PermissionAccess } from '../permission';
 import { ProjectBlobStorage } from '../project';
+import { QuotaService } from '../quota';
 import { WorkspaceBlobStorage } from '../storage';
 
 @Injectable()
 export class OfficeResourceStorage {
   constructor(
     private readonly workspaces: WorkspaceBlobStorage,
-    private readonly projects: ProjectBlobStorage
+    private readonly projects: ProjectBlobStorage,
+    private readonly ac: PermissionAccess,
+    private readonly quota: QuotaService,
+    private readonly models: Models
   ) {}
 
   async putGenerated(
@@ -33,6 +43,13 @@ export class OfficeResourceStorage {
       return blob.key;
     }
     const key = `ai-file-${createHash('sha256').update(mimeType).digest('hex').slice(0, 16)}-${createHash('sha256').update(bytes).digest('base64url')}`;
+    const existing = await this.models.blob.get(owner, key);
+    if (!existing) {
+      const check = await this.quota.getWorkspaceQuotaCalculator(owner);
+      const exceeded = check(bytes.length);
+      if (exceeded?.blobQuotaExceeded) throw new BlobQuotaExceeded();
+      if (exceeded?.storageQuotaExceeded) throw new StorageQuotaExceeded();
+    }
     await this.workspaces.putCopyAttachment(
       owner,
       key,
@@ -63,13 +80,23 @@ export class OfficeResourceStorage {
   async put(
     owner: OfficeOwner,
     actorId: string,
-    key: string,
+    _key: string,
     bytes: Buffer,
     metadata: PutObjectMetadata
   ) {
     if (typeof owner === 'string') {
-      await this.workspaces.put(owner, key, bytes, metadata);
-      return key;
+      return this.putGenerated(
+        owner,
+        actorId,
+        bytes,
+        metadata.contentType ?? 'application/octet-stream',
+        async () => {
+          await this.ac
+            .user(actorId)
+            .workspace(owner)
+            .assert('Workspace.Blobs.Write');
+        }
+      );
     }
     const blob = await this.projects.put({
       projectId: owner.projectId,

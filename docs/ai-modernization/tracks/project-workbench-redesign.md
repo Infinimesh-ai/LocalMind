@@ -14,6 +14,9 @@
 - 会话隔离、审批、审计与访问申请规则继续以
   [Project AI Boundaries](project-ai-boundaries.md) 为准；Office 编辑引擎以
   [Native Office](../../office-native/README.md) 为准。
+- 个人工单的统一模板、私人接单对话、AI 就绪检查与收件人确认发回，以
+  [Project 个人工单交付契约](../project-work-order-ai-delivery-contract.zh-CN.md) 为准；
+  该后续契约的目标交互尚未完整实现。
 
 本文覆盖以下旧规则：Project 以 Workspace 文档引用作为项目内容、Intelligence 页面
 依赖宿主 Workspace 选择器、旧引用通过迁移桥接进入原生资源、项目内文档用轮询

@@ -53,7 +53,7 @@ async function fixture() {
   const project = await db.aiContextProject.create({
     data: {
       name: 'Native Office',
-      aiPolicy: 'read_only',
+      aiPolicy: 'read_write',
       members: {
         create: [
           { userId: owner.id, role: 'owner' },
@@ -741,12 +741,35 @@ test.serial(
         }),
         { message: /source conversation/ }
       );
+      await app.get(ProjectResourceService).change({
+        ...scope,
+        resourceId: node.id,
+        expectedVersion: (
+          await app.models.projectResource.get({
+            ...scope,
+            resourceId: node.id,
+          })
+        ).version,
+        title: `Renamed.${item.format}`,
+        requestKey: `rename-${item.format}`,
+        editLease,
+      });
       const response = await app
         .GET(
           `/api/projects/${scope.projectId}/office/artifacts/${node.id}/revisions/${edited.revision.id}/package`
         )
         .expect(200);
       t.is(response.headers['cache-control'], 'private, no-store');
+      t.true(
+        response.headers['content-disposition'].includes(
+          `Renamed.${item.format}`
+        )
+      );
+      t.is(
+        (await db.officeArtifact.findUniqueOrThrow({ where: { id: node.id } }))
+          .sourceFileName,
+        imported.artifact.sourceFileName
+      );
       const loaded = await app.gql<{
         projectOfficeArtifact: {
           projectId: string;
@@ -957,5 +980,108 @@ test.serial(
         .content,
       content
     );
+  }
+);
+
+test.serial(
+  'Office history restoration appends the selected package under lease and independent copies preserve all four formats',
+  async t => {
+    const scope = await fixture();
+    const service = app.get(ProjectResourceService);
+    for (const item of await formats()) {
+      const blob = await app.get(ProjectBlobStorage).put({
+        ...scope,
+        bytes: Buffer.from(item.bytes),
+        mimeType: OFFICE_FORMATS[item.format].mimeType,
+      });
+      const imported = await app.get(OfficeImportService).import({
+        ...scope,
+        sourceBlobKey: blob.key,
+        title: item.format,
+        sourceFileName: `source.${item.format}`,
+        importIdempotencyKey: item.format,
+      });
+      const resource = { ...scope, resourceId: imported.artifact.id };
+      const held = (
+        await app.models.projectResourceEditLease.acquire({
+          ...resource,
+          kind: 'user',
+          tabId: 'history',
+        })
+      ).lease!;
+      const editLease = {
+        kind: 'user' as const,
+        tabId: held.tabId,
+        leaseId: held.leaseId,
+      };
+      await app.get(OfficeCommandService).execute({
+        ...scope,
+        editLease,
+        command: {
+          version: 'localmind-office-command/v1',
+          commandId: `edit-${item.format}`,
+          idempotencyKey: `edit-${item.format}`,
+          artifactId: imported.artifact.id,
+          expectedRevisionId: imported.revision.id,
+          source: 'user',
+          ...item.edit,
+        },
+      });
+      const restoration = {
+        ...resource,
+        sequence: 1,
+        expectedContentVersion: 2,
+        requestKey: `restore-${item.format}`,
+      };
+      await t.throwsAsync(service.restoreVersion(restoration), {
+        message: /edit lease/,
+      });
+      const restored = await service.restoreVersion({
+        ...restoration,
+        editLease,
+      });
+      t.is(restored.sequence, 3);
+      t.deepEqual(
+        await service.restoreVersion({ ...restoration, editLease }),
+        restored
+      );
+      await t.throwsAsync(
+        service.restoreVersion({
+          ...restoration,
+          editLease,
+          requestKey: 'stale',
+        })
+      );
+      const current = await app.models.officeArtifact.getCurrentRevision(
+        { projectId: scope.projectId },
+        resource.resourceId
+      );
+      t.is(current?.packageFingerprint, imported.revision.packageFingerprint);
+      const copyInput = {
+        ...resource,
+        title: `copy.${item.format}`,
+        expectedContentVersion: 3,
+        requestKey: `copy-${item.format}`,
+      };
+      const copy = await service.copy(copyInput);
+      t.not(copy.id, resource.resourceId);
+      t.is((await service.copy(copyInput)).id, copy.id);
+      const copied = await app.models.officeArtifact.getCurrentRevision(
+        { projectId: scope.projectId },
+        copy.id
+      );
+      t.is(copied?.sequence, 1);
+      t.is(copied?.packageFingerprint, imported.revision.packageFingerprint);
+      const opened = await app
+        .get(OfficeArtifactService)
+        .readRevisionAsset(
+          { projectId: scope.projectId },
+          scope.actorId,
+          copy.id,
+          copied!.id,
+          'package'
+        );
+      t.deepEqual(opened.bytes, Buffer.from(item.bytes));
+    }
   }
 );

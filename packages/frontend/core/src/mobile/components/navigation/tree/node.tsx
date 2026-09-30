@@ -43,6 +43,7 @@ export const NavigationPanelTreeNode = ({
   active,
   disabled,
   collapsed,
+  collapsible = true,
   extractEmojiAsIcon,
   setCollapsed,
   operations = EMPTY_OPERATIONS,
@@ -104,9 +105,10 @@ export const NavigationPanelTreeNode = ({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault(); // for links
+      if (!collapsible) return;
       setCollapsed(!collapsed);
     },
-    [collapsed, setCollapsed]
+    [collapsed, collapsible, setCollapsed]
   );
 
   const handleClick = useCallback(
@@ -116,11 +118,11 @@ export const NavigationPanelTreeNode = ({
       }
       if (!clickForCollapse) {
         onClick?.();
-      } else {
+      } else if (collapsible) {
         setCollapsed(!collapsed);
       }
     },
-    [clickForCollapse, collapsed, onClick, setCollapsed]
+    [clickForCollapse, collapsed, collapsible, onClick, setCollapsed]
   );
 
   const content = (
@@ -129,6 +131,7 @@ export const NavigationPanelTreeNode = ({
       className={styles.itemRoot}
       data-active={active}
       data-disabled={disabled}
+      data-collapsible={collapsible}
     >
       <div className={styles.itemMain}>
         {menuTarget || menuOperations.length > 0 ? (
@@ -154,17 +157,19 @@ export const NavigationPanelTreeNode = ({
         {postfix}
       </div>
 
-      <div
-        data-disabled={disabled}
-        onClick={handleCollapsedChange}
-        data-testid="navigation-panel-collapsed-button"
-        className={styles.collapsedIconContainer}
-      >
-        <ArrowDownSmallIcon
-          className={styles.collapsedIcon}
-          data-collapsed={collapsed !== false}
-        />
-      </div>
+      {collapsible && (
+        <div
+          data-disabled={disabled}
+          onClick={handleCollapsedChange}
+          data-testid="navigation-panel-collapsed-button"
+          className={styles.collapsedIconContainer}
+        >
+          <ArrowDownSmallIcon
+            className={styles.collapsedIcon}
+            data-collapsed={collapsed !== false}
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -202,7 +207,7 @@ export const NavigationPanelTreeNode = ({
           )}
         </div>
       </SwipeMenu>
-      {collapsed ? null : (
+      {!collapsible || collapsed ? null : (
         <div data-state="open">
           {/* For lastInGroup check, the placeholder must be placed above all children in the dom */}
           <div className={styles.collapseContentPlaceholder}>

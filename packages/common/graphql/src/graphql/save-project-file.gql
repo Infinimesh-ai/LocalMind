@@ -1,0 +1,12 @@
+mutation saveProjectFile($input: SaveProjectFileInput!) {
+  saveProjectFile(input: $input) {
+    id
+    projectId
+    resourceId
+    sequence
+    parentId
+    fingerprint
+    origin
+    createdAt
+  }
+}

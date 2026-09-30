@@ -11,13 +11,18 @@ import {
   COPILOT_COPY_BLOB_PREFIX,
   copyAttachmentDocumentId,
 } from '../../models/blob';
+import type { ProjectCopySourceKind } from '../../models/intelligence-workbench-authorization';
 import {
   type ProjectActor,
   projectResourceHash,
 } from '../../models/project-resource';
 import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
 import { parseYDocFromBinary, parseYDocToMarkdown } from '../../native';
-import { DocReader } from '../doc';
+import {
+  DocReader,
+  WorkspaceNativeResourceAccess,
+  WorkspaceResourceService,
+} from '../doc';
 import {
   inspectDocumentCopySnapshot,
   readFileCopySnapshot,
@@ -25,6 +30,8 @@ import {
   retitleDocumentCopySnapshot,
 } from '../doc/copy-snapshot';
 import { OfficeImportService } from '../office';
+import { nativeFileSearchText } from '../office/file-content';
+import { WorkspaceNativeResourceService } from '../office/workspace-resource-service';
 import { PermissionAccess } from '../permission';
 import { ProjectBlobStorage } from '../project';
 import { WorkspaceBlobStorage } from '../storage';
@@ -33,6 +40,7 @@ import { isolateImportedReferences } from './references';
 export type ProjectImportInput = ProjectActor & {
   workspaceId: string;
   sourceResourceId: string;
+  sourceKind?: ProjectCopySourceKind;
   parentId?: string | null;
   requestKey: string;
   title?: string;
@@ -57,15 +65,42 @@ export class ProjectImportService {
     private readonly reader: DocReader,
     private readonly sourceBlobs: WorkspaceBlobStorage,
     private readonly projectBlobs: ProjectBlobStorage,
-    private readonly officeImports: OfficeImportService
+    private readonly officeImports: OfficeImportService,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess,
+    private readonly nativeFiles: WorkspaceNativeResourceService,
+    private readonly workspaceResources: WorkspaceResourceService
   ) {}
 
   async authorizeSource(
-    input: ProjectActor & { workspaceId: string; sourceResourceId: string },
+    input: ProjectActor & {
+      workspaceId: string;
+      sourceResourceId: string;
+      sourceKind?: ProjectCopySourceKind;
+    },
     docId = input.sourceResourceId
   ) {
     if (docId === input.workspaceId)
       throw new BadRequest('Workspace root documents cannot be imported');
+    if (input.sourceKind === 'workspace_file') {
+      await this.nativeAccess.assert({
+        ...input,
+        resourceId: docId,
+        kind: 'file',
+      });
+      return this.models.intelligenceWorkbenchAuthorization.projectCopyPermission(
+        { ...input, docId }
+      );
+    }
+    const office = await this.models.officeArtifact.get(
+      input.workspaceId,
+      docId
+    );
+    if (office)
+      await this.nativeAccess.assert({
+        ...input,
+        resourceId: docId,
+        kind: 'office',
+      });
     const source = this.ac
       .user(input.actorId)
       .doc(input.workspaceId, docId)
@@ -85,6 +120,9 @@ export class ProjectImportService {
   @Transactional<TransactionalAdapterPrisma>({ timeout: 60000 })
   async import(input: ProjectImportInput) {
     if (
+      (input.sourceKind !== undefined &&
+        input.sourceKind !== 'document' &&
+        input.sourceKind !== 'workspace_file') ||
       !input.workspaceId ||
       input.workspaceId.length > 512 ||
       !input.sourceResourceId ||
@@ -100,6 +138,9 @@ export class ProjectImportService {
       parentId: input.parentId ?? null,
       title: input.title ?? null,
       kind: input.kind,
+      ...(input.sourceKind === 'workspace_file'
+        ? { sourceKind: input.sourceKind }
+        : {}),
       replace: input.replace ?? null,
     });
     await this.models.intelligenceWorkbenchAuthorization.lockProjectDocumentAuthorization(
@@ -151,6 +192,73 @@ export class ProjectImportService {
         'Project content changed; reload and compare before refreshing the source'
       );
     const authorization = await this.authorize(input);
+    if (input.sourceKind === 'workspace_file') {
+      if (input.kind !== 'file')
+        throw new BadRequest('The source file type does not match');
+      return this.workspaceResources.snapshot(input, async () => {
+        const identity = {
+          ...input,
+          resourceId: input.sourceResourceId,
+          kind: 'file' as const,
+        };
+        await this.models.workspaceNativeResource.lock(identity);
+        const source = await this.nativeFiles.read(identity);
+        if (
+          input.replace &&
+          source.revisionId !== input.replace.expectedSourceVersion
+        )
+          throw new BadRequest(
+            'Source changed; compare its latest version before refreshing'
+          );
+        await this.authorize(input);
+        const blob = await this.projectBlobs.put({
+          ...input,
+          bytes: source.bytes,
+          mimeType: source.mimeType,
+        });
+        const title = replacement?.title ?? input.title ?? source.title;
+        const searchText = nativeFileSearchText(source.bytes, title);
+        const resource =
+          replacement && input.replace
+            ? (await this.models.projectResource.appendRevision({
+                ...input,
+                resourceId: replacement.id,
+                requestKey,
+                requestHash,
+                expectedContentVersion: input.replace.expectedContentVersion,
+                blobKey: blob.key,
+                searchText,
+                origin: 'import',
+              }),
+              await this.models.projectResource.get({
+                ...input,
+                resourceId: replacement.id,
+              }))
+            : await this.models.projectResource.create({
+                ...input,
+                title,
+                requestKey,
+                requestHash,
+                blobKey: blob.key,
+                searchText,
+                origin: 'import',
+              });
+        await this.nativeAccess.assert(identity);
+        await this.models.projectResource.recordImport({
+          ...input,
+          resourceId: resource.id,
+          sourceKind: 'workspace_file',
+          sourceWorkspaceId: input.workspaceId,
+          sourceVersion: source.revisionId,
+          sourceFingerprint: hash(source.bytes),
+          authorization,
+          attachmentCount: 0,
+          requestKey,
+          requestHash,
+        });
+        return resource;
+      });
+    }
     const native = await this.models.officeArtifact.get(
       input.workspaceId,
       input.sourceResourceId

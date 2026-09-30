@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import type { NativeFileContent } from '@localmind/office';
+import { openDocxPackage, readDocxSemanticState } from '@localmind/office/docx';
 import { PrismaClient } from '@prisma/client';
 import test from 'ava';
 
 import { OfficeArtifactService } from '../../core/office/artifact-service';
+import { OfficeCommandService } from '../../core/office/command-service';
 import { NativeFileCreateService } from '../../core/office/create-service';
 import { ProjectResourceService } from '../../core/project';
 import { WorkspaceBlobStorage } from '../../core/storage';
@@ -49,6 +51,7 @@ async function fixture(project = false) {
       promptAction: '',
       workspaceId: project ? null : workspace.id,
       selectedContextProjectId: project ? owner.id : null,
+      scopeType: project ? 'project' : 'workspace',
     },
   });
   return {
@@ -69,6 +72,69 @@ const contents: NativeFileContent[] = [
   { format: 'json', text: '{"ok":true}' },
   { format: 'csv', rows: [['项目', 42]] },
 ];
+
+test.serial(
+  'Project file AI updates require a complete read and persist a replayable task on the same resource',
+  async t => {
+    const previousDeployment = env.DEPLOYMENT_TYPE;
+    Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
+    try {
+      const { actorId, sessionId, projectId, db } = await fixture(true);
+      const saved = await app.get(NativeFileCreateService).create({
+        projectId,
+        actorId,
+        sessionId,
+        requestKey: 'editable',
+        file: { title: 'edit', content: { format: 'txt', text: 'old text' } },
+      });
+      const tools = createProjectResourceTools(
+        app.models,
+        app.get(ProjectResourceService),
+        {
+          user: actorId,
+          session: sessionId,
+          tools: ['docRead', 'docUpdate'],
+        },
+        projectId
+      );
+      const read = await tools.project_file_read.execute!(
+        { resource_id: saved.resourceId },
+        {}
+      );
+      t.like(read, { contentVersion: 1, text: 'old text', complete: true });
+      const args = {
+        resource_id: saved.resourceId,
+        expected_content_version: 1,
+        text: 'new text',
+      };
+      const output = await tools.project_file_update.execute!(args, {
+        toolCallId: 'file-update',
+      });
+      t.like(output, {
+        status: 'saved',
+        resourceId: saved.resourceId,
+        appliedContentVersion: 2,
+      });
+      t.deepEqual(
+        await tools.project_file_update.execute!(args, {
+          toolCallId: 'file-update',
+        }),
+        output
+      );
+      t.is(await db.projectResource.count({ where: { projectId } }), 1);
+      t.is(
+        (
+          await app
+            .get(ProjectResourceService)
+            .readTextFile({ projectId, actorId, resourceId: saved.resourceId })
+        ).text,
+        'new text'
+      );
+    } finally {
+      Object.assign(env, { DEPLOYMENT_TYPE: previousDeployment });
+    }
+  }
+);
 
 test.serial(
   'workspace creates, replays and downloads real files; conflicting retries and unauthorized sessions fail',
@@ -100,6 +166,51 @@ test.serial(
         t.is(asset.bytes.length, saved.byteSize);
         t.is(asset.revision.origin, 'import');
         t.like(asset.revision.operationSummary, { type: 'ai_create' });
+        if (content.format === 'docx') {
+          const paragraph = readDocxSemanticState(
+            openDocxPackage(asset.bytes)
+          ).body.find(block => block.type === 'paragraph');
+          if (!paragraph) throw new Error('Expected generated paragraph');
+          const edited = await app.get(OfficeCommandService).execute({
+            workspaceId,
+            actorId,
+            command: {
+              version: 'localmind-office-command/v1',
+              commandId: 'list-current-revision',
+              idempotencyKey: 'list-current-revision',
+              artifactId: saved.artifactId,
+              expectedRevisionId: saved.revisionId,
+              source: 'user',
+              operation: 'office.document.text.replace',
+              target: {
+                type: 'text_range',
+                start: { blockId: paragraph.id, offset: 0 },
+                end: { blockId: paragraph.id, offset: 0 },
+              },
+              text: 'New current package content',
+            },
+          });
+          await db.officeArtifact.update({
+            where: { id: saved.artifactId },
+            data: { title: '当前标题' },
+          });
+          const list = await app
+            .GET(`/api/workspaces/${workspaceId}/files`)
+            .expect(200);
+          const row = list.body.items.find(
+            (file: { id: string }) => file.id === saved.artifactId
+          );
+          t.is(row.fileName, '当前标题.docx');
+          t.is(row.byteSize, edited.revision.packageByteSize);
+          t.is(
+            (
+              await db.officeArtifact.findUniqueOrThrow({
+                where: { id: saved.artifactId },
+              })
+            ).sourceFileName,
+            asset.artifact.sourceFileName
+          );
+        }
       } else {
         const download = await app.GET(saved.url).expect(200);
         t.true(download.headers['content-disposition'].includes('attachment'));

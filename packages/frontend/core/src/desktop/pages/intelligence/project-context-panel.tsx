@@ -61,6 +61,19 @@ export function ProjectContextPanel({
     { suspense: false, shouldRetryOnError: false }
   );
   const graph = graphQuery.data?.currentUser?.copilot.myCollaborationGraph;
+  const relationStatusLabels: Record<string, string> = {
+    draft: t['com.affine.localmind.workbench.v9.graphStatusDraft'](),
+    open: t['com.affine.localmind.workbench.v9.graphStatusWaiting'](),
+    waiting_sender:
+      t['com.affine.localmind.workbench.v9.graphStatusWaitingSender'](),
+    validating: t['com.affine.localmind.workbench.v9.graphStatusValidating'](),
+    delivered:
+      t['com.affine.localmind.workbench.v9.workOrderStatusDelivered'](),
+    adopted: t['com.affine.localmind.workbench.v9.graphStatusAdopted'](),
+    refused: t['com.affine.localmind.workbench.v9.workOrderStatusRefused'](),
+    cancelled:
+      t['com.affine.localmind.workbench.v9.workOrderStatusCancelled'](),
+  };
   const sessionRelations = useMemo(() => {
     if (!graph || !sessionId) return [];
     const labels = new Map(graph.nodes.map(node => [node.id, node.label]));
@@ -119,7 +132,9 @@ export function ProjectContextPanel({
                 <span aria-hidden="true">→</span>
                 <strong>{relation.toLabel}</strong>
                 <span>{relation.label}</span>
-                <span>{relation.status}</span>
+                <span>
+                  {relationStatusLabels[relation.status] ?? relation.status}
+                </span>
               </li>
             ))}
           </ul>

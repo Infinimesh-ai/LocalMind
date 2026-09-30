@@ -125,6 +125,22 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   const [_, setActiveBlockSuiteEditor] = useActiveBlocksuiteEditor();
 
   const enableAI = useEnableAI();
+  const [requestedSessionId] = useState(() =>
+    new URLSearchParams(workbench.location$.value.search).get('sessionId')
+  );
+  const openedRequestedChat = useRef(false);
+  useEffect(() => {
+    if (
+      !requestedSessionId ||
+      !isActiveView ||
+      !enableAI ||
+      openedRequestedChat.current
+    )
+      return;
+    openedRequestedChat.current = true;
+    workbench.openSidebar();
+    view.activeSidebarTab('chat');
+  }, [enableAI, isActiveView, requestedSessionId, view, workbench]);
 
   const featureFlagService = useService(FeatureFlagService);
   const enableAdapterPanel = useLiveData(

@@ -9,6 +9,11 @@ import {
   officeOwnerToInput,
 } from '../../models/office-owner';
 import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
+import {
+  WorkspaceNativeResourceAccess,
+  WorkspaceOrganizationService,
+  WorkspaceResourceService,
+} from '../doc';
 import { PermissionAccess } from '../permission';
 import { officeFingerprint, officeJsonFingerprint } from './evidence';
 import {
@@ -25,6 +30,8 @@ const MAX_IMPORT_FIELD_LENGTH = 1024;
 export type ImportOfficeArtifactInput = OfficeOwnerInput & {
   actorId: string;
   sourceBlobKey: string;
+  /** Internal generator bytes prove ownership without borrowing a deduplicated file reference. */
+  generatedBytes?: Buffer;
   title: string;
   sourceFileName: string;
   importIdempotencyKey: string;
@@ -53,10 +60,59 @@ export class OfficeImportService {
   constructor(
     private readonly models: Models,
     private readonly storage: OfficeResourceStorage,
-    private readonly ac: PermissionAccess
+    private readonly ac: PermissionAccess,
+    private readonly resources: WorkspaceResourceService,
+    private readonly organization: WorkspaceOrganizationService,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess
   ) {}
 
   async import(input: ImportOfficeArtifactInput) {
+    const owner = officeOwnerFromInput(input);
+    if (typeof owner !== 'string') return this.importAuthorized(input);
+    return this.resources.snapshot(
+      { workspaceId: owner, actorId: input.actorId },
+      async () => {
+        const authorize = async () => {
+          const acl = this.ac.user(input.actorId).workspace(owner);
+          await Promise.all([
+            acl.assert('Workspace.CreateDoc'),
+            acl.assert('Workspace.Blobs.Write'),
+          ]);
+          await this.organization.assertResourceFolder(
+            owner,
+            input.actorId,
+            input.parentId ?? null,
+            true
+          );
+        };
+        await authorize();
+        if (!input.generatedBytes)
+          await this.nativeAccess.assertBlobRead({
+            workspaceId: owner,
+            actorId: input.actorId,
+            key: input.sourceBlobKey,
+          });
+        const result = await this.importAuthorized(input);
+        const identity = {
+          workspaceId: owner,
+          actorId: input.actorId,
+          resourceId: result.artifact.id,
+          kind: 'office' as const,
+        };
+        await this.models.workspaceNativeResource.get(identity);
+        if (result.created && input.parentId)
+          await this.organization.placeNewNativeResource({
+            ...identity,
+            folderId: input.parentId,
+            authorize,
+          });
+        await authorize();
+        return result;
+      }
+    );
+  }
+
+  private async importAuthorized(input: ImportOfficeArtifactInput) {
     const owner = officeOwnerFromInput(input);
     if (input.replaceProjectArtifact && typeof owner === 'string')
       throw new Error('Source refresh requires a Project resource');
@@ -157,6 +213,13 @@ export class OfficeImportService {
         `Failed to read ${policy.format.toUpperCase()} source blob: ${message}`
       );
     }
+    if (
+      input.generatedBytes &&
+      officeFingerprint(input.generatedBytes) !== officeFingerprint(sourceBytes)
+    )
+      throw new Error(
+        'Generated Office content does not match the stored bytes'
+      );
     if (sourceBytes.byteLength !== sourceBlob.size) {
       throw new Error(
         `${policy.format.toUpperCase()} source blob byte size does not match: ${sourceBlobKey}`
@@ -350,6 +413,14 @@ export class OfficeImportService {
             },
             true
           );
+    if (typeof owner === 'string' && result.created)
+      await this.models.workspaceNativeResource.index({
+        workspaceId: owner,
+        resourceId: result.artifact.id,
+        kind: 'office',
+        sequence: result.revision.sequence,
+        text: await officePackageSearchText(semanticState, sourceBytes),
+      });
     return {
       ...result,
       format: policy.format,

@@ -13,14 +13,19 @@ import { CurrentUser, type CurrentUser as User } from '../auth';
 import { ProjectBlobStorage, ProjectResourceService } from './resources';
 import {
   ChangeProjectResourceInput,
+  CopyProjectResourceInput,
   CreateProjectFileInput,
   CreateProjectResourceInput,
   PermanentlyDeleteProjectResourceInput,
+  ProjectContentHistoryType,
+  ProjectFileTextType,
   ProjectResourcePageType,
   ProjectResourceRevisionType,
   ProjectResourceType,
   ProjectSearchPageType,
+  RestoreProjectResourceVersionInput,
   SaveProjectDocumentInput,
+  SaveProjectFileInput,
 } from './types';
 
 @Resolver()
@@ -30,6 +35,46 @@ export class ProjectResourceResolver {
     private readonly resources: ProjectResourceService,
     private readonly blobs: ProjectBlobStorage
   ) {}
+
+  @Query(() => [ProjectContentHistoryType])
+  projectResourceHistory(
+    @CurrentUser() user: User,
+    @Args('projectId') projectId: string,
+    @Args('resourceId') resourceId: string,
+    @Args('before', { type: () => Int, nullable: true }) before?: number,
+    @Args('limit', { type: () => Int, nullable: true }) limit?: number
+  ) {
+    return this.resources.history({
+      projectId,
+      resourceId,
+      actorId: user.id,
+      before,
+      limit,
+    });
+  }
+
+  @Mutation(() => ProjectResourceType)
+  @Throttle('strict')
+  copyProjectResource(
+    @CurrentUser() user: User,
+    @Args('input') input: CopyProjectResourceInput
+  ) {
+    return this.resources.copy({ ...input, actorId: user.id });
+  }
+
+  @Mutation(() => ProjectResourceType)
+  @Throttle('strict')
+  async restoreProjectResourceVersion(
+    @CurrentUser() user: User,
+    @Args('input') input: RestoreProjectResourceVersionInput
+  ) {
+    await this.resources.restoreVersion({
+      ...input,
+      actorId: user.id,
+      editLease: { ...input.editLease, kind: 'user' },
+    });
+    return this.models.projectResource.get({ ...input, actorId: user.id });
+  }
 
   @Query(() => ProjectSearchPageType)
   async searchProjectResources(
@@ -187,6 +232,50 @@ export class ProjectResourceResolver {
       ...input,
       actorId: user.id,
     });
+  }
+
+  @Mutation(() => ProjectResourceRevisionType)
+  async saveProjectFile(
+    @CurrentUser() user: User,
+    @Args('input') input: SaveProjectFileInput
+  ) {
+    if (
+      (typeof input.text === 'string') ===
+      (typeof input.blobKey === 'string')
+    )
+      throw new BadRequest(
+        'Provide either complete text or a replacement file'
+      );
+    return this.resources.saveFile({
+      ...input,
+      ...(typeof input.text === 'string'
+        ? { text: input.text }
+        : { blobKey: input.blobKey as string }),
+      actorId: user.id,
+      origin: 'user',
+      editLease: { ...input.editLease, kind: 'user' },
+    });
+  }
+
+  @Query(() => ProjectFileTextType)
+  async projectFileText(
+    @CurrentUser() user: User,
+    @Args('projectId') projectId: string,
+    @Args('resourceId') resourceId: string,
+    @Args('sequence', { type: () => Int, nullable: true }) sequence?: number
+  ) {
+    const result = await this.resources.readTextFile({
+      projectId,
+      resourceId,
+      actorId: user.id,
+      sequence,
+    });
+    return {
+      text: result.text,
+      contentVersion: result.revision.sequence,
+      mimeType: result.blob.mimeType,
+      byteSize: result.blob.byteSize,
+    };
   }
 
   @Mutation(() => ProjectResourceRevisionType)

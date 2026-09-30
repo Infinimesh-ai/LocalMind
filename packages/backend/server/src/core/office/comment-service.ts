@@ -9,6 +9,7 @@ import {
   officeOwnerFromInput,
   type OfficeOwnerInput,
 } from '../../models/office-owner';
+import { WorkspaceNativeResourceAccess } from '../doc/native-resource-access';
 import { PermissionAccess } from '../permission';
 
 const id = z.string().trim().min(1).max(512);
@@ -95,7 +96,8 @@ const ARTIFACT_KIND_BY_ANCHOR = {
 export class OfficeCommentService {
   constructor(
     private readonly models: Models,
-    private readonly ac: PermissionAccess
+    private readonly ac: PermissionAccess,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess
   ) {}
 
   async list(owner: OfficeOwner, actorId: string, artifactId: string) {
@@ -269,6 +271,12 @@ export class OfficeCommentService {
         artifactId,
       });
     } else {
+      await this.nativeAccess.assert({
+        workspaceId: owner,
+        actorId,
+        resourceId: artifactId,
+        kind: 'office',
+      });
       await this.ac
         .user(actorId)
         .workspace(owner)
@@ -286,10 +294,10 @@ export class OfficeCommentService {
   ) {
     await this.assertRead(owner, actorId, artifactId);
     if (typeof owner === 'string')
-      await this.ac
-        .user(actorId)
-        .workspace(owner)
-        .assert('Workspace.Blobs.Write');
+      await this.nativeAccess.write(
+        { workspaceId: owner, actorId, resourceId: artifactId, kind: 'office' },
+        async () => undefined
+      );
   }
 
   private ownerOf(record: {

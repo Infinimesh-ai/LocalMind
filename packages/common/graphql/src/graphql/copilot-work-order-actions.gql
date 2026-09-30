@@ -91,6 +91,62 @@ mutation submitWorkOrderDelivery(
   }
 }
 
+mutation setWorkOrderDeliveryDraftItem(
+  $workOrderId: ID!
+  $requirementId: ID!
+  $expectedDraftVersion: Int!
+  $text: String
+  $blobIds: [ID!]
+) {
+  setWorkOrderDeliveryDraftItem(
+    workOrderId: $workOrderId
+    requirementId: $requirementId
+    expectedDraftVersion: $expectedDraftVersion
+    text: $text
+    blobIds: $blobIds
+  ) {
+    workOrderId
+    orderVersion
+    version
+    updatedAt
+    ready
+    confirmationToken
+    items {
+      requirementId
+      blobIds
+      text
+    }
+    checks {
+      requirementId
+      ready
+      reason
+    }
+  }
+}
+
+mutation confirmWorkOrderDeliveryDraft(
+  $workOrderId: ID!
+  $expectedWorkOrderVersion: Int!
+  $expectedDraftVersion: Int!
+  $confirmationToken: String!
+  $requestKey: String!
+) {
+  confirmWorkOrderDeliveryDraft(
+    workOrderId: $workOrderId
+    expectedWorkOrderVersion: $expectedWorkOrderVersion
+    expectedDraftVersion: $expectedDraftVersion
+    confirmationToken: $confirmationToken
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+    deliveryRevisionId
+    revision
+    receiptFingerprint
+  }
+}
+
 mutation adoptWorkOrderDeliveries(
   $sourceSessionId: ID!
   $expectedContextVersion: Int!

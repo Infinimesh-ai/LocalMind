@@ -329,6 +329,7 @@ export class NotificationModel extends BaseModel {
         UNION
         SELECT principal_id AS "userId" FROM doc_grants
         WHERE workspace_id = ${request.workspaceId} AND doc_id = ${request.docId}
+          AND ${request.sourceKind} = 'document'
           AND principal_type = 'user' AND role = 'owner'
       `;
       for (const { userId } of recipients) {

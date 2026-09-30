@@ -25,6 +25,7 @@ export const REALTIME_GATEWAY_REQUIRED_TOPICS = [
   'project.task.changed',
   'project.lease.changed',
   'workspace.access.changed',
+  'workspace.nativeResources.changed',
   'workspace.directory-policy.changed',
   'workspace.config.changed',
   'workspace.members.changed',

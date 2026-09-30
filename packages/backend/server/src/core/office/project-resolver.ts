@@ -1,12 +1,24 @@
 import { parseOfficeCommand } from '@localmind/office';
-import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import {
+  Args,
+  Field,
+  InputType,
+  Mutation,
+  Query,
+  Resolver,
+} from '@nestjs/graphql';
 import type { OfficeArtifact, OfficeRevision } from '@prisma/client';
-import { SafeIntResolver } from 'graphql-scalars';
+import { GraphQLJSONObject, SafeIntResolver } from 'graphql-scalars';
 
 import { BadRequest, Throttle, URLHelper } from '../../base';
 import { CurrentUser, type CurrentUser as User } from '../auth';
+import { ProjectResourceType } from '../project/types';
 import { OfficeArtifactService } from './artifact-service';
 import { OfficeCommandService } from './command-service';
+import {
+  NativeFileCreateSchema,
+  NativeFileCreateService,
+} from './create-service';
 import { OfficeImportService } from './import-service';
 import {
   ImportProjectOfficeInput,
@@ -18,14 +30,42 @@ import {
 } from './project-types';
 import { OfficeCommandPreviewType } from './types';
 
+@InputType()
+class CreateProjectNativeFileInput {
+  @Field() projectId!: string;
+  @Field() title!: string;
+  @Field() requestKey!: string;
+  @Field(() => String, { nullable: true }) parentId?: string | null;
+  @Field(() => GraphQLJSONObject) content!: object;
+}
+
 @Resolver()
 export class ProjectOfficeResolver {
   constructor(
     private readonly artifacts: OfficeArtifactService,
     private readonly imports: OfficeImportService,
     private readonly commands: OfficeCommandService,
-    private readonly url: URLHelper
+    private readonly url: URLHelper,
+    private readonly nativeFiles: NativeFileCreateService
   ) {}
+
+  @Mutation(() => ProjectResourceType)
+  @Throttle('strict')
+  async createProjectNativeFile(
+    @CurrentUser() user: User,
+    @Args('input') input: CreateProjectNativeFileInput
+  ) {
+    return this.nativeFiles.createUser({
+      projectId: input.projectId,
+      actorId: user.id,
+      requestKey: input.requestKey,
+      file: NativeFileCreateSchema.parse({
+        title: input.title,
+        parent_id: input.parentId,
+        content: input.content,
+      }),
+    });
+  }
 
   @Query(() => ProjectOfficeArtifactType)
   async projectOfficeArtifact(

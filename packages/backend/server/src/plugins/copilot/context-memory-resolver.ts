@@ -2411,9 +2411,11 @@ export class CopilotContextMemoryResolver {
     if (deleted === null) {
       throw new NotFoundException('Context project not found');
     }
-    if (!deleted) {
+    if (!deleted.deleted) {
       throw new BadRequest(
-        'Projects with user memories must be archived instead of deleted'
+        deleted.reason === 'memories'
+          ? 'Projects with user memories must be archived instead of deleted'
+          : 'Projects with linked resources or retained history must be archived instead of deleted'
       );
     }
     return true;

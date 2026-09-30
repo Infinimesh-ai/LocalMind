@@ -36,6 +36,38 @@ export const splitListCommand: Command<{
   doc.captureSync();
 
   if (model.props.text.length === 0) {
+    if (
+      parent.role === 'hub' &&
+      model.props.type === 'numbered' &&
+      model.children.length === 0
+    ) {
+      const followingLists = getNextContinuousNumberedLists(doc, model);
+      if (followingLists.length > 0) {
+        const currentOrder = model.props.order ?? 1;
+        let newListId = '';
+        doc.transact(() => {
+          newListId = doc.addBlock(
+            'affine:list',
+            { type: 'numbered', order: currentOrder + 1 },
+            parent,
+            modelIndex + 1
+          );
+          followingLists.forEach((list, index) => {
+            list.props.order = currentOrder + index + 2;
+          });
+        });
+
+        host.updateComplete
+          .then(() => {
+            focusTextModel(std, newListId);
+          })
+          .catch(console.error);
+
+        next();
+        return;
+      }
+    }
+
     /**
      * case 1: target is top most, convert the list into a paragraph
      *

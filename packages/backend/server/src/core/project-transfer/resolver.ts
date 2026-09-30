@@ -21,6 +21,9 @@ export class ImportWorkspaceResourceToProjectInput {
   @Field(() => ID) projectId!: string;
   @Field(() => ID) workspaceId!: string;
   @Field(() => ID) sourceResourceId!: string;
+  @Field(() => String, { nullable: true }) sourceKind?:
+    | 'document'
+    | 'workspace_file';
   @Field(() => ID, { nullable: true }) parentId?: string | null;
   @Field(() => String, { nullable: true }) title?: string;
   @Field(() => ProjectResourceKind) kind!: ProjectResourceKind;

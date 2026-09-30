@@ -87,10 +87,14 @@ import { WorkspaceCalendarModel } from './workspace-calendar';
 import { WorkspaceDirectoryGrantModel } from './workspace-directory-grant';
 import { WorkspaceDocOutboxModel } from './workspace-doc-outbox';
 import { WorkspaceFileModel } from './workspace-file';
+import { WorkspaceLifecycleModel } from './workspace-lifecycle';
+import { WorkspaceNativeResourceModel } from './workspace-native-resource';
 import { WorkspaceUserModel } from './workspace-user';
 
 const MODELS = {
   workspaceFile: WorkspaceFileModel,
+  workspaceNativeResource: WorkspaceNativeResourceModel,
+  workspaceLifecycle: WorkspaceLifecycleModel,
   user: UserModel,
   session: SessionModel,
   verificationToken: VerificationTokenModel,

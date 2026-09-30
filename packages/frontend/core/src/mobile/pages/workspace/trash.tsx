@@ -1,3 +1,1 @@
-export const Component = () => {
-  return <div>/workspace/:workspaceId/trash</div>;
-};
+export { TrashPage as Component } from '../../../desktop/pages/workspace/trash-page';

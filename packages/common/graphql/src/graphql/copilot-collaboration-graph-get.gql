@@ -6,19 +6,35 @@ query copilotCollaborationGraphGet {
           id
           label
           self
+          avatarUrl
         }
         edges {
           id
+          kind
           from
           to
           status
           label
+          requirementTitles
+          requirementItems {
+            id
+            title
+            kind
+          }
+          ownConversationExists
+          sourceKind
+          updatedAt
+          expiresAt
           project {
             id
             name
           }
+          ownNavigationKind
           ownSessionId
           ownWorkOrderId
+          ownProjectId
+          ownWorkspaceId
+          ownDocId
         }
         truncated
       }

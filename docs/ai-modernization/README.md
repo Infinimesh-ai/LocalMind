@@ -83,6 +83,27 @@ retention controls, and self-hosted external-telemetry blocking. Its design
 contract is `docs/localmind-logging-system-design.zh-CN.md`, together with the
 enterprise deployment model.
 
+The [v9 relationship graph contract](project-relationship-graph-v9-implementation.zh-CN.md)
+now includes the implemented finite graph revision: one current-user node across
+projects, grouped collaborators, expandable delivery items, work-order selection,
+and an authorized open-or-create conversation action. Owner-only live drafts and
+revision-specific adoption remain intact. Verification and remaining limits are
+recorded in `.codex-artifacts/project-finite-graph/REPORT.md`; this does not claim
+production deployment or rerun the historical workbench Goal.
+
+The [scheme-2 collaboration orbit](project-collaboration-orbit-scheme-2-development.zh-CN.md)
+supersedes v9's relationship-view layout while retaining its authorization and
+work-order semantics. Its [execution record](project-collaboration-orbit-scheme-2.execution.zh-CN.md)
+tracks source integration, A01—A19 evidence, remaining browser checks and local
+runtime synchronization separately from the historical v9 result. The supported
+local sync completed on 2026-09-29; browser cases still marked partial in that
+record remain open.
+
+The [Project work-order AI delivery contract](project-work-order-ai-delivery-contract.zh-CN.md)
+defines the unified work-order template, recipient conversation, AI-assisted
+completion check, and recipient-confirmed return. It supersedes the v9 manual
+delivery-form interaction; the implementation gap is recorded in that contract.
+
 - `tracks/support-bundle.md`
 - `tracks/repair-execution.md`
 - `tracks/agent-runtime.md`

@@ -10,7 +10,11 @@ export const PROJECT_WORKSPACE_IMPORT_WORKFLOW =
   'agent_runtime_project_workspace_import';
 export const projectWorkspaceImportCommand = z
   .object({
-    version: z.literal('project-workspace-import/v1'),
+    version: z.enum([
+      'project-workspace-import/v1',
+      'project-workspace-import/v2',
+    ]),
+    sourceKind: z.enum(['document', 'workspace_file']).optional(),
     workspaceId: z.string().min(1).max(256),
     sourceResourceId: z.string().min(1).max(256),
     parentId: z.string().min(1).max(256).nullable(),
@@ -27,7 +31,14 @@ export const projectWorkspaceImportCommand = z
     accessRequestId: z.string().nullable(),
     requestHash: z.string().length(64),
   })
-  .strict();
+  .strict()
+  .refine(
+    value =>
+      value.version === 'project-workspace-import/v2'
+        ? !!value.sourceKind
+        : value.sourceKind === undefined,
+    'Import source kind does not match its frozen contract'
+  );
 
 @Injectable()
 export class ProjectWorkspaceImportModel extends BaseModel {
@@ -52,24 +63,27 @@ export class ProjectWorkspaceImportModel extends BaseModel {
     return this.db.$queryRaw<
       {
         id: string;
+        sourceKind: 'document' | 'workspace_file';
         title: string | null;
         mode: number;
-        kind: OfficeArtifactKind | null;
+        kind: OfficeArtifactKind | 'file' | null;
       }[]
     >(Prisma.sql`
       WITH candidates AS (
-        SELECT guid AS id FROM snapshots WHERE workspace_id = ${workspaceId}
-        UNION SELECT guid AS id FROM updates WHERE workspace_id = ${workspaceId}
-        UNION SELECT id FROM office_artifacts WHERE workspace_id = ${workspaceId}
+        SELECT guid AS id, 'document'::text AS source_kind FROM snapshots WHERE workspace_id = ${workspaceId}
+        UNION SELECT guid AS id, 'document' FROM updates WHERE workspace_id = ${workspaceId}
+        UNION SELECT id, 'document' FROM office_artifacts WHERE workspace_id = ${workspaceId}
+        UNION SELECT file_id AS id, 'workspace_file' FROM workspace_file_states WHERE workspace_id = ${workspaceId} AND trashed_at IS NULL AND deleted_at IS NULL
       )
-      SELECT candidate.id, COALESCE(office.title, meta.title) AS title,
-        COALESCE(meta.mode, 0) AS mode, office.kind::text AS kind
+      SELECT candidate.id, candidate.source_kind AS "sourceKind", COALESCE(file.title, office.title, meta.title) AS title,
+        COALESCE(meta.mode, 0) AS mode, CASE WHEN candidate.source_kind = 'workspace_file' THEN 'file' ELSE office.kind::text END AS kind
       FROM candidates candidate
-      LEFT JOIN workspace_pages meta ON meta.workspace_id = ${workspaceId} AND meta.page_id = candidate.id
-      LEFT JOIN office_artifacts office ON office.workspace_id = ${workspaceId} AND office.id = candidate.id
-      WHERE candidate.id <> ${workspaceId} AND candidate.id COLLATE "C" > ${after}
-        AND COALESCE(meta.blocked, false) = false AND ${readable}
-      ORDER BY candidate.id COLLATE "C" LIMIT ${limit}
+      LEFT JOIN workspace_file_states file ON candidate.source_kind = 'workspace_file' AND file.workspace_id = ${workspaceId} AND file.file_id = candidate.id
+      LEFT JOIN workspace_pages meta ON candidate.source_kind = 'document' AND meta.workspace_id = ${workspaceId} AND meta.page_id = candidate.id
+      LEFT JOIN office_artifacts office ON candidate.source_kind = 'document' AND office.workspace_id = ${workspaceId} AND office.id = candidate.id
+      WHERE candidate.id <> ${workspaceId} AND (candidate.id || ':' || candidate.source_kind) COLLATE "C" > ${after}
+        AND COALESCE(meta.blocked, false) = false AND (candidate.source_kind = 'workspace_file' OR ${readable})
+      ORDER BY (candidate.id || ':' || candidate.source_kind) COLLATE "C" LIMIT ${limit}
     `);
   }
 

@@ -1,7 +1,10 @@
+import { CodeBlockHighlighter } from '@blocksuite/affine-block-code';
+import { splitListCommand } from '@blocksuite/affine-block-list';
 import { LinkExtension } from '@blocksuite/affine-inline-link';
 import { textKeymap } from '@blocksuite/affine-inline-preset';
 import type { AffineReference } from '@blocksuite/affine-inline-reference';
 import type {
+  CodeBlockModel,
   ListBlockModel,
   ParagraphBlockModel,
 } from '@blocksuite/affine-model';
@@ -175,6 +178,99 @@ describe('markdown/list/paragraph/quote/code/link', () => {
     expect(model.props.checked).toBe(true);
   });
 
+  test('Enter keeps an empty numbered item before later numbered items', async () => {
+    const { noteId, paragraphId } = await createParagraph();
+    const note = doc.getBlock(noteId)?.model;
+    if (!note) throw new Error('Cannot find note model');
+
+    doc.addBlock(
+      'affine:list',
+      { type: 'numbered', order: 4, text: new Text('Later') },
+      note,
+      1
+    );
+    await triggerMarkdown(paragraphId, '3. ', 'list');
+
+    const current = note.children[0] as ListBlockModel;
+    expect(current.props.order).toBe(3);
+    expect(current.props.text.length).toBe(0);
+    doc.resetHistory();
+
+    editor.std.command
+      .chain()
+      .pipe(splitListCommand, { blockId: current.id, inlineIndex: 0 })
+      .run();
+    await wait();
+
+    const items = note.children as ListBlockModel[];
+    expect(items.map(item => item.flavour)).toEqual([
+      'affine:list',
+      'affine:list',
+      'affine:list',
+    ]);
+    expect(items.map(item => item.props.order)).toEqual([3, 4, 5]);
+    expect(items.map(item => item.props.text.toString())).toEqual([
+      '',
+      '',
+      'Later',
+    ]);
+    expect(editor.std.selection.find(TextSelection)?.from.blockId).toBe(
+      items[1].id
+    );
+
+    doc.undo();
+    expect(
+      note.children.map(item => (item as ListBlockModel).props.order)
+    ).toEqual([3, 4]);
+  });
+
+  test('Enter exits an empty numbered item at the end of a list', async () => {
+    const { noteId, paragraphId } = await createParagraph();
+    await triggerMarkdown(paragraphId, '3. ', 'list');
+    const note = doc.getBlock(noteId)?.model;
+    if (!note) throw new Error('Cannot find note model');
+    const current = note.children[0] as ListBlockModel;
+
+    editor.std.command
+      .chain()
+      .pipe(splitListCommand, { blockId: current.id, inlineIndex: 0 })
+      .run();
+    await wait();
+
+    expect(note.children).toHaveLength(1);
+    expect(note.children[0].flavour).toBe('affine:paragraph');
+  });
+
+  test('Enter after numbered item text still inserts before later items', async () => {
+    const { noteId, paragraphId } = await createParagraph();
+    const note = doc.getBlock(noteId)?.model;
+    if (!note) throw new Error('Cannot find note model');
+    doc.addBlock(
+      'affine:list',
+      { type: 'numbered', order: 4, text: new Text('Later') },
+      note,
+      1
+    );
+    await triggerMarkdown(paragraphId, '3. ', 'list');
+    const current = note.children[0] as ListBlockModel;
+    doc.updateBlock(current, { text: new Text('Title') });
+    await wait();
+
+    editor.std.command
+      .chain()
+      .pipe(splitListCommand, { blockId: current.id, inlineIndex: 5 })
+      .run();
+    await wait();
+
+    const items = note.children as ListBlockModel[];
+    expect(items.map(item => item.props.order)).toEqual([3, 4, 5]);
+    expect(items.map(item => item.props.text.toString())).toEqual([
+      'Title',
+      '',
+      'Later',
+    ]);
+  });
+
   test('markdown heading and quote shortcuts convert paragraph type', async () => {
     const { noteId: headingNoteId, paragraphId: headingParagraphId } =
       await createParagraph();
@@ -202,14 +298,29 @@ describe('markdown/list/paragraph/quote/code/link', () => {
   test('markdown code shortcut converts paragraph to code block with language', async () => {
     const { noteId, paragraphId } = await createParagraph();
     await triggerMarkdown(paragraphId, '```ts ', 'code-block');
+    await editor.std.get(CodeBlockHighlighter).load();
+    await wait();
 
     const note = doc.getBlock(noteId)?.model;
     if (!note) {
       throw new Error('Cannot find note model');
     }
-    const model = note.children[0];
+    const model = note.children[0] as CodeBlockModel;
     expect(model.flavour).toBe('affine:code');
-    expect((model as any).props.language).toBe('typescript');
+    expect(model.props.language).toBe('typescript');
+  });
+
+  test('markdown code shortcut clears unsupported language after loading', async () => {
+    const { noteId, paragraphId } = await createParagraph();
+    await triggerMarkdown(paragraphId, '```notalanguage ', 'code-block');
+    await editor.std.get(CodeBlockHighlighter).load();
+    await wait();
+
+    const note = doc.getBlock(noteId)?.model;
+    if (!note) throw new Error('Cannot find note model');
+    const model = note.children[0] as CodeBlockModel;
+    expect(model.flavour).toBe('affine:code');
+    expect(model.props.language).toBeNull();
   });
 
   test('inline markdown converts style and link attributes', async () => {

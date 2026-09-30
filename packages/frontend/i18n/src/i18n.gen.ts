@@ -20728,13 +20728,81 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.v9.activeRuns"](): string;
     /**
-      * `Relations appear after a confirmed work order involves you.`
+      * `Work order relations appear here when you draft or receive them.`
       */
     ["com.affine.localmind.workbench.v9.graphEmpty"](): string;
     /**
-      * `Drag to pan · Scroll to zoom`
+      * `One finger pans · Pinch to zoom · Tap a summary to view its order`
+      */
+    ["com.affine.localmind.workbench.v9.graphTouchHint"](): string;
+    /**
+      * `Drag blank space to pan · Ctrl / ⌘ + wheel to zoom around the view centre`
       */
     ["com.affine.localmind.workbench.v9.graphPanHint"](): string;
+    /**
+      * `Fit all relations`
+      */
+    ["com.affine.localmind.workbench.v9.graphFit"](): string;
+    /**
+      * `Collaboration graph. Arrows point to the recipient of a delivery. Arrow keys pan; plus and minus zoom; Home fits the graph. Hold Space and drag to pan. Tab selects people or orders.`
+      */
+    ["com.affine.localmind.workbench.v9.graphKeyboardHint"](): string;
+    /**
+      * `No relations match this filter.`
+      */
+    ["com.affine.localmind.workbench.v9.graphFilterEmpty"](): string;
+    /**
+      * `This source conversation is no longer available. Refresh the relationship view.`
+      */
+    ["com.affine.localmind.workbench.v9.graphNavigationUnavailable"](): string;
+    /**
+      * `Awaiting confirmation · Not sent`
+      */
+    ["com.affine.localmind.workbench.v9.graphStatusDraft"](): string;
+    /**
+      * `My delivery is due`
+      */
+    ["com.affine.localmind.workbench.v9.graphStatusMyDelivery"](): string;
+    /**
+      * `Awaiting their delivery`
+      */
+    ["com.affine.localmind.workbench.v9.graphStatusWaiting"](): string;
+    /**
+      * `Question · Awaiting sender`
+      */
+    ["com.affine.localmind.workbench.v9.graphStatusWaitingSender"](): string;
+    /**
+      * `Validating`
+      */
+    ["com.affine.localmind.workbench.v9.graphStatusValidating"](): string;
+    /**
+      * `Delivered · Added to context`
+      */
+    ["com.affine.localmind.workbench.v9.graphStatusAdopted"](): string;
+    /**
+      * `Personal / Workspace source`
+      */
+    ["com.affine.localmind.workbench.v9.graphWorkspaceSource"](): string;
+    /**
+      * `Delivering to me`
+      */
+    ["com.affine.localmind.workbench.v9.graphIncoming"](): string;
+    /**
+      * `My delivery to others`
+      */
+    ["com.affine.localmind.workbench.v9.graphOutgoing"](): string;
+    /**
+      * `Sender`
+      */
+    ["com.affine.localmind.workbench.v9.graphSender"](): string;
+    /**
+      * `Recipient`
+      */
+    ["com.affine.localmind.workbench.v9.graphRecipient"](): string;
+    /**
+      * `Me`
+      */
+    ["com.affine.localmind.workbench.v9.graphSelf"](): string;
     /**
       * `Source project`
       */
@@ -20768,7 +20836,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.v9.zoomIn"](): string;
     /**
-      * `Accessible relations`
+      * `Related work orders`
       */
     ["com.affine.localmind.workbench.v9.relationList"](): string;
     /**
@@ -20859,6 +20927,70 @@ export function useAFFiNEI18N(): {
       * `Submit delivery`
       */
     ["com.affine.localmind.workbench.v9.submitDelivery"](): string;
+    /**
+      * `Work order ready to return`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryReadyTitle"](): string;
+    /**
+      * `Review these items and confirm completion and return.`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryReadyQuestion"](): string;
+    /**
+      * `Confirm completion and return`
+      */
+    ["com.affine.localmind.workbench.v9.confirmDelivery"](): string;
+    /**
+      * `Work order completed and returned`
+      */
+    ["com.affine.localmind.workbench.v9.deliverySent"](): string;
+    /**
+      * `Save to delivery draft`
+      */
+    ["com.affine.localmind.workbench.v9.saveDeliveryDraft"](): string;
+    /**
+      * `From {{name}}`
+      */
+    ["com.affine.localmind.workbench.v9.sentBy"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Required returns`
+      */
+    ["com.affine.localmind.workbench.v9.returnItems"](): string;
+    /**
+      * `{{count}} required items missing`
+      */
+    ["com.affine.localmind.workbench.v9.missingRequired"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Review and confirm return`
+      */
+    ["com.affine.localmind.workbench.v9.reviewRequired"](): string;
+    /**
+      * `Check delivery draft`
+      */
+    ["com.affine.localmind.workbench.v9.recheckDeliveryDraft"](): string;
+    /**
+      * `Required text has not been filled in`
+      */
+    ["com.affine.localmind.workbench.v9.checkMissingText"](): string;
+    /**
+      * `The required number of files has not been attached`
+      */
+    ["com.affine.localmind.workbench.v9.checkFileCount"](): string;
+    /**
+      * `The selected file is unavailable or has the wrong format; attach it again`
+      */
+    ["com.affine.localmind.workbench.v9.checkFileUnavailable"](): string;
+    /**
+      * `Reliable content evidence is unavailable; ask the sender to revise this requirement`
+      */
+    ["com.affine.localmind.workbench.v9.checkSemanticEvidence"](): string;
+    /**
+      * `This delivery item needs correction`
+      */
+    ["com.affine.localmind.workbench.v9.checkInvalidItem"](): string;
     /**
       * `Questions and decisions`
       */
@@ -21175,6 +21307,624 @@ export function useAFFiNEI18N(): {
       * `Show Project files`
       */
     ["com.affine.localmind.workbench.v9.showFileTree"](): string;
+    /**
+      * `Expand workspace`
+      */
+    ["com.affine.localmind.workbench.v9.graphExpandWorkspace"](): string;
+    /**
+      * `Restore project navigation`
+      */
+    ["com.affine.localmind.workbench.v9.graphRestoreWorkspace"](): string;
+    /**
+      * `My collaboration`
+      */
+    ["com.affine.localmind.workbench.v9.graphTitle"](): string;
+    /**
+      * `Previous page`
+      */
+    ["com.affine.localmind.workbench.v9.graphPrevious"](): string;
+    /**
+      * `Next page`
+      */
+    ["com.affine.localmind.workbench.v9.graphNext"](): string;
+    /**
+      * `Collapse · All people`
+      */
+    ["com.affine.localmind.workbench.v9.graphAllPeople"](): string;
+    /**
+      * `Find a collaborator`
+      */
+    ["com.affine.localmind.workbench.v9.graphSearchPeople"](): string;
+    /**
+      * `{{count}} collaborators`
+      */
+    ["com.affine.localmind.workbench.v9.graphPeopleCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Deliveries with {{name}} · {{count}} items`
+      */
+    ["com.affine.localmind.workbench.v9.graphPeerItems"](options: Readonly<{
+        name: string;
+        count: string;
+    }>): string;
+    /**
+      * `View work orders with {{name}}`
+      */
+    ["com.affine.localmind.workbench.v9.graphPersonOrders"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Expand {{count}} orders with {{name}}`
+      */
+    ["com.affine.localmind.workbench.v9.graphExpandPerson"](options: Readonly<{
+        count: string;
+        name: string;
+    }>): string;
+    /**
+      * `{{count}} orders`
+      */
+    ["com.affine.localmind.workbench.v9.graphItemCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Arrows point to the recipient · Select a summary to view work orders`
+      */
+    ["com.affine.localmind.workbench.v9.graphDeliveryHint"](): string;
+    /**
+      * `Delivery item pages`
+      */
+    ["com.affine.localmind.workbench.v9.graphItemPages"](): string;
+    /**
+      * `Collaborator pages`
+      */
+    ["com.affine.localmind.workbench.v9.graphPeoplePages"](): string;
+    /**
+      * `Show all`
+      */
+    ["com.affine.localmind.workbench.v9.graphClearFilter"](): string;
+    /**
+      * `Open chat`
+      */
+    ["com.affine.localmind.workbench.v9.graphOpenConversation"](): string;
+    /**
+      * `New chat`
+      */
+    ["com.affine.localmind.workbench.v9.graphCreateConversation"](): string;
+    /**
+      * `Opening…`
+      */
+    ["com.affine.localmind.workbench.v9.graphOpeningConversation"](): string;
+    /**
+      * `Collaboration with {{name}} · {{orders}} orders`
+      */
+    ["com.affine.localmind.workbench.v9.graphPeerSummary"](options: Readonly<{
+        name: string;
+        orders: string;
+    }>): string;
+    /**
+      * `Deliveries in both directions`
+      */
+    ["com.affine.localmind.workbench.v9.graphBidirectional"](): string;
+    /**
+      * `Work order summaries`
+      */
+    ["com.affine.localmind.workbench.v9.graphDeliveryItems"](): string;
+    /**
+      * `All {{count}} orders shown`
+      */
+    ["com.affine.localmind.workbench.v9.graphAllItemsShown"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `{{count}} orders`
+      */
+    ["com.affine.localmind.workbench.v9.graphOrderCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `View controls`
+      */
+    ["com.affine.localmind.workbench.v9.graphViewControls"](): string;
+    /**
+      * `Zoom in`
+      */
+    ["com.affine.localmind.workbench.v9.graphZoomIn"](): string;
+    /**
+      * `Zoom out`
+      */
+    ["com.affine.localmind.workbench.v9.graphZoomOut"](): string;
+    /**
+      * `Reset to 100%`
+      */
+    ["com.affine.localmind.workbench.v9.graphResetZoom"](): string;
+    /**
+      * `Fit entire graph`
+      */
+    ["com.affine.localmind.workbench.v9.graphFitView"](): string;
+    /**
+      * `Locate selection`
+      */
+    ["com.affine.localmind.workbench.v9.graphLocateSelection"](): string;
+    /**
+      * `Others deliver to me`
+      */
+    ["com.affine.localmind.workbench.v9.graphIncomingLane"](): string;
+    /**
+      * `I deliver to others`
+      */
+    ["com.affine.localmind.workbench.v9.graphOutgoingLane"](): string;
+    /**
+      * `Collapse all`
+      */
+    ["com.affine.localmind.workbench.v9.graphCollapseAll"](): string;
+    /**
+      * `Collapse orders`
+      */
+    ["com.affine.localmind.workbench.v9.graphCollapseGroup"](): string;
+    /**
+      * `End of graph`
+      */
+    ["com.affine.localmind.workbench.v9.graphFiniteBoundary"](): string;
+    /**
+      * `Expand view`
+      */
+    ["com.affine.localmind.workbench.v9.graphEnlargeView"](): string;
+    /**
+      * `Collapse view`
+      */
+    ["com.affine.localmind.workbench.v9.graphReduceView"](): string;
+    /**
+      * `Filter work orders`
+      */
+    ["com.affine.localmind.workbench.v9.graphFilterOrders"](): string;
+    /**
+      * `All`
+      */
+    ["com.affine.localmind.workbench.v9.graphFilterAll"](): string;
+    /**
+      * `My deliveries`
+      */
+    ["com.affine.localmind.workbench.v9.graphFilterMine"](): string;
+    /**
+      * `Others’ deliveries`
+      */
+    ["com.affine.localmind.workbench.v9.graphFilterTheirs"](): string;
+    /**
+      * `Ended`
+      */
+    ["com.affine.localmind.workbench.v9.graphFilterEnded"](): string;
+    /**
+      * `No orders match this filter.`
+      */
+    ["com.affine.localmind.workbench.v9.graphNoOrders"](): string;
+    /**
+      * `File`
+      */
+    ["com.affine.localmind.workbench.v9.graphFileItem"](): string;
+    /**
+      * `Text`
+      */
+    ["com.affine.localmind.workbench.v9.graphTextItem"](): string;
+    /**
+      * `Show instructions`
+      */
+    ["com.affine.localmind.workbench.v9.graphShowDetails"](): string;
+    /**
+      * `Hide instructions`
+      */
+    ["com.affine.localmind.workbench.v9.graphHideDetails"](): string;
+    /**
+      * `Details are unavailable. Open the conversation to view the order.`
+      */
+    ["com.affine.localmind.workbench.v9.graphDetailsUnavailable"](): string;
+    /**
+      * `Replace file version`
+      */
+    ["com.affine.localmind.native-files.replace"](): string;
+    /**
+      * `Replacement: {{name}}`
+      */
+    ["com.affine.localmind.native-files.replacement"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `This file changed in another session.`
+      */
+    ["com.affine.localmind.native-files.remoteChanged"](): string;
+    /**
+      * `Your unsaved draft is kept. Compare the latest version before saving again.`
+      */
+    ["com.affine.localmind.native-files.draftKept"](): string;
+    /**
+      * `Compare latest version`
+      */
+    ["com.affine.localmind.native-files.compareLatest"](): string;
+    /**
+      * `Latest saved content`
+      */
+    ["com.affine.localmind.native-files.latest"](): string;
+    /**
+      * `Your draft — edit to merge`
+      */
+    ["com.affine.localmind.native-files.draft"](): string;
+    /**
+      * `Use merged content`
+      */
+    ["com.affine.localmind.native-files.useMerged"](): string;
+    /**
+      * `A newer file version exists. Confirm the version before replacing it.`
+      */
+    ["com.affine.localmind.native-files.replaceConflict"](): string;
+    /**
+      * `New file`
+      */
+    ["com.affine.localmind.native-files.newFile"](): string;
+    /**
+      * `Name`
+      */
+    ["com.affine.localmind.native-files.name"](): string;
+    /**
+      * `Format`
+      */
+    ["com.affine.localmind.native-files.format"](): string;
+    /**
+      * `Folder`
+      */
+    ["com.affine.localmind.native-files.folder"](): string;
+    /**
+      * `Root`
+      */
+    ["com.affine.localmind.native-files.root"](): string;
+    /**
+      * `The operation could not be confirmed. Retry uses the same request to avoid duplicates.`
+      */
+    ["com.affine.localmind.native-files.retrySameRequest"](): string;
+    /**
+      * `Rename`
+      */
+    ["com.affine.localmind.native-files.rename"](): string;
+    /**
+      * `Move`
+      */
+    ["com.affine.localmind.native-files.move"](): string;
+    /**
+      * `Create copy`
+      */
+    ["com.affine.localmind.native-files.copy"](): string;
+    /**
+      * `Restore`
+      */
+    ["com.affine.localmind.native-files.restore"](): string;
+    /**
+      * `Delete permanently`
+      */
+    ["com.affine.localmind.native-files.delete"](): string;
+    /**
+      * `Manage`
+      */
+    ["com.affine.localmind.native-files.manage"](): string;
+    /**
+      * `This cannot be undone. Audit and revision evidence remain subject to retention rules.`
+      */
+    ["com.affine.localmind.native-files.deleteWarning"](): string;
+    /**
+      * `Closing discards unsaved changes.`
+      */
+    ["com.affine.localmind.native-files.discardWarning"](): string;
+    /**
+      * `This file supports download or explicit file replacement instead of text editing.`
+      */
+    ["com.affine.localmind.native-files.downloadOrReplace"](): string;
+    /**
+      * `Version history`
+      */
+    ["com.affine.localmind.native-files.history"](): string;
+    /**
+      * `Preview`
+      */
+    ["com.affine.localmind.native-files.preview"](): string;
+    /**
+      * `Restore this version`
+      */
+    ["com.affine.localmind.native-files.restoreVersion"](): string;
+    /**
+      * `Historical content will be saved as a new version. Existing history is preserved.`
+      */
+    ["com.affine.localmind.native-files.restoreVersionHint"](): string;
+    /**
+      * `Close`
+      */
+    ["com.affine.localmind.native-files.close"](): string;
+    /**
+      * `Search file names and content`
+      */
+    ["com.affine.localmind.native-files.search"](): string;
+    /**
+      * `Open file`
+      */
+    ["com.affine.localmind.native-files.edit"](): string;
+    /**
+      * `Archived projects`
+      */
+    ["com.affine.localmind.workbench.project.archivedList"](): string;
+    /**
+      * `Project restored`
+      */
+    ["com.affine.localmind.workbench.project.restored"](): string;
+    /**
+      * `Could not restore this project`
+      */
+    ["com.affine.localmind.workbench.project.restoreFailed"](): string;
+    /**
+      * `Searches names and extracted content. Files without readable text are searched by name; content indexing may take a moment.`
+      */
+    ["com.affine.localmind.native-files.searchScope"](): string;
+    /**
+      * `Indexing content`
+      */
+    ["com.affine.localmind.native-files.indexPending"](): string;
+    /**
+      * `Create or upload`
+      */
+    ["com.affine.localmind.resources.create"](): string;
+    /**
+      * `Text file`
+      */
+    ["com.affine.localmind.resources.textFiles"](): string;
+    /**
+      * `Upload local files`
+      */
+    ["com.affine.localmind.resources.uploadLocal"](): string;
+    /**
+      * `Waiting`
+      */
+    ["com.affine.localmind.resources.upload.waiting"](): string;
+    /**
+      * `Uploading…`
+      */
+    ["com.affine.localmind.resources.upload.uploading"](): string;
+    /**
+      * `Uploaded`
+      */
+    ["com.affine.localmind.resources.upload.done"](): string;
+    /**
+      * `Upload failed`
+      */
+    ["com.affine.localmind.resources.upload.failed"](): string;
+    /**
+      * `Move to Trash`
+      */
+    ["com.affine.localmind.resources.moveToTrash"](): string;
+    /**
+      * `Restore to another folder`
+      */
+    ["com.affine.localmind.resources.restoreElsewhere"](): string;
+    /**
+      * `Restore to the original location. If it is unavailable, choose an accessible folder.`
+      */
+    ["com.affine.localmind.resources.restoreOriginal"](): string;
+    /**
+      * `This resource was deleted or is no longer accessible.`
+      */
+    ["com.affine.localmind.resources.unavailable"](): string;
+    /**
+      * `This file is in Trash. Restore it before editing.`
+      */
+    ["com.affine.localmind.resources.inTrash"](): string;
+    /**
+      * `This collection or filter applies to BlockSuite pages and whiteboards.`
+      */
+    ["com.affine.localmind.resources.documentFilter"](): string;
+    /**
+      * `File type`
+      */
+    ["com.affine.localmind.resources.type"](): string;
+    /**
+      * `All files`
+      */
+    ["com.affine.localmind.resources.type.all"](): string;
+    /**
+      * `Pages and whiteboards`
+      */
+    ["com.affine.localmind.resources.type.doc"](): string;
+    /**
+      * `Office`
+      */
+    ["com.affine.localmind.resources.type.office"](): string;
+    /**
+      * `PDF`
+      */
+    ["com.affine.localmind.resources.type.pdf"](): string;
+    /**
+      * `Text files`
+      */
+    ["com.affine.localmind.resources.type.text"](): string;
+    /**
+      * `Other files`
+      */
+    ["com.affine.localmind.resources.type.other"](): string;
+    /**
+      * `{{success}} succeeded, {{failed}} failed. Failed items remain selected.`
+      */
+    ["com.affine.localmind.resources.batchResult"](options: Readonly<{
+        success: string;
+        failed: string;
+    }>): string;
+    /**
+      * `Create in {{name}}`
+      */
+    ["com.affine.localmind.resources.destination"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `{{count}} selected`
+      */
+    ["com.affine.localmind.resources.selectedCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Discard unsaved changes?`
+      */
+    ["com.affine.localmind.resources.draftWarning"](): string;
+    /**
+      * `Some selected resources cannot be changed with your current permissions.`
+      */
+    ["com.affine.localmind.resources.batchUnavailable"](): string;
+    /**
+      * `Showing the first 200 accessible resources.`
+      */
+    ["com.affine.localmind.resources.previewLimit"](): string;
+    /**
+      * `Select up to 100 resources per batch.`
+      */
+    ["com.affine.localmind.resources.batchLimit"](): string;
+    /**
+      * `No matching resources.`
+      */
+    ["com.affine.localmind.resources.empty"](): string;
+    /**
+      * `Invalid JSON. Correct the syntax and save again.`
+      */
+    ["com.affine.localmind.native-files.error.invalidJson"](): string;
+    /**
+      * `The file content could not be validated. Check its format, encoding and size, then retry.`
+      */
+    ["com.affine.localmind.native-files.error.invalidContent"](): string;
+    /**
+      * `The file content changed. Compare the latest version before saving again.`
+      */
+    ["com.affine.localmind.native-files.error.conflict"](): string;
+    /**
+      * `You do not have permission for this file operation. Contact the resource owner.`
+      */
+    ["com.affine.localmind.native-files.error.permission"](): string;
+    /**
+      * `This file is unavailable. It may have been deleted or your access may have changed.`
+      */
+    ["com.affine.localmind.native-files.error.unavailable"](): string;
+    /**
+      * `Connection interrupted. The result is uncertain; retry to confirm it.`
+      */
+    ["com.affine.localmind.native-files.error.network"](): string;
+    /**
+      * `The operation could not be completed. Please retry.`
+      */
+    ["com.affine.localmind.native-files.error.failed"](): string;
+    /**
+      * `Collaboration orbit`
+      */
+    ["com.affine.localmind.workbench.orbit.title"](): string;
+    /**
+      * `{{people}} collaborators · {{orders}} open orders`
+      */
+    ["com.affine.localmind.workbench.orbit.summary"](options: Readonly<{
+        people: string;
+        orders: string;
+    }>): string;
+    /**
+      * `Search collaborators or orders`
+      */
+    ["com.affine.localmind.workbench.orbit.search"](): string;
+    /**
+      * `Clear search`
+      */
+    ["com.affine.localmind.workbench.orbit.clearSearch"](): string;
+    /**
+      * `Past collaboration`
+      */
+    ["com.affine.localmind.workbench.orbit.history"](): string;
+    /**
+      * `To confirm {{count}}`
+      */
+    ["com.affine.localmind.workbench.orbit.drafts"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Orders to confirm`
+      */
+    ["com.affine.localmind.workbench.orbit.draftPanel"](): string;
+    /**
+      * `Close orders to confirm`
+      */
+    ["com.affine.localmind.workbench.orbit.closeDrafts"](): string;
+    /**
+      * `Close order details`
+      */
+    ["com.affine.localmind.workbench.orbit.closeDetails"](): string;
+    /**
+      * `Purpose`
+      */
+    ["com.affine.localmind.workbench.orbit.purpose"](): string;
+    /**
+      * `Delivery requirements`
+      */
+    ["com.affine.localmind.workbench.orbit.requirements"](): string;
+    /**
+      * `Delivery directions`
+      */
+    ["com.affine.localmind.workbench.orbit.directions"](): string;
+    /**
+      * `Collaborator → me`
+      */
+    ["com.affine.localmind.workbench.orbit.incoming"](): string;
+    /**
+      * `Me → collaborator`
+      */
+    ["com.affine.localmind.workbench.orbit.outgoing"](): string;
+    /**
+      * `{{name}}, {{orders}} open orders, {{incoming}} delivered to me, {{outgoing}} delivered to them`
+      */
+    ["com.affine.localmind.workbench.orbit.personSummary"](options: Readonly<{
+        name: string;
+        orders: string;
+        incoming: string;
+        outgoing: string;
+    }>): string;
+    /**
+      * `{{count}} open orders`
+      */
+    ["com.affine.localmind.workbench.orbit.activeCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Past {{count}}`
+      */
+    ["com.affine.localmind.workbench.orbit.historyCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `No orders in this direction`
+      */
+    ["com.affine.localmind.workbench.orbit.noOrders"](): string;
+    /**
+      * `Open your pending confirmations above`
+      */
+    ["com.affine.localmind.workbench.orbit.draftHint"](): string;
+    /**
+      * `No matching collaboration`
+      */
+    ["com.affine.localmind.workbench.orbit.empty"](): string;
+    /**
+      * `Orbit view controls`
+      */
+    ["com.affine.localmind.workbench.orbit.camera"](): string;
+    /**
+      * `Zoom out`
+      */
+    ["com.affine.localmind.workbench.orbit.zoomOut"](): string;
+    /**
+      * `Reset to 100% zoom`
+      */
+    ["com.affine.localmind.workbench.orbit.zoomReset"](): string;
+    /**
+      * `Zoom in`
+      */
+    ["com.affine.localmind.workbench.orbit.zoomIn"](): string;
+    /**
+      * `View whole orbit`
+      */
+    ["com.affine.localmind.workbench.orbit.fit"](): string;
     /**
       * `An internal error occurred.`
       */

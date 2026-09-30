@@ -1,0 +1,9 @@
+query workspaceLifecycleResource($input: WorkspaceLifecycleIdentityInput!) {
+  workspaceLifecycleResource(input: $input) { id kind title version trashed trashedAt children { id kind title } childrenTruncated originalPaths canTrash canRestore canDeletePermanently }
+}
+query workspaceTrashedFolders($workspaceId: String!) {
+  workspaceTrashedFolders(workspaceId: $workspaceId) { id kind title version trashed trashedAt children { id kind title } childrenTruncated originalPaths canTrash canRestore canDeletePermanently }
+}
+mutation changeWorkspaceLifecycle($input: ChangeWorkspaceLifecycleInput!) {
+  changeWorkspaceLifecycle(input: $input) { success resourceId action }
+}

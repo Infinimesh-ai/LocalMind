@@ -16,6 +16,7 @@ import { BadRequest, JobQueue, Throttle } from '../../base';
 import { Models } from '../../models';
 import { publicationTargetSchema } from '../../models/project-publication';
 import { CurrentUser, type CurrentUser as User } from '../auth';
+import { WorkspaceNativeResourceAccess } from '../doc';
 import { PermissionAccess } from '../permission';
 import { ProjectPublicationService } from './publication-service';
 
@@ -63,6 +64,7 @@ class ProjectPublicationCandidateType {
   @Field(() => [ProjectPublicationPathType])
   path!: ProjectPublicationPathType[];
   @Field() canUpdate!: boolean;
+  @Field() targetKind!: string;
 }
 
 @ObjectType()
@@ -78,7 +80,8 @@ export class ProjectPublicationResolver {
     private readonly models: Models,
     private readonly service: ProjectPublicationService,
     private readonly jobs: JobQueue,
-    private readonly ac: PermissionAccess
+    private readonly ac: PermissionAccess,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess
   ) {}
 
   @Query(() => ProjectPublicationCandidatesType)
@@ -121,14 +124,31 @@ export class ProjectPublicationResolver {
     const target = record.target
       ? publicationTargetSchema.parse(record.target)
       : null;
-    const previewVisible =
+    let previewVisible =
       !target ||
       record.kind === 'publish' ||
+      target.targetKind === 'workspace_file' ||
       (await this.ac
         .user(record.actorId)
         .doc(target.workspaceId, target.resourceId)
         .projectScope(null)
         .can('Doc.Read'));
+    if (
+      target &&
+      record.kind === 'update' &&
+      (target.targetKind === 'workspace_file' || resource.officeArtifactId)
+    ) {
+      try {
+        await this.nativeAccess.assert({
+          workspaceId: target.workspaceId,
+          actorId: record.actorId,
+          resourceId: target.resourceId,
+          kind: target.targetKind === 'workspace_file' ? 'file' : 'office',
+        });
+      } catch {
+        previewVisible = false;
+      }
+    }
     const result = run?.projectExecutionResults.find(
       item => item.resultStatus === 'completed'
     );
@@ -231,7 +251,9 @@ export class ProjectPublicationResolver {
     @Args('folderId', { type: () => String, nullable: true })
     folderId: string | null,
     @Args('targetResourceId', { type: () => String, nullable: true })
-    targetResourceId?: string
+    targetResourceId?: string,
+    @Args('targetKind', { type: () => String, nullable: true })
+    targetKind?: 'legacy' | 'workspace_file'
   ) {
     return this.view(
       await this.service.preview({
@@ -242,6 +264,7 @@ export class ProjectPublicationResolver {
         workspaceId,
         folderId: folderId ?? null,
         targetResourceId,
+        targetKind,
       })
     );
   }

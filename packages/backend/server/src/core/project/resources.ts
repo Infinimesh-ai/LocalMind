@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 
+import { officeDownloadFileName } from '@localmind/office';
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
+import type { Prisma } from '@prisma/client';
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs';
 
-import { BadRequest, readBufferWithLimit } from '../../base';
+import { BadRequest, readBufferWithLimit, ResourceConflict } from '../../base';
 import { Models } from '../../models';
 import {
   PROJECT_BLOB_MAX_BYTES,
@@ -22,6 +24,16 @@ import {
   inspectDocumentCopySnapshot,
   retitleDocumentCopySnapshot,
 } from '../doc/copy-snapshot';
+import {
+  decodeNativeText,
+  encodeNativeText,
+  nativeFileSearchText,
+} from '../office/file-content';
+import {
+  OFFICE_FORMATS,
+  officePackageSearchText,
+  readNativeOfficeState,
+} from '../office/formats';
 import { StorageRuntimeProvider } from '../storage-runtime';
 
 declare global {
@@ -214,25 +226,407 @@ export class ProjectResourceService {
     }
   ) {
     return this.withWriteSources(input, async () => {
-      await this.models.projectResource.getBlob({
+      const stored = await this.blobs.read({
         ...input,
         key: input.blobKey,
       });
       const file = await this.models.projectResource.create({
         ...input,
         kind: 'file',
+        searchText: nativeFileSearchText(stored.bytes, input.title),
       });
       return file;
     });
   }
 
-  async readFile(input: ProjectActor & { resourceId: string }) {
+  async readFile(
+    input: ProjectActor & { resourceId: string; sequence?: number }
+  ) {
     const resource = await this.models.projectResource.get(input);
     if (resource.kind !== 'file') throw new BadRequest('Choose a Project file');
     const revision = await this.models.projectResource.revision(input);
     const stored = await this.blobs.read({ ...input, key: revision.blobKey });
     await this.models.projectResource.get(input);
     return { ...stored, resource, revision };
+  }
+
+  async readTextFile(
+    input: ProjectActor & { resourceId: string; sequence?: number }
+  ) {
+    const result = await this.readFile(input);
+    return {
+      ...result,
+      text: decodeNativeText(result.bytes, result.resource.title),
+    };
+  }
+
+  async saveFile(
+    input: ProjectActor & {
+      resourceId: string;
+      expectedContentVersion: number;
+      requestKey: string;
+      editLease?: ProjectEditLeaseProof;
+      sourceSessionId?: string;
+      origin?: 'user' | 'ai';
+      readContentVersion?: number;
+    } & ({ text: string } | { blobKey: string })
+  ) {
+    return this.withWriteSources(input, async () => {
+      const resource = await this.models.projectResource.get(input);
+      if (resource.kind !== 'file')
+        throw new BadRequest('Choose a Project file');
+      if (
+        input.origin === 'ai' &&
+        input.readContentVersion !== input.expectedContentVersion
+      )
+        throw new BadRequest(
+          'Read the complete current Project file before editing'
+        );
+      const requestHash = projectResourceHash({
+        content:
+          'text' in input ? { text: input.text } : { blobKey: input.blobKey },
+        expectedContentVersion: input.expectedContentVersion,
+        origin: input.origin ?? 'user',
+      });
+      const previous = await this.models.projectResource.findRevisionRequest({
+        ...input,
+        requestHash,
+      });
+      if (previous) return previous;
+      const current = await this.readFile(input);
+      if (current.revision.sequence !== input.expectedContentVersion)
+        throw new ResourceConflict(
+          'Project content changed; reload and compare before saving'
+        );
+      await this.models.projectResourceEditLease.assertHeld(input);
+      // Validate the existing encoding before allowing a text replacement.
+      if ('text' in input) decodeNativeText(current.bytes, resource.title);
+      const stored =
+        'text' in input
+          ? {
+              bytes: encodeNativeText(input.text, resource.title),
+              mimeType: current.blob.mimeType,
+            }
+          : await this.blobs
+              .read({ ...input, key: input.blobKey })
+              .then(value => ({
+                bytes: value.bytes,
+                mimeType: value.blob.mimeType,
+              }));
+      const blob = await this.blobs.put({
+        ...input,
+        ...stored,
+        mimeIdentity: true,
+      });
+      return this.models.projectResource.appendRevision({
+        ...input,
+        blobKey: blob.key,
+        requestHash,
+        origin: input.origin ?? 'user',
+        searchText: nativeFileSearchText(stored.bytes, resource.title),
+      });
+    });
+  }
+
+  async history(
+    input: ProjectActor & {
+      resourceId: string;
+      before?: number;
+      limit?: number;
+    }
+  ) {
+    const resource = await this.models.projectResource.get(input);
+    if (!resource.officeArtifactId)
+      return (await this.models.projectResource.revisions(input)).map(r => ({
+        id: r.id,
+        sequence: r.sequence,
+        createdAt: r.createdAt,
+        actorId: r.createdBy,
+      }));
+    return (
+      await this.models.officeArtifact.listRevisions(
+        { projectId: input.projectId },
+        resource.officeArtifactId,
+        input.limit,
+        input.before
+      )
+    ).map(r => ({
+      id: r.id,
+      sequence: r.sequence,
+      createdAt: r.createdAt,
+      actorId: r.createdBy,
+    }));
+  }
+
+  async restoreVersion(
+    input: ProjectActor & {
+      resourceId: string;
+      sequence: number;
+      expectedContentVersion: number;
+      requestKey: string;
+      origin?: 'user' | 'ai';
+      sourceSessionId?: string;
+      editLease?: ProjectEditLeaseProof;
+    }
+  ) {
+    return this.withWriteSources(input, async () => {
+      const resource = await this.models.projectResource.get(input);
+      if (resource.kind === 'folder')
+        throw new BadRequest('Folders do not have content history');
+      const requestHash = projectResourceHash({
+        operation: 'restore_version',
+        sequence: input.sequence,
+        expectedContentVersion: input.expectedContentVersion,
+        origin: input.origin ?? 'user',
+      });
+      if (resource.officeArtifactId) {
+        const owner = { projectId: input.projectId };
+        const idempotencyKey = `restore:${projectResourceHash([input.actorId, input.requestKey])}`;
+        const replay = await this.models.officeArtifact.getRevisionByRequest(
+          owner,
+          resource.officeArtifactId,
+          idempotencyKey
+        );
+        if (replay) {
+          if (replay.idempotencyFingerprint !== `sha256:${requestHash}`)
+            throw new ResourceConflict(
+              'History request was reused with different content'
+            );
+          return { id: replay.id, sequence: replay.sequence };
+        }
+        const current = await this.models.officeArtifact.getCurrentRevision(
+          owner,
+          resource.officeArtifactId
+        );
+        if (!current || current.sequence !== input.expectedContentVersion)
+          throw new ResourceConflict(
+            'Project Office content changed before history restoration'
+          );
+        await this.models.projectResourceEditLease.assertHeld(input);
+        const revision = await this.models.officeArtifact.getRevisionBySequence(
+          owner,
+          resource.officeArtifactId,
+          input.sequence
+        );
+        if (!revision)
+          throw new BadRequest('Office history revision is unavailable');
+        const { bytes } = await this.blobs.read({
+          ...input,
+          key: revision.packageBlobKey,
+        });
+        const restored = await this.models.officeArtifact.appendRevision({
+          projectId: input.projectId,
+          actorId: input.actorId,
+          artifactId: resource.officeArtifactId,
+          expectedParentRevisionId: current.id,
+          origin: input.origin ?? 'user',
+          idempotencyKey,
+          idempotencyFingerprint: `sha256:${requestHash}`,
+          package: {
+            key: revision.packageBlobKey,
+            mimeType: revision.packageMimeType,
+            byteSize: revision.packageByteSize,
+            fingerprint: revision.packageFingerprint,
+          },
+          state:
+            revision.stateBlobKey &&
+            revision.stateByteSize &&
+            revision.stateFingerprint
+              ? {
+                  key: revision.stateBlobKey,
+                  byteSize: revision.stateByteSize,
+                  fingerprint: revision.stateFingerprint,
+                }
+              : undefined,
+          modelVersion: revision.modelVersion,
+          operationSummary: {
+            operation: 'restore_version',
+            sourceRevisionId: revision.id,
+          },
+        });
+        const format = Object.values(OFFICE_FORMATS).find(
+          f => f.kind === resource.kind
+        );
+        if (!format) throw new BadRequest('Unsupported Office format');
+        await this.models.projectResource.updateSearchText({
+          ...input,
+          sequence: restored.revision.sequence,
+          text: await officePackageSearchText(
+            await readNativeOfficeState(format, bytes),
+            bytes
+          ),
+        });
+        await this.models.projectResourceEditLease.assertHeld(input);
+        return {
+          id: restored.revision.id,
+          sequence: restored.revision.sequence,
+        };
+      }
+      const replay = await this.models.projectResource.findRevisionRequest({
+        ...input,
+        requestHash,
+      });
+      if (replay) return replay;
+      if (resource.contentVersion !== input.expectedContentVersion)
+        throw new ResourceConflict(
+          'Project content changed before history restoration'
+        );
+      await this.models.projectResourceEditLease.assertHeld(input);
+      const source = await this.models.projectResource.revision(input);
+      if (resource.kind === 'file') {
+        const blob = await this.blobs.read({ ...input, key: source.blobKey });
+        return this.models.projectResource.appendRevision({
+          ...input,
+          blobKey: source.blobKey,
+          requestHash,
+          origin: input.origin ?? 'user',
+          searchText: nativeFileSearchText(blob.bytes, resource.title),
+        });
+      }
+      const sourceContent = await this.readDocument(input);
+      return this.saveDocument({
+        ...input,
+        requestHash,
+        bytes: retitleDocumentCopySnapshot(
+          sourceContent.bytes,
+          resource.title,
+          resource.id
+        ),
+      });
+    });
+  }
+
+  async copy(
+    input: ProjectActor & {
+      resourceId: string;
+      title: string;
+      parentId?: string | null;
+      expectedContentVersion: number;
+      requestKey: string;
+      origin?: 'user' | 'ai';
+      sourceSessionId?: string;
+    }
+  ) {
+    return this.withWriteSources(input, async () => {
+      const source = await this.models.projectResource.get(input);
+      if (source.kind === 'folder')
+        throw new BadRequest('Recursive folder copying is not supported');
+      const requestHash = projectResourceHash({
+        operation: 'copy',
+        sourceId: source.id,
+        expectedContentVersion: input.expectedContentVersion,
+        title: input.title,
+        parentId: input.parentId ?? null,
+      });
+      const replay = await this.models.projectResource.findCreation({
+        ...input,
+        requestHash,
+      });
+      if (replay) return replay;
+      if (source.officeArtifactId) {
+        const owner = { projectId: input.projectId };
+        const artifact = await this.models.officeArtifact.get(
+          owner,
+          source.officeArtifactId
+        );
+        const current = await this.models.officeArtifact.getCurrentRevision(
+          owner,
+          source.officeArtifactId
+        );
+        if (
+          !artifact ||
+          !current ||
+          current.sequence !== input.expectedContentVersion
+        )
+          throw new ResourceConflict(
+            'Source Office content changed before copying'
+          );
+        await this.blobs.read({ ...input, key: current.packageBlobKey });
+        const copied = await this.models.officeArtifact.createOrReuseImported({
+          projectId: input.projectId,
+          actorId: input.actorId,
+          kind: artifact.kind,
+          title: input.title,
+          sourceFileName: officeDownloadFileName(input.title, artifact.kind),
+          source: {
+            key: current.packageBlobKey,
+            mimeType: current.packageMimeType,
+            byteSize: current.packageByteSize,
+            fingerprint: current.packageFingerprint,
+          },
+          state:
+            current.stateBlobKey &&
+            current.stateByteSize &&
+            current.stateFingerprint
+              ? {
+                  key: current.stateBlobKey,
+                  byteSize: current.stateByteSize,
+                  fingerprint: current.stateFingerprint,
+                }
+              : undefined,
+          modelVersion: current.modelVersion,
+          compatibility: artifact.compatibility as Prisma.InputJsonObject,
+          importIdempotencyKey: `copy:${projectResourceHash([input.actorId, input.requestKey])}`,
+          importFingerprint: `sha256:${requestHash}`,
+          operationSummary: {
+            operation: 'copy',
+            sourceResourceId: source.id,
+            sourceRevisionId: current.id,
+          },
+        });
+        return this.models.projectResource.create({
+          ...input,
+          resourceId: copied.artifact.id,
+          officeArtifactId: copied.artifact.id,
+          kind: artifact.kind,
+          requestHash,
+        });
+      }
+      if (source.contentVersion !== input.expectedContentVersion)
+        throw new ResourceConflict('Source content changed before copying');
+      const revision = await this.models.projectResource.revision(input);
+      const resourceId = randomUUID();
+      if (source.kind === 'file') {
+        const { bytes } = await this.blobs.read({
+          ...input,
+          key: revision.blobKey,
+        });
+        return this.models.projectResource.create({
+          ...input,
+          resourceId,
+          kind: 'file',
+          blobKey: revision.blobKey,
+          requestHash,
+          searchText: nativeFileSearchText(bytes, input.title),
+        });
+      }
+      const current = await this.readDocument(input);
+      const bytes = retitleDocumentCopySnapshot(
+        current.bytes,
+        input.title,
+        resourceId
+      );
+      const inspected = inspectDocumentCopySnapshot(bytes);
+      for (const key of inspected.blobIds)
+        await this.models.projectResource.getBlob({ ...input, key });
+      const blob = await this.blobs.put({
+        ...input,
+        bytes,
+        mimeType: 'application/vnd.localmind.yjs',
+      });
+      return this.models.projectResource.create({
+        ...input,
+        resourceId,
+        kind: source.kind,
+        blobKey: blob.key,
+        requestHash,
+        attachmentKeys: inspected.blobIds,
+        searchText: parseYDocToMarkdown(bytes, resourceId, true).markdown.slice(
+          0,
+          250000
+        ),
+      });
+    });
   }
 
   async saveDocument(
@@ -440,7 +834,7 @@ export class ProjectResourceService {
             phase: 'execute',
           },
         },
-        execute
+        () => this.models.projectResource.withMember(input, execute, true)
       );
     }
     return this.models.projectResource.withMember(input, execute, true);

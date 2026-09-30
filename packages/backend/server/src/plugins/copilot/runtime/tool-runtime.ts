@@ -10,6 +10,7 @@ import {
   WorkspaceOrganizationService,
 } from '../../../core/doc';
 import { NativeFileCreateService } from '../../../core/office/create-service';
+import { WorkspaceNativeResourceService } from '../../../core/office/workspace-resource-service';
 import { PermissionAccess, PermissionService } from '../../../core/permission';
 import { ProjectResourceService } from '../../../core/project';
 import { Models } from '../../../models';
@@ -77,6 +78,7 @@ import {
 import { createProjectFileRequestTools } from '../tools/project-file-request';
 import { createWorkOrderDraftTools } from '../tools/work-order';
 import { createWorkOrderFileTool } from '../tools/work-order-file-create';
+import { createWorkspaceNativeTools } from '../tools/workspace-native';
 import { WorkOrderStorage } from '../work-order-storage';
 import { PromptRuntime } from './prompt-runtime';
 import type { ToolLoopBackend } from './tool/bridge';
@@ -156,7 +158,9 @@ export class ToolRuntime {
     @Optional()
     private readonly projectOffice?: ProjectOfficeAgentCommandService,
     @Optional() private readonly nativeFiles?: NativeFileCreateService,
-    @Optional() private readonly workOrderStorage?: WorkOrderStorage
+    @Optional() private readonly workOrderStorage?: WorkOrderStorage,
+    @Optional()
+    private readonly workspaceNativeResources?: WorkspaceNativeResourceService
   ) {}
 
   async getTools(
@@ -237,7 +241,7 @@ export class ToolRuntime {
         return tools;
       }
       return this.applyExecutionGuards(
-        createWorkOrderFileTool(this.workOrderStorage, {
+        createWorkOrderFileTool(this.models, this.workOrderStorage, {
           actorId: options.user,
           sessionId: options.session,
           workOrderId: sessionMeta.workOrderBinding.workOrderId,
@@ -274,6 +278,16 @@ export class ToolRuntime {
         )
       );
     }
+    if (!nativeProjectId && this.workspaceNativeResources)
+      Object.assign(
+        tools,
+        createWorkspaceNativeTools(
+          this.models,
+          this.workspaceNativeResources,
+          options,
+          documentWriteToolsEnabled
+        )
+      );
     for (const tool of options.tools) {
       if (
         nativeProjectId &&
@@ -474,6 +488,13 @@ export class ToolRuntime {
               this.permission,
               this.workspaceOrganization,
               options
+            ),
+            createWorkspaceOrganizationTools(
+              this.ac,
+              this.permission,
+              this.workspaceOrganization,
+              options,
+              true
             )
           );
           break;
@@ -720,7 +741,9 @@ export class ToolRuntime {
       guarded[name] = {
         ...tool,
         execute: async (args, executeOptions) => {
-          const workOrderTool = name === 'work_order_file_create';
+          const workOrderTool =
+            name.startsWith('work_order_delivery_') ||
+            name === 'work_order_file_create';
           executeOptions.signal?.throwIfAborted();
           if (
             isRetiredResourceTool(name) ||

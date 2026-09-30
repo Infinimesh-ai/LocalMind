@@ -2,6 +2,7 @@ query projectResourceSources($projectId: String!, $resourceId: String!) {
   projectResourceSources(projectId: $projectId, resourceId: $resourceId) {
     workspaceId
     sourceResourceId
+    sourceKind
     title
     workspaceName
     sourceVersion

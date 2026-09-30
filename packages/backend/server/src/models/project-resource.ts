@@ -797,6 +797,30 @@ export class ProjectResourceModel extends BaseModel {
   }
 
   @Transactional()
+  async revisions(
+    input: ProjectActor & {
+      resourceId: string;
+      before?: number;
+      limit?: number;
+    }
+  ) {
+    await this.get(input);
+    const take = input.limit ?? 25;
+    if (!Number.isSafeInteger(take) || take < 1 || take > 100)
+      throw new BadRequest('Invalid history page size');
+    return this.db.projectResourceRevision.findMany({
+      where: {
+        projectId: input.projectId,
+        resourceId: input.resourceId,
+        ...(input.before === undefined
+          ? {}
+          : { sequence: { lt: input.before } }),
+      },
+      orderBy: { sequence: 'desc' },
+      take,
+    });
+  }
+
   async revision(
     input: ProjectActor & { resourceId: string; sequence?: number }
   ) {
@@ -1092,7 +1116,11 @@ export class ProjectResourceModel extends BaseModel {
     });
     const sources = new Map<
       string,
-      { workspaceId: string; sourceResourceId: string }
+      {
+        workspaceId: string;
+        sourceResourceId: string;
+        sourceKind: 'document' | 'workspace_file';
+      }
     >();
     for (const row of imports) {
       const evidence = row.evidence as Prisma.JsonObject;
@@ -1103,6 +1131,10 @@ export class ProjectResourceModel extends BaseModel {
         const value = {
           workspaceId: evidence.sourceWorkspaceId,
           sourceResourceId: evidence.sourceResourceId,
+          sourceKind:
+            evidence.sourceKind === 'workspace_file'
+              ? ('workspace_file' as const)
+              : ('document' as const),
         };
         sources.set(JSON.stringify(value), value);
       }
@@ -1111,6 +1143,10 @@ export class ProjectResourceModel extends BaseModel {
       const value = {
         workspaceId: row.workspaceId,
         sourceResourceId: row.targetResourceId,
+        sourceKind:
+          row.targetKind === 'workspace_file'
+            ? ('workspace_file' as const)
+            : ('document' as const),
       };
       sources.set(JSON.stringify(value), value);
     }
@@ -1151,6 +1187,7 @@ export class ProjectResourceModel extends BaseModel {
     input: ProjectActor & {
       resourceId: string;
       sourceWorkspaceId: string;
+      sourceKind?: 'document' | 'workspace_file';
       sourceResourceId: string;
       sourceVersion: string;
       sourceFingerprint: string;
@@ -1167,6 +1204,7 @@ export class ProjectResourceModel extends BaseModel {
       'imported',
       {
         sourceWorkspaceId: input.sourceWorkspaceId,
+        sourceKind: input.sourceKind ?? 'document',
         sourceResourceId: input.sourceResourceId,
         sourceVersion: input.sourceVersion,
         sourceFingerprint: input.sourceFingerprint,

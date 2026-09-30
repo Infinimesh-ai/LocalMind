@@ -316,6 +316,15 @@ export class OfficeArtifactModel extends BaseModel {
       throw new Error('import origin is only valid for the initial revision');
     }
 
+    if (workspaceId) {
+      const identity = {
+        workspaceId,
+        resourceId: artifactId,
+        kind: 'office' as const,
+      };
+      await this.models.workspaceNativeResource.lock(identity);
+      await this.models.workspaceNativeResource.get(identity);
+    }
     await this.lockArtifactWriter(owner, artifactId);
 
     const existing = await this.db.officeRevision.findUnique({
@@ -400,7 +409,13 @@ export class OfficeArtifactModel extends BaseModel {
 
   async get(owner: OfficeOwner, artifactId: string) {
     return await this.db.officeArtifact.findFirst({
-      where: { id: artifactId, ...officeOwnerColumns(owner) },
+      where: {
+        id: artifactId,
+        ...officeOwnerColumns(owner),
+        ...(typeof owner === 'string'
+          ? { workspaceState: { trashedAt: null, deletedAt: null } }
+          : {}),
+      },
     });
   }
 
@@ -448,7 +463,17 @@ export class OfficeArtifactModel extends BaseModel {
 
   async listFilePage(workspaceId: string, cursor?: string) {
     return this.db.officeArtifact.findMany({
-      where: { workspaceId },
+      where: {
+        workspaceId,
+        workspaceState: { trashedAt: null, deletedAt: null },
+      },
+      include: {
+        revisions: {
+          orderBy: { sequence: 'desc' },
+          take: 1,
+          select: { packageByteSize: true },
+        },
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 101,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -465,10 +490,19 @@ export class OfficeArtifactModel extends BaseModel {
     });
   }
 
-  async listRevisions(owner: OfficeOwner, artifactId: string, limit = 50) {
+  async listRevisions(
+    owner: OfficeOwner,
+    artifactId: string,
+    limit = 50,
+    before?: number
+  ) {
     const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 50;
     return await this.db.officeRevision.findMany({
-      where: { ...officeOwnerColumns(owner), artifactId },
+      where: {
+        ...officeOwnerColumns(owner),
+        artifactId,
+        ...(before === undefined ? {} : { sequence: { lt: before } }),
+      },
       orderBy: { sequence: 'desc' },
       take: Math.min(Math.max(normalizedLimit, 1), 100),
     });

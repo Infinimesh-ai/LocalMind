@@ -126,7 +126,9 @@ export class CopilotProjectAgentRuntimeWorker {
           const target =
             command.toolName === 'project_doc_update'
               ? command.arguments.doc_id
-              : command.toolName === 'project_resource_update_meta'
+              : command.toolName === 'project_resource_update_meta' ||
+                  command.toolName === 'project_file_update' ||
+                  command.toolName === 'project_resource_restore_version'
                 ? command.arguments.resource_id
                 : undefined;
           if (typeof target === 'string') resourceId = target;

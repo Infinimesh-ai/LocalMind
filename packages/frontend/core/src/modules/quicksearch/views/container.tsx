@@ -55,6 +55,7 @@ export const QuickSearchContainer = () => {
               'tags',
               'collections',
               'project',
+              'workspace-native',
             ].includes(item.source))
       )
         continue;

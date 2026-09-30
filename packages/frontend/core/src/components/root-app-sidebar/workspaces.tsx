@@ -1,6 +1,7 @@
 import { Button, IconButton, Skeleton } from '@affine/component';
 import { NavigationPanelOrganize } from '@affine/core/desktop/components/navigation-panel';
 import { NavigationPanelDocNode } from '@affine/core/desktop/components/navigation-panel/nodes/doc';
+import { NavigationPanelNativeFileNode } from '@affine/core/desktop/components/navigation-panel/nodes/folder/native-file';
 import { AddPageButton } from '@affine/core/modules/app-sidebar/views';
 import { DocsService } from '@affine/core/modules/doc';
 import { OrganizeService } from '@affine/core/modules/organize';
@@ -11,6 +12,7 @@ import {
   WorkspacesService,
   WorkspaceSwitchService,
 } from '@affine/core/modules/workspace';
+import { useWorkspaceResources } from '@affine/core/modules/workspace-resources/use-resources';
 import { UNTITLED_WORKSPACE_NAME } from '@affine/env/constant';
 import { useI18n } from '@affine/i18n';
 import { ArrowDownSmallIcon, PlusIcon } from '@blocksuite/icons/rc';
@@ -28,6 +30,7 @@ const PAGE_SIZE = 50;
 
 export function WorkspaceRootDocs() {
   const t = useI18n();
+  const native = useWorkspaceResources();
   const docs = useService(DocsService).list;
   const folderTree = useService(OrganizeService).folderTree;
   const ids = useLiveData(docs.nonTrashDocsIds$);
@@ -35,7 +38,10 @@ export function WorkspaceRootDocs() {
   const available = useLiveData(docs.isAvailable$);
   const foldersLoading = useLiveData(folderTree.isLoading$);
   const [limit, setLimit] = useState(PAGE_SIZE);
-  const rootIds = ids.filter(id => !linkedIds.has(id));
+  const rootIds = ids.filter(
+    id => !linkedIds.has(id) && !native.items.some(item => item.id === id)
+  );
+  const rootFiles = native.items.filter(item => item.atRoot);
 
   if (!available || foldersLoading)
     return (
@@ -46,7 +52,7 @@ export function WorkspaceRootDocs() {
 
   return (
     <>
-      {!ids.length && (
+      {!ids.length && !rootFiles.length && !native.loading && !native.error && (
         <div className={styles.treeMessage}>
           {t['com.affine.rootAppSidebar.no-documents']()}
         </div>
@@ -65,7 +71,19 @@ export function WorkspaceRootDocs() {
           }
         </Guard>
       ))}
-      {rootIds.length > limit && (
+      {rootFiles.slice(0, limit).map(item => (
+        <NavigationPanelNativeFileNode
+          key={`${item.kind}:${item.id}`}
+          resourceId={item.id}
+          kind={item.kind}
+        />
+      ))}
+      {native.error && (
+        <Button variant="plain" onClick={() => native.service.invalidate()}>
+          {t['com.affine.error.retry']()}
+        </Button>
+      )}
+      {(rootIds.length > limit || rootFiles.length > limit) && (
         <Button
           variant="plain"
           onClick={() => setLimit(value => value + PAGE_SIZE)}

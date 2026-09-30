@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   ],
   docs: ['loose', 'filed', 'restricted'],
   linked: new Set(['filed']),
+  native: [] as { id: string; kind: 'file' | 'office'; atRoot: boolean }[],
   ready: true,
   synced: true,
   loading: false,
@@ -32,6 +33,22 @@ const state = vi.hoisted(() => ({
   inactiveView: { id: 'inactive' },
 }));
 
+vi.mock('@affine/core/modules/workspace-resources/use-resources', () => ({
+  useWorkspaceResources: () => ({
+    items: state.native,
+    loading: false,
+    error: false,
+    service: { invalidate: vi.fn() },
+  }),
+}));
+vi.mock(
+  '@affine/core/desktop/components/navigation-panel/nodes/folder/native-file',
+  () => ({
+    NavigationPanelNativeFileNode: ({ resourceId }: { resourceId: string }) => (
+      <div data-testid={`native-${resourceId}`}>{resourceId}</div>
+    ),
+  })
+);
 vi.mock('@affine/component', () => ({
   Button: ({
     children,
@@ -145,6 +162,7 @@ vi.mock('@affine/core/desktop/components/navigation-panel/nodes/doc', () => ({
 
 afterEach(cleanup);
 beforeEach(() => {
+  state.native = [];
   vi.clearAllMocks();
   state.current = { id: 'one', flavour: 'local' };
   state.docs = ['loose', 'filed', 'restricted'];
@@ -273,4 +291,17 @@ describe('workspace sidebar', () => {
     );
     expect(screen.getAllByRole('link')).toHaveLength(51);
   });
+});
+
+test('root catalog renders root files once and never promotes nested resources', () => {
+  state.docs = ['loose', 'legacy-office'];
+  state.native = [
+    { id: 'root-file', kind: 'file', atRoot: true },
+    { id: 'nested', kind: 'file', atRoot: false },
+    { id: 'legacy-office', kind: 'office', atRoot: true },
+  ];
+  render(<WorkspaceRootDocs />);
+  expect(screen.getByTestId('native-root-file')).toBeTruthy();
+  expect(screen.getAllByTestId('native-legacy-office')).toHaveLength(1);
+  expect(screen.queryByTestId('native-nested')).toBeNull();
 });

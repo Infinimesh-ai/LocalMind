@@ -49,6 +49,7 @@ const targetSchema = z.object({
   resourceId: z.string(),
   folderId: z.string().nullable(),
   expectedVersion: z.string().nullable(),
+  targetKind: z.string().nullish(),
 });
 const differenceSchema = z.object({
   before: z.string().optional(),
@@ -85,6 +86,17 @@ const requestTime = (value: string) =>
     minute: '2-digit',
     second: '2-digit',
   });
+
+const publishedRoute = (resourceKind?: string, targetKind?: string | null) => {
+  if (targetKind === 'workspace_file' || resourceKind === 'file')
+    return 'files/';
+  if (
+    resourceKind &&
+    ['document', 'workbook', 'presentation', 'pdf'].includes(resourceKind)
+  )
+    return 'office/';
+  return resourceKind === 'page' ? '' : null;
+};
 
 function useStatusLabel() {
   const t = useI18n();
@@ -404,6 +416,10 @@ function PublicationDetail({
     );
   const target = targetSchema.safeParse(record?.target);
   const preview = previewSchema.safeParse(record?.preview);
+  const externalRoute = publishedRoute(
+    preview.success ? preview.data.resourceKind : undefined,
+    target.success ? target.data.targetKind : undefined
+  );
   return (
     <div className={styles.form} data-publication-detail={publicationId}>
       <div className={styles.header}>
@@ -554,9 +570,11 @@ function PublicationDetail({
                 {t['com.affine.localmind.publications.confirm']()}
               </Button>
             ) : null}
-            {record.status === 'complete' && target.success ? (
+            {record.status === 'complete' &&
+            target.success &&
+            externalRoute !== null ? (
               <a
-                href={`/workspace/${encodeURIComponent(target.data.workspaceId)}/${['document', 'workbook', 'presentation', 'pdf'].includes(preview.success ? preview.data.resourceKind : '') ? 'office/' : ''}${encodeURIComponent(target.data.resourceId)}`}
+                href={`/workspace/${encodeURIComponent(target.data.workspaceId)}/${externalRoute}${encodeURIComponent(target.data.resourceId)}`}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -623,6 +641,7 @@ type Selection = {
   workspaceId: string;
   folderId: string | null;
   targetResourceId?: string;
+  targetKind?: string;
 };
 function DestinationPicker({
   record,
@@ -1076,6 +1095,7 @@ function TargetDocuments({
                   workspaceId,
                   folderId: item.folderId,
                   targetResourceId: item.resourceId,
+                  targetKind: item.targetKind,
                 })
               }
             >

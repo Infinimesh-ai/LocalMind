@@ -1131,19 +1131,12 @@ export class IntelligenceWorkbenchResolver {
     @CurrentUser() user: CurrentUserType,
     @Args('input') input: SetCopilotProjectAiPolicyInput
   ) {
-    const project =
-      await this.models.intelligenceWorkbenchAuthorization.setProjectAiPolicy({
-        projectId: input.projectId,
-        actorUserId: user.id,
-        policy: input.policy,
-      });
-    if (!project) throw new NotFoundException('Context project not found');
-    return {
-      projectId: project.id,
-      policy: project.aiPolicy,
-      updatedByUserId: project.aiPolicyUpdatedByUserId,
-      updatedAt: project.aiPolicyUpdatedAt,
-    };
+    // Keep the legacy schema, but the fixed read/write policy always rejects changes.
+    return this.models.intelligenceWorkbenchAuthorization.setProjectAiPolicy({
+      projectId: input.projectId,
+      actorUserId: user.id,
+      policy: input.policy,
+    });
   }
 
   @Mutation(() => Boolean)

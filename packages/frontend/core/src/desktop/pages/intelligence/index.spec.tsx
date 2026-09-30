@@ -447,7 +447,50 @@ vi.mock('./new-conversation', () => ({
 }));
 
 vi.mock('./work-order-panel', () => ({
-  WorkOrderPanel: () => <div data-testid="work-order-panel" />,
+  WorkOrderPanel: ({
+    onLoaded,
+    onDraftStateChange,
+  }: {
+    onLoaded?: (order: {
+      viewerRole: string;
+      ownSessionId: string;
+      title: string;
+      status: string;
+    }) => void;
+    onDraftStateChange?: (workOrderId: string, blocked: boolean) => void;
+  }) => {
+    useEffect(() => {
+      onLoaded?.({
+        viewerRole: 'recipient',
+        ownSessionId: 'work-order-session',
+        title: 'Review report',
+        status: 'active',
+      });
+      onDraftStateChange?.('work-order-1', false);
+    }, [onLoaded, onDraftStateChange]);
+    return (
+      <div data-testid="work-order-panel">
+        <button onClick={() => onDraftStateChange?.('work-order-1', true)}>
+          Edit delivery draft
+        </button>
+        <button onClick={() => onDraftStateChange?.('work-order-1', false)}>
+          Save delivery draft
+        </button>
+      </div>
+    );
+  },
+}));
+
+vi.mock('./work-order-conversation', () => ({
+  WorkOrderConversation: ({
+    deliveryDraftBlocked,
+  }: {
+    deliveryDraftBlocked: boolean;
+  }) => (
+    <output data-testid="work-order-confirmation-blocked">
+      {String(deliveryDraftBlocked)}
+    </output>
+  ),
 }));
 
 vi.mock('@affine/core/components/project-file-request/detail', () => ({
@@ -824,6 +867,61 @@ describe('Intelligence workbench shell', () => {
     ).not.toBeNull();
   });
 
+  test('expands the relationship workspace and restores the navigation without changing its saved width', () => {
+    localStorage.setItem(
+      'localmind.project.pane-widths',
+      JSON.stringify({ navigation: 280 })
+    );
+    renderWorkbench('/project');
+    fireEvent.click(
+      screen.getByRole('tab', {
+        name: 'com.affine.localmind.workbench.v9.relations',
+      })
+    );
+    const navigation = document.getElementById(
+      'intelligence-project-navigation'
+    );
+    const root = screen.getByTestId('intelligence-workbench');
+    const originalStyle = root.getAttribute('style');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.graphExpandWorkspace',
+      })
+    );
+    expect(root.dataset.workspaceExpanded).toBe('true');
+    expect(navigation?.hidden).toBe(true);
+    expect(
+      screen
+        .getByRole('button', {
+          name: 'com.affine.localmind.workbench.v9.graphRestoreWorkspace',
+        })
+        .getAttribute('aria-pressed')
+    ).toBe('true');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.graphRestoreWorkspace',
+      })
+    );
+    expect(navigation?.hidden).toBe(false);
+    expect(root.getAttribute('style')).toBe(originalStyle);
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.graphExpandWorkspace',
+      })
+    );
+    fireEvent.click(
+      screen.getByRole('tab', {
+        name: 'com.affine.localmind.workbench.v9.items',
+      })
+    );
+    expect(navigation?.hidden).toBe(false);
+    expect(root.dataset.workspaceExpanded).toBe('false');
+    expect(
+      JSON.parse(localStorage.getItem('localmind.project.pane-widths') ?? '{}')
+        .navigation
+    ).toBe(280);
+  });
+
   test('shows project navigation loading before an empty result is available', () => {
     state.projectAvailable = false;
     state.projectsLoading = true;
@@ -998,7 +1096,7 @@ describe('Intelligence workbench shell', () => {
     expect(state.query).toHaveBeenCalledWith(
       {
         query: tokens.projectsQuery,
-        variables: { includeArchived: false },
+        variables: { includeArchived: true },
       },
       expect.not.objectContaining({ refreshInterval: expect.anything() })
     );
@@ -1148,6 +1246,22 @@ describe('Intelligence workbench shell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(panel?.dataset.open).toBe('false');
+  });
+
+  test('work-order confirmation follows unsaved delivery edits in the adjacent panel', async () => {
+    renderWorkbench('/project/work-orders/work-order-1');
+    const blocked = await screen.findByTestId(
+      'work-order-confirmation-blocked'
+    );
+    await waitFor(() => expect(blocked.textContent).toBe('false'));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit delivery draft' })
+    );
+    expect(blocked.textContent).toBe('true');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save delivery draft' })
+    );
+    expect(blocked.textContent).toBe('false');
   });
 
   test('creates a manual blocker only after the panel submits and refreshes the projection', async () => {

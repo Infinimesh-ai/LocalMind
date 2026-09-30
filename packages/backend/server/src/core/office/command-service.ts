@@ -16,6 +16,7 @@ import {
   officeOwnerToInput,
 } from '../../models/office-owner';
 import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
+import { WorkspaceNativeResourceAccess } from '../doc/native-resource-access';
 import { PermissionAccess } from '../permission';
 import { officeFingerprint, officeJsonFingerprint } from './evidence';
 import {
@@ -390,7 +391,8 @@ export class OfficeCommandService {
   constructor(
     private readonly models: Models,
     private readonly storage: OfficeResourceStorage,
-    private readonly ac: PermissionAccess
+    private readonly ac: PermissionAccess,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess
   ) {}
 
   async preview(input: ExecuteOfficeCommandInput) {
@@ -572,30 +574,41 @@ export class OfficeCommandService {
         execute
       );
     }
-    if (input.source === 'ai')
-      return await this.models.copilotContext.withWorkspaceWriteAudit(
-        {
-          sessionId: input.sourceSessionId,
-          actorId: input.actorId,
-          sink: {
-            type: 'tool_write',
-            id: input.artifact.id,
-            documentId: input.artifact.id,
-            workspaceId: input.owner,
-            phase: 'execute',
-          },
-        },
-        async () => {
-          await this.assertPermissions(
-            input.owner,
-            input.actorId,
-            input.source,
-            input.artifact.id
+    const workspaceId = input.owner;
+    return this.nativeAccess.write(
+      {
+        workspaceId,
+        actorId: input.actorId,
+        resourceId: input.artifact.id,
+        kind: 'office',
+      },
+      async () => {
+        if (input.source === 'ai')
+          return await this.models.copilotContext.withWorkspaceWriteAudit(
+            {
+              sessionId: input.sourceSessionId,
+              actorId: input.actorId,
+              sink: {
+                type: 'tool_write',
+                id: input.artifact.id,
+                documentId: input.artifact.id,
+                workspaceId,
+                phase: 'execute',
+              },
+            },
+            async () => {
+              await this.assertPermissions(
+                input.owner,
+                input.actorId,
+                input.source,
+                input.artifact.id
+              );
+              return this.persistAuthorized(input);
+            }
           );
-          return this.persistAuthorized(input);
-        }
-      );
-    return await this.persistAuthorized(input);
+        return await this.persistAuthorized(input);
+      }
+    );
   }
 
   private async persistAuthorized(
@@ -673,6 +686,14 @@ export class OfficeCommandService {
         projectId: owner.projectId,
         actorId,
         resourceId: artifact.id,
+        sequence: appended.revision.sequence,
+        text: await officePackageSearchText(result.state, packageBytes),
+      });
+    if (typeof owner === 'string')
+      await this.models.workspaceNativeResource.index({
+        workspaceId: owner,
+        resourceId: artifact.id,
+        kind: 'office',
         sequence: appended.revision.sequence,
         text: await officePackageSearchText(result.state, packageBytes),
       });
@@ -890,6 +911,10 @@ export class OfficeCommandService {
       });
       return;
     }
+    await this.nativeAccess.assert(
+      { workspaceId: owner, actorId, resourceId: artifactId, kind: 'office' },
+      { write: true }
+    );
     const checks = [
       this.ac.user(actorId).workspace(owner).assert('Workspace.Blobs.Write'),
     ];

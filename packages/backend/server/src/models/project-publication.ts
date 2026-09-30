@@ -16,6 +16,7 @@ import { type ProjectActor, projectResourceHash } from './project-resource';
 export const PROJECT_PUBLICATION_WORKFLOW = 'agent_runtime_project_publication';
 export const publicationTargetSchema = z
   .object({
+    targetKind: z.enum(['legacy', 'workspace_file']).optional(),
     workspaceId: z.string().min(1).max(256),
     folderId: z.string().min(1).max(256).nullable(),
     resourceId: z.string().min(1).max(256),
@@ -199,11 +200,31 @@ export class ProjectPublicationModel extends BaseModel {
     query: string;
     kind: string;
   }) {
-    if (
-      input.kind === 'page' ||
-      input.kind === 'edgeless' ||
-      input.kind === 'file'
-    ) {
+    if (input.kind === 'file') {
+      return this.db.$queryRaw<
+        {
+          resourceId: string;
+          title: string | null;
+          kind: string;
+          targetKind: 'legacy' | 'workspace_file';
+        }[]
+      >`
+        WITH candidates AS (
+          SELECT file_id AS id, title, 'workspace_file' AS target_kind FROM workspace_file_states
+          WHERE workspace_id = ${input.workspaceId} AND trashed_at IS NULL AND deleted_at IS NULL
+          UNION ALL
+          SELECT d.id, p.title, 'legacy' FROM (
+            SELECT guid AS id FROM snapshots WHERE workspace_id = ${input.workspaceId}
+            UNION SELECT guid AS id FROM updates WHERE workspace_id = ${input.workspaceId}
+          ) d LEFT JOIN workspace_pages p ON p.workspace_id = ${input.workspaceId} AND p.page_id = d.id
+          WHERE d.id <> ${input.workspaceId} AND left(d.id, 3) <> 'db$' AND NOT COALESCE(p.blocked, false) AND COALESCE(p.mode, 0) = 0
+        ) SELECT id AS "resourceId", title, 'file' AS kind, target_kind AS "targetKind" FROM candidates
+        WHERE (id || ':' || target_kind) COLLATE "C" > ${input.after ?? ''}
+          AND (${input.query} = '' OR title IS NULL OR strpos(lower(title), lower(${input.query})) > 0 OR strpos(lower(id), lower(${input.query})) > 0)
+        ORDER BY (id || ':' || target_kind) COLLATE "C" LIMIT 101
+      `;
+    }
+    if (input.kind === 'page' || input.kind === 'edgeless') {
       // Older documents can exist without workspace_pages metadata.
       const rows = await this.db.$queryRaw<
         { resourceId: string; title: string | null }[]
@@ -225,7 +246,11 @@ export class ProjectPublicationModel extends BaseModel {
             OR strpos(lower(d.id), lower(${input.query})) > 0)
         ORDER BY d.id ASC LIMIT 101
       `;
-      return rows.map(row => ({ ...row, kind: input.kind }));
+      return rows.map(row => ({
+        ...row,
+        kind: input.kind,
+        targetKind: 'legacy' as const,
+      }));
     }
     if (!['document', 'workbook', 'presentation', 'pdf'].includes(input.kind))
       throw new BadRequest('Unsupported publication target type');
@@ -245,6 +270,7 @@ export class ProjectPublicationModel extends BaseModel {
       resourceId: row.id,
       title: row.title,
       kind: row.kind,
+      targetKind: 'legacy' as const,
     }));
   }
 
@@ -520,6 +546,20 @@ export class ProjectPublicationModel extends BaseModel {
     const target = publicationTargetSchema.parse(record.target);
     if (!input.targetVersion || input.targetVersion.length > 512)
       throw new BadRequest('Invalid publication result version');
+    const previous = await this.db.projectPublicationTarget.findUnique({
+      where: {
+        projectId_resourceId_workspaceId_targetResourceId: {
+          projectId: input.projectId,
+          resourceId: record.resourceId,
+          workspaceId: target.workspaceId,
+          targetResourceId: target.resourceId,
+        },
+      },
+    });
+    if (previous && previous.targetKind !== (target.targetKind ?? 'legacy'))
+      throw new BadRequest(
+        'The publication binding belongs to a different target resource type'
+      );
     await this.db.projectPublicationTarget.upsert({
       where: {
         projectId_resourceId_workspaceId_targetResourceId: {
@@ -534,11 +574,13 @@ export class ProjectPublicationModel extends BaseModel {
         resourceId: record.resourceId,
         workspaceId: target.workspaceId,
         targetResourceId: target.resourceId,
+        targetKind: target.targetKind ?? 'legacy',
         sourceSequence: record.sourceSequence,
         targetVersion: input.targetVersion,
         publicationId: record.id,
       },
       update: {
+        targetKind: target.targetKind ?? 'legacy',
         sourceSequence: record.sourceSequence,
         targetVersion: input.targetVersion,
         publicationId: record.id,

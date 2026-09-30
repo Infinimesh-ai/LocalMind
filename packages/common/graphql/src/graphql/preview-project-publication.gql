@@ -1,4 +1,4 @@
-mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String) {
-  previewProjectPublication(projectId: $projectId, publicationId: $publicationId, expectedRevision: $expectedRevision, workspaceId: $workspaceId, folderId: $folderId, targetResourceId: $targetResourceId) { ...ProjectPublicationFields }
+mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String, $targetKind: String) {
+  previewProjectPublication(projectId: $projectId, publicationId: $publicationId, expectedRevision: $expectedRevision, workspaceId: $workspaceId, folderId: $folderId, targetResourceId: $targetResourceId, targetKind: $targetKind) { ...ProjectPublicationFields }
 }
 #import './fragments/project-publication-fields.gql'

@@ -1,0 +1,22 @@
+#import './fragments/workspace-native-resource.gql'
+query workspaceNativeResources($workspaceId: String!, $cursor: String, $query: String, $trash: Boolean, $limit: Int) {
+  workspaceNativeResources(workspaceId: $workspaceId, cursor: $cursor, query: $query, trash: $trash, limit: $limit) { items { ...WorkspaceNativeResourceFields } nextCursor }
+}
+query workspaceNativeResource($input: WorkspaceNativeIdentityInput!, $trash: Boolean) {
+  workspaceNativeResource(input: $input, trash: $trash) { ...WorkspaceNativeResourceFields }
+}
+mutation createWorkspaceNativeResource($input: CreateWorkspaceNativeResourceInput!) {
+  createWorkspaceNativeResource(input: $input) { ...WorkspaceNativeResourceFields }
+}
+mutation saveWorkspaceNativeFile($input: SaveWorkspaceNativeFileInput!) {
+  saveWorkspaceNativeFile(input: $input) { ...WorkspaceNativeResourceFields }
+}
+mutation changeWorkspaceNativeResource($input: ChangeWorkspaceNativeResourceInput!) {
+  changeWorkspaceNativeResource(input: $input) { ...WorkspaceNativeResourceFields }
+}
+mutation restoreWorkspaceNativeVersion($input: RestoreWorkspaceNativeVersionInput!) {
+  restoreWorkspaceNativeVersion(input: $input) { ...WorkspaceNativeResourceFields }
+}
+mutation copyWorkspaceNativeResource($input: CopyWorkspaceNativeResourceInput!) {
+  copyWorkspaceNativeResource(input: $input) { ...WorkspaceNativeResourceFields }
+}

@@ -82,6 +82,45 @@ export const configuration = style({
   borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 
+export const deliveryCard = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: 12,
+  margin: '16px 32px 0',
+  padding: 16,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 12,
+  background: cssVarV2('layer/background/secondary'),
+  '@media': {
+    'screen and (max-width: 760px)': { margin: '12px 16px 0' },
+  },
+});
+
+export const deliveryCardHeader = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+});
+
+export const deliveryCardList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  margin: 0,
+  paddingLeft: 20,
+});
+globalStyle(`${deliveryCardList} li`, { lineHeight: 1.5 });
+globalStyle(`${deliveryCardList} li strong`, { marginRight: 8 });
+globalStyle(`${deliveryCardList} li span, ${deliveryCardList} li a`, {
+  marginRight: 8,
+});
+
+export const deliveryCardError = style({
+  margin: 0,
+  color: cssVarV2('status/error'),
+});
+
 globalStyle(`${root} .chat-panel-main`, {
   maxWidth: 'none',
   padding: '24px 32px 0',

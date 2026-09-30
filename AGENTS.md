@@ -22,6 +22,14 @@ AI 创建的 TXT、Markdown、CSV、JSON 在 Workspace 中使用独立 `Workspac
 记录和不可变 Blob，在 Project 中复用原生文件树；不得用普通页面冒充原生文件。
 生成格式、能力边界和迁移约定同样以 `docs/office-native/README.md` 为准。
 
+在线 Workspace / Project 的原生资源 CRUD 契约及验收记录见
+`docs/ai-modernization/workspace-project-document-crud-remediation.zh-CN.md`
+及同目录 `workspace-project-document-crud.execution.zh-CN.md`。WorkspaceFile
+创建证据与修订保持不可变，当前状态独立保存；Office 内容继续属于 OfficeRevision。
+UI 与内部 AI 共用领域服务，更新绑定资源 ID 与版本，失败不得新建同名副本。
+新原生文件跨域流转必须绑定来源/目标类型，旧附件发布记录保留原契约；新增能力
+不得扩大公开 MCP 凭据或旧任务冻结权限。
+
 Project 原生资源已实现，产品及验收契约的 source of truth 是
 `docs/ai-modernization/tracks/project-native-resources.md`。Project 拥有独立文档
 和文件树，默认内部保存不属于任何 Workspace；只有用户明确要求才发布或更新
@@ -30,6 +38,13 @@ Project 原生资源已实现，产品及验收契约的 source of truth 是
 保留等待待办。已批准的复制授权不可由审批人撤回，未决申请仍可撤回。该契约覆盖旧的
 共享引用直接写回语义，不能用隐藏 Workspace
 替代项目原生存储。
+
+Project 个人工单的现行交互契约见
+`docs/ai-modernization/project-work-order-ai-delivery-contract.zh-CN.md`：发单 AI 按
+统一模板草拟，由发单人确认；接单人从通知和“我的项目”进入独立私人对话，AI 将
+候选文字与文件逐项绑定冻结要求，全部通过服务端检查后提示收件人确认完成并发回。
+模型判断、聊天回答或暂存文件均不等于交付；收件人确认后才生成不可变回执并将工单
+标为成功完成。当前源码尚未实现对话内统一交付草稿及确认卡片，不得将目标当作现状。
 
 新增 LocalMind AI 能力通常至少应落到以下一项：
 

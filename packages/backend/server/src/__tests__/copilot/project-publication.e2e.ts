@@ -17,8 +17,12 @@ import {
   DocWriter,
   WorkspaceOrganizationService,
 } from '../../core/doc';
-import { readFileCopySnapshot } from '../../core/doc/copy-snapshot';
+import {
+  createFileCopySnapshot,
+  readFileCopySnapshot,
+} from '../../core/doc/copy-snapshot';
 import { OFFICE_FORMATS, OfficeImportService } from '../../core/office';
+import { WorkspaceNativeResourceService } from '../../core/office/workspace-resource-service';
 import { ProjectBlobStorage, ProjectResourceService } from '../../core/project';
 import {
   ProjectDestinationFolderService,
@@ -88,7 +92,7 @@ async function fixture() {
   const project = await db.aiContextProject.create({
     data: {
       name: 'Internal resources',
-      aiPolicy: 'read_only',
+      aiPolicy: 'read_write',
       members: {
         create: [
           { userId: owner.id, role: 'owner' },
@@ -118,6 +122,8 @@ async function prepare(
   options: {
     workspaceId?: string;
     targetResourceId?: string;
+    targetKind?: 'legacy' | 'workspace_file';
+    folderId?: string;
     requestKey?: string;
   } = {}
 ) {
@@ -131,8 +137,9 @@ async function prepare(
     publicationId: record.id,
     expectedRevision: record.revision,
     workspaceId: options.workspaceId ?? scope.workspaceId,
-    folderId: null,
+    folderId: options.folderId ?? null,
     targetResourceId: options.targetResourceId,
+    targetKind: options.targetKind,
   });
 }
 
@@ -561,7 +568,15 @@ test.serial(
         importIdempotencyKey: format,
       });
       const source = { ...scope, resourceId: imported.artifact.id };
-      const record = await prepare(source);
+      const organization = app.get(WorkspaceOrganizationService);
+      await organization.createResourceFolder({
+        ...scope,
+        folderId: `office-${format}`,
+        parentId: null,
+        title: format,
+        authorize: async () => {},
+      });
+      const record = await prepare(source, { folderId: `office-${format}` });
       t.truthy(
         record.preview &&
           (record.preview as { difference?: { after?: string } }).difference
@@ -577,10 +592,22 @@ test.serial(
       );
       t.is(result?.packageFingerprint, imported.revision.packageFingerprint);
       t.not(target.resourceId, imported.artifact.id);
+      t.is(
+        (await organization.readFolders(scope.workspaceId, scope.actorId)).find(
+          row => row.data === target.resourceId
+        )?.type,
+        'office'
+      );
       const update = await prepare(source, {
         targetResourceId: target.resourceId,
+        folderId: `office-${format}`,
       });
-      t.is((await execute(source, update)).status, 'completed');
+      const updatedRun = await execute(source, update);
+      t.is(
+        updatedRun.status,
+        'completed',
+        `${format}: ${updatedRun.failureMessage}`
+      );
       const next = await app.models.officeArtifact.getCurrentRevision(
         scope.workspaceId,
         target.resourceId
@@ -601,7 +628,7 @@ test.serial(
 );
 
 test.serial(
-  'standalone files publish independent attachment bytes and never overwrite a document body',
+  'standalone files publish native identities and update only the confirmed typed target',
   async t => {
     const scope = await fixture();
     const resources = app.get(ProjectResourceService);
@@ -618,15 +645,28 @@ test.serial(
     });
     const source = { ...scope, resourceId: resource.id };
     const record = await prepare(source);
-    t.is((await execute(source, record)).status, 'completed');
+    const publishedRun = await execute(source, record);
+    t.is(
+      publishedRun.status,
+      'completed',
+      publishedRun.failureMessage ?? undefined
+    );
     const target = publicationTargetSchema.parse(record.target);
-    const stored = await app
-      .get(DocReader)
-      .getDoc(scope.workspaceId, target.resourceId);
-    const attachment = readFileCopySnapshot(stored!.bin);
-    t.is(attachment?.mimeType, 'text/plain');
-    t.is(attachment?.byteSize, bytes.length);
-    t.not(attachment?.key, blob.key);
+    t.is(target.targetKind, 'workspace_file');
+    const files = app.get(WorkspaceNativeResourceService);
+    const identity = {
+      workspaceId: scope.workspaceId,
+      actorId: scope.actorId,
+      resourceId: target.resourceId,
+      kind: 'file' as const,
+    };
+    const stored = await files.read(identity);
+    t.deepEqual(stored.bytes, bytes);
+    t.is(stored.mimeType, 'text/plain');
+    t.is(stored.byteSize, bytes.length);
+    t.falsy(
+      await app.get(DocReader).getDoc(scope.workspaceId, target.resourceId)
+    );
     const candidates = await source.service.targets({
       ...source,
       parentId: null,
@@ -637,8 +677,18 @@ test.serial(
     );
     const update = await prepare(source, {
       targetResourceId: target.resourceId,
+      targetKind: 'workspace_file',
     });
     t.is((await execute(source, update)).status, 'completed');
+    t.is((await files.read(identity)).contentVersion, 2);
+    t.is(
+      (
+        await scope.db.projectPublicationTarget.findFirstOrThrow({
+          where: { targetResourceId: target.resourceId },
+        })
+      ).targetKind,
+      'workspace_file'
+    );
     const normal = await prepare(scope);
     t.is((await execute(scope, normal)).status, 'completed');
     await t.throwsAsync(
@@ -650,7 +700,16 @@ test.serial(
     );
     t.deepEqual((await resources.readFile(source)).bytes, bytes);
     const canvas = new Doc();
-    applyUpdate(canvas, stored!.bin);
+    applyUpdate(
+      canvas,
+      createFileCopySnapshot({
+        documentId: target.resourceId,
+        title: 'report.txt',
+        key: blob.key,
+        mimeType: 'text/plain',
+        byteSize: bytes.length,
+      })
+    );
     const surface = new YMap();
     surface.set('sys:flavour', 'affine:surface');
     const elements = new YMap();

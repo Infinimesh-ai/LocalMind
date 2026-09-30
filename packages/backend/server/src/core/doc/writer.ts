@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import { nanoid } from 'nanoid';
 
 import { EventBus } from '../../base';
@@ -12,6 +13,10 @@ import {
   updateRootDocMetaTitle,
 } from '../../native';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
+import {
+  documentContentVersion,
+  DocumentVersionConflict,
+} from './content-version';
 import { retitleDocumentCopySnapshot } from './copy-snapshot';
 import {
   prepareRootDocRegistration,
@@ -369,6 +374,36 @@ export class DocWriter {
       result: { success: true, changed: true },
       broadcasts,
     };
+  }
+
+  @Transactional()
+  async updateDocAtVersion(
+    workspaceId: string,
+    docId: string,
+    markdown: string,
+    expectedVersion: string,
+    editorId: string,
+    beforeWrite: () => Promise<void>
+  ) {
+    return this.storage.withTransactionalWrites(async () => {
+      await beforeWrite();
+      // Match directory/resource writes: root before document, no Redis locks.
+      await this.storage.getDoc(workspaceId, workspaceId);
+      const current = await this.storage.getDoc(workspaceId, docId);
+      if (!current) throw new NotFoundException('Document not found');
+      if (documentContentVersion(current) !== expectedVersion)
+        throw new DocumentVersionConflict();
+      const result = await this.updateDoc(
+        workspaceId,
+        docId,
+        markdown,
+        editorId,
+        beforeWrite
+      );
+      const saved = await this.storage.getDoc(workspaceId, docId);
+      if (!saved) throw new NotFoundException('Document not found');
+      return { ...result, version: documentContentVersion(saved) };
+    });
   }
 
   /**

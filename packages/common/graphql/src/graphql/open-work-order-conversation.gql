@@ -1,0 +1,10 @@
+mutation openWorkOrderConversation($workOrderId: ID!) {
+  openWorkOrderConversation(workOrderId: $workOrderId) {
+    kind
+    sessionId
+    workOrderId
+    projectId
+    workspaceId
+    docId
+  }
+}

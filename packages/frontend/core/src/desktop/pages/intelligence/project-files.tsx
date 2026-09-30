@@ -9,6 +9,7 @@ import {
   notify,
   useConfirmModal,
 } from '@affine/component';
+import { NativeFileCreateDialog } from '@affine/core/components/native-files/create-dialog';
 import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
 import { projectEditLeaseStore } from '@affine/core/modules/project-resources/edit-lease-store';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
@@ -497,6 +498,7 @@ export function ProjectFiles(props: FileTreeProps) {
   const [expanded, setExpanded] = useState(new Set<string>());
   const [trash, setTrash] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [nativeCreateOpen, setNativeCreateOpen] = useState(false);
   const [importRevision, setImportRevision] = useState(0);
   const [action, setAction] = useState<FileAction | null>(null);
   const [path, setPath] = useState<ProjectFile[]>([]);
@@ -778,6 +780,12 @@ export function ProjectFiles(props: FileTreeProps) {
         <Menu
           items={
             <>
+              <MenuItem
+                prefixIcon={<PageIcon />}
+                onClick={() => setNativeCreateOpen(true)}
+              >
+                {t['com.affine.localmind.native-files.newFile']()}
+              </MenuItem>
               {[
                 [
                   ProjectResourceKind.page,
@@ -914,6 +922,14 @@ export function ProjectFiles(props: FileTreeProps) {
           onChange={changeFile}
         />
       </ProjectFolderDropTarget>
+      {nativeCreateOpen && (
+        <NativeFileCreateDialog
+          owner={{ projectId: props.projectId }}
+          parentId={parentId}
+          onClose={() => setNativeCreateOpen(false)}
+          onCreated={id => props.onOpen(id)}
+        />
+      )}
       <Modal
         open={!!action}
         title={title}

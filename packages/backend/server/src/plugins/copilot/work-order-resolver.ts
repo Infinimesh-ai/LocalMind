@@ -15,6 +15,7 @@ import {
 import { BadRequest, Throttle } from '../../base';
 import type { CurrentUser as CurrentUserType } from '../../core/auth';
 import { CurrentUser } from '../../core/auth';
+import { PermissionAccess } from '../../core/permission';
 import { Models } from '../../models';
 import { CompatHistoryProjector } from './compat/history-projector';
 import {
@@ -23,6 +24,7 @@ import {
   CopilotType,
 } from './resolver';
 import { ChatSessionService } from './session';
+import { WorkOrderStorage } from './work-order-storage';
 
 @InputType()
 class WorkOrderRequirementInput {
@@ -129,6 +131,36 @@ class WorkOrderStagedBlobType {
 }
 
 @ObjectType()
+class WorkOrderDeliveryDraftItemType {
+  @Field(() => ID) requirementId!: string;
+  @Field(() => [ID]) blobIds!: string[];
+  @Field(() => String, { nullable: true }) text!: string | null;
+}
+
+@ObjectType()
+class WorkOrderDeliveryDraftCheckType {
+  @Field(() => ID) requirementId!: string;
+  @Field(() => Boolean) ready!: boolean;
+  @Field(() => String, { nullable: true }) reason!: string | null;
+}
+
+@ObjectType()
+class WorkOrderDeliveryDraftType {
+  @Field(() => ID) workOrderId!: string;
+  @Field(() => Int) orderVersion!: number;
+  @Field(() => Int) version!: number;
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  updatedAt!: Date | null;
+  @Field(() => [WorkOrderDeliveryDraftItemType])
+  items!: WorkOrderDeliveryDraftItemType[];
+  @Field(() => [WorkOrderDeliveryDraftCheckType])
+  checks!: WorkOrderDeliveryDraftCheckType[];
+  @Field(() => Boolean) ready!: boolean;
+  @Field(() => String, { nullable: true })
+  confirmationToken!: string | null;
+}
+
+@ObjectType()
 class WorkOrderType {
   @Field(() => ID) id!: string;
   @Field(() => ID, { nullable: true }) sourceSessionId!: string | null;
@@ -142,6 +174,7 @@ class WorkOrderType {
   @Field(() => String) relationKind!: string;
   @Field(() => String) status!: string;
   @Field(() => Int) version!: number;
+  @Field(() => Int) templateVersion!: number;
   @Field(() => [WorkOrderRequirementType])
   requirements!: WorkOrderRequirementType[];
   @Field(() => [WorkOrderExchangeType]) exchanges!: WorkOrderExchangeType[];
@@ -149,6 +182,8 @@ class WorkOrderType {
   deliveries!: WorkOrderDeliveryRevisionType[];
   @Field(() => [WorkOrderStagedBlobType])
   stagedBlobs!: WorkOrderStagedBlobType[];
+  @Field(() => WorkOrderDeliveryDraftType, { nullable: true })
+  deliveryDraft!: WorkOrderDeliveryDraftType | null;
   @Field(() => Boolean) deliveriesReleased!: boolean;
   @Field(() => GraphQLISODateTime) createdAt!: Date;
   @Field(() => GraphQLISODateTime) updatedAt!: Date;
@@ -181,6 +216,8 @@ class ConversationCardProjectType {
 class ConversationCardType {
   @Field(() => ID) sessionId!: string;
   @Field(() => String) scopeType!: string;
+  @Field(() => ID, { nullable: true }) ownWorkspaceId!: string | null;
+  @Field(() => ID, { nullable: true }) ownDocId!: string | null;
   @Field(() => Boolean) pinned!: boolean;
   @Field(() => String, { nullable: true }) title!: string | null;
   @Field(() => Int) titleRevision!: number;
@@ -191,6 +228,12 @@ class ConversationCardType {
   project!: ConversationCardProjectType | null;
   @Field(() => ID, { nullable: true }) workOrderId!: string | null;
   @Field(() => String, { nullable: true }) workOrderStatus!: string | null;
+  @Field(() => String, { nullable: true }) workOrderSenderName!: string | null;
+  @Field(() => String, { nullable: true })
+  workOrderSourceProjectName!: string | null;
+  @Field(() => [String]) workOrderRequiredReturnTitles!: string[];
+  @Field(() => Int, { nullable: true })
+  workOrderMissingRequiredCount!: number | null;
   @Field(() => GraphQLISODateTime) lastBusinessAt!: Date;
   @Field(() => Int) version!: number;
 }
@@ -252,6 +295,7 @@ class CollaborationNodeType {
   @Field(() => ID) id!: string;
   @Field(() => String) label!: string;
   @Field(() => Boolean) self!: boolean;
+  @Field(() => String, { nullable: true }) avatarUrl!: string | null;
 }
 
 @ObjectType()
@@ -261,16 +305,45 @@ class CollaborationProjectType {
 }
 
 @ObjectType()
+class CollaborationRequirementType {
+  @Field(() => ID) id!: string;
+  @Field(() => String) title!: string;
+  @Field(() => String) kind!: string;
+}
+
+@ObjectType()
+class WorkOrderConversationTargetType {
+  @Field(() => String) kind!: string;
+  @Field(() => ID, { nullable: true }) sessionId?: string;
+  @Field(() => ID, { nullable: true }) workOrderId?: string;
+  @Field(() => ID, { nullable: true }) projectId?: string;
+  @Field(() => ID, { nullable: true }) workspaceId?: string;
+  @Field(() => ID, { nullable: true }) docId?: string;
+}
+
+@ObjectType()
 class CollaborationEdgeType {
   @Field(() => ID) id!: string;
+  @Field(() => String) kind!: string;
   @Field(() => ID) from!: string;
   @Field(() => ID) to!: string;
   @Field(() => String) status!: string;
   @Field(() => String) label!: string;
+  @Field(() => [String]) requirementTitles!: string[];
+  @Field(() => [CollaborationRequirementType])
+  requirementItems!: CollaborationRequirementType[];
+  @Field(() => Boolean) ownConversationExists!: boolean;
+  @Field(() => String) sourceKind!: string;
+  @Field(() => GraphQLISODateTime) updatedAt!: Date;
+  @Field(() => GraphQLISODateTime, { nullable: true }) expiresAt!: Date | null;
   @Field(() => CollaborationProjectType, { nullable: true })
   project!: CollaborationProjectType | null;
+  @Field(() => String) ownNavigationKind!: string;
   @Field(() => ID, { nullable: true }) ownSessionId!: string | null;
   @Field(() => ID, { nullable: true }) ownWorkOrderId!: string | null;
+  @Field(() => ID, { nullable: true }) ownProjectId!: string | null;
+  @Field(() => ID, { nullable: true }) ownWorkspaceId!: string | null;
+  @Field(() => ID, { nullable: true }) ownDocId!: string | null;
 }
 
 @ObjectType()
@@ -293,7 +366,9 @@ export class WorkOrderResolver {
   constructor(
     private readonly models: Models,
     private readonly sessions: ChatSessionService,
-    private readonly historyProjector: CompatHistoryProjector
+    private readonly historyProjector: CompatHistoryProjector,
+    private readonly permission: PermissionAccess,
+    private readonly workOrderStorage: WorkOrderStorage
   ) {}
 
   @ResolveField(() => ConversationCardsType, { complexity: 3 })
@@ -347,7 +422,13 @@ export class WorkOrderResolver {
       workOrderId,
       user.id
     );
-    return this.presentWorkOrder(order);
+    return {
+      ...this.presentWorkOrder(order),
+      deliveryDraft:
+        order.viewerRole === 'recipient'
+          ? await this.workOrderStorage.deliveryPreview(workOrderId, user.id)
+          : null,
+    };
   }
 
   @ResolveField(() => CopilotHistoriesType)
@@ -419,16 +500,57 @@ export class WorkOrderResolver {
       ...graph,
       edges: graph.edges.map(edge => ({
         ...edge,
+        ownNavigationKind: edge.ownNavigation.kind,
         ownSessionId:
-          edge.ownNavigation?.kind === 'source'
+          edge.ownNavigation.kind === 'project_session' ||
+          edge.ownNavigation.kind === 'workspace_session'
             ? edge.ownNavigation.sessionId
             : null,
         ownWorkOrderId:
-          edge.ownNavigation?.kind === 'work_order'
+          edge.ownNavigation.kind === 'work_order'
             ? edge.ownNavigation.workOrderId
+            : null,
+        ownProjectId:
+          edge.ownNavigation.kind === 'project_session'
+            ? edge.ownNavigation.projectId
+            : null,
+        ownWorkspaceId:
+          edge.ownNavigation.kind === 'workspace_session'
+            ? edge.ownNavigation.workspaceId
+            : null,
+        ownDocId:
+          edge.ownNavigation.kind === 'workspace_session'
+            ? edge.ownNavigation.docId
             : null,
       })),
     };
+  }
+
+  @Mutation(() => WorkOrderConversationTargetType)
+  async openWorkOrderConversation(
+    @CurrentUser() user: CurrentUserType,
+    @Args('workOrderId', { type: () => ID }) workOrderId: string
+  ) {
+    const order = await this.models.copilotWorkOrder.getOwned(
+      workOrderId,
+      user.id
+    );
+    if (
+      order.viewerRole === 'sender' &&
+      order.sourceSession?.scopeType === 'workspace'
+    ) {
+      const { workspaceId, docId, userId } = order.sourceSession;
+      if (!workspaceId || !docId || userId !== user.id)
+        throw new BadRequest('Source conversation unavailable');
+      await this.permission
+        .user(user.id)
+        .doc(workspaceId, docId)
+        .assert('Doc.Read');
+    }
+    return this.models.copilotWorkOrder.openOwnConversation(
+      workOrderId,
+      user.id
+    );
   }
 
   @Mutation(() => WorkOrderDispatchPreparedType)
@@ -569,12 +691,78 @@ export class WorkOrderResolver {
     @Args('items', { type: () => [WorkOrderDeliveryItemInput] })
     items: WorkOrderDeliveryItemInput[]
   ) {
+    const order = await this.models.copilotWorkOrder.getOwned(
+      workOrderId,
+      user.id
+    );
+    if (order.templateVersion >= 2) {
+      throw new BadRequest(
+        'Review and confirm the delivery draft in the work-order conversation'
+      );
+    }
+    for (const item of items) {
+      for (const blobId of item.blobIds) {
+        await this.workOrderStorage.read({
+          workOrderId,
+          blobId,
+          actorId: user.id,
+        });
+      }
+    }
     const result = await this.models.copilotWorkOrder.submitDelivery({
       workOrderId,
       actorId: user.id,
       expectedVersion,
       requestKey,
       items,
+    });
+    return {
+      ...this.mutationResult(result.order),
+      deliveryRevisionId: result.delivery.id,
+      revision: result.delivery.revision,
+      receiptFingerprint: result.delivery.receiptFingerprint,
+    };
+  }
+
+  @Mutation(() => WorkOrderDeliveryDraftType)
+  async setWorkOrderDeliveryDraftItem(
+    @CurrentUser() user: CurrentUserType,
+    @Args('workOrderId', { type: () => ID }) workOrderId: string,
+    @Args('requirementId', { type: () => ID }) requirementId: string,
+    @Args('expectedDraftVersion', { type: () => Int })
+    expectedDraftVersion: number,
+    @Args('text', { type: () => String, nullable: true }) text?: string,
+    @Args('blobIds', { type: () => [ID], nullable: true }) blobIds?: string[]
+  ) {
+    return this.models.copilotWorkOrder.setDeliveryDraftItem({
+      workOrderId,
+      actorId: user.id,
+      requirementId,
+      expectedDraftVersion,
+      text,
+      blobIds,
+    });
+  }
+
+  @Mutation(() => WorkOrderDeliveryResultType)
+  async confirmWorkOrderDeliveryDraft(
+    @CurrentUser() user: CurrentUserType,
+    @Args('workOrderId', { type: () => ID }) workOrderId: string,
+    @Args('expectedWorkOrderVersion', { type: () => Int })
+    expectedWorkOrderVersion: number,
+    @Args('expectedDraftVersion', { type: () => Int })
+    expectedDraftVersion: number,
+    @Args('confirmationToken', { type: () => String })
+    confirmationToken: string,
+    @Args('requestKey', { type: () => String }) requestKey: string
+  ) {
+    const result = await this.workOrderStorage.confirmDeliveryDraft({
+      workOrderId,
+      actorId: user.id,
+      expectedWorkOrderVersion,
+      expectedDraftVersion,
+      confirmationToken,
+      requestKey,
     });
     return {
       ...this.mutationResult(result.order),
@@ -636,6 +824,8 @@ export class WorkOrderResolver {
     return {
       sessionId: session.id,
       scopeType: session.scopeType,
+      ownWorkspaceId: session.workspaceId,
+      ownDocId: session.docId,
       title: session.title,
       titleRevision: session.titleRevision,
       column: 'progress',
@@ -673,7 +863,10 @@ export class WorkOrderResolver {
   ) {
     return {
       ...order,
-      ownSessionId: order.sessionBinding?.sessionId ?? null,
+      ownSessionId:
+        order.viewerRole === 'recipient'
+          ? (order.sessionBinding?.sessionId ?? null)
+          : null,
       sourceContextVersion:
         order.viewerRole === 'sender'
           ? (order.sourceSession?.contextEpoch ?? null)

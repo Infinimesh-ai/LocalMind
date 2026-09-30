@@ -1752,7 +1752,10 @@ test('context memories should stay private to their owner and scope', async t =>
       where: { id: projectA.id },
     })
   );
-  t.false(await memory.deleteProject(projectA.id, userId));
+  t.deepEqual(await memory.deleteProject(projectA.id, userId), {
+    deleted: false,
+    reason: 'memories',
+  });
   t.false(
     (
       await memory.listManageable({

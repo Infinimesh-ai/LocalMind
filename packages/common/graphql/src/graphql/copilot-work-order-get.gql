@@ -13,6 +13,7 @@ query copilotWorkOrderGet($workOrderId: ID!) {
         relationKind
         status
         version
+        templateVersion
         requirements {
           id
           itemKey
@@ -53,6 +54,24 @@ query copilotWorkOrderGet($workOrderId: ID!) {
           byteSize
           fingerprint
           createdAt
+        }
+        deliveryDraft {
+          workOrderId
+          orderVersion
+          version
+          updatedAt
+          ready
+          confirmationToken
+          items {
+            requirementId
+            blobIds
+            text
+          }
+          checks {
+            requirementId
+            ready
+            reason
+          }
         }
         deliveriesReleased
         createdAt

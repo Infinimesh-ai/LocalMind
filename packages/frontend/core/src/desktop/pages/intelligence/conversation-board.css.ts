@@ -16,6 +16,13 @@ export const shell = style({
     'screen and (max-width: 760px)': { padding: '20px 16px 40px' },
   },
 });
+globalStyle(`${root}[data-view="relations"] ${shell}`, {
+  display: 'flex',
+  flexDirection: 'column',
+  width: '100%',
+  minHeight: '100%',
+  padding: '16px 0 0',
+});
 export const topline = style({
   minHeight: 36,
   display: 'flex',
@@ -30,6 +37,11 @@ export const topline = style({
       marginBottom: 20,
     },
   },
+});
+globalStyle(`${root}[data-view="relations"] ${topline}`, {
+  flex: 'none',
+  padding: '0 24px',
+  marginBottom: 0,
 });
 export const header = style({
   display: 'flex',
@@ -287,4 +299,8 @@ export const state = style({
   color: cssVarV2('text/tertiary'),
   fontSize: 12,
   textAlign: 'center',
+});
+
+export const workspaceToggle = style({
+  '@media': { 'screen and (max-width: 760px)': { display: 'none' } },
 });

@@ -1,12 +1,13 @@
 import { Button, Loading } from '@affine/component';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
 import { useI18n } from '@affine/i18n';
-import { PlusIcon } from '@blocksuite/icons/rc';
-import { useMemo, useState } from 'react';
+import { PlusIcon, SidebarIcon } from '@blocksuite/icons/rc';
+import { useState } from 'react';
 
-import { CollaborationGraph } from './collaboration-graph';
+import { CollaborationOrbitBoard } from './collaboration-orbit-board';
 import * as styles from './conversation-board.css';
 import type {
+  WorkbenchCollaborationGraph,
   WorkbenchConversationCard,
   WorkbenchConversationColumn,
   WorkbenchProject,
@@ -18,11 +19,11 @@ type ConversationBoardProps = {
   projects: WorkbenchProject[];
   onOpenCard: (card: WorkbenchConversationCard) => void;
   onOpenRelation: (
-    sessionId: string | null,
-    workOrderId: string | null,
-    projectId: string | null
-  ) => void;
+    relation: WorkbenchCollaborationGraph['edges'][number]
+  ) => void | Promise<void>;
   onNewConversation: () => void;
+  workspaceExpanded: boolean;
+  onWorkspaceExpandedChange: (expanded: boolean) => void;
 };
 
 const COLUMNS: Array<{
@@ -65,9 +66,38 @@ function Card({
       </span>
       <span className={styles.cardMeta}>
         {card.scopeType === 'work_order'
-          ? t['com.affine.localmind.workbench.v9.personalWorkOrder']()
-          : `${t['com.affine.localmind.workbench.v9.projectFilter']()} · ${card.project?.name ?? ''}`}
+          ? [
+              card.workOrderSenderName
+                ? t['com.affine.localmind.workbench.v9.sentBy']({
+                    name: card.workOrderSenderName,
+                  })
+                : null,
+              card.workOrderSourceProjectName
+                ? `${t['com.affine.localmind.workbench.v9.sourceProject']()}：${card.workOrderSourceProjectName}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : card.scopeType === 'workspace'
+            ? t['com.affine.localmind.workbench.v9.graphWorkspaceSource']()
+            : `${t['com.affine.localmind.workbench.v9.projectFilter']()} · ${card.project?.name ?? ''}`}
       </span>
+      {card.scopeType === 'work_order' &&
+      card.workOrderRequiredReturnTitles.length ? (
+        <span className={styles.cardMeta}>
+          {t['com.affine.localmind.workbench.v9.returnItems']()}：
+          {card.workOrderRequiredReturnTitles.join(' · ')}
+        </span>
+      ) : null}
+      {card.scopeType === 'work_order' && card.column !== 'done' ? (
+        <span className={styles.reason}>
+          {card.workOrderMissingRequiredCount
+            ? t['com.affine.localmind.workbench.v9.missingRequired']({
+                count: String(card.workOrderMissingRequiredCount),
+              })
+            : t['com.affine.localmind.workbench.v9.reviewRequired']()}
+        </span>
+      ) : null}
       {card.attentionReasons.length ? (
         <span className={styles.reasons}>
           {card.attentionReasons.map(reason => (
@@ -99,26 +129,60 @@ export function ConversationBoard({
   onOpenCard,
   onOpenRelation,
   onNewConversation,
+  workspaceExpanded,
+  onWorkspaceExpandedChange,
 }: ConversationBoardProps) {
   const t = useI18n();
   const [view, setView] = useState<'items' | 'relations'>('items');
   const [projectFilter, setProjectFilter] = useState('');
-  const allCards = useMemo(
-    () => [...cards.todo.items, ...cards.progress.items, ...cards.done.items],
-    [cards]
-  );
+  const [relationProjects, setRelationProjects] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const filterProjects =
+    view === 'relations'
+      ? [
+          ...projects,
+          ...relationProjects.filter(
+            relationProject =>
+              !projects.some(project => project.id === relationProject.id)
+          ),
+        ]
+      : projects;
 
   return (
-    <section className={styles.root} aria-labelledby="workbench-board-title">
+    <section
+      className={styles.root}
+      data-expanded={workspaceExpanded}
+      data-view={view}
+      aria-labelledby="workbench-board-title"
+    >
       <div className={styles.shell}>
         <div className={styles.topline}>
           <div className={styles.controls}>
+            {view === 'relations' && (
+              <Button
+                className={styles.workspaceToggle}
+                aria-pressed={workspaceExpanded}
+                aria-controls="intelligence-project-navigation"
+                onClick={() => onWorkspaceExpandedChange(!workspaceExpanded)}
+              >
+                <SidebarIcon />
+                {t[
+                  workspaceExpanded
+                    ? 'com.affine.localmind.workbench.v9.graphRestoreWorkspace'
+                    : 'com.affine.localmind.workbench.v9.graphExpandWorkspace'
+                ]()}
+              </Button>
+            )}
             <div className={styles.segmented} role="tablist">
               <button
                 type="button"
                 role="tab"
                 aria-selected={view === 'items'}
-                onClick={() => setView('items')}
+                onClick={() => {
+                  setView('items');
+                  onWorkspaceExpandedChange(false);
+                }}
               >
                 {t['com.affine.localmind.workbench.v9.items']()}
               </button>
@@ -142,7 +206,7 @@ export function ConversationBoard({
                 <option value="">
                   {t['com.affine.localmind.workbench.v9.allProjects']()}
                 </option>
-                {projects.map(project => (
+                {filterProjects.map(project => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
@@ -154,30 +218,32 @@ export function ConversationBoard({
             </label>
           </div>
         </div>
-        <header className={styles.header}>
-          <div>
-            <h1 id="workbench-board-title" className={styles.title}>
-              {t['com.affine.localmind.workbench.v9.overview']()}
-            </h1>
-            <p className={styles.subtitle}>
-              {t['com.affine.localmind.workbench.v9.overviewDescription']()}
-            </p>
-          </div>
-          <button
-            type="button"
-            className={styles.mobileNewConversation}
-            onClick={onNewConversation}
-          >
-            <PlusIcon />
-            {t['com.affine.localmind.workbench.v9.newConversation']()}
-          </button>
-        </header>
+        {view === 'items' && (
+          <header className={styles.header}>
+            <div>
+              <h1 id="workbench-board-title" className={styles.title}>
+                {t['com.affine.localmind.workbench.v9.overview']()}
+              </h1>
+              <p className={styles.subtitle}>
+                {t['com.affine.localmind.workbench.v9.overviewDescription']()}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={styles.mobileNewConversation}
+              onClick={onNewConversation}
+            >
+              <PlusIcon />
+              {t['com.affine.localmind.workbench.v9.newConversation']()}
+            </button>
+          </header>
+        )}
         {view === 'relations' ? (
-          <CollaborationGraph
-            cards={allCards}
+          <CollaborationOrbitBoard
+            workspaceExpanded={workspaceExpanded}
             projectFilter={projectFilter}
-            onOpenCard={onOpenCard}
             onOpenRelation={onOpenRelation}
+            onProjectsChange={setRelationProjects}
           />
         ) : (
           <div className={styles.columns}>

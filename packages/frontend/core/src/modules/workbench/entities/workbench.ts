@@ -250,6 +250,10 @@ export class Workbench extends Entity {
     this.open(`/${docId}/attachments/${blockId}`, options);
   }
 
+  openNativeFile(resourceId: string, options?: WorkbenchOpenOptions) {
+    this.open(`/files/${encodeURIComponent(resourceId)}`, options);
+  }
+
   openOffice(artifactId: string, options?: WorkbenchOpenOptions) {
     this.open(`/office/${artifactId}`, options);
   }

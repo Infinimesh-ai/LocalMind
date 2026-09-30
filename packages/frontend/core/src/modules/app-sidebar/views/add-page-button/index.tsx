@@ -1,27 +1,19 @@
-import { Button, IconButton, Menu, MenuItem, MenuSub } from '@affine/component';
+import { IconButton, MenuSub } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { WorkspaceCreateMenu } from '@affine/core/components/native-files/create-menu';
 import { DocsService } from '@affine/core/modules/doc';
-import { EditorSettingService } from '@affine/core/modules/editor-setting';
 import { TemplateDocService } from '@affine/core/modules/template-doc';
 import { TemplateListMenuContentScrollable } from '@affine/core/modules/template-doc/view/template-list-menu';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { inferOpenMode } from '@affine/core/utils';
 import { useI18n } from '@affine/i18n';
-import track from '@affine/track';
 import type { DocMode } from '@blocksuite/affine/model';
-import {
-  ArrowDownSmallIcon,
-  EdgelessIcon,
-  PageIcon,
-  PlusIcon,
-  TemplateIcon,
-} from '@blocksuite/icons/rc';
+import { PlusIcon, TemplateIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import clsx from 'clsx';
 import type React from 'react';
-import { type MouseEvent, useCallback } from 'react';
+import { type MouseEvent } from 'react';
 
 import * as styles from './index.css';
 
@@ -65,130 +57,42 @@ interface AddPageButtonProps {
   style?: React.CSSProperties;
 }
 
-const sideBottom = { side: 'bottom' as const };
-export function AddPageButton(props: AddPageButtonProps) {
-  const editorSetting = useService(EditorSettingService);
-  const newDocDefaultMode = useLiveData(
-    editorSetting.editorSetting.settings$.selector(s => s.newDocDefaultMode)
-  );
-
-  return newDocDefaultMode === 'ask' ? (
-    <AddPageWithAsk {...props} />
-  ) : (
-    <AddPageWithoutAsk {...props} />
-  );
-}
-
-function AddPageWithAsk({ className, style }: AddPageButtonProps) {
+export function AddPageButton({ className, style }: AddPageButtonProps) {
   const t = useI18n();
   const createDoc = useNewDoc();
+  const docs = useService(DocsService);
   const workbench = useService(WorkbenchService).workbench;
-  const docsService = useService(DocsService);
-
-  const createPage = useCallback(
-    (e?: MouseEvent) => {
-      createDoc(e, 'page');
-      track.$.navigationPanel.$.createDoc();
-      track.$.sidebar.newDoc.quickStart({ with: 'page' });
-    },
-    [createDoc]
-  );
-  const createEdgeless = useCallback(
-    (e?: MouseEvent) => {
-      createDoc(e, 'edgeless');
-      track.$.navigationPanel.$.createDoc();
-      track.$.sidebar.newDoc.quickStart({ with: 'edgeless' });
-    },
-    [createDoc]
-  );
-
-  const createDocFromTemplate = useAsyncCallback(
-    async (templateId: string) => {
-      const docId = await docsService.duplicateFromTemplate(templateId);
-      workbench.openDoc(docId);
-      track.$.sidebar.newDoc.quickStart({ with: 'template' });
-    },
-    [docsService, workbench]
-  );
-
   return (
-    <Menu
-      items={
-        <>
-          <MenuItem
-            prefixIcon={<PageIcon />}
-            onClick={createPage}
-            onAuxClick={createPage}
-          >
-            {t['Page']()}
-          </MenuItem>
-          <MenuItem
-            prefixIcon={<EdgelessIcon />}
-            onClick={createEdgeless}
-            onAuxClick={createEdgeless}
-          >
-            {t['Edgeless']()}
-          </MenuItem>
-          <MenuSub
-            triggerOptions={{
-              prefixIcon: <TemplateIcon />,
-            }}
-            subContentOptions={{
-              sideOffset: 16,
-              className: styles.templateMenu,
-            }}
-            items={
-              <TemplateListMenuContentScrollable
-                onSelect={createDocFromTemplate}
-              />
-            }
-          >
-            {t['Template']()}
-          </MenuSub>
-        </>
+    <WorkspaceCreateMenu
+      onPage={() => createDoc(undefined, 'page')}
+      onEdgeless={() => createDoc(undefined, 'edgeless')}
+      extra={
+        <MenuSub
+          triggerOptions={{ prefixIcon: <TemplateIcon /> }}
+          items={
+            <TemplateListMenuContentScrollable
+              onSelect={id => {
+                docs
+                  .duplicateFromTemplate(id)
+                  .then(id => workbench.openDoc(id))
+                  .catch(console.error);
+              }}
+            />
+          }
+        >
+          {t['Template']()}
+        </MenuSub>
       }
     >
-      <Button
-        tooltip={t['New Page']()}
-        tooltipOptions={sideBottom}
-        data-testid="sidebar-new-page-with-ask-button"
-        className={clsx([styles.withAskRoot, className])}
+      <IconButton
+        className={className ?? styles.root}
         style={style}
+        size={16}
+        tooltip={t['com.affine.localmind.resources.create']()}
+        data-testid="sidebar-new-page-button"
       >
-        <div className={styles.withAskContent}>
-          <PlusIcon />
-          <ArrowDownSmallIcon />
-        </div>
-      </Button>
-    </Menu>
-  );
-}
-
-function AddPageWithoutAsk({ className, style }: AddPageButtonProps) {
-  const createDoc = useNewDoc();
-
-  const onClickNewPage = useCallback(
-    (e?: MouseEvent) => {
-      createDoc(e);
-      track.$.navigationPanel.$.createDoc();
-    },
-    [createDoc]
-  );
-
-  const t = useI18n();
-
-  return (
-    <IconButton
-      tooltip={t['New Page']()}
-      tooltipOptions={sideBottom}
-      data-testid="sidebar-new-page-button"
-      style={style}
-      className={clsx([styles.root, className])}
-      size={16}
-      onClick={onClickNewPage}
-      onAuxClick={onClickNewPage}
-    >
-      <PlusIcon />
-    </IconButton>
+        <PlusIcon />
+      </IconButton>
+    </WorkspaceCreateMenu>
   );
 }

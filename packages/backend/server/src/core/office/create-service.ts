@@ -14,6 +14,7 @@ import { PermissionAccess } from '../permission';
 import { ProjectResourceService } from '../project';
 import { OfficeImportService } from './import-service';
 import { OfficeResourceStorage } from './resource-storage';
+import { WorkspaceNativeResourceService } from './workspace-resource-service';
 
 export const NativeFileCreateSchema = z
   .object({
@@ -42,7 +43,8 @@ export class NativeFileCreateService {
     private readonly storage: OfficeResourceStorage,
     private readonly imports: OfficeImportService,
     private readonly projects: ProjectResourceService,
-    private readonly event: EventBus
+    private readonly event: EventBus,
+    private readonly workspaceResources: WorkspaceNativeResourceService
   ) {}
 
   generatePrivate(fileInput: z.input<typeof NativeFileCreateSchema>) {
@@ -62,6 +64,73 @@ export class NativeFileCreateService {
       format: file.content.format,
       mimeType: generated.mimeType,
     };
+  }
+
+  async createUser(
+    input: OfficeOwnerInput & {
+      actorId: string;
+      requestKey: string;
+      file: z.infer<typeof NativeFileCreateSchema>;
+    }
+  ) {
+    const file = NativeFileCreateSchema.parse(input.file);
+    const owner = officeOwnerFromInput(input);
+    if (typeof owner === 'string')
+      return this.workspaceResources.create({
+        workspaceId: owner,
+        actorId: input.actorId,
+        requestKey: input.requestKey,
+        title: file.title,
+        folderId: file.parent_id,
+        content: file.content,
+      });
+    return this.models.projectResource.withMember(
+      { projectId: owner.projectId, actorId: input.actorId },
+      async () => {
+        const generated = this.generatePrivate(file);
+        const requestKey = `user-file:${createHash('sha256')
+          .update(JSON.stringify([input.actorId, input.requestKey]))
+          .digest('hex')}`;
+        const blobKey = await this.storage.putGenerated(
+          owner,
+          input.actorId,
+          generated.bytes,
+          generated.mimeType,
+          async () => {
+            await this.models.projectResource.assertMember({
+              projectId: owner.projectId,
+              actorId: input.actorId,
+            });
+          }
+        );
+        if (['docx', 'xlsx', 'pptx'].includes(file.content.format)) {
+          const saved = await this.imports.import({
+            projectId: owner.projectId,
+            actorId: input.actorId,
+            sourceBlobKey: blobKey,
+            sourceFileName: generated.fileName,
+            title: generated.fileName,
+            importIdempotencyKey: requestKey,
+            projectRequestKey: requestKey,
+            parentId: file.parent_id,
+          });
+          return this.models.projectResource.get({
+            projectId: owner.projectId,
+            actorId: input.actorId,
+            resourceId: saved.artifact.id,
+          });
+        }
+        return this.projects.createFile({
+          projectId: owner.projectId,
+          actorId: input.actorId,
+          title: generated.fileName,
+          blobKey,
+          parentId: file.parent_id,
+          requestKey,
+          origin: 'user',
+        });
+      }
+    );
   }
 
   async create(
@@ -103,11 +172,43 @@ export class NativeFileCreateService {
     };
     await authorize();
     const execute = async () => {
+      if (typeof owner === 'string') {
+        const result = await this.workspaceResources.create({
+          workspaceId: owner,
+          actorId: input.actorId,
+          sourceSessionId: input.sessionId,
+          origin: 'ai',
+          title: file.title,
+          content: file.content,
+          folderId: file.parent_id,
+          requestKey: `ai-file:${createHash('sha256')
+            .update(
+              JSON.stringify([input.actorId, input.sessionId, input.requestKey])
+            )
+            .digest('hex')}`,
+        });
+        return {
+          status: 'saved',
+          resourceId: result.id,
+          ...(result.kind === 'office' ? { artifactId: result.id } : {}),
+          revisionId: result.revisionId,
+          fileName: result.fileName,
+          format: file.content.format,
+          byteSize: result.byteSize,
+          fingerprint: (
+            await this.models.workspaceNativeResource.get({
+              workspaceId: owner,
+              resourceId: result.id,
+              kind: result.kind,
+            })
+          ).fingerprint,
+          url:
+            result.kind === 'office'
+              ? `/workspace/${owner}/office/${result.id}`
+              : `/api/workspaces/${owner}/files/${result.id}/download`,
+        };
+      }
       const office = ['docx', 'xlsx', 'pptx'].includes(file.content.format);
-      if (typeof owner === 'string' && file.parent_id)
-        throw new Error(
-          'Workspace file creation currently supports the workspace root only'
-        );
       const generated = this.generatePrivate(file);
       const { bytes, fingerprint, fileName } = generated;
       const requestKey = `ai-file:${createHash('sha256')
@@ -125,9 +226,7 @@ export class NativeFileCreateService {
       await authorize();
       if (office) {
         const saved = await this.imports.import({
-          ...(typeof owner === 'string'
-            ? { workspaceId: owner }
-            : { projectId: owner.projectId }),
+          projectId: owner.projectId,
           actorId: input.actorId,
           sourceBlobKey: blobKey,
           sourceFileName: fileName,
@@ -146,35 +245,7 @@ export class NativeFileCreateService {
           format: file.content.format,
           byteSize: bytes.length,
           fingerprint,
-          url:
-            typeof owner === 'string'
-              ? `/workspace/${owner}/office/${saved.artifact.id}`
-              : `/project/${owner.projectId}/resources/${saved.artifact.id}`,
-        };
-      }
-      if (typeof owner === 'string') {
-        const saved = await this.models.workspaceFile.create({
-          workspaceId: owner,
-          createdBy: input.actorId,
-          sourceSessionId: input.sessionId,
-          fileName,
-          mimeType: generated.mimeType,
-          byteSize: bytes.length,
-          blobKey,
-          fingerprint,
-          requestKey,
-          requestFingerprint: createHash('sha256')
-            .update(JSON.stringify([fileName, fingerprint, generated.mimeType]))
-            .digest('hex'),
-        });
-        return {
-          status: 'saved',
-          resourceId: saved.id,
-          fileName,
-          format: file.content.format,
-          byteSize: bytes.length,
-          fingerprint,
-          url: `/api/workspaces/${owner}/files/${saved.id}/download`,
+          url: `/project/${owner.projectId}/resources/${saved.artifact.id}`,
         };
       }
       const saved = await this.projects.createFile({

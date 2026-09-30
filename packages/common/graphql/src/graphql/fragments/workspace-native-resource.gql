@@ -1,0 +1,3 @@
+fragment WorkspaceNativeResourceFields on WorkspaceNativeResourceType {
+  id workspaceId kind title fileName mimeType byteSize metadataVersion contentVersion revisionId searchStatus canEdit canManage canRename canMove canCopy canTrash canRestore canDeletePermanently folderIds folderPaths atRoot createdAt updatedAt trashedAt deletedAt
+}

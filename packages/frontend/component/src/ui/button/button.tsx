@@ -31,6 +31,7 @@ export interface ButtonProps extends Omit<
    * @default 'secondary'
    */
   variant?: ButtonType;
+  type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
   /**
    * By default, the button is `inline-flex`, set to `true` to make it `flex`

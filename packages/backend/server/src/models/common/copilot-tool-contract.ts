@@ -23,6 +23,29 @@ const RETIRED_RESOURCE_TOOLS = new Set([
 export const isRetiredResourceTool = (name: string) =>
   RETIRED_RESOURCE_TOOLS.has(name);
 
+const PROJECT_V2_TOOLS = new Set([
+  'project_file_create',
+  'project_doc_create',
+  'project_doc_update',
+  'project_resource_update_meta',
+  'project_folder_create',
+]);
+export const PROJECT_V3_TOOLS = new Set([
+  ...PROJECT_V2_TOOLS,
+  'project_file_update',
+  'project_resource_restore_version',
+  'project_resource_copy',
+]);
+
+function currentProjectCommand(value: Record<string, unknown>) {
+  return (
+    typeof value.toolName === 'string' &&
+    (value.version === 2
+      ? PROJECT_V2_TOOLS.has(value.toolName)
+      : value.version === 3 && PROJECT_V3_TOOLS.has(value.toolName))
+  );
+}
+
 export class ToolContractRetiredError extends Error {
   constructor() {
     super('tool_contract_retired');
@@ -38,13 +61,7 @@ function object(value: unknown): Record<string, unknown> {
 
 export function assertCurrentProjectToolContract(command: unknown) {
   const value = object(command);
-  if (
-    value.version !== 2 ||
-    typeof value.toolName !== 'string' ||
-    !value.toolName.startsWith('project_') ||
-    isRetiredResourceTool(value.toolName)
-  )
-    throw new ToolContractRetiredError();
+  if (!currentProjectCommand(value)) throw new ToolContractRetiredError();
 }
 
 export function hasRetiredToolContract(run: {
@@ -75,13 +92,7 @@ export function hasRetiredToolContract(run: {
   if (run.workflow === 'agent_runtime_project_resource') {
     return run.steps.some(step => {
       const command = object(step.input);
-      return (
-        Object.keys(command).length > 0 &&
-        (command.version !== 2 ||
-          typeof command.toolName !== 'string' ||
-          !command.toolName.startsWith('project_') ||
-          isRetiredResourceTool(command.toolName))
-      );
+      return Object.keys(command).length > 0 && !currentProjectCommand(command);
     });
   }
   return false;

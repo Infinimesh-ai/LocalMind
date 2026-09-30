@@ -1,0 +1,12 @@
+query projectResourceHistory($projectId: String!, $resourceId: String!, $before: Int, $limit: Int) {
+  projectResourceHistory(projectId: $projectId, resourceId: $resourceId, before: $before, limit: $limit) { id sequence createdAt actorId }
+}
+mutation restoreProjectResourceVersion($input: RestoreProjectResourceVersionInput!) {
+  restoreProjectResourceVersion(input: $input) { id contentVersion version }
+}
+mutation copyProjectResource($input: CopyProjectResourceInput!) {
+  copyProjectResource(input: $input) { id kind title contentVersion version }
+}
+mutation createProjectNativeFile($input: CreateProjectNativeFileInput!) {
+  createProjectNativeFile(input: $input) { id kind title contentVersion version }
+}

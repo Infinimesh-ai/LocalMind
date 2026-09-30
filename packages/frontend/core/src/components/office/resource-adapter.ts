@@ -17,6 +17,7 @@ import {
   projectOfficeRevisionsQuery,
 } from '@affine/graphql';
 import { I18n } from '@affine/i18n';
+import { officeDownloadFileName } from '@localmind/office';
 
 import type { OfficeArtifact, OfficeRevision } from './shared';
 
@@ -143,11 +144,14 @@ export function createOfficeResourceAdapter(
       ).officeRevisionCompare;
     },
     download: (artifact, revision) =>
-      downloadOfficePackage(revision.packageUrl, artifact.sourceFileName),
+      downloadOfficePackage(
+        revision.packageUrl,
+        officeDownloadFileName(artifact.title, artifact.kind)
+      ),
     exportPdf: (artifact, revision) =>
       downloadOfficePackage(
         officePdfExportUrl(revision.packageUrl),
-        `${artifact.title || 'document'}.pdf`
+        officeDownloadFileName(artifact.title, 'pdf')
       ),
   };
 }

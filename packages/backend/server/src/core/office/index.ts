@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 
+import { DocStorageModule } from '../doc';
 import { PermissionModule } from '../permission';
 import { ProjectModule } from '../project';
+import { QuotaModule } from '../quota';
 import { RealtimeModule } from '../realtime';
 import { StorageModule } from '../storage';
 import { OfficeArtifactService } from './artifact-service';
@@ -20,15 +22,30 @@ import { ProjectResourceIndexer } from './project-indexer';
 import { ProjectOfficeResolver } from './project-resolver';
 import { OfficeResolver } from './resolver';
 import { OfficeResourceStorage } from './resource-storage';
+import { WorkspaceNativeResourceIndexer } from './workspace-resource-indexer';
+import { WorkspaceNativeResourceRealtime } from './workspace-resource-realtime';
+import { WorkspaceNativeResourceResolver } from './workspace-resource-resolver';
+import { WorkspaceNativeResourceService } from './workspace-resource-service';
 
 @Module({
-  imports: [PermissionModule, ProjectModule, RealtimeModule, StorageModule],
+  imports: [
+    QuotaModule,
+    DocStorageModule,
+    PermissionModule,
+    ProjectModule,
+    RealtimeModule,
+    StorageModule,
+  ],
   controllers: [
     OfficeController,
     ProjectOfficeController,
     WorkspaceFileController,
   ],
   providers: [
+    WorkspaceNativeResourceIndexer,
+    WorkspaceNativeResourceRealtime,
+    WorkspaceNativeResourceService,
+    WorkspaceNativeResourceResolver,
     NativeFileCreateService,
     OfficeArtifactService,
     OfficeResourceStorage,
@@ -44,6 +61,7 @@ import { OfficeResourceStorage } from './resource-storage';
     ProjectResourceIndexer,
   ],
   exports: [
+    WorkspaceNativeResourceService,
     NativeFileCreateService,
     OfficeArtifactService,
     OfficeCommentService,

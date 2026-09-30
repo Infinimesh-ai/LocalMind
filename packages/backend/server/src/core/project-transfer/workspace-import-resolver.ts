@@ -34,6 +34,7 @@ class ProjectImportSourceType {
   @Field() title!: string;
   @Field(() => ProjectResourceKind) kind!: ProjectResourceKind;
   @Field() permission!: string;
+  @Field() sourceKind!: string;
 }
 @ObjectType()
 class ProjectImportSourcePageType {
@@ -60,6 +61,9 @@ class SubmitProjectWorkspaceImportInput {
   @Field(() => ID) projectId!: string;
   @Field(() => ID) workspaceId!: string;
   @Field(() => ID) sourceResourceId!: string;
+  @Field(() => String, { nullable: true }) sourceKind?:
+    | 'document'
+    | 'workspace_file';
   @Field(() => ID, { nullable: true }) parentId?: string | null;
   @Field() requestKey!: string;
   @Field() requestApproval!: boolean;

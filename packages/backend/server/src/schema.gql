@@ -494,6 +494,27 @@ input ChangeProjectResourceInput {
   trash: Boolean
 }
 
+input ChangeWorkspaceLifecycleInput {
+  action: String!
+  expectedVersion: String!
+  kind: String!
+  requestKey: String!
+  resourceId: ID!
+  workspaceId: ID!
+}
+
+input ChangeWorkspaceNativeResourceInput {
+  action: String!
+  expectedDirectoryVersion: String
+  expectedVersion: Int!
+  folderId: ID
+  kind: String!
+  requestKey: String!
+  resourceId: ID!
+  title: String
+  workspaceId: ID!
+}
+
 enum ChatHistoryOrder {
   asc
   desc
@@ -510,14 +531,25 @@ type ChatMessage {
 }
 
 type CollaborationEdgeType {
+  expiresAt: DateTime
   from: ID!
   id: ID!
+  kind: String!
   label: String!
+  ownConversationExists: Boolean!
+  ownDocId: ID
+  ownNavigationKind: String!
+  ownProjectId: ID
   ownSessionId: ID
   ownWorkOrderId: ID
+  ownWorkspaceId: ID
   project: CollaborationProjectType
+  requirementItems: [CollaborationRequirementType!]!
+  requirementTitles: [String!]!
+  sourceKind: String!
   status: String!
   to: ID!
+  updatedAt: DateTime!
 }
 
 type CollaborationGraphType {
@@ -527,6 +559,7 @@ type CollaborationGraphType {
 }
 
 type CollaborationNodeType {
+  avatarUrl: String
   id: ID!
   label: String!
   self: Boolean!
@@ -535,6 +568,12 @@ type CollaborationNodeType {
 type CollaborationProjectType {
   id: ID!
   name: String!
+}
+
+type CollaborationRequirementType {
+  id: ID!
+  kind: String!
+  title: String!
 }
 
 """Comment change action"""
@@ -679,6 +718,8 @@ type ConversationCardType {
   attentionReasons: [String!]!
   column: String!
   lastBusinessAt: DateTime!
+  ownDocId: ID
+  ownWorkspaceId: ID
   pinned: Boolean!
   project: ConversationCardProjectType
   scopeType: String!
@@ -687,6 +728,10 @@ type ConversationCardType {
   titleRevision: Int!
   version: Int!
   workOrderId: ID
+  workOrderMissingRequiredCount: Int
+  workOrderRequiredReturnTitles: [String!]!
+  workOrderSenderName: String
+  workOrderSourceProjectName: String
   workOrderStatus: String
 }
 
@@ -4243,6 +4288,25 @@ type CopilotWorkspaceIgnoredDocTypeEdge {
   node: CopilotWorkspaceIgnoredDoc!
 }
 
+input CopyProjectResourceInput {
+  expectedContentVersion: Int!
+  parentId: ID
+  projectId: ID!
+  requestKey: String!
+  resourceId: ID!
+  title: String!
+}
+
+input CopyWorkspaceNativeResourceInput {
+  expectedContentVersion: Int!
+  folderId: ID
+  kind: String!
+  requestKey: String!
+  resourceId: ID!
+  title: String!
+  workspaceId: ID!
+}
+
 input CreateChatMessageInput {
   attachments: [String!] @deprecated(reason: "use blobs")
   blob: Upload
@@ -4350,6 +4414,14 @@ input CreateProjectFileInput {
   title: String!
 }
 
+input CreateProjectNativeFileInput {
+  content: JSONObject!
+  parentId: String
+  projectId: String!
+  requestKey: String!
+  title: String!
+}
+
 input CreateProjectResourceInput {
   kind: ProjectResourceKind!
   markdown: String! = ""
@@ -4363,6 +4435,15 @@ input CreateUserInput {
   email: String!
   name: String
   password: String
+}
+
+input CreateWorkspaceNativeResourceInput {
+  blobKey: String
+  content: JSONObject
+  folderId: ID
+  requestKey: String!
+  title: String!
+  workspaceId: ID!
 }
 
 type CredentialsRequirementType {
@@ -4949,6 +5030,7 @@ input ImportWorkspaceResourceToProjectInput {
   parentId: ID
   projectId: ID!
   requestKey: String!
+  sourceKind: String
   sourceResourceId: ID!
   title: String
   workspaceId: ID!
@@ -5427,6 +5509,8 @@ type Mutation {
   changeProjectPublication(action: String!, expectedRevision: Int!, projectId: String!, publicationId: String!): ProjectPublicationType!
   changeProjectResource(input: ChangeProjectResourceInput!): ProjectResourceType!
   changeWorkspaceDirectoryPolicy(directoryId: ID!, expectedRevision: String!, principalId: ID!, rights: WorkspaceDirectoryRightsInput, workspaceId: ID!): WorkspaceDirectoryPolicyMutationType!
+  changeWorkspaceLifecycle(input: ChangeWorkspaceLifecycleInput!): WorkspaceLifecycleResult!
+  changeWorkspaceNativeResource(input: ChangeWorkspaceNativeResourceInput!): WorkspaceNativeResourceType!
 
   """Cleanup sessions"""
   cleanupCopilotSession(options: DeleteSessionInput!): [String!]!
@@ -5443,6 +5527,7 @@ type Mutation {
   confirmCopilotBlockerSuggestion(input: ConfirmCopilotBlockerSuggestionInput!): CopilotBlockerType!
   confirmCopilotDocumentDestination(input: ConfirmCopilotDocumentDestinationInput!): CopilotDocumentOperationType!
   confirmProjectPublication(expectedRevision: Int!, projectId: String!, publicationId: String!, targetFingerprint: String!): ProjectPublicationType!
+  confirmWorkOrderDeliveryDraft(confirmationToken: String!, expectedDraftVersion: Int!, expectedWorkOrderVersion: Int!, requestKey: String!, workOrderId: ID!): WorkOrderDeliveryResultType!
   confirmWorkOrderDispatch(confirmationToken: String!, dispatchId: ID!, expectedDraftVersion: Int!, requestKey: String!): WorkOrderDispatchConfirmedType!
   connectExternalMcp(input: ConnectExternalMcpInput!): ExternalMcpConnectionType!
 
@@ -5460,6 +5545,8 @@ type Mutation {
   Control a current-user Copilot task after workspace and actor ownership checks.
   """
   controlCopilotTask(input: CopilotTaskControlInput!): CopilotTaskType!
+  copyProjectResource(input: CopyProjectResourceInput!): ProjectResourceType!
+  copyWorkspaceNativeResource(input: CopyWorkspaceNativeResourceInput!): WorkspaceNativeResourceType!
   createBlobUpload(docScopeId: String, key: String!, mime: String!, size: Int!, workspaceId: String!): BlobUploadInit!
 
   """Create change password url"""
@@ -5501,6 +5588,7 @@ type Mutation {
   createProjectDestinationFolder(expectedDirectoryRevision: String!, parentId: String, projectId: String!, publicationId: String!, requestKey: String!, title: String!, workspaceId: String!): ProjectDestinationFolderResultType!
   createProjectFile(input: CreateProjectFileInput!): ProjectResourceType!
   createProjectFileRequest(input: CreateFileRequestInput!): ProjectFileRequestType!
+  createProjectNativeFile(input: CreateProjectNativeFileInput!): ProjectResourceType!
   createProjectResource(input: CreateProjectResourceInput!): ProjectResourceType!
   createReply(input: ReplyCreateInput!): ReplyObjectType!
   createSelfhostWorkspaceCustomerPortal(workspaceId: String!): String!
@@ -5511,6 +5599,7 @@ type Mutation {
 
   """Create a new workspace"""
   createWorkspace(init: Upload): WorkspaceType!
+  createWorkspaceNativeResource(input: CreateWorkspaceNativeResourceInput!): WorkspaceNativeResourceType!
   deactivateLicense(workspaceId: String!): Boolean!
 
   """
@@ -5594,6 +5683,7 @@ type Mutation {
   """mention user in a doc"""
   mentionUser(input: MentionInput!): ID!
   mutateWorkspaceDirectory(changes: [WorkspaceDirectoryChangeInput!]!, expectedRevision: String!, workspaceId: ID!): WorkspaceDirectoryMutationType!
+  openWorkOrderConversation(workOrderId: ID!): WorkOrderConversationTargetType!
   permanentlyDeleteProjectResource(input: PermanentlyDeleteProjectResourceInput!): Boolean!
   prepareProjectPublication(kind: String!, projectId: String!, requestKey: String!, resourceId: String!, sessionId: String): ProjectPublicationType!
   prepareWorkOrderDispatch(recipients: [WorkOrderRecipientDraftInput!]!, requestKey: String!, sourceSessionId: ID!): WorkOrderDispatchPreparedType!
@@ -5603,7 +5693,7 @@ type Mutation {
   """
   previewCopilotPromptRegistryBodyEdit(input: CopilotPromptRegistryBodyEditPreviewInput!): CopilotPromptRegistryBodyEditPreviewType!
   previewLicense(license: Upload!): AdminLicensePreview!
-  previewProjectPublication(expectedRevision: Int!, folderId: String, projectId: String!, publicationId: String!, targetResourceId: String, workspaceId: String!): ProjectPublicationType!
+  previewProjectPublication(expectedRevision: Int!, folderId: String, projectId: String!, publicationId: String!, targetKind: String, targetResourceId: String, workspaceId: String!): ProjectPublicationType!
 
   """
   Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
@@ -5648,7 +5738,7 @@ type Mutation {
   refreshEnterpriseConnection(connectionId: String!, workspaceId: String!): EnterpriseConnectionType!
   refreshExternalMcpTools(workspaceId: String!): ExternalMcpConnectionType!
   refreshProjectChatContext(expectedVersion: Int!, projectId: String!, sessionId: String!): ProjectChatContextType!
-  refreshProjectResourceSource(editLease: ProjectEditLeaseProofInput!, expectedContentVersion: Int!, expectedSourceVersion: String!, projectId: String!, requestKey: String!, resourceId: String!, sourceResourceId: String!, workspaceId: String!): ProjectResourceType!
+  refreshProjectResourceSource(editLease: ProjectEditLeaseProofInput!, expectedContentVersion: Int!, expectedSourceVersion: String!, projectId: String!, requestKey: String!, resourceId: String!, sourceKind: String, sourceResourceId: String!, workspaceId: String!): ProjectResourceType!
 
   """Refresh current user subscriptions and return latest."""
   refreshUserSubscriptions: [SubscriptionType!]!
@@ -5710,6 +5800,8 @@ type Mutation {
   resolveCopilotBlocker(blockerId: ID!): CopilotBlockerType!
   resolveCopilotProjectMemoryConflict(input: ResolveCopilotProjectMemoryConflictInput!): CopilotProjectMemoryConflictType!
   resolveOfficeComment(input: OfficeCommentResolveInput!): OfficeCommentType!
+  restoreProjectResourceVersion(input: RestoreProjectResourceVersionInput!): ProjectResourceType!
+  restoreWorkspaceNativeVersion(input: RestoreWorkspaceNativeVersionInput!): WorkspaceNativeResourceType!
   resumeSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
   retryCopilotContextCompaction(taskId: ID!): CopilotContextCompactionTaskType!
   retryCopilotDocumentOperation(expectedRevision: Int!, operationId: ID!): CopilotDocumentOperationType!
@@ -5733,6 +5825,8 @@ type Mutation {
   rotateMcpCredential(expirationDays: Int! = 90, id: ID!, workspaceId: String!): RevealedMcpCredentialType!
   saveProjectByokConfig(input: ProjectByokConfigInput!): ProjectByokSettingsType!
   saveProjectDocument(input: SaveProjectDocumentInput!): ProjectResourceRevisionType!
+  saveProjectFile(input: SaveProjectFileInput!): ProjectResourceRevisionType!
+  saveWorkspaceNativeFile(input: SaveWorkspaceNativeFileInput!): WorkspaceNativeResourceType!
   sendChangeEmail(callbackUrl: String!): Boolean!
   sendChangePasswordEmail(callbackUrl: String!, email: String @deprecated(reason: "fetched from signed in user")): Boolean!
   sendCopilotProjectInvitation(input: SendCopilotProjectInvitationInput!): CopilotProjectInvitationType!
@@ -5745,6 +5839,7 @@ type Mutation {
   setCopilotContextProjectAiPolicy(input: SetCopilotProjectAiPolicyInput!): CopilotProjectAiPolicyType!
   setProjectByokEnabled(enabled: Boolean!, expectedRevision: SafeInt!): ProjectByokSettingsType!
   setWorkOrderByokEnabled(enabled: Boolean!, expectedRevision: SafeInt!): ProjectByokSettingsType!
+  setWorkOrderDeliveryDraftItem(blobIds: [ID!], expectedDraftVersion: Int!, requirementId: ID!, text: String, workOrderId: ID!): WorkOrderDeliveryDraftType!
   settleTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
   submitProjectFileRequest(expectedVersion: Int!, file: Upload!, requestId: String!, shareWithProject: Boolean!): ProjectFileRequestType!
   submitProjectWorkspaceImport(input: SubmitProjectWorkspaceImportInput!): ProjectWorkspaceImportTaskType!
@@ -6265,6 +6360,13 @@ type ProjectChatContextType {
   version: Int!
 }
 
+type ProjectContentHistoryType {
+  actorId: ID!
+  createdAt: DateTime!
+  id: ID!
+  sequence: Int!
+}
+
 type ProjectDestinationFolderResultType {
   failureCode: String
   folderId: String
@@ -6359,6 +6461,13 @@ type ProjectFileRequestType {
   version: Int!
 }
 
+type ProjectFileTextType {
+  byteSize: Int!
+  contentVersion: Int!
+  mimeType: String!
+  text: String!
+}
+
 type ProjectImportPermissionRequestType {
   id: ID!
   purpose: String!
@@ -6374,6 +6483,7 @@ type ProjectImportSourceType {
   id: ID!
   kind: ProjectResourceKind!
   permission: String!
+  sourceKind: String!
   title: String!
 }
 
@@ -6468,6 +6578,7 @@ type ProjectPublicationCandidateType {
   kind: String!
   path: [ProjectPublicationPathType!]!
   resourceId: ID!
+  targetKind: String!
   title: String!
 }
 
@@ -6534,6 +6645,7 @@ type ProjectResourceRevisionType {
 
 type ProjectResourceSourceType {
   projectVersion: Int!
+  sourceKind: String!
   sourceResourceId: ID!
   sourceVersion: String!
   title: String!
@@ -6707,6 +6819,7 @@ type Query {
   projectDestinationWorkspaces(projectId: String!): [ProjectDestinationWorkspaceType!]!
   projectFileRequest(requestId: String!): ProjectFileRequestType!
   projectFileRequestRecipients(projectId: String!, query: String!): [FileRequestRecipientType!]!
+  projectFileText(projectId: String!, resourceId: String!, sequence: Int): ProjectFileTextType!
   projectImportSources(cursor: String, projectId: String!, query: String, workspaceId: String!): ProjectImportSourcePageType!
   projectImportWorkspaces(cursor: String, projectId: String!): ProjectImportWorkspacePageType!
   projectOfficeArtifact(artifactId: String!, projectId: String!): ProjectOfficeArtifactType!
@@ -6717,6 +6830,7 @@ type Query {
   projectPublications(cursor: String, limit: Int, projectId: String!, resourceId: String): ProjectPublicationPageType!
   projectResource(projectId: String!, resourceId: String!): ProjectResourceType!
   projectResourceEditLease(input: ProjectEditLeaseInput!): ProjectEditLeaseType
+  projectResourceHistory(before: Int, limit: Int, projectId: String!, resourceId: String!): [ProjectContentHistoryType!]!
   projectResourcePath(projectId: String!, resourceId: String!): [ProjectResourceType!]!
   projectResourceRevision(projectId: String!, resourceId: String!, sequence: Int): ProjectResourceRevisionType!
   projectResourceSources(projectId: String!, resourceId: String!): [ProjectResourceSourceType!]!
@@ -6755,9 +6869,15 @@ type Query {
   workspace(id: String!): WorkspaceType!
   workspaceDirectory(after: String, workspaceId: ID!): WorkspaceDirectoryPageType!
   workspaceDirectoryAdministration(auditAfter: String, workspaceId: ID!): WorkspaceDirectoryAdministrationType!
+  workspaceLifecycleResource(input: WorkspaceLifecycleIdentityInput!): WorkspaceLifecycleResource!
+  workspaceNativeFileText(input: WorkspaceNativeIdentityInput!, sequence: Int): WorkspaceNativeTextType!
+  workspaceNativeResource(input: WorkspaceNativeIdentityInput!, trash: Boolean): WorkspaceNativeResourceType!
+  workspaceNativeResources(cursor: String, limit: Int, query: String, trash: Boolean, workspaceId: String!): WorkspaceNativePageType!
+  workspaceNativeRevisions(before: Int, input: WorkspaceNativeIdentityInput!, limit: Int): [WorkspaceNativeRevisionType!]!
 
   """Get workspace role permissions"""
   workspaceRolePermissions(id: String!): WorkspaceRolePermissions! @deprecated(reason: "use WorkspaceType[permissions] instead")
+  workspaceTrashedFolders(workspaceId: String!): [WorkspaceLifecycleResource!]!
 
   """Get all accessible workspaces for current user"""
   workspaces: [WorkspaceType!]!
@@ -6890,6 +7010,24 @@ type ResponseTooLargeErrorDataType {
   receivedBytes: Int!
 }
 
+input RestoreProjectResourceVersionInput {
+  editLease: ProjectEditLeaseProofInput!
+  expectedContentVersion: Int!
+  projectId: ID!
+  requestKey: String!
+  resourceId: ID!
+  sequence: Int!
+}
+
+input RestoreWorkspaceNativeVersionInput {
+  expectedContentVersion: Int!
+  kind: String!
+  requestKey: String!
+  resourceId: ID!
+  sequence: Int!
+  workspaceId: ID!
+}
+
 type RevealedMcpCredentialType {
   callbackSecret: String
   credential: McpCredentialType!
@@ -6922,6 +7060,26 @@ input SaveProjectDocumentInput {
   requestKey: String!
   resourceId: ID!
   snapshotBase64: String!
+}
+
+input SaveProjectFileInput {
+  blobKey: String
+  editLease: ProjectEditLeaseProofInput!
+  expectedContentVersion: Int!
+  projectId: ID!
+  requestKey: String!
+  resourceId: ID!
+  text: String
+}
+
+input SaveWorkspaceNativeFileInput {
+  blobKey: String
+  expectedContentVersion: Int!
+  kind: String!
+  requestKey: String!
+  resourceId: ID!
+  text: String
+  workspaceId: ID!
 }
 
 type SearchDocObjectType {
@@ -7129,6 +7287,7 @@ input SubmitProjectWorkspaceImportInput {
   projectId: ID!
   requestApproval: Boolean!
   requestKey: String!
+  sourceKind: String
   sourceResourceId: ID!
   workspaceId: ID!
 }
@@ -7607,6 +7766,38 @@ type WorkOrderAiModelType {
   provider: String
 }
 
+type WorkOrderConversationTargetType {
+  docId: ID
+  kind: String!
+  projectId: ID
+  sessionId: ID
+  workOrderId: ID
+  workspaceId: ID
+}
+
+type WorkOrderDeliveryDraftCheckType {
+  ready: Boolean!
+  reason: String
+  requirementId: ID!
+}
+
+type WorkOrderDeliveryDraftItemType {
+  blobIds: [ID!]!
+  requirementId: ID!
+  text: String
+}
+
+type WorkOrderDeliveryDraftType {
+  checks: [WorkOrderDeliveryDraftCheckType!]!
+  confirmationToken: String
+  items: [WorkOrderDeliveryDraftItemType!]!
+  orderVersion: Int!
+  ready: Boolean!
+  updatedAt: DateTime
+  version: Int!
+  workOrderId: ID!
+}
+
 input WorkOrderDeliveryItemInput {
   blobIds: [ID!]! = []
   requirementId: ID!
@@ -7741,6 +7932,7 @@ type WorkOrderType {
   createdAt: DateTime!
   deliveries: [WorkOrderDeliveryRevisionType!]!
   deliveriesReleased: Boolean!
+  deliveryDraft: WorkOrderDeliveryDraftType
   exchanges: [WorkOrderExchangeType!]!
   id: ID!
   ownSessionId: ID
@@ -7752,6 +7944,7 @@ type WorkOrderType {
   sourceSessionId: ID
   stagedBlobs: [WorkOrderStagedBlobType!]!
   status: String!
+  templateVersion: Int!
   title: String!
   updatedAt: DateTime!
   version: Int!
@@ -7943,6 +8136,39 @@ enum WorkspaceInviteLinkExpireTime {
   ThreeDays
 }
 
+type WorkspaceLifecycleChild {
+  id: ID!
+  kind: String!
+  title: String!
+}
+
+input WorkspaceLifecycleIdentityInput {
+  kind: String!
+  resourceId: ID!
+  workspaceId: ID!
+}
+
+type WorkspaceLifecycleResource {
+  canDeletePermanently: Boolean!
+  canRestore: Boolean!
+  canTrash: Boolean!
+  children: [WorkspaceLifecycleChild!]!
+  childrenTruncated: Boolean!
+  id: ID!
+  kind: String!
+  originalPaths: [String!]!
+  title: String!
+  trashed: Boolean!
+  trashedAt: String
+  version: String!
+}
+
+type WorkspaceLifecycleResult {
+  action: String!
+  resourceId: ID!
+  success: Boolean!
+}
+
 """Member invite status in workspace"""
 enum WorkspaceMemberStatus {
   Accepted
@@ -7951,6 +8177,84 @@ enum WorkspaceMemberStatus {
   NeedMoreSeatAndReview
   Pending
   UnderReview
+}
+
+input WorkspaceNativeIdentityInput {
+  kind: String!
+  resourceId: ID!
+  workspaceId: ID!
+}
+
+type WorkspaceNativePageType {
+  items: [WorkspaceNativeResourceType!]!
+  nextCursor: String
+}
+
+type WorkspaceNativeResourceType {
+  atRoot: Boolean
+  byteSize: Int!
+  canCopy: Boolean
+  canDeletePermanently: Boolean
+  canEdit: Boolean
+  canManage: Boolean
+  canMove: Boolean
+  canRename: Boolean
+  canRestore: Boolean
+  canTrash: Boolean
+  contentVersion: Int!
+  createdAt: DateTime!
+  deletedAt: DateTime
+  fileName: String!
+  folderIds: [ID!]
+  folderPaths: [String!]
+  id: ID!
+  kind: String!
+  metadataVersion: Int!
+  mimeType: String!
+  revisionId: ID!
+  searchStatus: String!
+  title: String!
+  trashedAt: DateTime
+  updatedAt: DateTime!
+  workspaceId: ID!
+}
+
+type WorkspaceNativeRevisionType {
+  actorId: ID!
+  byteSize: Int!
+  createdAt: DateTime!
+  id: ID!
+  sequence: Int!
+}
+
+type WorkspaceNativeTextType {
+  atRoot: Boolean
+  byteSize: Int!
+  canCopy: Boolean
+  canDeletePermanently: Boolean
+  canEdit: Boolean
+  canManage: Boolean
+  canMove: Boolean
+  canRename: Boolean
+  canRestore: Boolean
+  canTrash: Boolean
+  contentVersion: Int!
+  createdAt: DateTime!
+  deletedAt: DateTime
+  fileName: String!
+  folderIds: [ID!]
+  folderPaths: [String!]
+  id: ID!
+  kind: String!
+  metadataVersion: Int!
+  mimeType: String!
+  revisionId: ID!
+  searchStatus: String!
+  text: String!
+  title: String!
+  trashedAt: DateTime
+  updatedAt: DateTime!
+  workspaceId: ID!
 }
 
 type WorkspacePermissionNotFoundDataType {

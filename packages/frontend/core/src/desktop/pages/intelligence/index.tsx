@@ -10,6 +10,7 @@ import {
   getProjectConversationPath,
   getProjectPath,
   getWorkOrderPath,
+  getWorkspaceDocPath,
   PROJECT_NEW_CONVERSATION_PATH,
 } from '@affine/core/desktop/route-paths';
 import {
@@ -36,6 +37,7 @@ import {
   copilotWorkbenchTaskPanelGetQuery,
   createCopilotBlockerMutation,
   leaveCopilotContextProjectMutation,
+  openWorkOrderConversationMutation,
   projectResourcePathQuery,
   projectResourceQuery,
   removeCopilotContextProjectMemberMutation,
@@ -80,6 +82,7 @@ import { TaskPanel } from './task-panel';
 import {
   EMPTY_TASK_PANEL,
   type WorkbenchBlockerDraft,
+  type WorkbenchCollaborationGraph,
   type WorkbenchConversationCard,
   type WorkbenchPanelTaskAction,
   type WorkbenchProject,
@@ -311,6 +314,20 @@ const IntelligenceWorkbench = ({
   const [officeContext, setOfficeContext] = useState<OfficeAiContext>();
   const [mobileView, setMobileView] = useState<'files' | 'chat'>('files');
   const [workOrderPanelCollapsed, setWorkOrderPanelCollapsed] = useState(false);
+  const [workOrderDraftState, setWorkOrderDraftState] = useState<{
+    workOrderId: string;
+    blocked: boolean;
+  } | null>(null);
+  const onWorkOrderDraftStateChange = useCallback(
+    (orderId: string, blocked: boolean) => {
+      setWorkOrderDraftState(current =>
+        current?.workOrderId === orderId && current.blocked === blocked
+          ? current
+          : { workOrderId: orderId, blocked }
+      );
+    },
+    []
+  );
   const [rightPanel, setRightPanel] = useState<ProjectRightPanelState>(() =>
     selectedResourceId
       ? {
@@ -353,16 +370,41 @@ const IntelligenceWorkbench = ({
   const [collaborationPendingKey, setCollaborationPendingKey] =
     useState<ProjectCollaborationPendingKey | null>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [relationWorkspaceExpanded, setRelationWorkspaceExpanded] =
+    useState(false);
+  const overviewExpanded =
+    relationWorkspaceExpanded &&
+    !selectedProjectId &&
+    !workOrderId &&
+    !newConversation;
+  useEffect(() => {
+    setRelationWorkspaceExpanded(false);
+  }, [selectedProjectId, workOrderId, newConversation]);
   const [pendingTaskAction, setPendingTaskAction] = useState<{
     taskId: string;
     action: WorkbenchPanelTaskAction;
   } | null>(null);
   const blockerCreatePending = useRef(false);
   const conversationCards = useConversationCards();
-  const [loadedWorkOrder, setLoadedWorkOrder] = useState<WorkOrder | null>(
-    null
+  const [loadedWorkOrderState, setLoadedWorkOrderState] = useState<{
+    workOrderId: string;
+    order: WorkOrder;
+  } | null>(null);
+  const loadedWorkOrder =
+    loadedWorkOrderState?.workOrderId === workOrderId
+      ? loadedWorkOrderState.order
+      : null;
+  const onWorkOrderLoaded = useCallback(
+    (order: WorkOrder) => {
+      if (!workOrderId) return;
+      setLoadedWorkOrderState(current =>
+        current?.workOrderId === workOrderId && current.order === order
+          ? current
+          : { workOrderId, order }
+      );
+    },
+    [workOrderId]
   );
-  useEffect(() => setLoadedWorkOrder(null), [workOrderId]);
   const allConversationCards = useMemo(() => {
     // Realtime column transitions can briefly leave the same session in a
     // stale column response and its new column response. The project tree is a
@@ -415,6 +457,8 @@ const IntelligenceWorkbench = ({
     const closeOnWideViewport = () => {
       if (!media.matches) {
         setMobileNavigationOpen(false);
+      } else {
+        setRelationWorkspaceExpanded(false);
       }
     };
     media.addEventListener('change', closeOnWideViewport);
@@ -429,14 +473,15 @@ const IntelligenceWorkbench = ({
   } = useQuery(
     {
       query: copilotWorkbenchProjectsGetQuery,
-      variables: { includeArchived: false },
+      variables: { includeArchived: true },
     },
     {
       suspense: false,
       shouldRetryOnError: false,
     }
   );
-  const projects = projectsData?.currentUser?.copilot.contextProjects ?? [];
+  const allProjects = projectsData?.currentUser?.copilot.contextProjects ?? [];
+  const projects = allProjects.filter(project => project.status === 'active');
   const selectedProject =
     projects.find(project => project.id === selectedProjectId) ?? null;
   const resourceQuery = useQuery(
@@ -573,23 +618,72 @@ const IntelligenceWorkbench = ({
         navigate(getWorkOrderPath(card.workOrderId));
       } else if (card.project) {
         navigate(getProjectConversationPath(card.project.id, card.sessionId));
+      } else if (
+        card.scopeType === 'workspace' &&
+        card.ownWorkspaceId &&
+        card.ownDocId
+      ) {
+        navigate(
+          getWorkspaceDocPath(card.ownWorkspaceId, card.ownDocId) +
+            '?sessionId=' +
+            encodeURIComponent(card.sessionId)
+        );
+      } else {
+        notify.error({
+          title:
+            t['com.affine.localmind.workbench.v9.graphNavigationUnavailable'](),
+        });
       }
       setMobileNavigationOpen(false);
     },
-    [navigate]
+    [navigate, t]
   );
   const openRelation = useCallback(
-    (
-      sessionId: string | null,
-      workOrderId: string | null,
-      projectId: string | null
-    ) => {
-      if (workOrderId) navigate(getWorkOrderPath(workOrderId));
-      else if (sessionId && projectId)
-        navigate(getProjectConversationPath(projectId, sessionId));
+    async (relation: WorkbenchCollaborationGraph['edges'][number]) => {
+      const target =
+        relation.kind === 'sent'
+          ? (
+              await graphqlService.gql({
+                query: openWorkOrderConversationMutation,
+                variables: { workOrderId: relation.id },
+              })
+            ).openWorkOrderConversation
+          : {
+              kind: relation.ownNavigationKind,
+              workOrderId: relation.ownWorkOrderId,
+              sessionId: relation.ownSessionId,
+              projectId: relation.ownProjectId,
+              workspaceId: relation.ownWorkspaceId,
+              docId: relation.ownDocId,
+            };
+      if (target.kind === 'work_order' && target.workOrderId)
+        navigate(getWorkOrderPath(target.workOrderId));
+      else if (
+        target.kind === 'project_session' &&
+        target.sessionId &&
+        target.projectId
+      )
+        navigate(
+          getProjectConversationPath(target.projectId, target.sessionId)
+        );
+      else if (
+        target.kind === 'workspace_session' &&
+        target.sessionId &&
+        target.workspaceId &&
+        target.docId
+      )
+        navigate(
+          getWorkspaceDocPath(target.workspaceId, target.docId) +
+            '?sessionId=' +
+            encodeURIComponent(target.sessionId)
+        );
+      else
+        throw new Error(
+          t['com.affine.localmind.workbench.v9.graphNavigationUnavailable']()
+        );
       setMobileNavigationOpen(false);
     },
-    [navigate]
+    [graphqlService, navigate, t]
   );
 
   const renameConversation = useCallback(
@@ -687,6 +781,30 @@ const IntelligenceWorkbench = ({
         reportMutationError(
           caught,
           t['com.affine.localmind.workbench.project.renameFailed']()
+        );
+      } finally {
+        setPendingMutationKey(null);
+      }
+    },
+    [graphqlService, refreshProjects, reportMutationError, t]
+  );
+
+  const restoreProject = useCallback(
+    async (project: WorkbenchProject) => {
+      setPendingMutationKey(`project:${project.id}:restore`);
+      try {
+        await graphqlService.gql({
+          query: copilotContextProjectUpdateMutation,
+          variables: { input: { id: project.id, status: 'active' } },
+        });
+        await refreshProjects();
+        notify.success({
+          title: t['com.affine.localmind.workbench.project.restored'](),
+        });
+      } catch (caught) {
+        reportMutationError(
+          caught,
+          t['com.affine.localmind.workbench.project.restoreFailed']()
         );
       } finally {
         setPendingMutationKey(null);
@@ -1179,9 +1297,11 @@ const IntelligenceWorkbench = ({
         [styles.railWidthVar]: `${paneWidths.navigation ?? 250}px`,
       })}
       data-testid="intelligence-workbench"
+      data-workspace-expanded={overviewExpanded}
     >
       <aside
         id="intelligence-project-navigation"
+        hidden={overviewExpanded}
         className={styles.rail}
         data-mobile-open={mobileNavigationOpen}
         aria-label={t['com.affine.localmind.workbench.navigation']()}
@@ -1208,7 +1328,7 @@ const IntelligenceWorkbench = ({
         </div>
 
         <ProjectTree
-          projects={projects}
+          projects={allProjects}
           selectedProjectId={selectedProjectId}
           selectedSessionId={
             selectedSessionId ?? loadedWorkOrder?.ownSessionId ?? null
@@ -1269,6 +1389,7 @@ const IntelligenceWorkbench = ({
           onCreate={createProject}
           onRename={renameProject}
           onArchive={archiveProject}
+          onRestore={restoreProject}
           onManageCollaboration={project => {
             setCollaborationProjectId(project.id);
             setSettingsOpen(true);
@@ -1447,6 +1568,8 @@ const IntelligenceWorkbench = ({
         >
           {!selectedProjectId && !workOrderId && !newConversation ? (
             <ConversationBoard
+              workspaceExpanded={overviewExpanded}
+              onWorkspaceExpandedChange={setRelationWorkspaceExpanded}
               cards={conversationCards}
               projects={projects}
               onOpenCard={openConversationCard}
@@ -1605,6 +1728,11 @@ const IntelligenceWorkbench = ({
                     sessionId={loadedWorkOrder.ownSessionId}
                     title={loadedWorkOrder.title}
                     status={loadedWorkOrder.status}
+                    deliveryDraftBlocked={
+                      workOrderDraftState?.workOrderId !== workOrderId ||
+                      workOrderDraftState.blocked
+                    }
+                    onChanged={conversationCards.refresh}
                   />
                 ) : (
                   <div className={styles.workOrderSenderState}>
@@ -1643,8 +1771,9 @@ const IntelligenceWorkbench = ({
                   <WorkOrderPanel
                     key={workOrderId}
                     workOrderId={workOrderId}
-                    onLoaded={setLoadedWorkOrder}
+                    onLoaded={onWorkOrderLoaded}
                     onChanged={conversationCards.refresh}
+                    onDraftStateChange={onWorkOrderDraftStateChange}
                     onCollapse={() => setWorkOrderPanelCollapsed(true)}
                   />
                 </div>

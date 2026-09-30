@@ -20,6 +20,7 @@ import {
   type WorkspaceDocContent,
 } from '../utils/blocksuite';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
+import { documentContentVersion } from './content-version';
 import { type DocDiff, type DocRecord } from './storage';
 
 const DOC_CONTENT_CACHE_7_DAYS = 7 * 24 * 60 * 60 * 1000;
@@ -67,6 +68,21 @@ export abstract class DocReader {
     docId: string,
     aiEditable: boolean
   ): Promise<DocMarkdown | null>;
+
+  async getVersionedDocMarkdown(workspaceId: string, docId: string) {
+    const record = await this.getDoc(workspaceId, docId);
+    if (!record) return null;
+    // Derive text and version from the same snapshot, including RPC readers.
+    return {
+      ...parseDocToMarkdownFromDocSnapshot(
+        workspaceId,
+        docId,
+        record.bin,
+        true
+      ),
+      version: documentContentVersion(record),
+    };
+  }
 
   abstract getDocDiff(
     spaceId: string,

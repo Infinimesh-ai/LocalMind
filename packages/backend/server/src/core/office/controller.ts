@@ -1,7 +1,8 @@
+import { officeDownloadFileName } from '@localmind/office';
 import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { applyAttachHeaders, CallMetric } from '../../base';
+import { CallMetric } from '../../base';
 import { CurrentUser, type CurrentUser as CurrentUserType } from '../auth';
 import { OfficeArtifactService } from './artifact-service';
 
@@ -31,11 +32,13 @@ export class OfficeController {
     response.setHeader('content-length', asset.bytes.byteLength);
     response.setHeader('last-modified', asset.revision.createdAt.toUTCString());
     response.setHeader('etag', `"${asset.revision.packageFingerprint}"`);
-    response.setHeader('cache-control', 'private, max-age=31536000, immutable');
-    applyAttachHeaders(response, {
-      contentType: asset.revision.packageMimeType,
-      filename: asset.artifact.sourceFileName,
-    });
+    response.setHeader('cache-control', 'private, no-store');
+    response.setHeader('x-content-type-options', 'nosniff');
+    response
+      .attachment(
+        officeDownloadFileName(asset.artifact.title, asset.artifact.kind)
+      )
+      .type(asset.revision.packageMimeType);
     response.send(asset.bytes);
   }
 
@@ -109,11 +112,11 @@ export class OfficeController {
     response.setHeader('content-length', asset.bytes.byteLength);
     response.setHeader('last-modified', asset.revision.createdAt.toUTCString());
     response.setHeader('etag', `"${asset.fingerprint}"`);
-    response.setHeader('cache-control', 'private, max-age=31536000, immutable');
-    applyAttachHeaders(response, {
-      contentType: asset.mimeType,
-      filename: `${asset.artifact.title || 'document'}.pdf`,
-    });
+    response.setHeader('cache-control', 'private, no-store');
+    response.setHeader('x-content-type-options', 'nosniff');
+    response
+      .attachment(officeDownloadFileName(asset.artifact.title, 'pdf'))
+      .type(asset.mimeType);
     response.send(asset.bytes);
   }
 }

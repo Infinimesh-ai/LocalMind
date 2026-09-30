@@ -166,6 +166,7 @@ const EntityRowShell = ({
           to={to}
           active={entry.active}
           collapsed={!row.expanded}
+          collapsible={row.expandable}
           setCollapsed={toggle}
           menuTarget={menuTarget}
           data-testid={`navigation-panel-${entry.kind}-${entry.id}`}

@@ -156,6 +156,23 @@ baseline errors and recoverable authorization exceptions.
 Earlier workbench implementation evidence remains in
 `tracks/intelligence-workbench.md` and `tracks/project-ai-boundaries.md`.
 
+The focused [relationship graph revision](project-relationship-graph-v9-implementation.zh-CN.md)
+is implemented in source: a finite React + SVG graph merges people across
+projects, expands delivery requirements, locates related work orders and opens
+or recreates the actor's authorized conversation. Existing private drafts,
+revision-matched adoption and bounded queries remain. See
+`.codex-artifacts/project-finite-graph/REPORT.md` for verification and limits;
+this source delivery is not a production rollout or a run of the historical Goal.
+
+The [Project work-order AI delivery contract](project-work-order-ai-delivery-contract.zh-CN.md)
+is the next recipient-flow change. Keep the existing sender confirmation,
+private work-order scope and immutable receipts, then implement a unified
+delivery draft bound to frozen requirement IDs, a server-verified readiness
+check, an in-conversation confirmation card, and one recipient-confirmed
+return. A generated file or chat answer alone must not complete the order;
+missing or invalid required PPTX files must block confirmation. This contract
+is documented but not implemented or accepted by the current workbench result.
+
 ## P1: Support Bundle Persistence
 
 Status: archive/manifest object retention cleanup, retry, escalation,

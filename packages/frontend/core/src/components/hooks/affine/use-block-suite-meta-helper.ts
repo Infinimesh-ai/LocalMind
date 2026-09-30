@@ -1,12 +1,14 @@
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { DocsService } from '@affine/core/modules/doc';
 import { WorkspaceService } from '@affine/core/modules/workspace';
+import { WorkspaceLifecycleService } from '@affine/core/modules/workspace-resources';
 import { useService } from '@toeverything/infra';
 import { useCallback } from 'react';
 
 import { useNavigateHelper } from '../use-navigate-helper';
 
 export function useBlockSuiteMetaHelper() {
+  const lifecycle = useService(WorkspaceLifecycleService);
   const workspace = useService(WorkspaceService).workspace;
   const { openPage } = useNavigateHelper();
   const docsService = useService(DocsService);
@@ -15,30 +17,30 @@ export function useBlockSuiteMetaHelper() {
   // TODO-Doma
   // "Remove" may cause ambiguity here. Consider renaming as "moveToTrash".
   const removeToTrash = useCallback(
-    (docId: string) => {
+    async (docId: string) => {
       const docRecord = docRecordList.doc$(docId).value;
-      if (docRecord) {
-        docRecord.moveToTrash();
-      }
+      if (!docRecord) throw new Error('Document unavailable');
+      await docRecord.moveToTrash();
     },
     [docRecordList]
   );
 
   const restoreFromTrash = useCallback(
-    (docId: string) => {
+    async (docId: string) => {
       const docRecord = docRecordList.doc$(docId).value;
-      if (docRecord) {
-        docRecord.restoreFromTrash();
-      }
+      if (!docRecord) throw new Error('Document unavailable');
+      await docRecord.restoreFromTrash();
     },
     [docRecordList]
   );
 
   const permanentlyDeletePage = useCallback(
     (pageId: string) => {
-      workspace.docCollection.removeDoc(pageId);
+      return lifecycle.change('doc', pageId, 'delete', () =>
+        workspace.docCollection.removeDoc(pageId)
+      );
     },
-    [workspace]
+    [workspace, lifecycle]
   );
 
   const duplicate = useAsyncCallback(

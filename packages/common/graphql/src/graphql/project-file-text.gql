@@ -1,0 +1,8 @@
+query projectFileText($projectId: String!, $resourceId: String!, $sequence: Int) {
+  projectFileText(projectId: $projectId, resourceId: $resourceId, sequence: $sequence) {
+    text
+    contentVersion
+    mimeType
+    byteSize
+  }
+}

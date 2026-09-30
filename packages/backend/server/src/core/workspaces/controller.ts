@@ -31,7 +31,10 @@ import {
 } from '../../models/blob';
 import { buildPublicRootDoc } from '../../native';
 import { CurrentUser, Public } from '../auth';
-import { PgWorkspaceDocStorageAdapter } from '../doc';
+import {
+  PgWorkspaceDocStorageAdapter,
+  WorkspaceNativeResourceAccess,
+} from '../doc';
 import { DocReader } from '../doc/reader';
 import { PermissionAccess } from '../permission';
 import { CommentAttachmentStorage, WorkspaceBlobStorage } from '../storage';
@@ -47,7 +50,8 @@ export class WorkspacesController {
     private readonly ac: PermissionAccess,
     private readonly workspace: PgWorkspaceDocStorageAdapter,
     private readonly docReader: DocReader,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess
   ) {}
 
   private buildVisitorId(req: Request, workspaceId: string, docId: string) {
@@ -138,10 +142,15 @@ export class WorkspacesController {
         throw new SpaceAccessDenied({ spaceId: workspaceId });
       }
     }
+    const native = await this.nativeAccess.assertBlobRead({
+      workspaceId,
+      actorId: user?.id ?? 'anonymous',
+      key: name,
+    });
     const { body, metadata, redirectUrl } = await this.storage.get(
       workspaceId,
       name,
-      !effectiveDocScope
+      !effectiveDocScope && !native
     );
 
     if (redirectUrl) {
@@ -182,7 +191,7 @@ export class WorkspacesController {
 
     res.setHeader(
       'cache-control',
-      effectiveDocScope
+      effectiveDocScope || native
         ? 'private, no-store'
         : 'public, max-age=2592000, immutable'
     );

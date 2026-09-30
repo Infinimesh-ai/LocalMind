@@ -1,9 +1,14 @@
 import { Button, IconButton, Loading, Modal } from '@affine/component';
 import type { GraphQLService } from '@affine/core/modules/cloud';
 import type { OfficeResourceOwner } from '@affine/core/modules/office';
+import {
+  restoreProjectResourceVersionMutation,
+  restoreWorkspaceNativeVersionMutation,
+} from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { SaveIcon } from '@blocksuite/icons/rc';
-import { type ReactNode, useState } from 'react';
+import { nanoid } from 'nanoid';
+import { type ReactNode, useRef, useState } from 'react';
 
 import * as styles from './document.css';
 import { DocumentEditor } from './document-editor';
@@ -46,6 +51,11 @@ export function OfficeResourceSurface({
   }) => ReactNode;
 }) {
   const t = useI18n();
+  const restoreRequest = useRef<{
+    sequence: number;
+    expectedContentVersion: number;
+    requestKey: string;
+  } | null>(null);
   const [deciding, setDeciding] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const { artifact, revision, state } = session;
@@ -200,6 +210,55 @@ export function OfficeResourceSurface({
           open={historyOpen}
           adapter={adapter}
           selectedRevision={revision}
+          currentSequence={artifact?.currentRevision.sequence}
+          onRestore={
+            capabilities.canEdit &&
+            artifact &&
+            (owner.kind === 'workspace' || owner.editLease)
+              ? async selected => {
+                  if (!(await session.confirmUnsaved())) return;
+                  if (
+                    !restoreRequest.current ||
+                    restoreRequest.current.sequence !== selected.sequence
+                  )
+                    restoreRequest.current = {
+                      sequence: selected.sequence,
+                      expectedContentVersion: artifact.currentRevision.sequence,
+                      requestKey: nanoid(),
+                    };
+                  if (owner.kind === 'workspace')
+                    await graphql.gql({
+                      query: restoreWorkspaceNativeVersionMutation,
+                      variables: {
+                        input: {
+                          workspaceId: owner.workspaceId,
+                          resourceId: adapter.artifactId,
+                          kind: 'office',
+                          ...restoreRequest.current,
+                        },
+                      },
+                    });
+                  else {
+                    if (!owner.editLease)
+                      throw new Error('Project edit lease is unavailable');
+                    await graphql.gql({
+                      query: restoreProjectResourceVersionMutation,
+                      variables: {
+                        input: {
+                          projectId: owner.projectId,
+                          resourceId: adapter.artifactId,
+                          editLease: owner.editLease,
+                          ...restoreRequest.current,
+                        },
+                      },
+                    });
+                  }
+                  restoreRequest.current = null;
+                  await session.refresh(true);
+                  setHistoryOpen(false);
+                }
+              : undefined
+          }
           onOpenChange={setHistoryOpen}
           onSelect={next =>
             void session.run(async () => {

@@ -1,4 +1,4 @@
-import { Button, useConfirmModal } from '@affine/component';
+import { Button, notify, useConfirmModal } from '@affine/component';
 import {
   AIChatRuntime,
   createAIRequestService,
@@ -15,6 +15,7 @@ import {
 } from '@affine/core/blocksuite/ai/components/ai-chat-toolbar';
 import { getViewManager } from '@affine/core/blocksuite/manager/view';
 import { NotificationServiceImpl } from '@affine/core/blocksuite/view-extensions/editor-view/notification-service';
+import { useQuery } from '@affine/core/components/hooks/use-query';
 import { AIToolsConfigService } from '@affine/core/modules/ai-button';
 import { WorkOrderAIModel } from '@affine/core/modules/ai-button/entities/work-order-model';
 import { AIReasoningService } from '@affine/core/modules/ai-button/services/reasoning';
@@ -27,11 +28,18 @@ import {
 } from '@affine/core/modules/cloud';
 import { useSignalValue } from '@affine/core/modules/doc-info/utils';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import { AppThemeService } from '@affine/core/modules/theme';
+import {
+  confirmWorkOrderDeliveryDraftMutation,
+  copilotWorkOrderGetQuery,
+} from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { PageIcon } from '@blocksuite/icons/lit';
 import { signal } from '@preact/signals-core';
 import { useFramework, useLiveData, useService } from '@toeverything/infra';
+import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import * as styles from './workbench-conversation.css';
@@ -41,6 +49,8 @@ type WorkOrderConversationProps = {
   sessionId: string;
   title: string;
   status: string;
+  deliveryDraftBlocked: boolean;
+  onChanged?: () => Promise<unknown> | unknown;
 };
 
 function useWorkOrderChatConfig() {
@@ -85,6 +95,8 @@ export function WorkOrderConversation({
   sessionId,
   title,
   status,
+  deliveryDraftBlocked,
+  onChanged,
 }: WorkOrderConversationProps) {
   const t = useI18n();
   const framework = useFramework();
@@ -126,6 +138,67 @@ export function WorkOrderConversation({
     []
   );
   const config = useWorkOrderChatConfig();
+  const orderQuery = useQuery(
+    { query: copilotWorkOrderGetQuery, variables: { workOrderId } },
+    { suspense: false, shouldRetryOnError: false }
+  );
+  useProjectRefresh(null, 'task', orderQuery.mutate);
+  const order = orderQuery.data?.currentUser?.copilot.myWorkOrder;
+  const draft = order?.deliveryDraft;
+  const latestDelivery = order?.deliveries[0];
+  const showReadyCard =
+    !deliveryDraftBlocked &&
+    !!draft?.ready &&
+    !!draft.confirmationToken &&
+    (order?.status !== 'delivered' ||
+      (draft.updatedAt &&
+        latestDelivery &&
+        new Date(draft.updatedAt) > new Date(latestDelivery.submittedAt)));
+  const [submittingDelivery, setSubmittingDelivery] = useState(false);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const confirmRequestRef = useRef<{ token: string; key: string } | null>(null);
+  const confirmDelivery = useCallback(async () => {
+    if (deliveryDraftBlocked || !draft?.confirmationToken || submittingDelivery)
+      return;
+    setSubmittingDelivery(true);
+    setDeliveryError(null);
+    try {
+      if (confirmRequestRef.current?.token !== draft.confirmationToken) {
+        confirmRequestRef.current = {
+          token: draft.confirmationToken,
+          key: nanoid(),
+        };
+      }
+      await graphql.gql({
+        query: confirmWorkOrderDeliveryDraftMutation,
+        variables: {
+          workOrderId,
+          expectedWorkOrderVersion: draft.orderVersion,
+          expectedDraftVersion: draft.version,
+          confirmationToken: draft.confirmationToken,
+          requestKey: confirmRequestRef.current.key,
+        },
+      });
+      await Promise.all([orderQuery.mutate(), onChanged?.()]);
+      notify.success({
+        title: t['com.affine.localmind.workbench.v9.deliverySent'](),
+      });
+    } catch (error) {
+      setDeliveryError(projectErrorMessage(error));
+      await orderQuery.mutate();
+    } finally {
+      setSubmittingDelivery(false);
+    }
+  }, [
+    deliveryDraftBlocked,
+    draft,
+    graphql,
+    onChanged,
+    orderQuery,
+    submittingDelivery,
+    t,
+    workOrderId,
+  ]);
   const confirmModal = useConfirmModal();
   const notificationService = useMemo(
     () =>
@@ -228,6 +301,56 @@ export function WorkOrderConversation({
             <span>{t['com.affine.localmind.project-byok.contactAdmin']()}</span>
           )}
         </div>
+      ) : null}
+      {showReadyCard && order && draft ? (
+        <section className={styles.deliveryCard} role="status">
+          <div className={styles.deliveryCardHeader}>
+            <strong>
+              {t['com.affine.localmind.workbench.v9.deliveryReadyTitle']()}
+            </strong>
+            <span>
+              {t['com.affine.localmind.workbench.v9.deliveryReadyQuestion']()}
+            </span>
+          </div>
+          <ul className={styles.deliveryCardList}>
+            {order.requirements.map(requirement => {
+              const item = draft.items.find(
+                candidate => candidate.requirementId === requirement.id
+              );
+              const files = order.stagedBlobs.filter(blob =>
+                item?.blobIds.includes(blob.id)
+              );
+              if (!item?.text && !files.length) return null;
+              return (
+                <li key={requirement.id}>
+                  <strong>{requirement.title}</strong>
+                  {item?.text ? <span>{item.text.slice(0, 240)}</span> : null}
+                  {files.map(file => (
+                    <a
+                      key={file.id}
+                      href={`/api/copilot/work-orders/${encodeURIComponent(workOrderId)}/files/${encodeURIComponent(file.id)}`}
+                      download={file.fileName}
+                    >
+                      {file.fileName}
+                    </a>
+                  ))}
+                </li>
+              );
+            })}
+          </ul>
+          <Button
+            variant="primary"
+            loading={submittingDelivery}
+            onClick={() => void confirmDelivery()}
+          >
+            {t['com.affine.localmind.workbench.v9.confirmDelivery']()}
+          </Button>
+          {deliveryError ? (
+            <p className={styles.deliveryCardError} role="alert">
+              {deliveryError}
+            </p>
+          ) : null}
+        </section>
       ) : null}
       <div className={styles.content} ref={setContent} />
     </section>

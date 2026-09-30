@@ -24,7 +24,11 @@ import { OFFICE_FORMATS, OfficeCommandService } from '../../core/office';
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
-import { workspaceOfficeStorage } from './office-storage.fixture';
+import {
+  nativeAccessFixture,
+  withNativeStateFixture,
+  workspaceOfficeStorage,
+} from './office-storage.fixture';
 
 function fingerprint(bytes: Uint8Array) {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
@@ -113,9 +117,10 @@ async function executeNativeBatch(input: {
     }),
   } as unknown as PermissionAccess;
   const service = new OfficeCommandService(
-    models,
+    withNativeStateFixture(models),
     workspaceOfficeStorage(storage),
-    access
+    access,
+    nativeAccessFixture
   );
 
   const result = await service.executeBatch({

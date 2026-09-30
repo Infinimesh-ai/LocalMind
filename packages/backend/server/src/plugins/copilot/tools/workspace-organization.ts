@@ -20,7 +20,13 @@ import {
 const logger = new Logger('WorkspaceOrganizationTool');
 const MAX_FOLDER_MUTATIONS = 100;
 
-type FolderNodeType = 'folder' | 'doc' | 'tag' | 'collection';
+type FolderNodeType =
+  | 'folder'
+  | 'doc'
+  | 'tag'
+  | 'collection'
+  | 'file'
+  | 'office';
 
 type FolderNode = {
   id: string;
@@ -50,14 +56,20 @@ export const WORKSPACE_EFFECT_OPERATIONS = [
 export type WorkspaceEffectOperation =
   (typeof WORKSPACE_EFFECT_OPERATIONS)[number];
 
-function asFolderNodes(value: unknown): FolderNode[] {
+function asFolderNodes(value: unknown, nativeResources = false): FolderNode[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap(item => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
     const record = item as Record<string, unknown>;
     if (
       typeof record.id !== 'string' ||
-      !['folder', 'doc', 'tag', 'collection'].includes(String(record.type)) ||
+      ![
+        'folder',
+        'doc',
+        'tag',
+        'collection',
+        ...(nativeResources ? ['file', 'office'] : []),
+      ].includes(String(record.type)) ||
       typeof record.data !== 'string' ||
       typeof record.index !== 'string' ||
       (record.parentId !== null && typeof record.parentId !== 'string')
@@ -180,8 +192,16 @@ export function createWorkspaceOrganizationTools(
   ac: PermissionAccess,
   permission: PermissionService,
   organization: WorkspaceOrganizationService,
-  options: NonNullable<CopilotChatOptions>
+  options: NonNullable<CopilotChatOptions>,
+  nativeResources = false
 ): CopilotToolSet {
+  if (
+    nativeResources &&
+    (options.taskId ||
+      options.delegatedExecution ||
+      options.legacyWorkspaceFolderDelete)
+  )
+    return {};
   const context = () => {
     if (!options?.user || !options.workspace) {
       throw new Error('Missing user or workspace context.');
@@ -192,14 +212,17 @@ export function createWorkspaceOrganizationTools(
   const readOrganization = async () => {
     const { userId, workspaceId } = context();
     const result = await organization.readOrganization(workspaceId, userId);
-    return { result, nodes: asFolderNodes(result.folders) };
+    return { result, nodes: asFolderNodes(result.folders, nativeResources) };
   };
 
   const readFolderState = async () => {
     const { userId, workspaceId } = context();
     const directory = await organization.readDirectory(workspaceId, userId);
     return {
-      nodes: asFolderNodes(directory.entries.map(entry => entry.row)),
+      nodes: asFolderNodes(
+        directory.entries.map(entry => entry.row),
+        nativeResources
+      ),
       revision: directory.revision,
     };
   };
@@ -284,6 +307,7 @@ export function createWorkspaceOrganizationTools(
               workspaceId: context().workspaceId,
               actorId: context().userId,
               sessionId: options.session,
+              nativeResources,
             },
             operation
           );
@@ -420,6 +444,21 @@ export function createWorkspaceOrganizationTools(
                 parentFolderId: node.parentId,
                 index: node.index,
               })),
+            ...(nativeResources
+              ? {
+                  nativeResources: sortedNodes
+                    .filter(
+                      node => node.type === 'file' || node.type === 'office'
+                    )
+                    .map(node => ({
+                      resourceId: node.data,
+                      kind: node.type,
+                      placementId: node.id,
+                      folderId: node.parentId,
+                      index: node.index,
+                    })),
+                }
+              : {}),
             documents: sortedNodes.flatMap(node =>
               node.type === 'doc' && readable.has(node.data)
                 ? [
@@ -1001,5 +1040,31 @@ export function createWorkspaceOrganizationTools(
   if (options.taskId && !options.destructiveIntent?.permanentFolderDelete) {
     delete tools.workspace_folder_delete_permanently;
   }
+  if (nativeResources)
+    return Object.fromEntries(
+      [
+        'list',
+        'create',
+        'rename',
+        'move',
+        'move_item',
+        'trash',
+        'restore',
+        'delete_permanently',
+      ].map(action => {
+        const tool = tools[`workspace_folder_${action}`];
+        return [
+          `workspace_native_folder_${action}`,
+          {
+            ...tool,
+            sideEffectType:
+              action === 'list'
+                ? ('read' as const)
+                : ('workspace_write' as const),
+            description: `Manage Workspace folders containing native file/Office resources and documents under live resource and directory ACL. ${tool.description ?? ''}`,
+          },
+        ];
+      })
+    );
   return tools;
 }

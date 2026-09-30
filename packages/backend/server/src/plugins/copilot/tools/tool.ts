@@ -44,6 +44,7 @@ export function ensureToolJsonSchema(
 }
 
 export function defineTool<TSchema extends ZodTypeAny, TResult>(tool: {
+  sideEffectType?: CopilotTool['sideEffectType'];
   description?: string;
   jsonSchema?: Record<string, unknown>;
   inputSchema: TSchema;

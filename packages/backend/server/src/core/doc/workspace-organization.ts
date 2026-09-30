@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -8,6 +9,8 @@ import * as Y from 'yjs';
 import { BadRequest, NotFound } from '../../base';
 import { Models } from '../../models';
 import type { DirectoryRights } from '../../models/workspace-directory-grant';
+import type { WorkspaceNativeIdentity } from '../../models/workspace-native-resource';
+import { PermissionAccess } from '../permission';
 import { DocReader } from './reader';
 import { ResourceError } from './resource-types';
 import { workspaceDocTransaction } from './transaction-context';
@@ -549,7 +552,9 @@ function validateTableRecord(
       string('index');
       if (
         record.type !== undefined &&
-        !['folder', 'doc', 'tag', 'collection'].includes(String(record.type))
+        !['folder', 'doc', 'tag', 'collection', 'file', 'office'].includes(
+          String(record.type)
+        )
       ) {
         throw new Error(`Unsupported folder node type for ${key}.`);
       }
@@ -649,6 +654,9 @@ function validateFolderGraph(doc: Y.Doc) {
 
 @Injectable()
 export class WorkspaceOrganizationService {
+  private readonly legacyAiWrite = new AsyncLocalStorage<boolean>();
+  private readonly initialNativePlacement =
+    new AsyncLocalStorage<WorkspaceNativeIdentity>();
   private readonly directorySnapshots = new Map<
     string,
     {
@@ -663,7 +671,8 @@ export class WorkspaceOrganizationService {
   constructor(
     private readonly reader: DocReader,
     private readonly writer: DocWriter,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly ac: PermissionAccess
   ) {}
 
   async withAiWriteAudit<T>(
@@ -671,23 +680,43 @@ export class WorkspaceOrganizationService {
       workspaceId: string;
       actorId: string;
       sessionId?: string | null;
+      nativeResources?: boolean;
     },
     operation: () => Promise<T>
   ) {
-    return await this.writer.withDeferredBroadcasts(() =>
-      this.models.copilotContext.withWorkspaceWriteAudit(
-        {
-          ...input,
-          sink: {
-            type: 'tool_write',
-            id: input.workspaceId,
-            documentId: input.workspaceId,
-            workspaceId: input.workspaceId,
-            phase: 'execute',
+    return await this.legacyAiWrite.run(!input.nativeResources, () =>
+      this.writer.withDeferredBroadcasts(() =>
+        this.models.copilotContext.withWorkspaceWriteAudit(
+          {
+            ...input,
+            sink: {
+              type: 'tool_write',
+              id: input.workspaceId,
+              documentId: input.workspaceId,
+              workspaceId: input.workspaceId,
+              phase: 'execute',
+            },
           },
-        },
-        operation
+          operation
+        )
       )
+    );
+  }
+
+  private async nativeDirectoryRows(workspaceId: string, rows: JsonObject[]) {
+    const ids = rows.flatMap(row =>
+      row.type === 'doc' && typeof row.data === 'string' ? [row.data] : []
+    );
+    const officeIds = await this.models.workspaceNativeResource.officeIds(
+      workspaceId,
+      ids
+    );
+    // Interpret historical Office placements without changing their immutable
+    // folder-trash manifests or treating arbitrary document IDs as Office.
+    return rows.map(row =>
+      row.type === 'doc' && officeIds.has(String(row.data))
+        ? { ...row, type: 'office' }
+        : row
     );
   }
 
@@ -696,8 +725,11 @@ export class WorkspaceOrganizationService {
     actorId: string,
     before: JsonObject[],
     after: JsonObject[],
-    changedIds: Set<string>
+    changedIds: Set<string>,
+    lifecycle = false
   ) {
+    before = await this.nativeDirectoryRows(workspaceId, before);
+    after = await this.nativeDirectoryRows(workspaceId, after);
     const previous = new Map(before.map(row => [String(row.id), row]));
     for (const rows of [before, after]) {
       const records = new Map(rows.map(row => [String(row.id), row]));
@@ -726,6 +758,63 @@ export class WorkspaceOrganizationService {
           actorId,
           directoryIds: path,
         });
+        if (row.type === 'file' || row.type === 'office') {
+          if (this.legacyAiWrite.getStore())
+            throw new BadRequest(
+              'This frozen directory tool cannot modify native resources; use the native resource tools'
+            );
+          await this.ac
+            .user(actorId)
+            .workspace(workspaceId)
+            .assert('Workspace.Blobs.Write');
+          const identity = {
+            workspaceId,
+            actorId,
+            resourceId: String(row.data),
+            kind: row.type as 'file' | 'office',
+          };
+          await this.models.workspaceNativeResource.get(identity, {
+            trash: lifecycle,
+            deleted: lifecycle,
+          });
+          const initial = this.initialNativePlacement.getStore();
+          if (
+            !(
+              initial?.workspaceId === workspaceId &&
+              initial.resourceId === identity.resourceId &&
+              initial.kind === identity.kind
+            )
+          )
+            await this.nativeResourceLocations({
+              ...identity,
+              write: true,
+              organize: true,
+            });
+          if (
+            !lifecycle &&
+            row.$$DELETED === true &&
+            row[FOLDER_TRASH_OPERATION_ID]
+          )
+            throw new BadRequest('Use the native folder trash operation');
+          if (
+            !lifecycle &&
+            rows === before &&
+            !after.some(
+              next =>
+                next.type === row.type &&
+                next.data === row.data &&
+                next.$$DELETED !== true
+            )
+          ) {
+            const root = await this.models.workspaceDirectoryGrant.rights({
+              workspaceId,
+              actorId,
+              directoryIds: [],
+            });
+            if (!root.canRead || !root.canWrite || !root.canOrganize)
+              throw new ResourceError('permission_denied');
+          }
+        }
         const createsFolder =
           rows === after &&
           row.type === 'folder' &&
@@ -930,7 +1019,11 @@ export class WorkspaceOrganizationService {
     const requested = new Set(docIds);
     const placed = new Set(
       raw.rows
-        .filter(row => row.type === 'doc' && requested.has(String(row.data)))
+        .filter(
+          row =>
+            (row.type === 'doc' || row.type === 'office') &&
+            requested.has(String(row.data))
+        )
         .map(row => String(row.data))
     );
     return docIds.flatMap(docId => {
@@ -939,7 +1032,11 @@ export class WorkspaceOrganizationService {
           ? [{ docId, folderId: null as string | null }]
           : [];
       return visible.entries
-        .filter(entry => entry.row.type === 'doc' && entry.row.data === docId)
+        .filter(
+          entry =>
+            (entry.row.type === 'doc' || entry.row.type === 'office') &&
+            entry.row.data === docId
+        )
         .map(entry => ({
           docId,
           folderId:
@@ -1017,7 +1114,7 @@ export class WorkspaceOrganizationService {
     const records = new Map(rows.map(row => [String(row.id), row]));
     const byPath = new Map<string, DirectoryRights>();
     const entries: { row: JsonObject; rights: DirectoryRights }[] = [];
-    for (const row of rows) {
+    for (const row of await this.nativeDirectoryRows(workspaceId, rows)) {
       const path: string[] = [];
       const seen = new Set<string>();
       let current: JsonObject | undefined = row;
@@ -1043,6 +1140,29 @@ export class WorkspaceOrganizationService {
       if (!rights) {
         rights = policies.rights(path);
         byPath.set(key, rights);
+      }
+      if (rights.canRead && (row.type === 'file' || row.type === 'office')) {
+        if (
+          !(await this.ac
+            .user(userId)
+            .workspace(workspaceId)
+            .can('Workspace.Blobs.Read'))
+        )
+          continue;
+        try {
+          const identity = {
+            workspaceId,
+            actorId: userId,
+            resourceId: String(row.data),
+            kind: row.type as 'file' | 'office',
+          };
+          await this.models.workspaceNativeResource.get(identity);
+          await this.nativeResourceLocations(identity);
+        } catch (error) {
+          if (error instanceof NotFound || error instanceof ResourceError)
+            continue;
+          throw error;
+        }
       }
       if (rights.canRead) entries.push({ row, rights });
     }
@@ -1077,6 +1197,284 @@ export class WorkspaceOrganizationService {
     )
       throw new ResourceError('permission_denied');
     return directory;
+  }
+
+  async nativeResourceLocations(
+    input: WorkspaceNativeIdentity & {
+      actorId: string;
+      write?: boolean;
+      organize?: boolean;
+    }
+  ) {
+    const raw = await this.readDirectorySnapshot(
+      input.workspaceId,
+      input.actorId
+    );
+    const records = new Map(raw.rows.map(row => [String(row.id), row]));
+    const placements = raw.rows.filter(
+      row =>
+        (row.type === input.kind ||
+          (input.kind === 'office' && row.type === 'doc')) &&
+        row.data === input.resourceId
+    );
+    const resource = await this.models.workspaceNativeResource.get(input, {
+      trash: true,
+      deleted: true,
+    });
+    const locations = (resource.state.trashedAt ? [] : placements).map(row => {
+      const path: string[] = [];
+      let parent = typeof row.parentId === 'string' ? row.parentId : null;
+      while (parent) {
+        if (path.includes(parent) || path.length >= 64)
+          throw new ResourceError('resource_not_found');
+        path.push(parent);
+        const folder = records.get(parent);
+        if (!folder || folder.type !== 'folder')
+          throw new ResourceError('resource_not_found');
+        parent = typeof folder.parentId === 'string' ? folder.parentId : null;
+      }
+      return {
+        folderId: typeof row.parentId === 'string' ? row.parentId : null,
+        path,
+      };
+    });
+    if (
+      !locations.length &&
+      resource.state.trashedAt &&
+      Array.isArray(resource.state.restoreLocations)
+    ) {
+      for (const location of resource.state.restoreLocations) {
+        if (
+          !location ||
+          typeof location !== 'object' ||
+          Array.isArray(location) ||
+          !Array.isArray(location.path) ||
+          !location.path.every(id => typeof id === 'string')
+        )
+          throw new ResourceError('resource_not_found');
+        locations.push({
+          folderId:
+            typeof location.folderId === 'string' ? location.folderId : null,
+          path: location.path as string[],
+        });
+      }
+    }
+    if (!locations.length) locations.push({ folderId: null, path: [] });
+    for (const location of locations) {
+      const rights = await this.models.workspaceDirectoryGrant.rights({
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+        directoryIds: location.path,
+      });
+      if (!rights.canRead) throw new ResourceError('resource_not_found');
+      if (
+        input.write &&
+        (!rights.canWrite || (input.organize && !rights.canOrganize))
+      )
+        throw new ResourceError('permission_denied');
+    }
+    return {
+      placements,
+      locations,
+      revision: raw.revision,
+      paths: locations.map(location =>
+        [...location.path]
+          .reverse()
+          .map(id => String(records.get(id)?.data ?? '…'))
+          .join(' / ')
+      ),
+    };
+  }
+
+  private async changeFolderNativeResources(
+    workspaceId: string,
+    actorId: string,
+    nodes: JsonObject[],
+    operationId: string,
+    action: 'trash' | 'restore' | 'delete'
+  ) {
+    const unique = new Map(
+      (await this.nativeDirectoryRows(workspaceId, nodes))
+        .filter(row => row.type === 'file' || row.type === 'office')
+        .map(row => [`${row.type}:${row.data}`, row])
+    );
+    if (!unique.size) return;
+    if (this.legacyAiWrite.getStore())
+      throw new BadRequest(
+        'This frozen directory tool cannot modify native resources; use the native resource tools'
+      );
+    await this.ac
+      .user(actorId)
+      .workspace(workspaceId)
+      .assert('Workspace.Blobs.Write');
+    if (action === 'delete')
+      await this.ac
+        .user(actorId)
+        .workspace(workspaceId)
+        .assert('Workspace.Delete');
+    for (const row of [...unique.values()].sort((a, b) =>
+      String(a.data).localeCompare(String(b.data))
+    )) {
+      const input = {
+        workspaceId,
+        actorId,
+        resourceId: String(row.data),
+        kind: row.type as 'file' | 'office',
+      };
+      await this.models.workspaceNativeResource.lock(input);
+      const resource = await this.models.workspaceNativeResource.get(input, {
+        trash: true,
+        deleted: true,
+      });
+      if (resource.state.deletedAt) continue;
+      const location = await this.nativeResourceLocations({
+        ...input,
+        write: true,
+        organize: true,
+      });
+      if (action === 'trash' && !resource.state.trashedAt) {
+        await this.models.workspaceNativeResource.change({
+          ...input,
+          expectedVersion: resource.metadataVersion,
+          trash: true,
+          trashSourceId: operationId,
+          restoreLocations: location.locations,
+        });
+      } else if (
+        action === 'restore' &&
+        resource.state.trashSourceId === operationId
+      ) {
+        await this.models.workspaceNativeResource.change({
+          ...input,
+          expectedVersion: resource.metadataVersion,
+          trash: false,
+          trashSourceId: null,
+        });
+      } else if (action === 'delete') {
+        if (!resource.state.trashedAt)
+          throw new ResourceError('version_conflict');
+        await this.models.workspaceNativeResource.change({
+          ...input,
+          expectedVersion: resource.metadataVersion,
+          permanentlyDelete: true,
+        });
+      }
+    }
+  }
+
+  async placeNewNativeResource(
+    input: WorkspaceNativeIdentity & {
+      actorId: string;
+      folderId: string;
+      authorize: () => Promise<void>;
+    }
+  ) {
+    return this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      async () => {
+        await this.models.workspaceNativeResource.lock(input);
+        const resource = await this.models.workspaceNativeResource.get(input);
+        const raw = await this.readDirectorySnapshot(
+          input.workspaceId,
+          input.actorId
+        );
+        if (
+          resource.metadataVersion !== 1 ||
+          resource.contentVersion !== 1 ||
+          raw.rows.some(
+            row =>
+              (row.type === input.kind ||
+                (input.kind === 'office' && row.type === 'doc')) &&
+              row.data === input.resourceId
+          )
+        )
+          throw new BadRequest(
+            'Only a new unplaced native resource can use initial placement'
+          );
+        return this.initialNativePlacement.run(input, () =>
+          this.moveNativeResource({
+            ...input,
+            expectedDirectoryVersion: raw.revision,
+          })
+        );
+      }
+    );
+  }
+
+  async moveNativeResource(
+    input: WorkspaceNativeIdentity & {
+      actorId: string;
+      folderId: string | null;
+      expectedDirectoryVersion: string;
+      authorize: () => Promise<void>;
+    }
+  ) {
+    return this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      async () => {
+        await input.authorize();
+        const initial = this.initialNativePlacement.getStore();
+        const current =
+          initial?.resourceId === input.resourceId &&
+          initial.workspaceId === input.workspaceId &&
+          initial.kind === input.kind
+            ? {
+                placements: [] as JsonObject[],
+                revision: (
+                  await this.readDirectorySnapshot(
+                    input.workspaceId,
+                    input.actorId
+                  )
+                ).revision,
+              }
+            : await this.nativeResourceLocations({
+                ...input,
+                write: true,
+                organize: true,
+              });
+        if (current.revision !== input.expectedDirectoryVersion)
+          throw new ResourceError('directory_version_conflict');
+        await this.assertResourceFolder(
+          input.workspaceId,
+          input.actorId,
+          input.folderId,
+          true
+        );
+        const raw = await this.readDirectorySnapshot(
+          input.workspaceId,
+          input.actorId
+        );
+        const last = raw.rows
+          .filter(row => row.parentId === input.folderId)
+          .map(row => String(row.index))
+          .sort()
+          .at(-1);
+        const operations: WorkspaceDataOperation[] = current.placements.map(
+          row => ({ op: 'delete', key: String(row.id) })
+        );
+        if (input.folderId !== null)
+          operations.push({
+            op: 'upsert',
+            key: nanoid(),
+            values: {
+              parentId: input.folderId,
+              type: input.kind,
+              data: input.resourceId,
+              index: generateKeyBetween(last ?? null, null),
+            },
+          });
+        if (operations.length)
+          await this.applyDataOperations(
+            input.workspaceId,
+            input.actorId,
+            input.actorId,
+            'folders',
+            operations
+          );
+        await input.authorize();
+        return this.directoryRevision(input.workspaceId, input.actorId);
+      }
+    );
   }
 
   async createResourceFolder(input: {
@@ -1334,6 +1732,27 @@ export class WorkspaceOrganizationService {
     }
   }
 
+  async lifecycleSnapshot(workspaceId: string, actorId: string) {
+    const root = await this.load(workspaceId, workspaceId, true);
+    const folders = await this.load(
+      workspaceId,
+      resolveWorkspaceDataDocId('folders', workspaceId, actorId),
+      true
+    );
+    try {
+      const rows = tableRecords(folders.doc, true);
+      if (rows.length > 10000)
+        throw new BadRequest('Directory listing exceeds the supported limit');
+      return {
+        documents: rootPages(root.doc).toArray().map(publicRootPageRecord),
+        folders: rows,
+      };
+    } finally {
+      root.doc.destroy();
+      folders.doc.destroy();
+    }
+  }
+
   async setDocumentTrashed(input: {
     workspaceId: string;
     editorId: string;
@@ -1491,12 +1910,14 @@ export class WorkspaceOrganizationService {
         input.editorId,
         root
       );
-      await this.save(
-        input.workspaceId,
-        resolveWorkspaceDataDocId('folders', input.workspaceId, input.userId),
-        input.editorId,
-        folders
-      );
+      if (placements.length || manifestRepairs.length) {
+        await this.save(
+          input.workspaceId,
+          resolveWorkspaceDataDocId('folders', input.workspaceId, input.userId),
+          input.editorId,
+          folders
+        );
+      }
       return {
         success: true,
         documentId: input.documentId,
@@ -1536,7 +1957,7 @@ export class WorkspaceOrganizationService {
       input.userId
     );
     const folders = await this.load(input.workspaceId, folderDocId, true);
-    const root = await this.load(input.workspaceId, input.workspaceId);
+    const root = await this.load(input.workspaceId, input.workspaceId, true);
     try {
       const authorizationRecords = tableRecords(folders.doc, true);
       await this.assertFolderMutation(
@@ -1544,7 +1965,8 @@ export class WorkspaceOrganizationService {
         input.editorId,
         authorizationRecords,
         authorizationRecords,
-        new Set([input.folderId])
+        new Set([input.folderId]),
+        true
       );
       const activeRecords = tableRecords(folders.doc);
       const target = activeRecords.find(
@@ -1666,14 +2088,22 @@ export class WorkspaceOrganizationService {
       }
       const documentIds = [
         ...new Set(
-          subtree.flatMap(record =>
-            record.type === 'doc' && typeof record.data === 'string'
-              ? [record.data]
-              : []
+          (await this.nativeDirectoryRows(input.workspaceId, subtree)).flatMap(
+            record =>
+              record.type === 'doc' && typeof record.data === 'string'
+                ? [record.data]
+                : []
           )
         ),
       ];
       const trashOperationId = nanoid();
+      await this.changeFolderNativeResources(
+        input.workspaceId,
+        input.editorId,
+        subtree,
+        trashOperationId,
+        'trash'
+      );
       const folderClaim = `folder:${trashOperationId}`;
       const newlyTrashedDocumentIds: string[] = [];
       const previouslyTrashedDocumentIds: string[] = [];
@@ -1728,12 +2158,13 @@ export class WorkspaceOrganizationService {
         }
       });
       await this.save(input.workspaceId, folderDocId, input.editorId, folders);
-      await this.save(
-        input.workspaceId,
-        input.workspaceId,
-        input.editorId,
-        root
-      );
+      if (documentIds.length)
+        await this.save(
+          input.workspaceId,
+          input.workspaceId,
+          input.editorId,
+          root
+        );
       return {
         success: true,
         folderId: input.folderId,
@@ -1780,7 +2211,7 @@ export class WorkspaceOrganizationService {
       input.userId
     );
     const folders = await this.load(input.workspaceId, folderDocId, true);
-    const root = await this.load(input.workspaceId, input.workspaceId);
+    const root = await this.load(input.workspaceId, input.workspaceId, true);
     try {
       const allRecords = tableRecords(folders.doc, true);
       await this.assertFolderMutation(
@@ -1788,7 +2219,8 @@ export class WorkspaceOrganizationService {
         input.editorId,
         allRecords,
         allRecords,
-        new Set([input.folderId])
+        new Set([input.folderId]),
+        true
       );
       const activeTarget = allRecords.find(
         record =>
@@ -1870,6 +2302,13 @@ export class WorkspaceOrganizationService {
           throw new Error(`Document ${documentId} can no longer be restored.`);
         }
       }
+      await this.changeFolderNativeResources(
+        input.workspaceId,
+        input.editorId,
+        nodes,
+        operationId,
+        'restore'
+      );
       const folderClaim = `folder:${operationId}`;
       let restoredDocumentCount = 0;
       root.doc.transact(() => {
@@ -1900,12 +2339,13 @@ export class WorkspaceOrganizationService {
         }
       });
       validateFolderGraph(folders.doc);
-      await this.save(
-        input.workspaceId,
-        input.workspaceId,
-        input.editorId,
-        root
-      );
+      if (documentIds.length)
+        await this.save(
+          input.workspaceId,
+          input.workspaceId,
+          input.editorId,
+          root
+        );
       await this.save(input.workspaceId, folderDocId, input.editorId, folders);
       return {
         success: true,
@@ -1952,7 +2392,7 @@ export class WorkspaceOrganizationService {
       input.userId
     );
     const folders = await this.load(input.workspaceId, folderDocId, true);
-    const root = await this.load(input.workspaceId, input.workspaceId);
+    const root = await this.load(input.workspaceId, input.workspaceId, true);
     try {
       const allRecords = tableRecords(folders.doc, true);
       await this.assertFolderMutation(
@@ -1960,7 +2400,8 @@ export class WorkspaceOrganizationService {
         input.editorId,
         allRecords,
         allRecords,
-        new Set([input.folderId])
+        new Set([input.folderId]),
+        true
       );
       const activeTarget = allRecords.find(
         record =>
@@ -2037,6 +2478,13 @@ export class WorkspaceOrganizationService {
           );
         }
       }
+      await this.changeFolderNativeResources(
+        input.workspaceId,
+        input.editorId,
+        nodes,
+        operationId,
+        'delete'
+      );
       const documentIdSet = new Set(documentIds);
       const permanentlyRemovedRecords = allRecords.filter(
         record =>
@@ -2072,12 +2520,13 @@ export class WorkspaceOrganizationService {
           manifestRepairs
         );
       });
-      await this.save(
-        input.workspaceId,
-        input.workspaceId,
-        input.editorId,
-        root
-      );
+      if (documentIds.length)
+        await this.save(
+          input.workspaceId,
+          input.workspaceId,
+          input.editorId,
+          root
+        );
       await this.save(input.workspaceId, folderDocId, input.editorId, folders);
       return {
         success: true,

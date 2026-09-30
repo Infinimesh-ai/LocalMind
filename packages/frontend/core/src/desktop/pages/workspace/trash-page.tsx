@@ -1,18 +1,15 @@
-import { toast, useConfirmModal } from '@affine/component';
 import {
   createDocExplorerContext,
   DocExplorerContext,
 } from '@affine/core/components/explorer/context';
-import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
-import { useBlockSuiteMetaHelper } from '@affine/core/components/hooks/affine/use-block-suite-meta-helper';
+import { WorkspaceResourceExplorer } from '@affine/core/components/native-files/resource-explorer';
 import { Header } from '@affine/core/components/pure/header';
 import { CollectionRulesService } from '@affine/core/modules/collection-rules';
 import { GlobalContextService } from '@affine/core/modules/global-context';
-import { WorkspacePermissionService } from '@affine/core/modules/permissions';
 import { useI18n } from '@affine/i18n';
 import { DeleteIcon } from '@blocksuite/icons/rc';
-import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useEffect, useState } from 'react';
+import { useService } from '@toeverything/infra';
+import { useEffect, useState } from 'react';
 
 import {
   useIsActiveView,
@@ -21,7 +18,6 @@ import {
   ViewIcon,
   ViewTitle,
 } from '../../../modules/workbench';
-import { EmptyPageList } from './page-list-empty';
 import * as styles from './trash-page.css';
 
 const TrashHeader = () => {
@@ -42,11 +38,8 @@ export const TrashPage = () => {
   const t = useI18n();
   const collectionRulesService = useService(CollectionRulesService);
   const globalContextService = useService(GlobalContextService);
-  const permissionService = useService(WorkspacePermissionService);
 
-  const { restoreFromTrash, permanentlyDeletePage } = useBlockSuiteMetaHelper();
   const isActiveView = useIsActiveView();
-  const { openConfirmModal } = useConfirmModal();
 
   const [explorerContextValue] = useState(() =>
     createDocExplorerContext({
@@ -65,68 +58,6 @@ export const TrashPage = () => {
       groupBy: undefined,
       orderBy: undefined,
     })
-  );
-
-  const isAdmin = useLiveData(permissionService.permission.isAdmin$);
-  const isOwner = useLiveData(permissionService.permission.isOwner$);
-  const groups = useLiveData(explorerContextValue.groups$);
-  const isEmpty =
-    groups.length === 0 ||
-    (groups.length > 0 && groups.every(group => !group.items?.length));
-
-  const handleMultiRestore = useCallback(
-    (ids: string[]) => {
-      ids.forEach(id => {
-        restoreFromTrash(id);
-      });
-      toast(
-        t['com.affine.toastMessage.restored']({
-          title: ids.length > 1 ? 'docs' : 'doc',
-        })
-      );
-    },
-    [restoreFromTrash, t]
-  );
-
-  const handleMultiDelete = useCallback(
-    (ids: string[]) => {
-      ids.forEach(pageId => {
-        permanentlyDeletePage(pageId);
-      });
-      toast(t['com.affine.toastMessage.permanentlyDeleted']());
-    },
-    [permanentlyDeletePage, t]
-  );
-
-  const onConfirmPermanentlyDelete = useCallback(
-    (
-      ids: string[],
-      callbacks?: {
-        onFinished?: () => void;
-        onAbort?: () => void;
-      }
-    ) => {
-      if (ids.length === 0) {
-        return;
-      }
-      openConfirmModal({
-        title: `${t['com.affine.trashOperation.deletePermanently']()}?`,
-        description: t['com.affine.trashOperation.deleteDescription'](),
-        cancelText: t['Cancel'](),
-        confirmText: t['com.affine.trashOperation.delete'](),
-        confirmButtonOptions: {
-          variant: 'error',
-        },
-        onConfirm: () => {
-          handleMultiDelete(ids);
-          callbacks?.onFinished?.();
-        },
-        onCancel: () => {
-          callbacks?.onAbort?.();
-        },
-      });
-    },
-    [handleMultiDelete, openConfirmModal, t]
   );
 
   useEffect(() => {
@@ -175,17 +106,7 @@ export const TrashPage = () => {
       </ViewHeader>
       <ViewBody>
         <div className={styles.body}>
-          {isEmpty ? (
-            <EmptyPageList type="trash" />
-          ) : (
-            <DocsExplorer
-              disableMultiDelete={!isAdmin && !isOwner}
-              onRestore={isAdmin || isOwner ? handleMultiRestore : undefined}
-              onDelete={
-                isAdmin || isOwner ? onConfirmPermanentlyDelete : undefined
-              }
-            />
-          )}
+          <WorkspaceResourceExplorer trash />
         </div>
       </ViewBody>
     </DocExplorerContext.Provider>

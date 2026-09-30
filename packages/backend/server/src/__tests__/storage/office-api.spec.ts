@@ -11,7 +11,11 @@ import { OfficeArtifactService, OfficeResolver } from '../../core/office';
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
-import { workspaceOfficeStorage } from './office-storage.fixture';
+import {
+  nativeAccessFixture,
+  withNativeStateFixture,
+  workspaceOfficeStorage,
+} from './office-storage.fixture';
 
 const DOCX_MIME =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -32,9 +36,10 @@ test('OfficeArtifactService checks read permission before listing artifacts', as
     }),
   } as unknown as PermissionAccess;
   const service = new OfficeArtifactService(
-    models,
+    withNativeStateFixture(models),
     workspaceOfficeStorage({} as WorkspaceBlobStorage),
-    ac
+    ac,
+    nativeAccessFixture
   );
 
   await t.throwsAsync(service.list('workspace-1', 'user-1'), { is: denied });
@@ -76,9 +81,10 @@ test('OfficeArtifactService verifies immutable state evidence on retrieval', asy
     }),
   } as unknown as PermissionAccess;
   const service = new OfficeArtifactService(
-    models,
+    withNativeStateFixture(models),
     workspaceOfficeStorage(storage),
-    ac
+    ac,
+    nativeAccessFixture
   );
 
   const asset = await service.readRevisionAsset(
@@ -186,9 +192,10 @@ test('OfficeArtifactService compares verified immutable semantic revisions', asy
     }),
   } as unknown as PermissionAccess;
   const service = new OfficeArtifactService(
-    models,
+    withNativeStateFixture(models),
     workspaceOfficeStorage(storage),
-    ac
+    ac,
+    nativeAccessFixture
   );
 
   const result = await service.compareRevisions(
@@ -269,9 +276,10 @@ test('OfficeArtifactService rejects unauthorized or invalid revision comparisons
     } as unknown as WorkspaceBlobStorage;
     return {
       service: new OfficeArtifactService(
-        models,
+        withNativeStateFixture(models),
         workspaceOfficeStorage(storage),
-        ac
+        ac,
+        nativeAccessFixture
       ),
       storage,
     };
@@ -369,9 +377,10 @@ test('OfficeArtifactService serves bounded OOXML parts after package evidence ve
     }),
   } as unknown as PermissionAccess;
   const service = new OfficeArtifactService(
-    models,
+    withNativeStateFixture(models),
     workspaceOfficeStorage(storage),
-    ac
+    ac,
+    nativeAccessFixture
   );
 
   const part = await service.readRevisionPackagePart(

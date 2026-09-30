@@ -39,8 +39,9 @@ decisions, corrections, constraints, open work, source spans, receipts and
 material coverage/omission evidence. Budgeting is conservative for CJK and tool
 schemas, oversized messages are split without dropping the middle, and Project
 documents support frozen-version range reads. Chat exposes persisted timeline
-state, manual compaction, cancel/retry, token evidence and reconnect-safe
-Project/session isolation.
+state, cancel/retry, token evidence and reconnect-safe Project/session isolation.
+Compaction starts automatically when conversation history exceeds the input
+budget; the chat composer does not show a persistent manual compaction button.
 
 Session deletion now records normalized Project Blob references and physically
 deletes only session-exclusive objects after a final transaction recheck. Legal

@@ -281,6 +281,10 @@ export type WorkspaceEmbeddingProgressReason =
   | 'resync';
 
 export interface RealtimeTopicMap {
+  'workspace.nativeResources.changed': {
+    input: { workspaceId: string };
+    event: { changed: true };
+  };
   'project.list.changed': {
     input: Record<string, never>;
     event: { changed: true; reason: string };

@@ -247,6 +247,37 @@ test('confirmation shows exact target and difference, deduplicates clicks and re
   expect((confirm as HTMLButtonElement).disabled).toBe(false);
 });
 
+test.each([
+  ['file', 'workspace_file', '/workspace/workspace-1/files/target-exact'],
+  ['document', 'legacy', '/workspace/workspace-1/office/target-exact'],
+  ['page', 'legacy', '/workspace/workspace-1/target-exact'],
+])(
+  'completed %s publication opens its resource route',
+  (resourceKind, targetKind, href) => {
+    setRecord({
+      status: 'complete',
+      target: {
+        workspaceId: 'workspace-1',
+        resourceId: 'target-exact',
+        folderId: null,
+        expectedVersion: null,
+        targetKind,
+      },
+      preview: {
+        resourceKind,
+        workspaceName: 'Workspace One',
+        targetPath: [],
+        audience: { memberCount: 1 },
+        difference: {},
+      },
+    });
+    open();
+    expect(
+      screen.getByRole('link', { name: label('external') }).getAttribute('href')
+    ).toBe(href);
+  }
+);
+
 test('revoked preview disables confirmation and cancellation preserves the separate internal resource', async () => {
   setRecord({
     status: 'waiting_for_confirmation',

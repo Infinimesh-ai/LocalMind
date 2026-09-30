@@ -57,7 +57,10 @@ type ProjectMembership = {
   role: 'owner' | 'member';
 };
 
+export type ProjectCopySourceKind = 'document' | 'workspace_file';
+
 type ProjectDocumentRef = {
+  sourceKind?: ProjectCopySourceKind;
   projectId: string;
   workspaceId: string;
   docId: string;
@@ -70,6 +73,7 @@ export type IntelligenceWorkbenchProjectDocumentAccess = ProjectMembership & {
 };
 
 export type IntelligenceWorkbenchRequestAccessInput = {
+  sourceKind?: ProjectCopySourceKind;
   workspaceId: string;
   docId: string;
   requesterUserId: string;
@@ -161,8 +165,15 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         projectId: input.projectId,
         workspaceId: input.workspaceId,
         docId: input.docId,
-        grant: { status: 'active' },
-        request: { status: 'approved', purpose: 'project_copy' },
+        sourceKind: input.sourceKind ?? 'document',
+        ...(input.sourceKind === 'workspace_file'
+          ? {}
+          : { grant: { status: 'active' } }),
+        request: {
+          status: 'approved',
+          purpose: 'project_copy',
+          sourceKind: input.sourceKind ?? 'document',
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -316,6 +327,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       await this.requireSourceDecisionActor({
         workspaceId: request.workspaceId,
         docId: request.docId,
+        sourceKind: request.sourceKind,
         userId: viewerUserId,
       });
       sourceActor = true;
@@ -334,7 +346,16 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
           })
         : null,
       sourceActor
-        ? this.models.doc.getMeta(request.workspaceId, request.docId)
+        ? request.sourceKind === 'workspace_file'
+          ? this.db.workspaceFileState.findFirst({
+              where: {
+                workspaceId: request.workspaceId,
+                fileId: request.docId,
+                deletedAt: null,
+              },
+              select: { title: true },
+            })
+          : this.models.doc.getMeta(request.workspaceId, request.docId)
         : null,
     ]);
     const expired =
@@ -438,6 +459,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
             FROM doc_grants grant_row
             WHERE grant_row.workspace_id = request.workspace_id
               AND grant_row.doc_id = request.doc_id
+              AND request.source_kind = 'document'
               AND grant_row.principal_type = 'user'
               AND grant_row.principal_id = ${actorUserId}
               AND grant_row.role = 'owner'
@@ -471,6 +493,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     await this.requireSourceDecisionActor({
       workspaceId: current.workspaceId,
       docId: current.docId,
+      sourceKind: current.sourceKind,
       userId: input.actorUserId,
     });
     if (current.status !== 'pending') return current;
@@ -488,6 +511,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       const authority = await this.sourceDocumentCapability({
         workspaceId: current.workspaceId,
         docId: current.docId,
+        sourceKind: current.sourceKind,
         userId: input.actorUserId,
       });
       if (
@@ -497,21 +521,25 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         throw new BadRequest(
           'Source sharing authority is required to approve a Project copy'
         );
-      const grant = await this.createProjectGrant({
-        projectId: current.beneficiaryProjectId,
-        workspaceId: current.workspaceId,
-        docId: current.docId,
-        requestedLevel: (existingGrant?.level ??
-          current.requestedLevel) as IntelligenceWorkbenchGrantLevel,
-        suppliedTitle: current.requestedTitle,
-        actorUserId: input.actorUserId,
-        source: 'access_request',
-        accessRequestId: current.id,
-      });
+      const grant =
+        current.sourceKind === 'workspace_file'
+          ? null
+          : await this.createProjectGrant({
+              projectId: current.beneficiaryProjectId,
+              workspaceId: current.workspaceId,
+              docId: current.docId,
+              requestedLevel: (existingGrant?.level ??
+                current.requestedLevel) as IntelligenceWorkbenchGrantLevel,
+              suppliedTitle: current.requestedTitle,
+              actorUserId: input.actorUserId,
+              source: 'access_request',
+              accessRequestId: current.id,
+            });
       await this.db.aiContextProjectCopyAuthorization.create({
         data: {
           requestId: current.id,
-          grantId: grant.id,
+          grantId: grant?.id ?? null,
+          sourceKind: current.sourceKind,
           projectId: current.beneficiaryProjectId,
           workspaceId: current.workspaceId,
           docId: current.docId,
@@ -543,6 +571,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     await this.requireSourceDecisionActor({
       workspaceId: current.workspaceId,
       docId: current.docId,
+      sourceKind: current.sourceKind,
       userId: input.actorUserId,
     });
     if (current.status !== 'pending') return current;
@@ -1229,6 +1258,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     workspaceId: string;
     docId: string;
     userId: string;
+    sourceKind?: string;
   }) {
     const rows = await this.db.$queryRaw<
       Array<{
@@ -1263,9 +1293,11 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       LEFT JOIN doc_access_policies doc_policy
         ON doc_policy.workspace_id = workspace.id
        AND doc_policy.doc_id = ${input.docId}
+       AND ${input.sourceKind ?? 'document'} = 'document'
       LEFT JOIN doc_grants explicit_grant
         ON explicit_grant.workspace_id = workspace.id
        AND explicit_grant.doc_id = ${input.docId}
+       AND ${input.sourceKind ?? 'document'} = 'document'
        AND explicit_grant.principal_type = 'user'
        AND explicit_grant.principal_id = ${input.userId}
       LEFT JOIN effective_workspace_quota_states runtime
@@ -1283,7 +1315,11 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       role = 'owner';
     } else if (row.memberRole === 'admin') {
       role = 'manager';
-    } else if (row.memberRole === 'member' && !role) {
+    } else if (
+      row.memberRole === 'member' &&
+      !role &&
+      input.sourceKind !== 'workspace_file'
+    ) {
       role = row.memberDefaultRole;
     } else if (!row.memberRole && role) {
       role = row.sharingEnabled
@@ -1311,6 +1347,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     workspaceId: string;
     docId: string;
     userId: string;
+    sourceKind?: string;
   }) {
     const rows = await this.db.$queryRaw<Array<{ allowed: boolean }>>`
       SELECT (
@@ -1326,6 +1363,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
           FROM doc_grants explicit_grant
           WHERE explicit_grant.workspace_id = ${input.workspaceId}
             AND explicit_grant.doc_id = ${input.docId}
+            AND ${input.sourceKind ?? 'document'} = 'document'
             AND explicit_grant.principal_type = 'user'
             AND explicit_grant.principal_id = ${input.userId}
             AND explicit_grant.role = 'owner'
@@ -1418,6 +1456,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     const normalized = {
       workspaceId: requireString(input.workspaceId, 'workspaceId'),
       docId: requireString(input.docId, 'docId'),
+      sourceKind: input.sourceKind ?? 'document',
       requesterUserId: requireString(input.requesterUserId, 'requesterUserId'),
       requestedLevel: requireGrantLevel(input.requestedLevel),
       requestedTitle: optionalString(
@@ -1463,6 +1502,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       String(normalized.requesterSuppliedIdentity),
       idempotencyKey,
       'project_copy',
+      ...(normalized.sourceKind === 'document' ? [] : [normalized.sourceKind]),
     ]);
     const replay = await this.db.accessRequest.findUnique({
       where: { requestFingerprint },
@@ -1475,6 +1515,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       where: {
         workspaceId: normalized.workspaceId,
         docId: normalized.docId,
+        sourceKind: normalized.sourceKind,
         beneficiaryType: beneficiary.beneficiaryType,
         beneficiaryUserId: beneficiary.beneficiaryUserId,
         beneficiaryProjectId: beneficiary.beneficiaryProjectId,

@@ -265,3 +265,14 @@ export const fileText = style({
   fontFamily: 'var(--affine-font-code-family)',
   fontSize: 14,
 });
+globalStyle(`textarea.${fileText}`, {
+  width: '100%',
+  minHeight: 240,
+  padding: 12,
+  resize: 'vertical',
+  color: 'var(--affine-text-primary-color)',
+  background: 'var(--affine-background-primary-color)',
+  border: '1px solid var(--affine-border-color)',
+  borderRadius: 6,
+  boxSizing: 'border-box',
+});

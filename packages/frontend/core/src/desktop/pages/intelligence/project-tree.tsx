@@ -50,6 +50,7 @@ type ProjectTreeProps = {
   onCreate: (name: string) => Promise<void>;
   onRename: (project: WorkbenchProject, name: string) => Promise<void>;
   onArchive: (project: WorkbenchProject) => Promise<void>;
+  onRestore?: (project: WorkbenchProject) => Promise<void>;
   onManageCollaboration: (project: WorkbenchProject) => void;
 };
 
@@ -75,6 +76,7 @@ export const ProjectTree = ({
   onCreate,
   onRename,
   onArchive,
+  onRestore = ASYNC_NOOP,
   onManageCollaboration,
 }: ProjectTreeProps) => {
   const t = useI18n();
@@ -415,6 +417,32 @@ export const ProjectTree = ({
               </li>
             ))}
           </ul>
+        )}
+        {projects.some(project => project.status === 'archived') && (
+          <details className={styles.personalSection}>
+            <summary>
+              {t['com.affine.localmind.workbench.project.archivedList']()}
+            </summary>
+            <ul className={styles.documents}>
+              {projects
+                .filter(project => project.status === 'archived')
+                .map(project => (
+                  <li key={project.id} className={styles.documentRow}>
+                    <span className={styles.documentButton}>
+                      {project.name}
+                    </span>
+                    {project.canManage && (
+                      <Button
+                        disabled={mutationsPending}
+                        onClick={() => void onRestore(project)}
+                      >
+                        {t['com.affine.localmind.project-files.restore']()}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+            </ul>
+          </details>
         )}
         {personalWorkOrders.length ? (
           <section className={styles.personalSection}>

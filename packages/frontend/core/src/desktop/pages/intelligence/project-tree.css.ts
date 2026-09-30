@@ -260,14 +260,11 @@ export const documentButton = style({
       boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
     },
     '&[data-pinned="true"]': {
-      background: `color-mix(in srgb, ${cssVarV2('button/primary')} 12%, ${cssVarV2('layer/background/primary')})`,
       color: cssVarV2('text/link'),
       fontWeight: 600,
-      boxShadow: `inset 3px 0 0 ${cssVarV2('button/primary')}`,
     },
     '&[data-pinned="true"][aria-current="page"]': {
       color: cssVarV2('text/primary'),
-      boxShadow: `inset 3px 0 0 ${cssVarV2('button/primary')}, inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
     },
     '&[data-placeholder="true"]:hover': {
       background: 'transparent',

@@ -1,12 +1,11 @@
-import { useThemeColorV2, Wrapper } from '@affine/component';
-import { EmptyDocs } from '@affine/core/components/affine/empty';
+import { useThemeColorV2 } from '@affine/component';
 import {
   createDocExplorerContext,
   DocExplorerContext,
 } from '@affine/core/components/explorer/context';
-import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
+import { WorkspaceResourceExplorer } from '@affine/core/components/native-files/resource-explorer';
 import { CollectionRulesService } from '@affine/core/modules/collection-rules';
-import { useLiveData, useService } from '@toeverything/infra';
+import { useService } from '@toeverything/infra';
 import { useEffect, useState } from 'react';
 
 import { Page } from '../../components/page';
@@ -29,11 +28,6 @@ const AllDocs = () => {
     })
   );
   const collectionRulesService = useService(CollectionRulesService);
-  const groups = useLiveData(explorerContextValue.groups$);
-  const isEmpty =
-    groups.length === 0 ||
-    (groups.length && groups.every(group => !group.items.length));
-
   useEffect(() => {
     const subscription = collectionRulesService
       .watch({
@@ -64,18 +58,9 @@ const AllDocs = () => {
     return () => subscription.unsubscribe();
   }, [collectionRulesService, explorerContextValue.groups$]);
 
-  if (isEmpty) {
-    return (
-      <>
-        <EmptyDocs absoluteCenter />
-        <Wrapper height={0} flexGrow={1} />
-      </>
-    );
-  }
-
   return (
     <DocExplorerContext.Provider value={explorerContextValue}>
-      <DocsExplorer masonryItemWidthMin={150} />
+      <WorkspaceResourceExplorer />
     </DocExplorerContext.Provider>
   );
 };

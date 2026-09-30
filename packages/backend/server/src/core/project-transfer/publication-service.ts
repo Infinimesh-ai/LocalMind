@@ -11,6 +11,7 @@ import { z } from 'zod';
 import {
   BadRequest,
   BlobQuotaExceeded,
+  NotFound,
   StorageQuotaExceeded,
 } from '../../base';
 import { Models } from '../../models';
@@ -32,6 +33,7 @@ import {
   DocumentDestinationService,
   DocWriter,
   readRootDocPageIdsWithYjs,
+  WorkspaceNativeResourceAccess,
   WorkspaceOrganizationService,
 } from '../doc';
 import {
@@ -42,12 +44,14 @@ import {
   replaceDocumentCopySnapshot,
   retitleDocumentCopySnapshot,
 } from '../doc/copy-snapshot';
+import { ResourceError } from '../doc/resource-types';
 import { readRootDocPagesWithYjs } from '../doc/root-doc-registration';
 import { OfficeArtifactService } from '../office';
 import {
   type NativeOfficeState,
   officeStateSearchText,
 } from '../office/formats';
+import { WorkspaceNativeResourceService } from '../office/workspace-resource-service';
 import { PermissionAccess } from '../permission';
 import { ProjectBlobStorage, ProjectResourceService } from '../project';
 import { QuotaService } from '../quota';
@@ -56,7 +60,7 @@ import { isolateImportedReferences } from './references';
 
 const commandSchema = z
   .object({
-    version: z.literal('project-publication/v1'),
+    version: z.enum(['project-publication/v1', 'project-publication/v2']),
     publicationId: z.string().uuid(),
     publicationRevision: z.number().int().positive(),
     sourceSequence: z.number().int().positive(),
@@ -65,7 +69,14 @@ const commandSchema = z
     target: publicationTargetSchema,
     previewFingerprint: z.string().length(16),
   })
-  .strict();
+  .strict()
+  .refine(
+    value =>
+      value.version === 'project-publication/v1'
+        ? value.target.targetKind === undefined
+        : !!value.target.targetKind,
+    'Publication type does not match its frozen contract'
+  );
 
 export class ProjectPublicationConflict extends Error {
   constructor() {
@@ -91,7 +102,9 @@ export class ProjectPublicationService {
     private readonly reader: DocReader,
     private readonly writer: DocWriter,
     private readonly office: OfficeArtifactService,
-    private readonly quota: QuotaService
+    private readonly quota: QuotaService,
+    private readonly nativeAccess: WorkspaceNativeResourceAccess,
+    private readonly nativeFiles: WorkspaceNativeResourceService
   ) {}
 
   prepare(
@@ -138,7 +151,7 @@ export class ProjectPublicationService {
         const decoded = z
           .object({
             identity: z.string().length(64),
-            after: z.string().min(1).max(256),
+            after: z.string().min(1).max(600),
           })
           .strict()
           .parse(JSON.parse(Buffer.from(input.cursor, 'base64url').toString()));
@@ -169,10 +182,62 @@ export class ProjectPublicationService {
     const locations = await this.organization.documentLocations(
       input.workspaceId,
       input.actorId,
-      page.map(item => item.resourceId)
+      page
+        .filter(item => item.targetKind !== 'workspace_file')
+        .map(item => item.resourceId)
     );
     const items = [];
     for (const candidate of page) {
+      if (candidate.targetKind === 'workspace_file') {
+        try {
+          const identity = {
+            workspaceId: input.workspaceId,
+            actorId: input.actorId,
+            resourceId: candidate.resourceId,
+            kind: 'file' as const,
+          };
+          const file = await this.nativeFiles.get(identity);
+          const placements =
+            await this.organization.nativeResourceLocations(identity);
+          const placement = placements.locations.find(
+            row => query || row.folderId === input.parentId
+          );
+          if (!placement) continue;
+          let canUpdate = false;
+          try {
+            await this.nativeAccess.assert(identity, { write: true });
+            canUpdate = true;
+          } catch (error) {
+            if (
+              !(error instanceof ResourceError) &&
+              !(error instanceof NotFound)
+            )
+              throw error;
+          }
+          const parent = (
+            await this.destinations.locations({
+              ...input,
+              parentId: placement.folderId,
+              limit: 1,
+              query: undefined,
+              cursor: undefined,
+            })
+          ).current;
+          items.push({
+            ...candidate,
+            title: file.title,
+            folderId: placement.folderId,
+            path: parent.path,
+            canUpdate,
+          });
+          if (items.length === 20) break;
+          continue;
+        } catch (error) {
+          if (error instanceof NotFound || error instanceof ResourceError)
+            continue;
+          throw error;
+        }
+      }
       if (!source.office && !active.has(candidate.resourceId)) continue;
       const placement = locations.find(
         item =>
@@ -222,15 +287,21 @@ export class ProjectPublicationService {
       });
       if (items.length === 20) break;
     }
-    const last =
-      items.length === 20 ? items.at(-1)?.resourceId : page.at(-1)?.resourceId;
+    const lastItem = items.length === 20 ? items.at(-1) : page.at(-1);
+    const key = (row: (typeof candidates)[number]) =>
+      source.resource.kind === 'file'
+        ? `${row.resourceId}:${row.targetKind}`
+        : row.resourceId;
+    const last = lastItem ? key(lastItem) : undefined;
+    const finalCandidate = candidates.at(-1);
     await this.models.projectResource.assertMember(input);
     return {
       items,
       nextCursor:
         last &&
         (candidates.length > 100 ||
-          (items.length === 20 && last !== candidates.at(-1)?.resourceId))
+          (items.length === 20 &&
+            last !== (finalCandidate ? key(finalCandidate) : undefined)))
           ? Buffer.from(
               JSON.stringify({
                 identity: projectResourceHash(identity),
@@ -249,6 +320,7 @@ export class ProjectPublicationService {
       workspaceId: string;
       folderId: string | null;
       targetResourceId?: string;
+      targetKind?: 'legacy' | 'workspace_file';
     }
   ) {
     const record = await this.models.projectPublication.lock(input);
@@ -268,10 +340,14 @@ export class ProjectPublicationService {
           workspaceId: input.workspaceId,
           folderId: input.folderId,
           resourceId: targetId,
+          targetKind:
+            source.file && record.kind === 'publish'
+              ? 'workspace_file'
+              : (input.targetKind ?? 'legacy'),
         });
         const preview = await this.compare(record, source, target);
         const command = {
-          version: 'project-publication/v1' as const,
+          version: 'project-publication/v2' as const,
           publicationId: record.id,
           publicationRevision: record.revision + 1,
           sourceSequence: source.sequence,
@@ -347,6 +423,7 @@ export class ProjectPublicationService {
         // connection, while Blob publication marks quota state stale in this transaction.
         const quota =
           source.office ||
+          source.file ||
           (source.bytes &&
             inspectDocumentCopySnapshot(source.bytes).blobIds.length)
             ? await this.quota.getWorkspaceQuotaWithUsage(
@@ -383,7 +460,49 @@ export class ProjectPublicationService {
           await this.targetPermissions(record, target.evidence);
         };
         let targetVersion: string;
-        if (source.office && source.officeRevision) {
+        if (target.evidence.targetKind === 'workspace_file') {
+          if (!source.file)
+            throw new BadRequest('Publication source is not a native file');
+          const sourceFile = await this.projectBlobs.read({
+            projectId: record.projectId,
+            actorId: record.actorId,
+            key: source.file.key,
+          });
+          const blobKey = await this.transfer(
+            record,
+            target.evidence,
+            sourceFile.bytes,
+            source.file.mimeType,
+            revalidate,
+            allocate
+          );
+          await revalidate();
+          const input = {
+            workspaceId: target.evidence.workspaceId,
+            actorId: record.actorId,
+            resourceId: target.evidence.resourceId,
+            requestKey: `publication:${record.id}:${command.publicationRevision}`,
+            blobKey,
+          };
+          if (record.kind !== 'publish' && !target.file)
+            throw new ProjectPublicationConflict();
+          const result =
+            record.kind === 'publish'
+              ? await this.nativeFiles.create({
+                  ...input,
+                  title: source.resource.title,
+                  fileOnly: true,
+                  origin: 'publication',
+                  folderId: target.evidence.folderId,
+                })
+              : await this.nativeFiles.save({
+                  ...input,
+                  kind: 'file',
+                  expectedContentVersion: target.file?.contentVersion ?? 0,
+                  origin: 'publication',
+                });
+          targetVersion = result.revisionId;
+        } else if (source.office && source.officeRevision) {
           if (
             !source.officeRevision.stateBlobKey ||
             !source.officeRevision.stateFingerprint
@@ -564,7 +683,11 @@ export class ProjectPublicationService {
             throw new BadRequest('Published document was not persisted');
           targetVersion = hash(saved.bin);
         }
-        if (record.kind === 'publish' && target.evidence.folderId)
+        if (
+          record.kind === 'publish' &&
+          target.evidence.folderId &&
+          target.evidence.targetKind !== 'workspace_file'
+        )
           await this.place(record, target.evidence);
         await revalidate();
         // Document history reads reconcile quota on another connection. Invalidate
@@ -582,6 +705,7 @@ export class ProjectPublicationService {
           sourceSequence: source.sequence,
           workspaceId: target.evidence.workspaceId,
           targetResourceId: target.evidence.resourceId,
+          targetKind: target.evidence.targetKind ?? 'legacy',
           folderId: target.evidence.folderId,
           targetVersion,
           permissionFingerprint: target.evidence.permissionFingerprint,
@@ -675,7 +799,12 @@ export class ProjectPublicationService {
 
   private async destination(
     record: ProjectPublication,
-    target: { workspaceId: string; folderId: string | null; resourceId: string }
+    target: {
+      workspaceId: string;
+      folderId: string | null;
+      resourceId: string;
+      targetKind?: 'legacy' | 'workspace_file';
+    }
   ) {
     if (target.workspaceId === target.resourceId)
       throw new BadRequest(
@@ -686,6 +815,38 @@ export class ProjectPublicationService {
         ...target,
         actorId: record.actorId,
       });
+    const nativeKind: 'file' | 'office' | null =
+      target.targetKind === 'workspace_file'
+        ? 'file'
+        : (await this.models.officeArtifact.get(
+              target.workspaceId,
+              target.resourceId
+            ))
+          ? 'office'
+          : null;
+    if (nativeKind) {
+      const identity = {
+        ...target,
+        actorId: record.actorId,
+        kind: nativeKind,
+      };
+      await this.nativeAccess.assert(identity, { write: true });
+      const placements =
+        await this.organization.nativeResourceLocations(identity);
+      if (
+        !placements.locations.some(row => row.folderId === target.folderId) ||
+        placements.locations.some(row => row.folderId !== target.folderId)
+      )
+        throw new ProjectPublicationConflict();
+      return (
+        await this.destinations.locations({
+          actorId: record.actorId,
+          workspaceId: target.workspaceId,
+          parentId: target.folderId,
+          limit: 1,
+        })
+      ).current;
+    }
     const access = this.ac
       .user(record.actorId)
       .doc(target.workspaceId, target.resourceId)
@@ -716,7 +877,12 @@ export class ProjectPublicationService {
   private async target(
     record: ProjectPublication,
     source: Awaited<ReturnType<ProjectPublicationService['source']>>,
-    target: { workspaceId: string; folderId: string | null; resourceId: string }
+    target: {
+      workspaceId: string;
+      folderId: string | null;
+      resourceId: string;
+      targetKind?: 'legacy' | 'workspace_file';
+    }
   ) {
     const destination = await this.destination(record, target);
     const permissions = await this.models.projectPublication.targetPermissions({
@@ -724,6 +890,46 @@ export class ProjectPublicationService {
       resourceId: record.kind === 'update' ? target.resourceId : null,
       directoryIds: destination.path.map(item => item.id),
     });
+    if (target.targetKind === 'workspace_file') {
+      if (!source.file)
+        throw new BadRequest('Publication resource types do not match');
+      const identity = {
+        ...target,
+        actorId: record.actorId,
+        kind: 'file' as const,
+      };
+      let file: Awaited<
+        ReturnType<WorkspaceNativeResourceService['get']>
+      > | null = null;
+      if (record.kind === 'update') {
+        await this.models.workspaceNativeResource.lock(identity);
+        file = await this.nativeFiles.get(identity);
+      } else {
+        try {
+          await this.models.workspaceNativeResource.get(identity, {
+            trash: true,
+            deleted: true,
+          });
+          throw new ProjectPublicationConflict();
+        } catch (error) {
+          if (!(error instanceof NotFound)) throw error;
+        }
+      }
+      return {
+        file,
+        document: null,
+        office: null,
+        officeRevision: null,
+        destination,
+        permissions,
+        evidence: {
+          ...target,
+          folderFingerprint: destination.fingerprint,
+          permissionFingerprint: permissions.fingerprint,
+          expectedVersion: file?.revisionId ?? null,
+        } satisfies PublicationTarget,
+      };
+    }
     await this.models.doc.lockContentWrite(
       target.workspaceId,
       target.resourceId
@@ -740,6 +946,11 @@ export class ProjectPublicationService {
       target.workspaceId,
       target.resourceId
     );
+    if (office)
+      await this.nativeAccess.assert(
+        { ...target, actorId: record.actorId, kind: 'office' },
+        { write: true }
+      );
     const officeRevision = office
       ? await this.models.officeArtifact.getCurrentRevision(
           target.workspaceId,
@@ -785,6 +996,7 @@ export class ProjectPublicationService {
       }
     }
     return {
+      file: null,
       document,
       office,
       officeRevision,
@@ -853,7 +1065,7 @@ export class ProjectPublicationService {
     } else if (source.file) {
       const before = target.document
         ? readFileCopySnapshot(target.document.bin)
-        : null;
+        : target.file;
       difference = {
         before: before
           ? `${before.title}\n${before.mimeType}\n${before.byteSize} bytes`
@@ -897,7 +1109,10 @@ export class ProjectPublicationService {
       sourceFingerprint: source.fingerprint,
       target: target.evidence,
       targetTitle:
-        target.office?.title ?? targetMeta?.title ?? source.resource.title,
+        target.file?.title ??
+        target.office?.title ??
+        targetMeta?.title ??
+        source.resource.title,
       workspaceName: workspace?.name ?? target.evidence.workspaceId,
       targetSequence: target.officeRevision?.sequence ?? null,
       targetModifiedAt: target.document
@@ -972,6 +1187,29 @@ export class ProjectPublicationService {
   }
 
   private async place(record: ProjectPublication, target: PublicationTarget) {
+    if (
+      await this.models.officeArtifact.get(
+        target.workspaceId,
+        target.resourceId
+      )
+    ) {
+      if (!target.folderId) return;
+      await this.organization.placeNewNativeResource({
+        workspaceId: target.workspaceId,
+        actorId: record.actorId,
+        resourceId: target.resourceId,
+        kind: 'office',
+        folderId: target.folderId,
+        authorize: async () => {
+          await this.ac
+            .user(record.actorId)
+            .workspace(target.workspaceId)
+            .assert('Workspace.Blobs.Write');
+        },
+      });
+      return;
+    }
+
     const rows = await this.organization.readFolders(
       target.workspaceId,
       record.actorId

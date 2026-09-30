@@ -53,6 +53,10 @@ export class DirectoryAccessStore extends Store {
           const input = { workspaceId: this.workspaceService.workspace.id };
           this.accessSubscription = merge(
             this.nbstoreService.realtime.subscribe(
+              'workspace.nativeResources.changed',
+              input
+            ),
+            this.nbstoreService.realtime.subscribe(
               'workspace.access.changed',
               input
             ),

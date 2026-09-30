@@ -9,6 +9,8 @@ query copilotWorkbenchConversationsGet(
         items {
           sessionId
           scopeType
+          ownWorkspaceId
+          ownDocId
           pinned
           title
           titleRevision
@@ -21,6 +23,10 @@ query copilotWorkbenchConversationsGet(
           }
           workOrderId
           workOrderStatus
+          workOrderSenderName
+          workOrderSourceProjectName
+          workOrderRequiredReturnTitles
+          workOrderMissingRequiredCount
           lastBusinessAt
           version
         }

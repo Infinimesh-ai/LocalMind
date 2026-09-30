@@ -102,7 +102,7 @@ export const useNavigationPanelDocNodeOperations = (
           toast(t['com.affine.no-permission']());
           return;
         }
-        docRecord.moveToTrash();
+        await docRecord.moveToTrash();
         track.$.navigationPanel.docs.deleteDoc({
           control: 'button',
         });

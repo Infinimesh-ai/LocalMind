@@ -466,17 +466,19 @@ export const NavigationPanelTreeNode = ({
       data-collapsible={collapsible}
     >
       <div className={styles.toggleIcon}>
-        <div
-          data-disabled={disabled}
-          onClick={handleCollapsedChange}
-          data-testid="navigation-panel-collapsed-button"
-          className={styles.collapsedIconContainer}
-        >
-          <ArrowDownSmallIcon
-            className={styles.collapsedIcon}
-            data-collapsed={collapsed !== false}
-          />
-        </div>
+        {collapsible && (
+          <div
+            data-disabled={disabled}
+            onClick={handleCollapsedChange}
+            data-testid="navigation-panel-collapsed-button"
+            className={styles.collapsedIconContainer}
+          >
+            <ArrowDownSmallIcon
+              className={styles.collapsedIcon}
+              data-collapsed={collapsed !== false}
+            />
+          </div>
+        )}
         <div className={styles.iconContainer}>
           <IconRenderer data={explorerIcon?.icon} fallback={fallbackIcon} />
         </div>

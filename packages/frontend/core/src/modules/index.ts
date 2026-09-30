@@ -69,6 +69,7 @@ import { configureUserspaceModule } from './userspace';
 import { configureWorkspaceModule } from './workspace';
 import { configureIndexerEmbeddingModule } from './workspace-indexer-embedding';
 import { configureWorkspacePropertyModule } from './workspace-property';
+import { configureWorkspaceResourcesModule } from './workspace-resources';
 
 export function configureCommonModules(framework: Framework) {
   configureI18nModule(framework);
@@ -97,6 +98,7 @@ export function configureCommonModules(framework: Framework) {
   configureDocsSearchModule(framework);
   configureDocLinksModule(framework);
   configureOrganizeModule(framework);
+  configureWorkspaceResourcesModule(framework);
   configureFavoriteModule(framework);
   configureNavigationPanelModule(framework);
   configureThemeEditorModule(framework);

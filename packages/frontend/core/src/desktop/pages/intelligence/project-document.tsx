@@ -58,11 +58,13 @@ export function ProjectDocument({
   resourceId,
   title,
   mode,
+  sequence,
 }: {
   projectId: string;
   resourceId: string;
   title: string;
   mode: 'page' | 'edgeless';
+  sequence?: number;
 }) {
   const t = useI18n();
   const framework = useFramework();
@@ -76,17 +78,19 @@ export function ProjectDocument({
   const sessionRef = useRef<ProjectDocumentSession | null>(null);
   const editLease = useProjectEditLease();
   const proofRef = useRef(editLease?.proof);
-  proofRef.current = editLease?.proof;
+  proofRef.current = sequence === undefined ? editLease?.proof : null;
   const editorRef = useRef<BlockStdScope | null>(null);
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.store.readonly = !editLease?.proof;
-      if (mode === 'page')
+      editorRef.current.store.readonly =
+        sequence !== undefined || !editLease?.proof;
+      if (sequence === undefined && mode === 'page')
         ensureProjectDocumentParagraph(editorRef.current.store);
     }
-    if (!editLease?.proof) sessionRef.current?.suspend();
+    if (sequence !== undefined || !editLease?.proof)
+      sessionRef.current?.suspend();
     else sessionRef.current?.resume();
-  }, [editLease?.proof, mode]);
+  }, [editLease?.proof, mode, sequence]);
   useProjectEditGuard({
     get hasUnsavedChanges() {
       return sessionRef.current?.hasUnsavedChanges ?? false;
@@ -151,12 +155,14 @@ export function ProjectDocument({
         server.serverMetadata.baseUrl,
         accountId,
         projectId,
-        resourceId,
+        sequence === undefined
+          ? resourceId
+          : `${resourceId}:history:${sequence}`,
         tabId,
       ],
       read: async () => {
         const result = await fetcher.fetch(
-          `/api/projects/${encodeURIComponent(projectId)}/resources/${encodeURIComponent(resourceId)}/revisions/current`,
+          `/api/projects/${encodeURIComponent(projectId)}/resources/${encodeURIComponent(resourceId)}/revisions/${sequence ?? 'current'}`,
           { credentials: 'include' }
         );
         const version = Number(result.headers.get('x-project-content-version'));
@@ -204,7 +210,8 @@ export function ProjectDocument({
         ],
       });
       std.store.readonly = !proofRef.current;
-      if (mode === 'page') ensureProjectDocumentParagraph(std.store);
+      if (sequence === undefined && mode === 'page')
+        ensureProjectDocumentParagraph(std.store);
       editorRef.current = std;
       element.replaceChildren(std.render());
     };
@@ -251,6 +258,7 @@ export function ProjectDocument({
     mode,
     projectId,
     resourceId,
+    sequence,
     server.serverMetadata.baseUrl,
     reload,
     tabId,
@@ -278,7 +286,11 @@ export function ProjectDocument({
         <IconButton
           size="20"
           icon={<SaveIcon />}
-          disabled={state.phase !== 'unsaved' || !editLease?.proof}
+          disabled={
+            sequence !== undefined ||
+            state.phase !== 'unsaved' ||
+            !editLease?.proof
+          }
           tooltip={t['com.affine.localmind.project-files.save']()}
           aria-label={t['com.affine.localmind.project-files.save']()}
           onClick={() => void sessionRef.current?.flush()}

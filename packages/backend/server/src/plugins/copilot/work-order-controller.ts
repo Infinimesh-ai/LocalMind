@@ -1,11 +1,7 @@
 import { Controller, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
-import {
-  applyAttachHeaders,
-  BadRequest,
-  readBufferWithLimit,
-} from '../../base';
+import { BadRequest, readBufferWithLimit } from '../../base';
 import { CurrentUser, type CurrentUser as User } from '../../core/auth';
 import {
   WORK_ORDER_BLOB_MAX_BYTES,
@@ -57,10 +53,6 @@ export class WorkOrderController {
       'content-security-policy',
       "default-src 'none'; sandbox"
     );
-    applyAttachHeaders(response, {
-      contentType: blob.mimeType,
-      filename: blob.fileName,
-    });
-    response.send(bytes);
+    response.attachment(blob.fileName).type(blob.mimeType).send(bytes);
   }
 }

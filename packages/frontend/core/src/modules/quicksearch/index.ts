@@ -20,6 +20,7 @@ import {
   WorkspaceScope,
   WorkspaceService,
 } from '../workspace';
+import { WorkspaceResourcesService } from '../workspace-resources';
 import { QuickSearch } from './entities/quick-search';
 import { CollectionsQuickSearchSession } from './impls/collections';
 import { CommandsQuickSearchSession } from './impls/commands';
@@ -28,6 +29,7 @@ import { DocsQuickSearchSession } from './impls/docs';
 import { ExternalLinksQuickSearchSession } from './impls/external-links';
 import { JournalsQuickSearchSession } from './impls/journals';
 import { LinksQuickSearchSession } from './impls/links';
+import { NativeResourcesQuickSearchSession } from './impls/native-resources';
 import { ProjectsQuickSearchSession } from './impls/projects';
 import { RecentDocsQuickSearchSession } from './impls/recent-docs';
 import { TagsQuickSearchSession } from './impls/tags';
@@ -68,6 +70,7 @@ export function configureQuickSearchModule(framework: Framework) {
     .service(RecentDocsService, [WorkspaceLocalState, DocsService])
     .entity(QuickSearch)
     .entity(CommandsQuickSearchSession, [GlobalContextService])
+    .entity(NativeResourcesQuickSearchSession, [WorkspaceResourcesService])
     .entity(DocsQuickSearchSession, [
       WorkspaceService,
       WorkspaceServerService,

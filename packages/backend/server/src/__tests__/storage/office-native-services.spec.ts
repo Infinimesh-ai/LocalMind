@@ -18,7 +18,13 @@ import {
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
-import { workspaceOfficeStorage } from './office-storage.fixture';
+import {
+  nativeAccessFixture,
+  nativeDirectoryFixture,
+  nativeTransactionFixture,
+  withNativeStateFixture,
+  workspaceOfficeStorage,
+} from './office-storage.fixture';
 
 function fingerprint(bytes: Uint8Array) {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
@@ -141,9 +147,12 @@ test('imports XLSX, PPTX, and PDF through the native format registry', async t =
     } as unknown as WorkspaceBlobStorage;
     const { access } = permissions();
     const service = new OfficeImportService(
-      models,
+      withNativeStateFixture(models),
       workspaceOfficeStorage(storage),
-      access
+      access,
+      nativeTransactionFixture,
+      nativeDirectoryFixture,
+      nativeAccessFixture
     );
 
     const result = await service.import({
@@ -190,9 +199,12 @@ test('rejects MIME mismatch and denied import permissions before persistence', a
 
   await t.throwsAsync(
     new OfficeImportService(
-      models,
+      withNativeStateFixture(models),
       workspaceOfficeStorage(storage),
-      allowed.access
+      allowed.access,
+      nativeTransactionFixture,
+      nativeDirectoryFixture,
+      nativeAccessFixture
     ).import({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
@@ -214,7 +226,10 @@ test('rejects MIME mismatch and denied import permissions before persistence', a
     new OfficeImportService(
       deniedModels,
       workspaceOfficeStorage(storage),
-      denied.access
+      denied.access,
+      nativeTransactionFixture,
+      nativeDirectoryFixture,
+      nativeAccessFixture
     ).import({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
@@ -270,9 +285,10 @@ test('previews and executes XLSX, PPTX, and PDF commands with immutable evidence
     } as unknown as WorkspaceBlobStorage;
     const { access } = permissions();
     const service = new OfficeCommandService(
-      models,
+      withNativeStateFixture(models),
       workspaceOfficeStorage(storage),
-      access
+      access,
+      nativeAccessFixture
     );
 
     const preview = await service.preview({
@@ -334,7 +350,8 @@ test('rejects stale revisions, altered bytes, and missing AI permission before w
     new OfficeCommandService(
       staleModels,
       workspaceOfficeStorage(storage),
-      allowed.access
+      allowed.access,
+      nativeAccessFixture
     ).execute({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
@@ -360,7 +377,8 @@ test('rejects stale revisions, altered bytes, and missing AI permission before w
     new OfficeCommandService(
       alteredModels,
       workspaceOfficeStorage(storage),
-      allowed.access
+      allowed.access,
+      nativeAccessFixture
     ).execute({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
@@ -380,7 +398,8 @@ test('rejects stale revisions, altered bytes, and missing AI permission before w
     new OfficeCommandService(
       deniedModels,
       workspaceOfficeStorage(storage),
-      denied.access
+      denied.access,
+      nativeAccessFixture
     ).execute({
       workspaceId: 'workspace-1',
       actorId: 'user-1',

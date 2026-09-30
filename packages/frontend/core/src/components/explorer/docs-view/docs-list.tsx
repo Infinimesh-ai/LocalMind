@@ -9,7 +9,15 @@ import { WorkspacePropertyService } from '@affine/core/modules/workspace-propert
 import { Trans, useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { memo, useCallback, useContext, useEffect, useMemo } from 'react';
+import {
+  createContext,
+  memo,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+} from 'react';
 
 import { EmptyDocs } from '../../affine/empty';
 import { ListFloatingToolbar } from '../../page-list/components/list-floating-toolbar';
@@ -94,6 +102,21 @@ export const DocListItemComponent = memo(function DocListItemComponent({
   return <DocListItem docId={itemId} groupId={groupId} />;
 });
 
+const ResourceItemContext = createContext<
+  ((id: string, groupId: string) => ReactNode) | undefined
+>(undefined);
+
+function ResourceListItem({
+  itemId,
+  groupId,
+}: {
+  itemId: string;
+  groupId: string;
+}) {
+  const renderItem = useContext(ResourceItemContext);
+  return renderItem?.(itemId, groupId);
+}
+
 export const DocsExplorer = ({
   className,
   disableMultiSelectToolbar,
@@ -101,8 +124,12 @@ export const DocsExplorer = ({
   masonryItemWidthMin,
   onRestore,
   onDelete,
+  renderItem,
+  toolbar,
 }: {
   className?: string;
+  renderItem?: (id: string, groupId: string) => ReactNode;
+  toolbar?: ReactNode;
   disableMultiSelectToolbar?: boolean;
   disableMultiDelete?: boolean;
   masonryItemWidthMin?: number;
@@ -130,6 +157,7 @@ export const DocsExplorer = ({
 
   const { openConfirmModal } = useConfirmModal();
 
+  const ItemComponent = renderItem ? ResourceListItem : DocListItemComponent;
   const masonryItems = useMemo(() => {
     const items = groups.map((group: any) => {
       return {
@@ -141,20 +169,20 @@ export const DocsExplorer = ({
           if (view === 'list') {
             return {
               id: docId,
-              Component: DocListItemComponent,
+              Component: ItemComponent,
               height: 42,
             } satisfies MasonryItem;
           }
           return {
             id: docId,
-            Component: DocListItemComponent,
+            Component: ItemComponent,
             ratio: view === 'grid' ? ratios[0] : calcCardRatioById(docId),
           } satisfies MasonryItem;
         }),
       } satisfies MasonryGroup;
     });
     return items;
-  }, [groupBy, groups, view]);
+  }, [groupBy, groups, view, ItemComponent]);
 
   const handleCloseFloatingToolbar = useCallback(() => {
     contextValue.selectMode$?.next(false);
@@ -192,11 +220,12 @@ export const DocsExplorer = ({
       confirmButtonOptions: {
         variant: 'error',
       },
-      onConfirm: () => {
+      onConfirm: async () => {
         const selectedDocIds = contextValue.selectedDocIds$.value;
         for (const docId of selectedDocIds) {
           const doc = docsService.list.doc$(docId).value;
-          doc?.moveToTrash();
+          if (!doc) throw new Error('Document unavailable');
+          await doc.moveToTrash();
         }
         handleCloseFloatingToolbar();
       },
@@ -247,7 +276,7 @@ export const DocsExplorer = ({
   }
 
   return (
-    <>
+    <ResourceItemContext.Provider value={renderItem}>
       <Masonry
         className={className}
         items={masonryItems}
@@ -264,7 +293,9 @@ export const DocsExplorer = ({
         paddingY={BUILD_CONFIG.isMobileEdition ? 12 : 0}
         paddingX={BUILD_CONFIG.isMobileEdition ? 16 : responsivePaddingX}
       />
-      {!disableMultiSelectToolbar || onRestore ? (
+      {toolbar !== undefined ? (
+        toolbar
+      ) : !disableMultiSelectToolbar || onRestore ? (
         <ListFloatingToolbar
           open={!!selectMode}
           onDelete={disableMultiDelete ? undefined : handleMultiDelete}
@@ -283,6 +314,6 @@ export const DocsExplorer = ({
           }
         />
       ) : null}
-    </>
+    </ResourceItemContext.Provider>
   );
 };

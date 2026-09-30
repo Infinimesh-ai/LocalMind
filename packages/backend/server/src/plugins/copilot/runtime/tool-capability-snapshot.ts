@@ -20,11 +20,22 @@ export type ToolCapabilitySnapshot = {
 const WORKSPACE_WRITE_TOOLS = new Set([
   'workspace_doc_create',
   'workspace_file_create',
+  'workspace_file_update',
+  'workspace_resource_update_meta',
+  'workspace_resource_restore_version',
+  'workspace_resource_copy',
   'workspace_doc_copy',
   'workspace_doc_update',
   'workspace_doc_update_meta',
   'workspace_office_command_request',
   'workspace_office_command_batch_request',
+  'workspace_native_folder_create',
+  'workspace_native_folder_rename',
+  'workspace_native_folder_move',
+  'workspace_native_folder_move_item',
+  'workspace_native_folder_trash',
+  'workspace_native_folder_restore',
+  'workspace_native_folder_delete_permanently',
   'workspace_folder_create',
   'workspace_folder_rename',
   'workspace_folder_move',
@@ -56,11 +67,18 @@ export function toolSchemaFingerprint(
 
 export function toolSideEffectType(name: string): ToolSideEffectType {
   if (WORKSPACE_WRITE_TOOLS.has(name)) return 'workspace_write';
-  if (name === 'work_order_file_create') return 'work_order_write';
+  if (
+    name === 'work_order_file_create' ||
+    name === 'work_order_delivery_text_set'
+  )
+    return 'work_order_write';
   if (
     [
       'project_doc_create',
       'project_file_create',
+      'project_file_update',
+      'project_resource_restore_version',
+      'project_resource_copy',
       'project_doc_update',
       'project_resource_update_meta',
       'project_folder_create',

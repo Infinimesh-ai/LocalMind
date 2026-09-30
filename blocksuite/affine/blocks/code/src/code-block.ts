@@ -124,7 +124,17 @@ export class CodeBlockComponent extends CaptionedBlockComponent<CodeBlockModel> 
       return;
     }
 
-    const matchedInfo = this.langs.find(
+    const langs = this.langs;
+    if (
+      langs.length === 0 &&
+      !this.std.getOptional(CodeBlockConfigExtension.identifier)?.langs
+    ) {
+      // Bundled languages are still loading; keep the selected language.
+      this.highlightTokens$.value = [];
+      return;
+    }
+
+    const matchedInfo = langs.find(
       info =>
         info.id === modelLang ||
         info.name === modelLang ||

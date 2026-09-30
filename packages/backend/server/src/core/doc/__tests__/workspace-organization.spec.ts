@@ -71,6 +71,7 @@ function createServiceFixture() {
       reader as never,
       writer as never,
       {
+        workspaceNativeResource: { officeIds: async () => new Set<string>() },
         workspaceDirectoryGrant: {
           snapshot: async () => directoryPolicySnapshot('actor', []),
           withMutationLock: async (
@@ -84,6 +85,9 @@ function createServiceFixture() {
             canCreateFolder: true,
           }),
         },
+      } as never,
+      {
+        user: () => ({ workspace: () => ({ assert: async () => {} }) }),
       } as never
     ),
   };

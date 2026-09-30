@@ -12,7 +12,10 @@ datasource db {
 }
 
 model User {
-  workspaceFiles WorkspaceFile[]
+  workspaceFiles               WorkspaceFile[]
+  workspaceFileRevisions       WorkspaceFileRevision[]
+  workspaceNativeOperations    WorkspaceNativeOperation[]
+  workspaceLifecycleOperations WorkspaceLifecycleOperation[]
 
   officeComments       OfficeComment[]
   officeCommentReplies OfficeCommentReply[]
@@ -131,6 +134,7 @@ model User {
   createdWorkOrderEvents                    WorkOrderEvent[]                       @relation("work_order_event_actor")
   adoptedWorkOrderDeliveries                WorkOrderAdoption[]                    @relation("work_order_adoption_actor")
   ownedWorkOrderBlobs                       WorkOrderBlob[]                        @relation("work_order_blob_owner")
+  ownedWorkOrderDeliveryDrafts              WorkOrderDeliveryDraft[]               @relation("work_order_delivery_draft_owner")
   createdWorkOrderDispatches                WorkOrderDispatch[]                    @relation("work_order_dispatch_sender")
 
   @@index([email])
@@ -254,7 +258,8 @@ model MagicLinkOtp {
 }
 
 model Workspace {
-  files WorkspaceFile[]
+  lifecycleOperations WorkspaceLifecycleOperation[]
+  files               WorkspaceFile[]
 
   officeComments OfficeComment[]
 
@@ -330,6 +335,8 @@ model Workspace {
   officeRevisions                       OfficeRevision[]                       @relation("office_revision_workspace")
   officeCommandRequests                 OfficeCommandRequest[]                 @relation("office_command_request_workspace")
   directoryGrants                       WorkspaceDirectoryGrant[]
+  nativeOperations                      WorkspaceNativeOperation[]
+  nativeOutbox                          WorkspaceNativeOutbox[]
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
@@ -1324,6 +1331,7 @@ model WorkOrderDispatch {
   sender        User?       @relation("work_order_dispatch_sender", fields: [senderId], references: [id], onDelete: SetNull)
 
   @@unique([senderId, requestKey])
+  @@index([senderId, status, expiresAt, updatedAt(sort: Desc)], map: "work_order_dispatch_graph_lookup_idx")
   @@index([sourceSessionId, createdAt(sort: Desc)])
   @@map("work_order_dispatches")
 }
@@ -1340,6 +1348,7 @@ model WorkOrder {
   relationKind              String    @default("original") @map("relation_kind") @db.VarChar(16)
   status                    String    @default("open") @db.VarChar(24)
   version                   Int       @default(1)
+  templateVersion           Int       @default(1) @map("template_version")
   title                     String    @db.VarChar(256)
   purpose                   String    @db.Text
   requirementsFingerprint   String    @map("requirements_fingerprint") @db.VarChar(64)
@@ -1359,6 +1368,7 @@ model WorkOrder {
   requirements   WorkOrderRequirement[]
   exchanges      WorkOrderExchange[]
   deliveries     WorkOrderDeliveryRevision[]
+  deliveryDraft  WorkOrderDeliveryDraft?
   blobs          WorkOrderBlob[]
   events         WorkOrderEvent[]
   outbox         WorkOrderOutbox[]
@@ -1369,6 +1379,21 @@ model WorkOrder {
   @@index([recipientId, status, updatedAt(sort: Desc)])
   @@index([relatedWorkOrderId])
   @@map("work_orders")
+}
+
+model WorkOrderDeliveryDraft {
+  workOrderId String   @id @map("work_order_id") @db.VarChar
+  ownerId     String   @map("owner_id") @db.VarChar
+  version     Int      @default(1)
+  items       Json     @default("[]") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  owner     User      @relation("work_order_delivery_draft_owner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@map("work_order_delivery_drafts")
 }
 
 model WorkOrderSessionBinding {
@@ -1563,6 +1588,7 @@ model WorkOrderAdoptionItem {
   delivery       WorkOrderDeliveryRevision @relation(fields: [deliveryRevisionId, workOrderId], references: [id, workOrderId], onDelete: Restrict, onUpdate: Restrict)
 
   @@id([adoptionId, workOrderId])
+  @@index([deliveryRevisionId], map: "work_order_adoption_delivery_idx")
   @@map("work_order_adoption_items")
 }
 
@@ -2112,6 +2138,7 @@ model ProjectPublicationTarget {
   resourceId       String   @map("resource_id") @db.VarChar
   workspaceId      String   @map("workspace_id") @db.VarChar
   targetResourceId String   @map("target_resource_id") @db.VarChar
+  targetKind       String   @default("legacy") @map("target_kind") @db.VarChar(32)
   sourceSequence   Int      @map("source_sequence")
   targetVersion    String   @map("target_version") @db.VarChar
   publicationId    String   @map("publication_id") @db.VarChar
@@ -2302,6 +2329,7 @@ model AccessRequest {
   id                        String    @id @default(uuid()) @db.VarChar
   workspaceId               String    @map("workspace_id") @db.VarChar
   docId                     String    @map("doc_id") @db.VarChar
+  sourceKind                String    @default("document") @map("source_kind") @db.VarChar(32)
   beneficiaryType           String    @map("beneficiary_type") @db.VarChar
   beneficiaryUserId         String?   @map("beneficiary_user_id") @db.VarChar
   beneficiaryProjectId      String?   @map("beneficiary_project_id") @db.VarChar
@@ -2340,15 +2368,16 @@ model AccessRequest {
 
 model AiContextProjectCopyAuthorization {
   requestId   String   @id @map("request_id") @db.VarChar
-  grantId     String   @map("grant_id") @db.VarChar
+  grantId     String?  @map("grant_id") @db.VarChar
+  sourceKind  String   @default("document") @map("source_kind") @db.VarChar(32)
   projectId   String   @map("project_id") @db.VarChar
   workspaceId String   @map("workspace_id") @db.VarChar
   docId       String   @map("doc_id") @db.VarChar
   approvedBy  String   @map("approved_by") @db.VarChar
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  request AccessRequest         @relation(fields: [requestId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  grant   AiContextProjectGrant @relation(fields: [grantId, projectId, workspaceId, docId], references: [id, projectId, workspaceId, docId], onDelete: Restrict, onUpdate: Restrict)
+  request AccessRequest          @relation(fields: [requestId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  grant   AiContextProjectGrant? @relation(fields: [grantId, projectId, workspaceId, docId], references: [id, projectId, workspaceId, docId], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([projectId, workspaceId, docId])
   @@map("ai_context_project_copy_authorizations")
@@ -3850,7 +3879,8 @@ enum BlobStatus {
 // like, total size of blobs in a workspace, or blob list for sync service.
 // it should only be a map of metadata of blobs stored anywhere else
 model Blob {
-  workspaceFiles WorkspaceFile[]
+  workspaceFiles         WorkspaceFile[]
+  workspaceFileRevisions WorkspaceFileRevision[]
 
   workspaceId String     @map("workspace_id") @db.VarChar
   key         String     @db.VarChar
@@ -3888,7 +3918,9 @@ enum OfficeRevisionOrigin {
 }
 
 model OfficeArtifact {
-  comments OfficeComment[]
+  comments         OfficeComment[]
+  workspaceState   WorkspaceOfficeState?
+  nativeOperations WorkspaceNativeOperation[]
 
   id                   String             @id @default(uuid()) @db.VarChar
   workspaceId          String?            @map("workspace_id") @db.VarChar
@@ -5042,23 +5074,147 @@ model OfficeCommentReply {
 
 // Independent downloadable files; Office resources retain their native revision model.
 model WorkspaceFile {
-  id                 String    @id @default(uuid()) @db.VarChar
-  workspaceId        String    @map("workspace_id") @db.VarChar
-  createdBy          String    @map("created_by") @db.VarChar
-  sourceSessionId    String    @map("source_session_id") @db.VarChar
-  fileName           String    @map("file_name") @db.VarChar(512)
-  mimeType           String    @map("mime_type") @db.VarChar(256)
-  byteSize           Int       @map("byte_size")
-  blobKey            String    @map("blob_key") @db.VarChar
-  fingerprint        String    @db.VarChar(128)
-  requestKey         String    @map("request_key") @db.VarChar(256)
-  requestFingerprint String    @map("request_fingerprint") @db.VarChar(128)
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  creator            User      @relation(fields: [createdBy], references: [id], onDelete: Restrict)
-  blob               Blob      @relation(fields: [workspaceId, blobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+  id                 String                     @id @default(uuid()) @db.VarChar
+  workspaceId        String                     @map("workspace_id") @db.VarChar
+  createdBy          String                     @map("created_by") @db.VarChar
+  sourceSessionId    String?                    @map("source_session_id") @db.VarChar
+  origin             String                     @default("ai") @db.VarChar(32)
+  fileName           String                     @map("file_name") @db.VarChar(512)
+  mimeType           String                     @map("mime_type") @db.VarChar(256)
+  byteSize           Int                        @map("byte_size")
+  blobKey            String                     @map("blob_key") @db.VarChar
+  fingerprint        String                     @db.VarChar(128)
+  requestKey         String                     @map("request_key") @db.VarChar(256)
+  requestFingerprint String                     @map("request_fingerprint") @db.VarChar(128)
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace          Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator            User                       @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  blob               Blob                       @relation(fields: [workspaceId, blobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+  state              WorkspaceFileState?
+  revisions          WorkspaceFileRevision[]
+  operations         WorkspaceNativeOperation[]
 
+  @@unique([id, workspaceId])
   @@unique([workspaceId, requestKey])
   @@index([workspaceId, createdAt(sort: Desc)])
   @@map("workspace_files")
+}
+
+model WorkspaceFileState {
+  fileId           String                @id @map("file_id") @db.VarChar
+  workspaceId      String                @map("workspace_id") @db.VarChar
+  title            String                @db.VarChar(512)
+  metadataVersion  Int                   @default(1) @map("metadata_version")
+  contentVersion   Int                   @map("content_version")
+  trashedAt        DateTime?             @map("trashed_at") @db.Timestamptz(3)
+  deletedAt        DateTime?             @map("deleted_at") @db.Timestamptz(3)
+  trashSourceId    String?               @map("trash_source_id") @db.VarChar
+  restoreLocations Json                  @default("[]") @map("restore_locations") @db.JsonB
+  searchText       String                @default("") @map("search_text") @db.Text
+  searchVersion    Int                   @default(0) @map("search_version")
+  updatedAt        DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  file             WorkspaceFile         @relation(fields: [fileId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict)
+  revision         WorkspaceFileRevision @relation("workspace_file_current", fields: [fileId, workspaceId, contentVersion], references: [fileId, workspaceId, sequence], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([fileId, workspaceId])
+  @@index([workspaceId, trashedAt, deletedAt, updatedAt, fileId])
+  @@map("workspace_file_states")
+}
+
+model WorkspaceFileRevision {
+  id               String                  @id @default(uuid()) @db.VarChar
+  workspaceId      String                  @map("workspace_id") @db.VarChar
+  fileId           String                  @map("file_id") @db.VarChar
+  sequence         Int
+  parentRevisionId String?                 @map("parent_revision_id") @db.VarChar
+  blobKey          String                  @map("blob_key") @db.VarChar
+  mimeType         String                  @map("mime_type") @db.VarChar(256)
+  byteSize         Int                     @map("byte_size")
+  fingerprint      String                  @db.VarChar(64)
+  actorId          String                  @map("actor_id") @db.VarChar
+  origin           String                  @db.VarChar(32)
+  sourceSessionId  String?                 @map("source_session_id") @db.VarChar
+  requestKey       String                  @map("request_key") @db.VarChar(256)
+  requestHash      String                  @map("request_hash") @db.VarChar(64)
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  file             WorkspaceFile           @relation(fields: [fileId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict)
+  blob             Blob                    @relation(fields: [workspaceId, blobKey], references: [workspaceId, key], onDelete: Restrict, onUpdate: Restrict)
+  actor            User                    @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  parent           WorkspaceFileRevision?  @relation("workspace_file_revision_chain", fields: [parentRevisionId, fileId, workspaceId], references: [id, fileId, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  children         WorkspaceFileRevision[] @relation("workspace_file_revision_chain")
+  current          WorkspaceFileState[]    @relation("workspace_file_current")
+
+  @@unique([id, fileId, workspaceId])
+  @@unique([fileId, workspaceId, sequence])
+  @@unique([fileId, actorId, requestKey])
+  @@index([workspaceId, fileId, createdAt])
+  @@map("workspace_file_revisions")
+}
+
+model WorkspaceOfficeState {
+  artifactId       String         @id @map("artifact_id") @db.VarChar
+  workspaceId      String         @map("workspace_id") @db.VarChar
+  metadataVersion  Int            @default(1) @map("metadata_version")
+  trashedAt        DateTime?      @map("trashed_at") @db.Timestamptz(3)
+  deletedAt        DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  trashSourceId    String?        @map("trash_source_id") @db.VarChar
+  restoreLocations Json           @default("[]") @map("restore_locations") @db.JsonB
+  searchText       String         @default("") @map("search_text") @db.Text
+  searchVersion    Int            @default(0) @map("search_version")
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  artifact         OfficeArtifact @relation(fields: [artifactId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([artifactId, workspaceId])
+  @@index([workspaceId, trashedAt, deletedAt, updatedAt, artifactId])
+  @@map("workspace_office_states")
+}
+
+model WorkspaceNativeOperation {
+  id          String          @id @default(uuid()) @db.VarChar
+  workspaceId String          @map("workspace_id") @db.VarChar
+  actorId     String          @map("actor_id") @db.VarChar
+  fileId      String?         @map("file_id") @db.VarChar
+  artifactId  String?         @map("artifact_id") @db.VarChar
+  action      String          @db.VarChar(64)
+  requestKey  String          @map("request_key") @db.VarChar(256)
+  requestHash String          @map("request_hash") @db.VarChar(64)
+  result      Json            @db.JsonB
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor       User            @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  file        WorkspaceFile?  @relation(fields: [fileId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  artifact    OfficeArtifact? @relation(fields: [artifactId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workspaceId, actorId, requestKey])
+  @@index([workspaceId, fileId, createdAt])
+  @@index([workspaceId, artifactId, createdAt])
+  @@map("workspace_native_operations")
+}
+
+model WorkspaceNativeOutbox {
+  id          BigInt    @id @default(autoincrement())
+  workspaceId String    @map("workspace_id") @db.VarChar
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_native_outbox")
+}
+
+model WorkspaceLifecycleOperation {
+  id          String    @id @default(uuid()) @db.VarChar
+  workspaceId String    @map("workspace_id") @db.VarChar
+  actorId     String    @map("actor_id") @db.VarChar
+  resourceId  String    @map("resource_id") @db.VarChar
+  kind        String    @db.VarChar(16)
+  action      String    @db.VarChar(16)
+  requestKey  String    @map("request_key") @db.VarChar(256)
+  requestHash String    @map("request_hash") @db.VarChar(64)
+  result      Json      @db.JsonB
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor       User      @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, actorId, requestKey], map: "workspace_lifecycle_operation_request_key")
+  @@index([workspaceId, resourceId, createdAt], map: "workspace_lifecycle_operation_resource_created")
+  @@map("workspace_lifecycle_operations")
 }

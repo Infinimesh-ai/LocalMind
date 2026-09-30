@@ -82,6 +82,7 @@ function createOrganization(input?: {
           return await operation();
         },
       },
+      workspaceNativeResource: { officeIds: async () => new Set<string>() },
       workspaceDirectoryGrant: {
         snapshot: async () => directoryPolicySnapshot('actor', []),
         withMutationLock: async (

@@ -447,6 +447,34 @@ export const projectWorkspaceImportTaskFragment = `fragment ProjectWorkspaceImpo
   accessRequestId
   failureCode
 }`;
+export const workspaceNativeResourceFieldsFragment = `fragment WorkspaceNativeResourceFields on WorkspaceNativeResourceType {
+  id
+  workspaceId
+  kind
+  title
+  fileName
+  mimeType
+  byteSize
+  metadataVersion
+  contentVersion
+  revisionId
+  searchStatus
+  canEdit
+  canManage
+  canRename
+  canMove
+  canCopy
+  canTrash
+  canRestore
+  canDeletePermanently
+  folderIds
+  folderPaths
+  atRoot
+  createdAt
+  updatedAt
+  trashedAt
+  deletedAt
+}`;
 export const licenseBodyFragment = `fragment licenseBody on License {
   expiredAt
   installedAt
@@ -2477,21 +2505,58 @@ export const copilotCollaborationGraphGetQuery = {
           id
           label
           self
+          avatarUrl
         }
         edges {
           id
+          kind
           from
           to
           status
           label
+          requirementTitles
+          requirementItems {
+            id
+            title
+            kind
+          }
+          ownConversationExists
+          sourceKind
+          updatedAt
+          expiresAt
           project {
             id
             name
           }
+          ownNavigationKind
           ownSessionId
           ownWorkOrderId
+          ownProjectId
+          ownWorkspaceId
+          ownDocId
         }
         truncated
+      }
+    }
+  }
+}`,
+};
+
+export const copilotCollaborationOrderDetailsQuery = {
+  id: 'copilotCollaborationOrderDetailsQuery' as const,
+  op: 'copilotCollaborationOrderDetails',
+  query: `query copilotCollaborationOrderDetails($workOrderId: ID!) {
+  currentUser {
+    copilot {
+      myWorkOrder(workOrderId: $workOrderId) {
+        id
+        purpose
+        requirements {
+          id
+          title
+          instructions
+          required
+        }
       }
     }
   }
@@ -8386,6 +8451,58 @@ export const submitWorkOrderDeliveryMutation = {
 }`,
 };
 
+export const setWorkOrderDeliveryDraftItemMutation = {
+  id: 'setWorkOrderDeliveryDraftItemMutation' as const,
+  op: 'setWorkOrderDeliveryDraftItem',
+  query: `mutation setWorkOrderDeliveryDraftItem($workOrderId: ID!, $requirementId: ID!, $expectedDraftVersion: Int!, $text: String, $blobIds: [ID!]) {
+  setWorkOrderDeliveryDraftItem(
+    workOrderId: $workOrderId
+    requirementId: $requirementId
+    expectedDraftVersion: $expectedDraftVersion
+    text: $text
+    blobIds: $blobIds
+  ) {
+    workOrderId
+    orderVersion
+    version
+    updatedAt
+    ready
+    confirmationToken
+    items {
+      requirementId
+      blobIds
+      text
+    }
+    checks {
+      requirementId
+      ready
+      reason
+    }
+  }
+}`,
+};
+
+export const confirmWorkOrderDeliveryDraftMutation = {
+  id: 'confirmWorkOrderDeliveryDraftMutation' as const,
+  op: 'confirmWorkOrderDeliveryDraft',
+  query: `mutation confirmWorkOrderDeliveryDraft($workOrderId: ID!, $expectedWorkOrderVersion: Int!, $expectedDraftVersion: Int!, $confirmationToken: String!, $requestKey: String!) {
+  confirmWorkOrderDeliveryDraft(
+    workOrderId: $workOrderId
+    expectedWorkOrderVersion: $expectedWorkOrderVersion
+    expectedDraftVersion: $expectedDraftVersion
+    confirmationToken: $confirmationToken
+    requestKey: $requestKey
+  ) {
+    workOrderId
+    status
+    version
+    deliveryRevisionId
+    revision
+    receiptFingerprint
+  }
+}`,
+};
+
 export const adoptWorkOrderDeliveriesMutation = {
   id: 'adoptWorkOrderDeliveriesMutation' as const,
   op: 'adoptWorkOrderDeliveries',
@@ -8504,6 +8621,7 @@ export const copilotWorkOrderGetQuery = {
         relationKind
         status
         version
+        templateVersion
         requirements {
           id
           itemKey
@@ -8544,6 +8662,24 @@ export const copilotWorkOrderGetQuery = {
           byteSize
           fingerprint
           createdAt
+        }
+        deliveryDraft {
+          workOrderId
+          orderVersion
+          version
+          updatedAt
+          ready
+          confirmationToken
+          items {
+            requirementId
+            blobIds
+            text
+          }
+          checks {
+            requirementId
+            ready
+            reason
+          }
         }
         deliveriesReleased
         createdAt
@@ -8642,6 +8778,8 @@ export const copilotWorkbenchConversationsGetQuery = {
         items {
           sessionId
           scopeType
+          ownWorkspaceId
+          ownDocId
           pinned
           title
           titleRevision
@@ -8654,6 +8792,10 @@ export const copilotWorkbenchConversationsGetQuery = {
           }
           workOrderId
           workOrderStatus
+          workOrderSenderName
+          workOrderSourceProjectName
+          workOrderRequiredReturnTitles
+          workOrderMissingRequiredCount
           lastBusinessAt
           version
         }
@@ -10749,6 +10891,21 @@ export const officeRevisionsQuery = {
 }`,
 };
 
+export const openWorkOrderConversationMutation = {
+  id: 'openWorkOrderConversationMutation' as const,
+  op: 'openWorkOrderConversation',
+  query: `mutation openWorkOrderConversation($workOrderId: ID!) {
+  openWorkOrderConversation(workOrderId: $workOrderId) {
+    kind
+    sessionId
+    workOrderId
+    projectId
+    workspaceId
+    docId
+  }
+}`,
+};
+
 export const permanentlyDeleteProjectResourceMutation = {
   id: 'permanentlyDeleteProjectResourceMutation' as const,
   op: 'permanentlyDeleteProjectResource',
@@ -10792,7 +10949,7 @@ export const previewProjectOfficeCommandQuery = {
 export const previewProjectPublicationMutation = {
   id: 'previewProjectPublicationMutation' as const,
   op: 'previewProjectPublication',
-  query: `mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String) {
+  query: `mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String, $targetKind: String) {
   previewProjectPublication(
     projectId: $projectId
     publicationId: $publicationId
@@ -10800,6 +10957,7 @@ export const previewProjectPublicationMutation = {
     workspaceId: $workspaceId
     folderId: $folderId
     targetResourceId: $targetResourceId
+    targetKind: $targetKind
   ) {
     ...ProjectPublicationFields
   }
@@ -10988,6 +11146,23 @@ export const projectFileRequestQuery = {
 ${projectFileRequestFieldsFragment}`,
 };
 
+export const projectFileTextQuery = {
+  id: 'projectFileTextQuery' as const,
+  op: 'projectFileText',
+  query: `query projectFileText($projectId: String!, $resourceId: String!, $sequence: Int) {
+  projectFileText(
+    projectId: $projectId
+    resourceId: $resourceId
+    sequence: $sequence
+  ) {
+    text
+    contentVersion
+    mimeType
+    byteSize
+  }
+}`,
+};
+
 export const projectImportSourcesQuery = {
   id: 'projectImportSourcesQuery' as const,
   op: 'projectImportSources',
@@ -11003,6 +11178,7 @@ export const projectImportSourcesQuery = {
       title
       kind
       permission
+      sourceKind
     }
     nextCursor
   }
@@ -11092,6 +11268,7 @@ export const projectPublicationCandidatesQuery = {
       resourceId
       title
       kind
+      targetKind
       folderId
       path {
         id
@@ -11145,6 +11322,64 @@ export const projectResourceEditLeaseQuery = {
 ${projectEditLeaseFieldsFragment}`,
 };
 
+export const projectResourceHistoryQuery = {
+  id: 'projectResourceHistoryQuery' as const,
+  op: 'projectResourceHistory',
+  query: `query projectResourceHistory($projectId: String!, $resourceId: String!, $before: Int, $limit: Int) {
+  projectResourceHistory(
+    projectId: $projectId
+    resourceId: $resourceId
+    before: $before
+    limit: $limit
+  ) {
+    id
+    sequence
+    createdAt
+    actorId
+  }
+}`,
+};
+
+export const restoreProjectResourceVersionMutation = {
+  id: 'restoreProjectResourceVersionMutation' as const,
+  op: 'restoreProjectResourceVersion',
+  query: `mutation restoreProjectResourceVersion($input: RestoreProjectResourceVersionInput!) {
+  restoreProjectResourceVersion(input: $input) {
+    id
+    contentVersion
+    version
+  }
+}`,
+};
+
+export const copyProjectResourceMutation = {
+  id: 'copyProjectResourceMutation' as const,
+  op: 'copyProjectResource',
+  query: `mutation copyProjectResource($input: CopyProjectResourceInput!) {
+  copyProjectResource(input: $input) {
+    id
+    kind
+    title
+    contentVersion
+    version
+  }
+}`,
+};
+
+export const createProjectNativeFileMutation = {
+  id: 'createProjectNativeFileMutation' as const,
+  op: 'createProjectNativeFile',
+  query: `mutation createProjectNativeFile($input: CreateProjectNativeFileInput!) {
+  createProjectNativeFile(input: $input) {
+    id
+    kind
+    title
+    contentVersion
+    version
+  }
+}`,
+};
+
 export const projectResourcePathQuery = {
   id: 'projectResourcePathQuery' as const,
   op: 'projectResourcePath',
@@ -11184,6 +11419,7 @@ export const projectResourceSourcesQuery = {
   projectResourceSources(projectId: $projectId, resourceId: $resourceId) {
     workspaceId
     sourceResourceId
+    sourceKind
     title
     workspaceName
     sourceVersion
@@ -11344,12 +11580,13 @@ ${projectChatContextFieldsFragment}`,
 export const refreshProjectResourceSourceMutation = {
   id: 'refreshProjectResourceSourceMutation' as const,
   op: 'refreshProjectResourceSource',
-  query: `mutation refreshProjectResourceSource($projectId: String!, $resourceId: String!, $workspaceId: String!, $sourceResourceId: String!, $expectedContentVersion: Int!, $expectedSourceVersion: String!, $requestKey: String!, $editLease: ProjectEditLeaseProofInput!) {
+  query: `mutation refreshProjectResourceSource($projectId: String!, $resourceId: String!, $workspaceId: String!, $sourceResourceId: String!, $sourceKind: String, $expectedContentVersion: Int!, $expectedSourceVersion: String!, $requestKey: String!, $editLease: ProjectEditLeaseProofInput!) {
   refreshProjectResourceSource(
     projectId: $projectId
     resourceId: $resourceId
     workspaceId: $workspaceId
     sourceResourceId: $sourceResourceId
+    sourceKind: $sourceKind
     expectedContentVersion: $expectedContentVersion
     expectedSourceVersion: $expectedSourceVersion
     requestKey: $requestKey
@@ -11469,6 +11706,23 @@ export const saveProjectDocumentMutation = {
   op: 'saveProjectDocument',
   query: `mutation saveProjectDocument($input: SaveProjectDocumentInput!) {
   saveProjectDocument(input: $input) {
+    id
+    projectId
+    resourceId
+    sequence
+    parentId
+    fingerprint
+    origin
+    createdAt
+  }
+}`,
+};
+
+export const saveProjectFileMutation = {
+  id: 'saveProjectFileMutation' as const,
+  op: 'saveProjectFile',
+  query: `mutation saveProjectFile($input: SaveProjectFileInput!) {
+  saveProjectFile(input: $input) {
     id
     projectId
     resourceId
@@ -12128,6 +12382,183 @@ export const workspaceInvoicesQuery = {
     }
   }
 }`,
+};
+
+export const workspaceLifecycleResourceQuery = {
+  id: 'workspaceLifecycleResourceQuery' as const,
+  op: 'workspaceLifecycleResource',
+  query: `query workspaceLifecycleResource($input: WorkspaceLifecycleIdentityInput!) {
+  workspaceLifecycleResource(input: $input) {
+    id
+    kind
+    title
+    version
+    trashed
+    trashedAt
+    children {
+      id
+      kind
+      title
+    }
+    childrenTruncated
+    originalPaths
+    canTrash
+    canRestore
+    canDeletePermanently
+  }
+}`,
+};
+
+export const workspaceTrashedFoldersQuery = {
+  id: 'workspaceTrashedFoldersQuery' as const,
+  op: 'workspaceTrashedFolders',
+  query: `query workspaceTrashedFolders($workspaceId: String!) {
+  workspaceTrashedFolders(workspaceId: $workspaceId) {
+    id
+    kind
+    title
+    version
+    trashed
+    trashedAt
+    children {
+      id
+      kind
+      title
+    }
+    childrenTruncated
+    originalPaths
+    canTrash
+    canRestore
+    canDeletePermanently
+  }
+}`,
+};
+
+export const changeWorkspaceLifecycleMutation = {
+  id: 'changeWorkspaceLifecycleMutation' as const,
+  op: 'changeWorkspaceLifecycle',
+  query: `mutation changeWorkspaceLifecycle($input: ChangeWorkspaceLifecycleInput!) {
+  changeWorkspaceLifecycle(input: $input) {
+    success
+    resourceId
+    action
+  }
+}`,
+};
+
+export const workspaceNativeFileTextQuery = {
+  id: 'workspaceNativeFileTextQuery' as const,
+  op: 'workspaceNativeFileText',
+  query: `query workspaceNativeFileText($input: WorkspaceNativeIdentityInput!, $sequence: Int) {
+  workspaceNativeFileText(input: $input, sequence: $sequence) {
+    text
+    contentVersion
+    revisionId
+    title
+    byteSize
+    mimeType
+  }
+}`,
+};
+
+export const workspaceNativeRevisionsQuery = {
+  id: 'workspaceNativeRevisionsQuery' as const,
+  op: 'workspaceNativeRevisions',
+  query: `query workspaceNativeRevisions($input: WorkspaceNativeIdentityInput!, $before: Int, $limit: Int) {
+  workspaceNativeRevisions(input: $input, before: $before, limit: $limit) {
+    id
+    sequence
+    createdAt
+    actorId
+    byteSize
+  }
+}`,
+};
+
+export const workspaceNativeResourcesQuery = {
+  id: 'workspaceNativeResourcesQuery' as const,
+  op: 'workspaceNativeResources',
+  query: `query workspaceNativeResources($workspaceId: String!, $cursor: String, $query: String, $trash: Boolean, $limit: Int) {
+  workspaceNativeResources(
+    workspaceId: $workspaceId
+    cursor: $cursor
+    query: $query
+    trash: $trash
+    limit: $limit
+  ) {
+    items {
+      ...WorkspaceNativeResourceFields
+    }
+    nextCursor
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const workspaceNativeResourceQuery = {
+  id: 'workspaceNativeResourceQuery' as const,
+  op: 'workspaceNativeResource',
+  query: `query workspaceNativeResource($input: WorkspaceNativeIdentityInput!, $trash: Boolean) {
+  workspaceNativeResource(input: $input, trash: $trash) {
+    ...WorkspaceNativeResourceFields
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const createWorkspaceNativeResourceMutation = {
+  id: 'createWorkspaceNativeResourceMutation' as const,
+  op: 'createWorkspaceNativeResource',
+  query: `mutation createWorkspaceNativeResource($input: CreateWorkspaceNativeResourceInput!) {
+  createWorkspaceNativeResource(input: $input) {
+    ...WorkspaceNativeResourceFields
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const saveWorkspaceNativeFileMutation = {
+  id: 'saveWorkspaceNativeFileMutation' as const,
+  op: 'saveWorkspaceNativeFile',
+  query: `mutation saveWorkspaceNativeFile($input: SaveWorkspaceNativeFileInput!) {
+  saveWorkspaceNativeFile(input: $input) {
+    ...WorkspaceNativeResourceFields
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const changeWorkspaceNativeResourceMutation = {
+  id: 'changeWorkspaceNativeResourceMutation' as const,
+  op: 'changeWorkspaceNativeResource',
+  query: `mutation changeWorkspaceNativeResource($input: ChangeWorkspaceNativeResourceInput!) {
+  changeWorkspaceNativeResource(input: $input) {
+    ...WorkspaceNativeResourceFields
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const restoreWorkspaceNativeVersionMutation = {
+  id: 'restoreWorkspaceNativeVersionMutation' as const,
+  op: 'restoreWorkspaceNativeVersion',
+  query: `mutation restoreWorkspaceNativeVersion($input: RestoreWorkspaceNativeVersionInput!) {
+  restoreWorkspaceNativeVersion(input: $input) {
+    ...WorkspaceNativeResourceFields
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const copyWorkspaceNativeResourceMutation = {
+  id: 'copyWorkspaceNativeResourceMutation' as const,
+  op: 'copyWorkspaceNativeResource',
+  query: `mutation copyWorkspaceNativeResource($input: CopyWorkspaceNativeResourceInput!) {
+  copyWorkspaceNativeResource(input: $input) {
+    ...WorkspaceNativeResourceFields
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
 };
 
 export const getWorkspaceRolePermissionsQuery = {

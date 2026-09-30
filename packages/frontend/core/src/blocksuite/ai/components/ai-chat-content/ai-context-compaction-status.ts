@@ -1,7 +1,6 @@
 import { getOrCreateI18n, I18n } from '@affine/i18n';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import {
-  AiIcon,
   CloseIcon,
   DoneIcon,
   ResetIcon,
@@ -20,13 +19,6 @@ export class AIContextCompactionStatus extends LitElement {
     :host {
       display: block;
       padding: 0 var(--h-padding);
-    }
-
-    .manual-row {
-      display: flex;
-      justify-content: flex-end;
-      min-height: 28px;
-      padding: 2px 0 6px;
     }
 
     .status-panel {
@@ -228,36 +220,13 @@ export class AIContextCompactionStatus extends LitElement {
     await this.runtime?.dispatch({ type } as never);
   }
 
-  private renderManualAction() {
-    const snapshot = this.snapshot;
-    if (!snapshot?.activeSessionId) return nothing;
-    const active = ACTIVE_STATUSES.has(
-      snapshot.contextCompaction.task?.status ?? ''
-    );
-    return html`
-      <div class="manual-row">
-        <button
-          type="button"
-          ?disabled=${!snapshot.uiPolicy.canRequestContextCompaction ||
-          snapshot.contextCompaction.loading ||
-          active}
-          data-testid="ai-context-compaction-request"
-          @click=${() => this.dispatch('requestContextCompaction')}
-        >
-          ${AiIcon()}
-          <span>${I18n['com.affine.localmind.compaction.request']()}</span>
-        </button>
-      </div>
-    `;
-  }
-
   override render() {
     const snapshot = this.snapshot;
     if (!snapshot?.activeSessionId) return nothing;
     const state = snapshot.contextCompaction;
     const task = state.task;
     if (!task || state.dismissedTaskId === task.id) {
-      if (!state.error) return this.renderManualAction();
+      if (!state.error) return nothing;
       return this.renderPanel({
         tone: 'error',
         icon: WarningIcon(),

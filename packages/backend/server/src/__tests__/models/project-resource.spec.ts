@@ -51,7 +51,7 @@ test.beforeEach(async t => {
   const project = await db.aiContextProject.create({
     data: {
       name: 'Native resources',
-      aiPolicy: 'read_only',
+      aiPolicy: 'read_write',
       createdByUserId: actor.id,
       members: {
         create: [
@@ -71,6 +71,134 @@ test.beforeEach(async t => {
 
 test.after.always(async t => {
   await t.context.module.close();
+});
+
+test('Project text files save the same identity, reject stale writes and retain searchable immutable revisions', async t => {
+  const { resources, models, blobs, db, outsiderId } = t.context;
+  const scope = actor(t.context);
+  for (const extension of ['txt', 'md', 'csv', 'json']) {
+    const original = extension === 'json' ? '{"first":"原文"}' : '原文';
+    const replacement =
+      extension === 'json' ? '{"new":"searchneedle"}' : 'searchneedle';
+    const blob = await blobs.put({
+      ...scope,
+      bytes: Buffer.from(original),
+      mimeType: 'text/plain',
+    });
+    const file = await resources.createFile({
+      ...scope,
+      blobKey: blob.key,
+      title: `文件.${extension}`,
+      requestKey: extension,
+    });
+    const input = {
+      ...scope,
+      resourceId: file.id,
+      expectedContentVersion: 1,
+      requestKey: 'save',
+      text: replacement,
+      editLease: await editProof(models, scope, file.id),
+    };
+    t.is((await resources.readTextFile(input)).text, original);
+    const saved = await resources.saveFile(input);
+    t.is(saved.sequence, 2);
+    t.is((await resources.saveFile(input)).id, saved.id);
+    await t.throwsAsync(resources.saveFile({ ...input, requestKey: 'stale' }), {
+      message: /content changed/,
+    });
+    await t.throwsAsync(resources.saveFile({ ...input, text: 'different' }), {
+      message: /reused/,
+    });
+    await t.throwsAsync(
+      resources.saveFile({
+        ...input,
+        actorId: outsiderId,
+        expectedContentVersion: 2,
+        requestKey: 'outsider',
+      })
+    );
+    t.is(
+      (await resources.readTextFile({ ...input, sequence: 1 })).text,
+      original
+    );
+    t.is((await resources.readTextFile(input)).text, replacement);
+    t.true(
+      (
+        await models.projectResource.search({ ...scope, query: 'searchneedle' })
+      ).items.some(item => item.id === file.id)
+    );
+    t.is(
+      await db.projectResourceRevision.count({
+        where: { resourceId: file.id },
+      }),
+      2
+    );
+  }
+});
+
+test('Project file editing rejects binary, invalid UTF-8, oversized text, invalid JSON and lost leases', async t => {
+  const { resources, models, blobs } = t.context;
+  const scope = actor(t.context);
+  for (const [title, bytes] of [
+    ['binary.bin', Buffer.from([0, 1, 2])],
+    ['invalid.txt', Buffer.from([255])],
+    ['large.md', Buffer.alloc(1024 * 1024 + 1, 65)],
+  ] as const) {
+    const blob = await blobs.put({
+      ...scope,
+      bytes,
+      mimeType: 'application/octet-stream',
+    });
+    const file = await resources.createFile({
+      ...scope,
+      blobKey: blob.key,
+      title,
+      requestKey: title,
+    });
+    await t.throwsAsync(
+      resources.readTextFile({ ...scope, resourceId: file.id })
+    );
+    await t.throwsAsync(
+      resources.saveFile({
+        ...scope,
+        resourceId: file.id,
+        expectedContentVersion: 1,
+        requestKey: 'text',
+        text: 'unsafe',
+        editLease: await editProof(models, scope, file.id),
+      })
+    );
+    t.deepEqual(
+      (await resources.readFile({ ...scope, resourceId: file.id })).bytes,
+      bytes
+    );
+  }
+  const blob = await blobs.put({
+    ...scope,
+    bytes: Buffer.from('{}'),
+    mimeType: 'application/json',
+  });
+  const file = await resources.createFile({
+    ...scope,
+    blobKey: blob.key,
+    title: 'data.json',
+    requestKey: 'json',
+  });
+  const input = {
+    ...scope,
+    resourceId: file.id,
+    expectedContentVersion: 1,
+    requestKey: 'bad',
+    text: 'invalid',
+  };
+  await t.throwsAsync(resources.saveFile(input));
+  await t.throwsAsync(
+    resources.saveFile({
+      ...input,
+      editLease: await editProof(models, scope, file.id),
+    }),
+    { message: /valid JSON/ }
+  );
 });
 
 function actor(context: { projectId: string; actorId: string }) {
@@ -833,4 +961,95 @@ test('64-level paths are readable and deeper creation or subtree moves are rejec
       requestKey: 'depth-65',
     })
   );
+});
+
+test('Project document and file history restores append versions and copies preserve independent identities', async t => {
+  const { resources, models, blobs, db } = t.context;
+  const scope = actor(t.context);
+  for (const kind of ['page', 'edgeless', 'file'] as const) {
+    const resource =
+      kind === 'file'
+        ? await resources.createFile({
+            ...scope,
+            title: 'history.txt',
+            blobKey: (
+              await blobs.put({
+                ...scope,
+                bytes: Buffer.from('original'),
+                mimeType: 'text/plain',
+              })
+            ).key,
+            requestKey: `create-${kind}`,
+          })
+        : await resources.createDocument({
+            ...scope,
+            title: 'Original title',
+            kind,
+            markdown: 'original',
+            requestKey: `create-${kind}`,
+          });
+    const input = {
+      ...scope,
+      resourceId: resource.id,
+      expectedContentVersion: 1,
+      requestKey: 'edit',
+      editLease: await editProof(models, scope, resource.id),
+    };
+    if (kind === 'file')
+      await resources.saveFile({ ...input, text: 'changed' });
+    else
+      await resources.updateMarkdown({
+        ...input,
+        markdown: 'changed',
+        origin: 'user',
+      });
+    const restore = {
+      ...input,
+      expectedContentVersion: 2,
+      sequence: 1,
+      requestKey: 'restore',
+    };
+    t.is((await resources.restoreVersion(restore)).sequence, 3);
+    t.is((await resources.restoreVersion(restore)).sequence, 3);
+    t.deepEqual(
+      (await resources.history(input)).map(r => r.sequence),
+      [3, 2, 1]
+    );
+    const copyInput = {
+      ...scope,
+      resourceId: resource.id,
+      title: kind === 'file' ? 'copy.txt' : 'Copied title',
+      expectedContentVersion: 3,
+      requestKey: `copy-${kind}`,
+    };
+    const copied = await resources.copy(copyInput);
+    t.not(copied.id, resource.id);
+    t.is((await resources.copy(copyInput)).id, copied.id);
+    t.is(copied.kind, kind);
+    t.is(copied.title, copyInput.title);
+    if (kind === 'file')
+      t.is(
+        (await resources.readTextFile({ ...scope, resourceId: copied.id }))
+          .text,
+        'original'
+      );
+    else
+      t.is(
+        parseYDocFromBinary(
+          (await resources.readDocument({ ...scope, resourceId: copied.id }))
+            .bytes,
+          copied.id
+        ).title,
+        copyInput.title
+      );
+    await t.throwsAsync(
+      resources.restoreVersion({ ...restore, requestKey: 'stale' })
+    );
+    t.is(
+      await db.projectResourceRevision.count({
+        where: { resourceId: resource.id },
+      }),
+      3
+    );
+  }
 });

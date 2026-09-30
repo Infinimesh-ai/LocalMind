@@ -11,6 +11,7 @@ import type { Framework } from '@toeverything/infra';
 import { WorkspaceDBService } from '../db/services/db';
 import { WorkspaceScope } from '../workspace/scopes/workspace';
 import { WorkspaceService } from '../workspace/services/workspace';
+import { WorkspaceLifecycleService } from '../workspace-resources/lifecycle';
 import { Doc } from './entities/doc';
 import { DocRecord } from './entities/record';
 import { DocRecordList } from './entities/record-list';
@@ -33,7 +34,11 @@ export function configureDocModule(framework: Framework) {
     ])
     .store(DocPropertiesStore, [WorkspaceService, WorkspaceDBService])
     .store(DocsStore, [WorkspaceService, DocPropertiesStore])
-    .entity(DocRecord, [DocsStore, DocPropertiesStore])
+    .entity(DocRecord, [
+      DocsStore,
+      DocPropertiesStore,
+      WorkspaceLifecycleService,
+    ])
     .entity(DocRecordList, [DocsStore])
     .scope(DocScope)
     .entity(Doc, [DocScope, DocsStore, WorkspaceService])

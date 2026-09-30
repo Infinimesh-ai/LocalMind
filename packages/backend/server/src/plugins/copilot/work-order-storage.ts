@@ -140,6 +140,70 @@ export class WorkOrderStorage {
     return { blob, bytes };
   }
 
+  async deliveryPreview(workOrderId: string, actorId: string) {
+    const draft = await this.models.copilotWorkOrder.getDeliveryDraft(
+      workOrderId,
+      actorId
+    );
+    if (!draft.ready) return draft;
+    const unavailable = new Set<string>();
+    for (const item of draft.items) {
+      for (const blobId of item.blobIds) {
+        try {
+          await this.read({ workOrderId, blobId, actorId });
+        } catch {
+          unavailable.add(item.requirementId);
+        }
+      }
+    }
+    if (!unavailable.size) return draft;
+    return {
+      ...draft,
+      ready: false,
+      confirmationToken: null,
+      checks: draft.checks.map(check =>
+        unavailable.has(check.requirementId)
+          ? {
+              ...check,
+              ready: false,
+              reason: 'A selected file cannot be read or verified',
+            }
+          : check
+      ),
+    };
+  }
+
+  async confirmDeliveryDraft(input: {
+    workOrderId: string;
+    actorId: string;
+    expectedWorkOrderVersion: number;
+    expectedDraftVersion: number;
+    confirmationToken: string;
+    requestKey: string;
+  }) {
+    const preview = await this.models.copilotWorkOrder.getDeliveryDraft(
+      input.workOrderId,
+      input.actorId
+    );
+    if (
+      preview.ready &&
+      preview.confirmationToken === input.confirmationToken &&
+      preview.version === input.expectedDraftVersion &&
+      preview.orderVersion === input.expectedWorkOrderVersion
+    ) {
+      for (const item of preview.items) {
+        for (const blobId of item.blobIds) {
+          await this.read({
+            workOrderId: input.workOrderId,
+            blobId,
+            actorId: input.actorId,
+          });
+        }
+      }
+    }
+    return this.models.copilotWorkOrder.confirmDeliveryDraft(input);
+  }
+
   async materializeAdoptedContext(input: {
     actorId: string;
     sourceSessionId: string;

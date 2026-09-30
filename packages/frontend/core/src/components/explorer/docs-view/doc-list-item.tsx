@@ -27,7 +27,7 @@ import {
 } from 'react';
 
 import { PagePreview } from '../../page-list/page-content-preview';
-import { DocExplorerContext } from '../context';
+import { DocExplorerContext, type DocExplorerContextType } from '../context';
 import { quickActions } from '../quick-actions.constants';
 import * as styles from './doc-list-item.css';
 import { MoreMenuButton, MoreMenuContent } from './more-menu';
@@ -66,86 +66,53 @@ class MixId {
     return { groupId, docId };
   }
 }
+function selectDoc(
+  context: DocExplorerContextType,
+  docId: string,
+  groupId: string,
+  shiftKey: boolean
+) {
+  const cursor = MixId.create(groupId, docId);
+  const anchor = context.prevCheckAnchorId$?.value;
+  const selected = new Set(context.selectedDocIds$.value);
+  const list = context.groups$.value.flatMap(group =>
+    group.items.map(id => MixId.create(group.key, id))
+  );
+  const from = anchor ? list.indexOf(anchor) : -1;
+  const to = list.indexOf(cursor);
+  if (shiftKey && from >= 0 && to >= 0) {
+    const handled = new Set<string>();
+    for (const item of list.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+      const { docId: id } = MixId.parse(item);
+      if (!id || item === anchor || handled.has(id)) continue;
+      if (selected.has(id)) selected.delete(id);
+      else selected.add(id);
+      handled.add(id);
+    }
+  } else if (selected.has(docId)) selected.delete(docId);
+  else selected.add(docId);
+  context.selectMode$?.next(true);
+  context.selectedDocIds$.next([...selected]);
+  context.prevCheckAnchorId$?.next(cursor);
+}
+
 export const DocListItem = ({ ...props }: DocListItemProps) => {
   const contextValue = useContext(DocExplorerContext);
   const view = useLiveData(contextValue.view$) ?? 'list';
-  const groups = useLiveData(contextValue.groups$);
   const selectMode = useLiveData(contextValue.selectMode$);
   const selectedDocIds = useLiveData(contextValue.selectedDocIds$);
-  const prevCheckAnchorId = useLiveData(contextValue.prevCheckAnchorId$);
-
-  const handleMultiSelect = useCallback(
-    (prevCursor: string, currCursor: string) => {
-      const flattenList = groups.flatMap(group =>
-        group.items.map(docId => MixId.create(group.key, docId))
-      );
-
-      const prev = contextValue.selectedDocIds$?.value ?? [];
-      const prevIndex = flattenList.indexOf(prevCursor);
-      const currIndex = flattenList.indexOf(currCursor);
-
-      const lowerIndex = Math.min(prevIndex, currIndex);
-      const upperIndex = Math.max(prevIndex, currIndex);
-
-      const resSet = new Set(prev);
-      const handledSet = new Set<string>();
-      for (let i = lowerIndex; i <= upperIndex; i++) {
-        const mixId = flattenList[i];
-        const { groupId, docId } = MixId.parse(mixId);
-        if (groupId === null || docId === null) {
-          continue;
-        }
-        if (handledSet.has(docId) || mixId === prevCursor) {
-          continue;
-        }
-        if (resSet.has(docId)) {
-          resSet.delete(docId);
-        } else {
-          resSet.add(docId);
-        }
-        handledSet.add(docId);
-      }
-
-      contextValue.selectedDocIds$?.next(Array.from(resSet));
-      contextValue.prevCheckAnchorId$?.next(currCursor);
-    },
-    [contextValue, groups]
-  );
 
   const handleClick = useCallback(
     (e: React.MouseEvent<Element>) => {
       const { docId, groupId } = props;
-      const currCursor = MixId.create(groupId, docId);
       if (selectMode || e.shiftKey) {
         e.preventDefault();
-      }
-
-      if (selectMode) {
-        if (e.shiftKey && prevCheckAnchorId) {
-          // do multi select
-          handleMultiSelect(prevCheckAnchorId, currCursor);
-        } else {
-          contextValue.selectedDocIds$?.next(
-            contextValue.selectedDocIds$.value.includes(docId)
-              ? contextValue.selectedDocIds$.value.filter(id => id !== docId)
-              : [...contextValue.selectedDocIds$.value, docId]
-          );
-          contextValue.prevCheckAnchorId$?.next(currCursor);
-        }
+        selectDoc(contextValue, docId, groupId, e.shiftKey);
       } else {
-        if (e.shiftKey) {
-          contextValue.selectMode$?.next(true);
-          contextValue.selectedDocIds$?.next([docId]);
-          contextValue.prevCheckAnchorId$?.next(currCursor);
-          return;
-        } else {
-          // as link
-          track.allDocs.list.doc.openDoc();
-          return;
-        }
+        track.allDocs.list.doc.openDoc();
       }
     },
-    [contextValue, handleMultiSelect, prevCheckAnchorId, props, selectMode]
+    [contextValue, props, selectMode]
   );
 
   const { dragRef, CustomDragPreview } = useDraggable<AffineDNDData>(
@@ -234,15 +201,12 @@ const DragHandle = memo(function DragHandle({
 });
 const Select = memo(function Select({
   id,
+  groupId,
   ...props
-}: HTMLProps<HTMLDivElement>) {
+}: HTMLProps<HTMLDivElement> & { groupId: string }) {
   const contextValue = useContext(DocExplorerContext);
   const selectMode = useLiveData(contextValue.selectMode$);
   const selectedDocIds = useLiveData(contextValue.selectedDocIds$);
-
-  const handleSelectChange = useCallback(() => {
-    id && contextValue.selectedDocIds$?.next([id]);
-  }, [id, contextValue]);
 
   if (!id) {
     return null;
@@ -256,7 +220,13 @@ const Select = memo(function Select({
     >
       <Checkbox
         checked={selectedDocIds.includes(id)}
-        onChange={handleSelectChange}
+        onClick={event => {
+          event.stopPropagation();
+          // Keep the native input toggle; icon clicks must not follow the row link.
+          if (!(event.target instanceof HTMLInputElement))
+            event.preventDefault();
+          selectDoc(contextValue, id, groupId, event.shiftKey);
+        }}
       />
     </div>
   );
@@ -311,7 +281,7 @@ const listMoreMenuContentOptions = {
   sideOffset: 12,
   alignOffset: -4,
 } as const;
-export const ListViewDoc = ({ docId }: DocListItemProps) => {
+export const ListViewDoc = ({ docId, groupId }: DocListItemProps) => {
   const t = useI18n();
   const docsService = useService(DocsService);
   const doc = useLiveData(docsService.list.doc$(docId));
@@ -330,7 +300,7 @@ export const ListViewDoc = ({ docId }: DocListItemProps) => {
     >
       <li className={styles.listViewRoot}>
         <DragHandle id={docId} className={styles.listDragHandle} />
-        <Select id={docId} className={styles.listSelect} />
+        <Select id={docId} groupId={groupId} className={styles.listSelect} />
         <DocIcon id={docId} className={styles.listIcon} />
         <div className={styles.listBrief}>
           <DocTitle
@@ -365,7 +335,7 @@ const cardMoreMenuContentOptions = {
   alignOffset: -4,
 } as const;
 
-export const CardViewDoc = ({ docId }: DocListItemProps) => {
+export const CardViewDoc = ({ docId, groupId }: DocListItemProps) => {
   const t = useI18n();
   const contextValue = useContext(DocExplorerContext);
   const selectMode = useLiveData(contextValue.selectMode$);
@@ -400,7 +370,11 @@ export const CardViewDoc = ({ docId }: DocListItemProps) => {
             );
           })}
           {selectMode ? (
-            <Select id={docId} className={styles.cardViewCheckbox} />
+            <Select
+              id={docId}
+              groupId={groupId}
+              className={styles.cardViewCheckbox}
+            />
           ) : (
             <MoreMenuButton
               docId={docId}

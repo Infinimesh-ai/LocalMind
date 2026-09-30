@@ -348,7 +348,8 @@ export const buildDocUpdateHandler = (
   return async (
     options: CopilotChatOptions,
     docId: string,
-    content: string
+    content: string,
+    expectedVersion: string
   ) => {
     const notFound = toolError(
       'Doc Update Failed',
@@ -394,15 +395,21 @@ export const buildDocUpdateHandler = (
           },
         },
         () =>
-          writer.updateDoc(workspaceId, docId, content, options.user, () =>
-            assertWorkspaceDocumentWrite(
-              ac,
-              models,
-              actorId,
-              workspaceId,
-              docId,
-              options.session
-            )
+          writer.updateDocAtVersion(
+            workspaceId,
+            docId,
+            content,
+            expectedVersion,
+            actorId,
+            () =>
+              assertWorkspaceDocumentWrite(
+                ac,
+                models,
+                actorId,
+                workspaceId,
+                docId,
+                options.session
+              )
           )
       )
     );
@@ -412,6 +419,7 @@ export const buildDocUpdateHandler = (
       docId,
       changed: result.changed !== false,
       idempotentReplay: result.changed === false,
+      version: result.version,
       message: 'Document updated successfully',
     };
   };
@@ -522,22 +530,30 @@ export const createDocCreateTool = (
 };
 
 export const createDocUpdateTool = (
-  updateDoc: (docId: string, content: string) => Promise<object>
+  updateDoc: (
+    docId: string,
+    content: string,
+    expectedVersion: string
+  ) => Promise<object>
 ) => {
   return defineTool({
     description:
-      'Update an existing document with new markdown content (body only). Uses structural diffing to apply minimal changes. This does NOT update the document title. This tool not support insert or update database block and image yet.',
+      'Update an existing document body using the version returned by workspace_doc_read. On version_conflict, read again and merge changes; never create a same-name replacement. Uses structural diffing, does not update the title, and does not support database blocks or images.',
     inputSchema: z.object({
       doc_id: z.string().describe('The ID of the document to update'),
+      expected_version: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .describe('The version from the complete workspace_doc_read result'),
       content: z
         .string()
         .describe(
           'The complete new markdown content for the document body (do NOT include a title H1)'
         ),
     }),
-    execute: async ({ doc_id, content }) => {
+    execute: async ({ doc_id, content, expected_version }) => {
       try {
-        return await updateDoc(doc_id, content);
+        return await updateDoc(doc_id, content, expected_version);
       } catch (err: any) {
         logger.error(`Failed to update document: ${doc_id}`, err);
         return toolError('Doc Update Failed', err.message);

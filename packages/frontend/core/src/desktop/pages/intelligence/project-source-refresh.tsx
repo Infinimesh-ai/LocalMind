@@ -71,6 +71,7 @@ export function ProjectSourceRefresh({
               resourceId,
               workspaceId: source.workspaceId,
               sourceResourceId: source.sourceResourceId,
+              sourceKind: source.sourceKind,
               expectedContentVersion: source.projectVersion,
               expectedSourceVersion: source.sourceVersion,
               requestKey: selection.requestKey,
@@ -127,7 +128,7 @@ export function ProjectSourceRefresh({
             {!query.error &&
               query.data?.projectResourceSources.map(source => (
                 <label
-                  key={`${source.workspaceId}:${source.sourceResourceId}`}
+                  key={`${source.workspaceId}:${source.sourceResourceId}:${source.sourceKind}`}
                   className={styles.choice}
                 >
                   <input
