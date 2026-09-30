@@ -28,7 +28,8 @@ export const debugHandlers = {
 
 export const i18nHandlers = {
   changeLanguage: async (_: Electron.IpcMainInvokeEvent, language: string) => {
-    return I18n.changeLanguage(language);
+    // i18next resolves to a translation function, which IPC cannot clone.
+    await I18n.changeLanguage(language);
   },
 };
 
