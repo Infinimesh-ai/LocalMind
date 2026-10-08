@@ -551,6 +551,11 @@ function validateTableRecord(
       string('data');
       string('index');
       if (
+        record.defaultSortMode !== undefined &&
+        record.defaultSortMode !== 'name-desc'
+      )
+        throw new Error('Unsupported default folder sort mode.');
+      if (
         record.type !== undefined &&
         !['folder', 'doc', 'tag', 'collection', 'file', 'office'].includes(
           String(record.type)
@@ -1628,6 +1633,131 @@ export class WorkspaceOrganizationService {
       this.reader.getDoc.bind(this.reader)
     )(workspaceId, resolveWorkspaceDataDocId('folders', workspaceId, userId));
     return directorySnapshotRevision(record?.bin);
+  }
+
+  async reorderFolder(input: {
+    workspaceId: string;
+    actorId: string;
+    folderId: string;
+    expectedRevision: string;
+    expectedOrder: string[];
+    nodeIds: string[];
+    authorizeDocument: (docId: string) => Promise<void>;
+  }) {
+    const selected = new Set(input.nodeIds);
+    if (
+      !input.nodeIds.length ||
+      input.nodeIds.length > 10_000 ||
+      selected.size !== input.nodeIds.length ||
+      input.expectedOrder.length !== input.nodeIds.length ||
+      new Set(input.expectedOrder).size !== input.expectedOrder.length ||
+      input.expectedOrder.some(id => !selected.has(id)) ||
+      Buffer.byteLength(JSON.stringify([input.nodeIds, input.expectedOrder])) >
+        MAX_INPUT_BYTES
+    )
+      throw new BadRequest('Invalid folder order');
+    return this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      async () => {
+        const directory = await this.assertResourceFolder(
+          input.workspaceId,
+          input.actorId,
+          input.folderId,
+          true
+        );
+        if (directory.revision !== input.expectedRevision)
+          throw new ResourceError('version_conflict');
+        const allowed = new Map(
+          directory.entries.map(entry => [String(entry.row.id), entry])
+        );
+        for (const id of selected) {
+          const entry = allowed.get(id);
+          if (!entry || entry.row.parentId !== input.folderId)
+            throw new ResourceError('resource_not_found');
+          if (!entry.rights.canWrite || !entry.rights.canOrganize)
+            throw new ResourceError('permission_denied');
+          if (entry.row.type === 'doc')
+            await input.authorizeDocument(String(entry.row.data));
+        }
+        const docId = resolveWorkspaceDataDocId(
+          'folders',
+          input.workspaceId,
+          input.actorId
+        );
+        const loaded = await this.load(input.workspaceId, docId, true);
+        try {
+          if (loaded.sourceRevision !== input.expectedRevision)
+            throw new ResourceError('version_conflict');
+          const rows = tableRecords(loaded.doc);
+          const siblings = rows
+            .filter(row => row.parentId === input.folderId)
+            .sort((a, b) => {
+              const ai = String(a.index),
+                bi = String(b.index);
+              const aid = String(a.id),
+                bid = String(b.id);
+              return ai < bi
+                ? -1
+                : ai > bi
+                  ? 1
+                  : aid < bid
+                    ? -1
+                    : aid > bid
+                      ? 1
+                      : 0;
+            });
+          const previous = siblings
+            .filter(row => selected.has(String(row.id)))
+            .map(row => String(row.id));
+          if (JSON.stringify(previous) !== JSON.stringify(input.expectedOrder))
+            throw new ResourceError('version_conflict');
+          // Visible nodes occupy the same slots. Hidden nodes are never rewritten.
+          let offset = 0;
+          const indices = new Map<string, string>();
+          for (let slot = 0; slot < siblings.length; ) {
+            if (!selected.has(String(siblings[slot].id))) {
+              slot++;
+              continue;
+            }
+            let end = slot;
+            while (
+              end < siblings.length &&
+              selected.has(String(siblings[end].id))
+            )
+              end++;
+            let before = slot ? String(siblings[slot - 1].index) : null;
+            const after =
+              end < siblings.length ? String(siblings[end].index) : null;
+            if (before !== null && after !== null && before >= after)
+              throw new ResourceError('version_conflict');
+            for (; slot < end; slot++) {
+              before = generateKeyBetween(before, after);
+              indices.set(input.nodeIds[offset++], before);
+            }
+          }
+          loaded.doc.transact(() => {
+            for (const [id, index] of indices)
+              loaded.doc.getMap(id).set('index', index);
+          });
+          await this.assertFolderMutation(
+            input.workspaceId,
+            input.actorId,
+            rows,
+            tableRecords(loaded.doc),
+            selected
+          );
+          await this.save(input.workspaceId, docId, input.actorId, loaded);
+          return {
+            revision: await this.directoryRevision(
+              input.workspaceId,
+              input.actorId
+            ),
+          };
+        } finally {
+          loaded.doc.destroy();
+        }
+      }
+    );
   }
 
   async applyConditionalFolderOperations(input: {
@@ -2792,6 +2922,12 @@ export class WorkspaceOrganizationService {
             );
           }
           validateTableRecord(table, operation.key, operation.values);
+          if (
+            table === 'folders' &&
+            !existed &&
+            operation.values.type === 'folder'
+          )
+            record.set('defaultSortMode', 'name-desc');
           record.set(descriptor.keyField, operation.key);
           for (const [key, value] of Object.entries(operation.values)) {
             record.set(key, value);

@@ -24,6 +24,11 @@ export type AffineDNDEntity =
 
 export interface AffineDNDData extends DNDData {
   draggable: {
+    nativeResource?: {
+      workspaceId: string;
+      resourceId: string;
+      kind: 'file' | 'office';
+    };
     entity?: AffineDNDEntity;
     from?:
       | {

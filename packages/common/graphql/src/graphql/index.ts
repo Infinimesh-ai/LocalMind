@@ -12179,6 +12179,7 @@ export const workspaceDirectoryQuery = {
       type
       data
       index
+      defaultSortMode
       rights {
         canRead
         canWrite
@@ -12198,6 +12199,22 @@ export const mutateWorkspaceDirectoryMutation = {
     workspaceId: $workspaceId
     expectedRevision: $expectedRevision
     changes: $changes
+  ) {
+    revision
+  }
+}`,
+};
+
+export const reorderWorkspaceDirectoryMutation = {
+  id: 'reorderWorkspaceDirectoryMutation' as const,
+  op: 'reorderWorkspaceDirectory',
+  query: `mutation reorderWorkspaceDirectory($workspaceId: ID!, $folderId: ID!, $expectedRevision: String!, $expectedOrder: [ID!]!, $nodeIds: [ID!]!) {
+  reorderWorkspaceDirectory(
+    workspaceId: $workspaceId
+    folderId: $folderId
+    expectedRevision: $expectedRevision
+    expectedOrder: $expectedOrder
+    nodeIds: $nodeIds
   ) {
     revision
   }

@@ -5768,6 +5768,7 @@ type Mutation {
   renameConversation(expectedRevision: Int!, sessionId: ID!, title: String!): ConversationCardType!
   renewProjectResourceEditLease(input: ProjectEditLeaseChangeInput!): ProjectEditLeaseResultType!
   reorderWorkspaceByokConfigs(input: ReorderWorkspaceByokConfigsInput!): [WorkspaceByokKeyConfigType!]!
+  reorderWorkspaceDirectory(expectedOrder: [ID!]!, expectedRevision: String!, folderId: ID!, nodeIds: [ID!]!, workspaceId: ID!): WorkspaceDirectoryMutationType!
 
   """
   Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence.
@@ -8044,6 +8045,7 @@ input WorkspaceDirectoryChangeInput {
 
 type WorkspaceDirectoryEntryType {
   data: String!
+  defaultSortMode: String
   id: ID!
   index: String!
   parentId: ID
@@ -8116,6 +8118,7 @@ type WorkspaceDirectoryRightsType {
 
 input WorkspaceDirectoryValuesInput {
   data: String!
+  defaultSortMode: String
   index: String!
   parentId: ID
   type: String!

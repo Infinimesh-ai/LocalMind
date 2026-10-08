@@ -9,7 +9,7 @@ export const DropEffect = ({
   dropEffect,
   position,
 }: {
-  dropEffect?: 'copy' | 'move' | 'link' | undefined;
+  dropEffect?: 'copy' | 'move' | 'link' | 'manual' | undefined;
   position: ReturnType<typeof useDropTarget>['draggedOverPosition'];
 }) => {
   const t = useI18n();
@@ -23,16 +23,18 @@ export const DropEffect = ({
     >
       {dropEffect === 'copy' ? (
         <CopyIcon className={styles.icon} />
-      ) : dropEffect === 'move' ? (
+      ) : dropEffect === 'move' || dropEffect === 'manual' ? (
         <MoveToIcon className={styles.icon} />
       ) : (
         <LinkIcon className={styles.icon} />
       )}
-      {dropEffect === 'copy'
-        ? t['com.affine.rootAppSidebar.explorer.drop-effect.copy']()
-        : dropEffect === 'move'
-          ? t['com.affine.rootAppSidebar.explorer.drop-effect.move']()
-          : t['com.affine.rootAppSidebar.explorer.drop-effect.link']()}
+      {dropEffect === 'manual'
+        ? t['com.affine.rootAppSidebar.organize.folder.sort.drag-hint']()
+        : dropEffect === 'copy'
+          ? t['com.affine.rootAppSidebar.explorer.drop-effect.copy']()
+          : dropEffect === 'move'
+            ? t['com.affine.rootAppSidebar.explorer.drop-effect.move']()
+            : t['com.affine.rootAppSidebar.explorer.drop-effect.link']()}
     </div>,
     document.body
   );

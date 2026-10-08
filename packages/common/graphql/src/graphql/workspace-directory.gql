@@ -16,6 +16,7 @@ query workspaceDirectory($workspaceId: ID!, $after: String) {
       type
       data
       index
+      defaultSortMode
       rights {
         canRead
         canWrite
@@ -32,6 +33,18 @@ mutation mutateWorkspaceDirectory(
   $changes: [WorkspaceDirectoryChangeInput!]!
 ) {
   mutateWorkspaceDirectory(workspaceId: $workspaceId, expectedRevision: $expectedRevision, changes: $changes) {
+    revision
+  }
+}
+
+mutation reorderWorkspaceDirectory(
+  $workspaceId: ID!
+  $folderId: ID!
+  $expectedRevision: String!
+  $expectedOrder: [ID!]!
+  $nodeIds: [ID!]!
+) {
+  reorderWorkspaceDirectory(workspaceId: $workspaceId, folderId: $folderId, expectedRevision: $expectedRevision, expectedOrder: $expectedOrder, nodeIds: $nodeIds) {
     revision
   }
 }

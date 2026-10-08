@@ -1,6 +1,7 @@
 import {
   AnimatedCollectionsIcon,
   AnimatedFolderIcon,
+  Checkbox,
   type DropTargetDropEvent,
   type DropTargetOptions,
   MenuItem,
@@ -22,7 +23,10 @@ import {
   OrganizeService,
 } from '@affine/core/modules/organize';
 import { WorkspaceService } from '@affine/core/modules/workspace';
-import { WorkspaceLifecycleService } from '@affine/core/modules/workspace-resources';
+import {
+  WorkspaceLifecycleService,
+  WorkspaceResourcesService,
+} from '@affine/core/modules/workspace-resources';
 import { useWorkspaceResources } from '@affine/core/modules/workspace-resources/use-resources';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { Unreachable } from '@affine/env/constant';
@@ -107,12 +111,23 @@ export const NavigationPanelFolderNode = ({
     data &&
     catalog.items.some(item => item.id === data && item.kind === 'office')
   ) {
-    return <NavigationPanelNativeFileNode resourceId={data} kind="office" />;
+    return (
+      <NavigationPanelNativeFileNode
+        resourceId={data}
+        kind="office"
+        location={location}
+        onDrop={handleDrop}
+        canDrop={canDrop}
+        dropEffect={dropEffect}
+        reorderable={reorderable}
+      />
+    );
   }
   if (type === 'folder') {
     return (
       <NavigationPanelFolderNodeFolder
         node={node}
+        location={location}
         onDrop={handleDrop}
         defaultRenaming={defaultRenaming}
         operations={additionalOperations}
@@ -143,6 +158,11 @@ export const NavigationPanelFolderNode = ({
       <NavigationPanelNativeFileNode
         resourceId={data}
         kind={type === 'file' ? 'file' : 'office'}
+        location={location}
+        onDrop={handleDrop}
+        canDrop={canDrop}
+        dropEffect={dropEffect}
+        reorderable={reorderable}
       />
     ) : null;
   } else if (type === 'collection') {
@@ -168,7 +188,7 @@ export const NavigationPanelFolderNode = ({
           location={location}
           onDrop={handleDrop}
           canDrop={canDrop}
-          reorderable
+          reorderable={reorderable}
           dropEffect={dropEffect}
           operations={additionalOperations}
           parentPath={parentPath}
@@ -220,10 +240,14 @@ const NavigationPanelFolderNodeFolder = ({
   const navigationPanelService = useService(NavigationPanelService);
   const name = useLiveData(node.name$);
   const lifecycle = useService(WorkspaceLifecycleService);
+  const resources = useService(WorkspaceResourcesService);
+  const sortMode = useLiveData(node.sortMode$);
+  const sortReady = useLiveData(node.sortReady$);
+  const sorting = useLiveData(node.sorting$);
   const { openConfirmModal } = useConfirmModal();
   const tree = useService(OrganizeService).folderTree;
   const canDelete = useLiveData(node.canDelete$);
-  const canMutate = useLiveData(node.canMutate$);
+  const canMutate = useLiveData(node.canMutate$) && !sorting;
   const enableEmojiIcon = useLiveData(
     featureFlagService.flags.enable_emoji_folder_icon.$
   );
@@ -286,7 +310,7 @@ const NavigationPanelFolderNodeFolder = ({
     }
   }, [name, node, t, lifecycle, openConfirmModal, tree]);
 
-  const children = useLiveData(node.sortedChildren$);
+  const children = useLiveData(node.displayChildren$);
 
   const dndData = useMemo(() => {
     if (!node.id) {
@@ -323,6 +347,14 @@ const NavigationPanelFolderNodeFolder = ({
   const handleDropOnFolder = useCallback(
     async (data: DropTargetDropEvent<AffineDNDData>) => {
       try {
+        if (
+          data.source.data.nativeResource &&
+          (!data.treeInstruction || data.treeInstruction.type === 'make-child')
+        ) {
+          await resources.move(data.source.data.nativeResource, node.id);
+          await tree.refresh();
+          return;
+        }
         if (data.source.data.entity?.type) {
           track.$.navigationPanel.folders.drop({
             type: data.source.data.entity.type,
@@ -338,7 +370,7 @@ const NavigationPanelFolderNodeFolder = ({
             }
             await node.moveHere(
               data.source.data.entity.id,
-              node.indexAt('before')
+              node.indexAt('after')
             );
             track.$.navigationPanel.organize.moveOrganizeItem({
               type: 'folder',
@@ -354,7 +386,7 @@ const NavigationPanelFolderNodeFolder = ({
             ) {
               await node.moveHere(
                 data.source.data.from.nodeId,
-                node.indexAt('before')
+                node.indexAt('after')
               );
               track.$.navigationPanel.organize.moveOrganizeItem({
                 type: 'link',
@@ -364,7 +396,7 @@ const NavigationPanelFolderNodeFolder = ({
               await node.createLink(
                 data.source.data.entity?.type,
                 data.source.data.entity.id,
-                node.indexAt('before')
+                node.indexAt('after')
               );
               track.$.navigationPanel.organize.createOrganizeItem({
                 type: 'link',
@@ -382,7 +414,7 @@ const NavigationPanelFolderNodeFolder = ({
         return undefined;
       }
     },
-    [node, onDrop]
+    [node, onDrop, resources, tree]
   );
 
   const handleDropEffect = useCallback<NavigationPanelTreeNodeDropEffect>(
@@ -418,6 +450,14 @@ const NavigationPanelFolderNodeFolder = ({
   const handleDropOnPlaceholder = useCallback(
     async (data: DropTargetDropEvent<AffineDNDData>) => {
       try {
+        if (
+          data.source.data.nativeResource &&
+          (!data.treeInstruction || data.treeInstruction.type === 'make-child')
+        ) {
+          await resources.move(data.source.data.nativeResource, node.id);
+          await tree.refresh();
+          return;
+        }
         if (data.source.data.entity?.type) {
           track.$.navigationPanel.folders.drop({
             type: data.source.data.entity.type,
@@ -432,7 +472,7 @@ const NavigationPanelFolderNodeFolder = ({
           }
           await node.moveHere(
             data.source.data.entity.id,
-            node.indexAt('before')
+            node.indexAt('after')
           );
           track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
         } else if (
@@ -446,7 +486,7 @@ const NavigationPanelFolderNodeFolder = ({
           ) {
             await node.moveHere(
               data.source.data.from.nodeId,
-              node.indexAt('before')
+              node.indexAt('after')
             );
             track.$.navigationPanel.organize.moveOrganizeItem({
               type: data.source.data.entity?.type,
@@ -455,7 +495,7 @@ const NavigationPanelFolderNodeFolder = ({
             await node.createLink(
               data.source.data.entity?.type,
               data.source.data.entity.id,
-              node.indexAt('before')
+              node.indexAt('after')
             );
             track.$.navigationPanel.organize.createOrganizeItem({
               type: 'link',
@@ -470,7 +510,7 @@ const NavigationPanelFolderNodeFolder = ({
         return undefined;
       }
     },
-    [node]
+    [node, resources, tree]
   );
 
   const handleDropOnChildren = useCallback(
@@ -493,6 +533,51 @@ const NavigationPanelFolderNodeFolder = ({
         ) {
           const at =
             data.treeInstruction?.type === 'reorder-below' ? 'after' : 'before';
+
+          const sourceId =
+            data.source.data.from?.at ===
+            'navigation-panel:organize:folder-node'
+              ? data.source.data.from.nodeId
+              : data.source.data.entity?.type === 'folder'
+                ? data.source.data.entity.id
+                : undefined;
+          const sameFolder =
+            sourceId &&
+            node.children$.value.some(child => child.id === sourceId);
+          if (sameFolder && sourceId) {
+            const undo = await node.reorderChild(sourceId, dropAtNode.id, at);
+            if (undo)
+              notify.success({
+                title:
+                  t['com.affine.rootAppSidebar.organize.folder.sort.saved'](),
+                actions: [
+                  {
+                    key: 'undo',
+                    label:
+                      t[
+                        'com.affine.rootAppSidebar.organize.folder.sort.undo'
+                      ](),
+                    onClick: async () => {
+                      try {
+                        await undo();
+                      } catch {
+                        toast(
+                          t[
+                            'com.affine.rootAppSidebar.organize.folder.sort.conflict'
+                          ]()
+                        );
+                      }
+                    },
+                  },
+                ],
+              });
+            return;
+          }
+          if (data.source.data.nativeResource) {
+            await resources.move(data.source.data.nativeResource, node.id);
+            await tree.refresh();
+            return;
+          }
           if (data.source.data.entity?.type === 'folder') {
             if (
               node.id === data.source.data.entity.id ||
@@ -502,7 +587,7 @@ const NavigationPanelFolderNodeFolder = ({
             }
             await node.moveHere(
               data.source.data.entity.id,
-              node.indexAt(at, dropAtNode.id)
+              node.indexAt('after')
             );
             track.$.navigationPanel.organize.moveOrganizeItem({
               type: 'folder',
@@ -518,7 +603,7 @@ const NavigationPanelFolderNodeFolder = ({
             ) {
               await node.moveHere(
                 data.source.data.from.nodeId,
-                node.indexAt(at, dropAtNode.id)
+                node.indexAt('after')
               );
               track.$.navigationPanel.organize.moveOrganizeItem({
                 type: 'link',
@@ -528,7 +613,7 @@ const NavigationPanelFolderNodeFolder = ({
               await node.createLink(
                 data.source.data.entity?.type,
                 data.source.data.entity.id,
-                node.indexAt(at, dropAtNode.id)
+                node.indexAt('after')
               );
 
               track.$.navigationPanel.organize.createOrganizeItem({
@@ -560,14 +645,12 @@ const NavigationPanelFolderNodeFolder = ({
             });
           }
         }
-      } catch (error) {
-        toast(
-          error instanceof Error ? error.message : 'Directory operation failed'
-        );
+      } catch {
+        toast(t['com.affine.rootAppSidebar.organize.folder.sort.conflict']());
         return undefined;
       }
     },
-    [node, onDrop]
+    [node, onDrop, resources, tree, t]
   );
 
   const handleDropEffectOnChildren =
@@ -577,6 +660,19 @@ const NavigationPanelFolderNodeFolder = ({
           data.treeInstruction?.type === 'reorder-above' ||
           data.treeInstruction?.type === 'reorder-below'
         ) {
+          const sourceId =
+            data.source.data.from?.at ===
+            'navigation-panel:organize:folder-node'
+              ? data.source.data.from.nodeId
+              : data.source.data.entity?.type === 'folder'
+                ? data.source.data.entity.id
+                : undefined;
+          if (
+            sortMode !== 'manual' &&
+            sourceId &&
+            node.children$.value.some(child => child.id === sourceId)
+          )
+            return 'manual';
           if (data.source.data.entity?.type === 'folder') {
             if (
               node.id === data.source.data.entity.id ||
@@ -622,7 +718,7 @@ const NavigationPanelFolderNodeFolder = ({
         }
         return;
       },
-      [dropEffect, node]
+      [dropEffect, node, sortMode]
     );
 
   const handleCanDrop = useMemo<DropTargetOptions<AffineDNDData>['canDrop']>(
@@ -662,6 +758,7 @@ const NavigationPanelFolderNodeFolder = ({
     DropTargetOptions<AffineDNDData>['canDrop']
   >(
     () => args => {
+      if (!canMutate || !sortReady) return false;
       const entityType = args.source.data.entity?.type;
 
       if (args.source.data.entity?.type === 'folder') {
@@ -685,14 +782,14 @@ const NavigationPanelFolderNodeFolder = ({
       }
       return false;
     },
-    [node]
+    [node, canMutate, sortReady]
   );
 
   const handleNewDoc = useCallback(
     async (mode?: 'page' | 'edgeless') => {
       try {
         const newDoc = createPage(mode);
-        await node.createLink('doc', newDoc.id, node.indexAt('before'));
+        await node.createLink('doc', newDoc.id, node.indexAt('after'));
         track.$.navigationPanel.folders.createDoc();
         track.$.navigationPanel.organize.createOrganizeItem({
           type: 'link',
@@ -713,7 +810,7 @@ const NavigationPanelFolderNodeFolder = ({
     try {
       const newFolderId = await node.createFolder(
         t['com.affine.rootAppSidebar.organize.new-folders'](),
-        node.indexAt('before')
+        node.indexAt('after')
       );
       track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
       setCollapsed(false);
@@ -781,15 +878,64 @@ const NavigationPanelFolderNodeFolder = ({
     [children, node, setCollapsed, workspaceDialogService]
   );
 
+  const sortOperation = useMemo(
+    () => ({
+      index: 150,
+      view: (
+        <MenuSub
+          triggerOptions={{ disabled: !sortReady || sorting }}
+          items={
+            <>
+              {(['name-desc', 'name-asc', 'manual'] as const).map(mode => (
+                <MenuItem
+                  key={mode}
+                  prefixIcon={<Checkbox checked={sortMode === mode} />}
+                  onClick={() => {
+                    try {
+                      node.setSortMode(mode);
+                    } catch {
+                      toast(
+                        t[
+                          'com.affine.rootAppSidebar.organize.folder.sort.conflict'
+                        ]()
+                      );
+                    }
+                  }}
+                >
+                  {mode === 'name-desc'
+                    ? t[
+                        'com.affine.rootAppSidebar.organize.folder.sort.name-desc'
+                      ]()
+                    : mode === 'name-asc'
+                      ? t[
+                          'com.affine.rootAppSidebar.organize.folder.sort.name-asc'
+                        ]()
+                      : t[
+                          'com.affine.rootAppSidebar.organize.folder.sort.manual'
+                        ]()}
+                </MenuItem>
+              ))}
+            </>
+          }
+        >
+          {t['com.affine.rootAppSidebar.organize.folder.sort.label']()}
+        </MenuSub>
+      ),
+    }),
+    [node, sortMode, sortReady, sorting, t]
+  );
+
   const folderOperations = useMemo(() => {
     if (!canMutate)
       return [
+        sortOperation,
         {
           index: 200,
           view: node.id ? <FavoriteFolderOperation id={node.id} /> : null,
         },
       ];
     return [
+      sortOperation,
       {
         index: 0,
         inline: true,
@@ -894,6 +1040,7 @@ const NavigationPanelFolderNodeFolder = ({
     ];
   }, [
     canMutate,
+    sortOperation,
     canDelete,
     lifecycle.online,
     handleAddToFolder,
@@ -1001,6 +1148,7 @@ const NavigationPanelFolderNodeFolder = ({
           <NavigationPanelFolderNode
             key={child.id}
             nodeId={child.id as string}
+            reorderable={canMutate && sortReady}
             defaultRenaming={child.id === newFolderId}
             onDrop={(data, child?: FolderNode) => {
               handleDropOnChildren(data, child).catch(console.error);

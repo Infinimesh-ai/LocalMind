@@ -6375,6 +6375,7 @@ export interface Mutation {
   renameConversation: ConversationCardType;
   renewProjectResourceEditLease: ProjectEditLeaseResultType;
   reorderWorkspaceByokConfigs: Array<WorkspaceByokKeyConfigType>;
+  reorderWorkspaceDirectory: WorkspaceDirectoryMutationType;
   /** Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence. */
   replayCopilotSupportBundleTransferForwardingEvent: CopilotSupportBundleTransferForwardingEventType;
   /** Request to apply the subscription in advance */
@@ -7270,6 +7271,14 @@ export interface MutationRenewProjectResourceEditLeaseArgs {
 
 export interface MutationReorderWorkspaceByokConfigsArgs {
   input: ReorderWorkspaceByokConfigsInput;
+}
+
+export interface MutationReorderWorkspaceDirectoryArgs {
+  expectedOrder: Array<Scalars['ID']['input']>;
+  expectedRevision: Scalars['String']['input'];
+  folderId: Scalars['ID']['input'];
+  nodeIds: Array<Scalars['ID']['input']>;
+  workspaceId: Scalars['ID']['input'];
 }
 
 export interface MutationReplayCopilotSupportBundleTransferForwardingEventArgs {
@@ -10340,6 +10349,7 @@ export interface WorkspaceDirectoryChangeInput {
 export interface WorkspaceDirectoryEntryType {
   __typename?: 'WorkspaceDirectoryEntryType';
   data: Scalars['String']['output'];
+  defaultSortMode: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   index: Scalars['String']['output'];
   parentId: Maybe<Scalars['ID']['output']>;
@@ -10420,6 +10430,7 @@ export interface WorkspaceDirectoryRightsType {
 
 export interface WorkspaceDirectoryValuesInput {
   data: Scalars['String']['input'];
+  defaultSortMode?: InputMaybe<Scalars['String']['input']>;
   index: Scalars['String']['input'];
   parentId?: InputMaybe<Scalars['ID']['input']>;
   type: Scalars['String']['input'];
@@ -26129,6 +26140,7 @@ export type WorkspaceDirectoryQuery = {
       type: string;
       data: string;
       index: string;
+      defaultSortMode: string | null;
       rights: {
         __typename?: 'WorkspaceDirectoryRightsType';
         canRead: boolean;
@@ -26149,6 +26161,22 @@ export type MutateWorkspaceDirectoryMutationVariables = Exact<{
 export type MutateWorkspaceDirectoryMutation = {
   __typename?: 'Mutation';
   mutateWorkspaceDirectory: {
+    __typename?: 'WorkspaceDirectoryMutationType';
+    revision: string;
+  };
+};
+
+export type ReorderWorkspaceDirectoryMutationVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  folderId: Scalars['ID']['input'];
+  expectedRevision: Scalars['String']['input'];
+  expectedOrder: Array<Scalars['ID']['input']> | Scalars['ID']['input'];
+  nodeIds: Array<Scalars['ID']['input']> | Scalars['ID']['input'];
+}>;
+
+export type ReorderWorkspaceDirectoryMutation = {
+  __typename?: 'Mutation';
+  reorderWorkspaceDirectory: {
     __typename?: 'WorkspaceDirectoryMutationType';
     revision: string;
   };
@@ -28858,6 +28886,11 @@ export type Mutations =
       name: 'mutateWorkspaceDirectoryMutation';
       variables: MutateWorkspaceDirectoryMutationVariables;
       response: MutateWorkspaceDirectoryMutation;
+    }
+  | {
+      name: 'reorderWorkspaceDirectoryMutation';
+      variables: ReorderWorkspaceDirectoryMutationVariables;
+      response: ReorderWorkspaceDirectoryMutation;
     }
   | {
       name: 'changeWorkspaceDirectoryPolicyMutation';

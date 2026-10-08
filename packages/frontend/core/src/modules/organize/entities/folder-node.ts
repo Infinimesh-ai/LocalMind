@@ -5,7 +5,14 @@ import {
 } from '@toeverything/infra';
 import { map, of, switchMap } from 'rxjs';
 
+import {
+  compareNodeIds,
+  type FolderSortMode,
+  moveFolderChild,
+  sortFolderChildren,
+} from '../folder-sorting';
 import type { FolderStore } from '../stores/folder';
+import type { FolderSortingStore } from '../stores/folder-sorting';
 
 export class FolderNode extends Entity<{
   id: string | null;
@@ -18,6 +25,7 @@ export class FolderNode extends Entity<{
     index: string;
     id: string;
     parentId?: string | null;
+    defaultSortMode?: string | null;
   } | null>(this.store.watchNodeInfo(this.id ?? ''), null);
   type$ = this.info$.map(info =>
     this.id === null ? 'folder' : (info?.type ?? '')
@@ -41,7 +49,7 @@ export class FolderNode extends Entity<{
                   children
                     .filter(e => this.filterInvalidChildren(e))
                     .map(child =>
-                      this.framework.createEntity(FolderNode, child)
+                      this.framework.createEntity(FolderNode, { id: child.id })
                     )
                 )
               )
@@ -54,13 +62,117 @@ export class FolderNode extends Entity<{
   sortedChildren$ = LiveData.computed(get => {
     return get(this.children$)
       .map(node => [node, get(node.index$)] as const)
-      .sort((a, b) => (a[1] > b[1] ? 1 : -1))
+      .sort(
+        (a, b) =>
+          compareNodeIds(a[1], b[1]) ||
+          compareNodeIds(a[0].id ?? '', b[0].id ?? '')
+      )
       .map(([node]) => node);
   });
   index$ = this.info$.map(info => info?.index ?? '');
+  private readonly preference$ = LiveData.from(
+    this.id && this.sorting ? this.sorting.watchMode(this.id) : of(null),
+    null
+  );
+  readonly sortMode$ = LiveData.computed(
+    get =>
+      get(this.preference$) ??
+      (get(this.info$)?.defaultSortMode === 'name-desc'
+        ? 'name-desc'
+        : 'manual')
+  );
+  readonly sortReady$ = this.sorting?.ready$ ?? new LiveData(false);
+  readonly sorting$ = new LiveData(false);
+  readonly displayChildren$ = LiveData.computed(get => {
+    const children = get(this.sortedChildren$);
+    if (!this.sorting || this.id === null) return children;
+    const titles = get(this.sorting.titles$);
+    const visible = children.filter(child => {
+      const info = get(child.info$);
+      return (
+        info?.type === 'folder' ||
+        (!!info && titles.has(`${info.type}:${info.data}`))
+      );
+    });
+    return sortFolderChildren(visible, get(this.sortMode$), child => {
+      const info = get(child.info$);
+      return info?.type === 'folder'
+        ? info.data
+        : (titles.get(`${info?.type}:${info?.data}`) ?? '');
+    });
+  });
 
-  constructor(readonly store: FolderStore) {
+  constructor(
+    readonly store: FolderStore,
+    private readonly sorting?: FolderSortingStore
+  ) {
     super();
+  }
+
+  setSortMode(mode: FolderSortMode) {
+    if (!this.id || !this.sorting || this.sorting$.value)
+      throw new Error('Folder preferences are unavailable');
+    this.sorting.setMode(this.id, mode);
+  }
+
+  async reorderChild(
+    sourceId: string,
+    targetId: string,
+    at: 'before' | 'after'
+  ) {
+    if (
+      !this.id ||
+      !this.sorting ||
+      !this.sortReady$.value ||
+      this.sorting$.value
+    )
+      throw new Error('Folder preferences are unavailable');
+    const folderId = this.id;
+    const identity = this.sorting.identity();
+    const previousMode = this.sortMode$.value;
+    const visible = this.displayChildren$.value.map(
+      child => child.id as string
+    );
+    const order = moveFolderChild(visible, sourceId, targetId, at);
+    if (JSON.stringify(order) === JSON.stringify(visible)) return;
+    const selected = new Set(visible);
+    const previous = this.sortedChildren$.value
+      .filter(child => selected.has(child.id as string))
+      .map(child => child.id as string);
+    const expectedRevision = this.store.orderRevision(folderId);
+    this.sorting$.next(true);
+    let revision: string | undefined;
+    try {
+      revision = await this.store.reorderChildren(
+        folderId,
+        order,
+        previous,
+        expectedRevision
+      );
+      if (identity !== this.sorting.identity())
+        throw new Error('Account changed during reordering');
+      this.sorting.setMode(folderId, 'manual');
+    } finally {
+      this.sorting$.next(false);
+    }
+    let undone = false;
+    return async () => {
+      if (
+        undone ||
+        this.sorting$.value ||
+        identity !== this.sorting?.identity() ||
+        this.sortMode$.value !== 'manual'
+      )
+        throw new Error('Folder changed; refresh before undoing');
+      this.sorting$.next(true);
+      try {
+        await this.store.reorderChildren(folderId, previous, order, revision);
+        this.sorting?.setMode(folderId, previousMode);
+        undone = true;
+      } finally {
+        this.sorting$.next(false);
+      }
+    };
   }
 
   contains(childId: string | null): boolean {

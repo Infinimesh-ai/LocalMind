@@ -19,6 +19,7 @@ export const AFFiNE_WORKSPACE_DB_SCHEMA = {
     data: f.string(),
     type: f.string(),
     index: f.string(),
+    defaultSortMode: f.enum('name-desc').optional(),
   },
   docProperties: t.document({
     // { [`custom:{customPropertyId}`]: any }

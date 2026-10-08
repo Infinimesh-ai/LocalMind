@@ -1,4 +1,5 @@
 import test from 'ava';
+import { generateNKeysBetween } from 'fractional-indexing';
 import * as Y from 'yjs';
 
 import { directoryPolicySnapshot } from '../../../models/workspace-directory-grant';
@@ -64,27 +65,29 @@ function createServiceFixture() {
     },
     deleteDocPermanently: async () => {},
   };
+  const grants = {
+    snapshot: async () => directoryPolicySnapshot('actor', []),
+    withMutationLock: async (
+      _workspaceId: string,
+      operation: () => Promise<unknown>
+    ) => await operation(),
+    rights: async () => ({
+      canRead: true,
+      canWrite: true,
+      canOrganize: true,
+      canCreateFolder: true,
+    }),
+  };
   return {
     docs,
     reader,
+    grants,
     service: new WorkspaceOrganizationService(
       reader as never,
       writer as never,
       {
         workspaceNativeResource: { officeIds: async () => new Set<string>() },
-        workspaceDirectoryGrant: {
-          snapshot: async () => directoryPolicySnapshot('actor', []),
-          withMutationLock: async (
-            _workspaceId: string,
-            operation: () => Promise<unknown>
-          ) => await operation(),
-          rights: async () => ({
-            canRead: true,
-            canWrite: true,
-            canOrganize: true,
-            canCreateFolder: true,
-          }),
-        },
+        workspaceDirectoryGrant: grants,
       } as never,
       {
         user: () => ({ workspace: () => ({ assert: async () => {} }) }),
@@ -96,6 +99,127 @@ function createServiceFixture() {
 function createService() {
   return createServiceFixture().service;
 }
+
+function reorderFixture(count = 4) {
+  const fixture = createServiceFixture();
+  const doc = new Y.Doc();
+  const put = (id: string, parentId: string | null, index: string) => {
+    const record = doc.getMap(id);
+    for (const [key, value] of Object.entries({
+      id,
+      parentId,
+      index,
+      type: 'folder',
+      data: id,
+    }))
+      record.set(key, value);
+  };
+  put('parent', null, 'a0');
+  const ids = Array.from(
+    { length: count },
+    (_, i) => `child-${String(i).padStart(4, '0')}`
+  );
+  const indices = generateNKeysBetween(null, null, count);
+  ids.forEach((id, i) => put(id, 'parent', indices[i]));
+  fixture.docs.set('db$workspace-1$folders', doc);
+  const reorder = async (
+    nodeIds: string[],
+    expectedOrder = ids,
+    revision?: string
+  ) =>
+    fixture.service.reorderFolder({
+      workspaceId: 'workspace-1',
+      actorId: 'actor',
+      folderId: 'parent',
+      nodeIds,
+      expectedOrder,
+      expectedRevision:
+        revision ??
+        (await fixture.service.directoryRevision('workspace-1', 'actor')),
+      authorizeDocument: async () => {},
+    });
+  const order = () =>
+    ids.slice().sort((a, b) => {
+      const ai = String(doc.getMap(a).get('index')),
+        bi = String(doc.getMap(b).get('index'));
+      return ai < bi ? -1 : ai > bi ? 1 : 0;
+    });
+  return { ...fixture, doc, ids, reorder, order };
+}
+
+test('folder reorder atomically supports more than 100 siblings and conditional undo', async t => {
+  const { ids, reorder, order } = reorderFixture(150);
+  const reversed = ids.slice().reverse();
+  const result = await reorder(reversed);
+  t.deepEqual(order(), reversed);
+  await reorder(ids, reversed, result.revision);
+  t.deepEqual(order(), ids);
+  await t.throwsAsync(reorder(reversed, ids, result.revision), {
+    message: /version_conflict/,
+  });
+});
+test('folder reorder rejects duplicates, other parents and stale source order without writing', async t => {
+  const { doc, ids, reorder, order } = reorderFixture();
+  await t.throwsAsync(reorder([ids[0], ids[0]]));
+  await t.throwsAsync(reorder(['parent', ids[1]], ['parent', ids[1]]));
+  await t.throwsAsync(reorder(ids, ids.slice().reverse()));
+  t.deepEqual(order(), ids);
+  t.is(doc.getMap(ids[0]).get('index'), generateNKeysBetween(null, null, 4)[0]);
+});
+test('folder reorder rejects a document ACL failure before any directory write', async t => {
+  const { doc, ids, service, order } = reorderFixture();
+  doc.getMap(ids[0]).set('type', 'doc');
+  doc.getMap(ids[0]).set('data', 'doc-1');
+  const before = Y.encodeStateAsUpdate(doc);
+  const authorized: string[] = [];
+  await t.throwsAsync(
+    service.reorderFolder({
+      workspaceId: 'workspace-1',
+      actorId: 'actor',
+      folderId: 'parent',
+      nodeIds: ids.slice().reverse(),
+      expectedOrder: ids,
+      expectedRevision: await service.directoryRevision('workspace-1', 'actor'),
+      authorizeDocument: async id => {
+        authorized.push(id);
+        throw new Error('Document access revoked');
+      },
+    }),
+    { message: 'Document access revoked' }
+  );
+  t.deepEqual(authorized, ['doc-1']);
+  t.deepEqual(Y.encodeStateAsUpdate(doc), before);
+  t.deepEqual(order(), ids);
+});
+test('folder reorder preserves unreadable slots and rechecks revoked organize rights', async t => {
+  const { ids, doc, grants, reorder, order } = reorderFixture();
+  const hidden = ids[1];
+  const hiddenIndex = doc.getMap(hidden).get('index');
+  grants.snapshot = async () =>
+    Object.assign(directoryPolicySnapshot('actor', []), {
+      rights: (path: string[]) => ({
+        canRead: !path.includes(hidden),
+        canWrite: true,
+        canOrganize: true,
+        canCreateFolder: true,
+      }),
+    });
+  const visible = ids.filter(id => id !== hidden);
+  await reorder(visible.slice().reverse(), visible);
+  t.is(doc.getMap(hidden).get('index'), hiddenIndex);
+  t.deepEqual(order(), [ids[3], hidden, ids[2], ids[0]]);
+  grants.snapshot = async () =>
+    Object.assign(directoryPolicySnapshot('actor', []), {
+      rights: () => ({
+        canRead: true,
+        canWrite: false,
+        canOrganize: false,
+        canCreateFolder: false,
+      }),
+    });
+  await t.throwsAsync(reorder(ids, order()));
+  t.deepEqual(order(), [ids[3], hidden, ids[2], ids[0]]);
+});
 
 test('directory snapshots reject cycles, missing parents and paths beyond 64 nodes', async t => {
   const { docs, service } = createServiceFixture();
@@ -353,6 +477,7 @@ test('workspace organization service round-trips ORM table operations', async t 
       id: 'folder-1',
       parentId: null,
       type: 'folder',
+      defaultSortMode: 'name-desc',
       data: 'Projects',
       index: 'a0',
     },
@@ -709,6 +834,7 @@ test('permanently deleting a document repairs its trashed folder manifest', asyn
       id: 'folder-1',
       parentId: null,
       type: 'folder',
+      defaultSortMode: 'name-desc',
       data: 'Folder',
       index: 'a0',
     },
@@ -804,6 +930,7 @@ test('permanently deleting one shared folder repairs other trashed folder manife
       id: 'folder-b',
       parentId: null,
       type: 'folder',
+      defaultSortMode: 'name-desc',
       data: 'Folder B',
       index: 'a1',
     },

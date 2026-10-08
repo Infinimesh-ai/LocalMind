@@ -24,6 +24,7 @@ const WorkspaceUserdataDBClient = createORMClient(
 );
 
 export class WorkspaceDBService extends Service {
+  private readonly tableDocs = new Map<string, YDoc>();
   db: WorkspaceDBWithTables<AFFiNEWorkspaceDbSchema>;
   userdataDBPool = new ObjectPool<
     string,
@@ -49,6 +50,7 @@ export class WorkspaceDBService extends Service {
                 // guid format: db${guid}
                 guid: `db$${guid}`,
               });
+              this.tableDocs.set(guid, ydoc);
               this.workspaceService.workspace.engine.doc.connectDoc(ydoc);
               this.workspaceService.workspace.engine.doc.addPriority(
                 ydoc.guid,
@@ -97,6 +99,12 @@ export class WorkspaceDBService extends Service {
 
     this.userdataDBPool.put(userId, newDB);
     return newDB as WorkspaceDBWithTables<AFFiNEWorkspaceUserdataDbSchema>;
+  }
+
+  transact(tableName: keyof AFFiNEWorkspaceDbSchema, operation: () => void) {
+    const doc = this.tableDocs.get(tableName);
+    if (!doc) throw new Error('Load the workspace table before editing');
+    doc.transact(operation);
   }
 
   authService = this.workspaceServerService.server?.scope.get(AuthService);

@@ -1,11 +1,12 @@
 import { Framework, LiveData } from '@toeverything/infra';
-import { Subject } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { afterEach, expect, test, vi } from 'vitest';
 
 import type { WorkspaceServerService } from '../../cloud';
 import type { NbstoreService } from '../../storage';
 import type { WorkspaceService } from '../../workspace';
 import { DirectoryAccessStore } from './directory-access';
+import { FolderStore } from './folder';
 
 const rights = {
   canRead: true,
@@ -36,10 +37,13 @@ function fixture(
 ) {
   const accessEvents$ = new Subject<{ changed: true; reason: string }>();
   const policyEvents$ = new Subject<{ changed: true; reason: string }>();
+  const resourceEvents$ = new Subject<{ changed: true }>();
   const subscribeAccess = vi.fn((topic: string) =>
     topic === 'workspace.directory-policy.changed'
       ? policyEvents$
-      : accessEvents$
+      : topic === 'workspace.nativeResources.changed'
+        ? resourceEvents$
+        : accessEvents$
   );
   const account$ = new LiveData<{ id: string } | null>({ id: 'actor' });
   const server$ = new LiveData({ account$, gql });
@@ -70,6 +74,7 @@ function fixture(
     account$,
     accessEvents$,
     policyEvents$,
+    resourceEvents$,
     subscribeAccess,
   };
 }
@@ -78,6 +83,37 @@ test('local workspaces retain local data without a network request', () => {
   const { store, gql } = fixture(vi.fn(), 'local');
   expect(store.state$.value.mode).toBe('local');
   expect(gql).not.toHaveBeenCalled();
+});
+
+test('full-sync directories retain a revision and submit one complete reorder', async () => {
+  const fullPage = page('folder');
+  fullPage.workspaceDirectory.fullSyncAllowed = true;
+  const gql = vi.fn(async (request: { variables: { folderId?: string } }) =>
+    request.variables.folderId
+      ? { reorderWorkspaceDirectory: { revision: 'c'.repeat(64) } }
+      : fullPage
+  );
+  const { store } = fixture(gql);
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('full'));
+  expect(store.state$.value.revision).toBe('a'.repeat(64));
+  const ids = Array.from({ length: 150 }, (_, i) => `node-${i}`);
+  await expect(
+    store.reorder('folder', ids.slice().reverse(), ids)
+  ).resolves.toBe('c'.repeat(64));
+  const request = gql.mock.calls.find(
+    ([request]) => request.variables.folderId
+  );
+  expect(request?.[0].variables).toEqual({
+    workspaceId: 'workspace',
+    folderId: 'folder',
+    expectedRevision: 'a'.repeat(64),
+    nodeIds: ids.slice().reverse(),
+    expectedOrder: ids,
+  });
+  expect(
+    gql.mock.calls.filter(([request]) => request.variables.folderId)
+  ).toHaveLength(1);
+  expect(store.saving$.value).toBe(false);
 });
 
 test('restricted directory pages are published only after the complete load', async () => {
@@ -145,6 +181,137 @@ test('periodic revalidation does not repeatedly cancel a slow active request', a
   pending.resolve(page('loaded'));
   await vi.advanceTimersByTimeAsync(0);
   expect(store.state$.value.mode).toBe('filtered');
+});
+
+test('resource notifications retain both clients trees and coalesce without cancelling a slow read', async () => {
+  const clients = Array.from({ length: 2 }, () => fixture());
+  await vi.waitFor(() =>
+    clients.forEach(({ store }) =>
+      expect(store.state$.value.mode).toBe('filtered')
+    )
+  );
+  const pending = clients.map(() =>
+    Promise.withResolvers<ReturnType<typeof page>>()
+  );
+  clients.forEach(({ gql, resourceEvents$ }, index) => {
+    gql.mockReturnValueOnce(pending[index].promise);
+    resourceEvents$.next({ changed: true });
+  });
+  clients.forEach(({ store, gql, resourceEvents$ }) => {
+    const signal = gql.mock.calls.at(-1)?.[0].context.signal;
+    for (let index = 0; index < 20; index++)
+      resourceEvents$.next({ changed: true });
+    expect(signal.aborted).toBe(false);
+    expect(gql).toHaveBeenCalledTimes(2);
+    expect(store.state$.value.mode).toBe('filtered');
+    expect(store.state$.value.items[0]?.id).toBe('visible');
+    gql.mockResolvedValueOnce(page('latest'));
+  });
+  pending.forEach(value => value.resolve(page('intermediate')));
+  await vi.waitFor(() =>
+    clients.forEach(({ store }) =>
+      expect(store.state$.value.items[0]?.id).toBe('latest')
+    )
+  );
+  clients.forEach(({ gql }) => expect(gql).toHaveBeenCalledTimes(3));
+});
+
+test('full-sync folder trees stay mounted in two clients during resource revalidation', async () => {
+  const fullPage = page('unused');
+  fullPage.workspaceDirectory.fullSyncAllowed = true;
+  const clients = Array.from({ length: 2 }, () => {
+    const client = fixture(vi.fn().mockResolvedValue(fullPage));
+    const framework = new Framework();
+    framework.store(
+      FolderStore,
+      () =>
+        new FolderStore(
+          {
+            db: {
+              folders: {
+                isLoading$: of(false),
+                // The fixture retains the real observable API name.
+                // eslint-disable-next-line rxjs/finnish
+                find$: () =>
+                  of([
+                    { id: 'existing-folder', type: 'folder', parentId: null },
+                  ]),
+              },
+            },
+          } as never,
+          {} as never,
+          client.store
+        )
+    );
+    const folders = framework.provider().get(FolderStore);
+    const rows: unknown[][] = [];
+    const subscription = folders
+      .watchNodeChildren(null)
+      .subscribe(value => rows.push(value));
+    return { ...client, folders, rows, subscription };
+  });
+  try {
+    await vi.waitFor(() =>
+      clients.forEach(({ store }) =>
+        expect(store.state$.value.mode).toBe('full')
+      )
+    );
+    const pending = clients.map(() => Promise.withResolvers<typeof fullPage>());
+    clients.forEach(({ gql, resourceEvents$ }, index) => {
+      gql.mockReturnValueOnce(pending[index].promise);
+      resourceEvents$.next({ changed: true });
+    });
+    expect(clients.map(client => client.rows.at(-1)?.length)).toEqual([1, 1]);
+    clients.forEach(({ rows }) => expect(rows.at(-1)?.length).toBe(1));
+    pending.forEach(value => value.resolve(fullPage));
+    await vi.waitFor(() =>
+      clients.forEach(({ store }) =>
+        expect(store.state$.value.mode).toBe('full')
+      )
+    );
+    expect(clients.map(client => client.rows.at(-1)?.length)).toEqual([1, 1]);
+  } finally {
+    clients.forEach(({ folders, subscription }) => {
+      subscription.unsubscribe();
+      folders.dispose();
+    });
+  }
+});
+
+test('permission invalidation preempts background refresh and discards its late rows', async () => {
+  const { store, gql, resourceEvents$, policyEvents$ } = fixture();
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
+  const old = Promise.withResolvers<ReturnType<typeof page>>();
+  const authorized = Promise.withResolvers<ReturnType<typeof page>>();
+  gql.mockReturnValueOnce(old.promise).mockReturnValueOnce(authorized.promise);
+  resourceEvents$.next({ changed: true });
+  const signal = gql.mock.calls.at(-1)?.[0].context.signal;
+  resourceEvents$.next({ changed: true });
+  policyEvents$.next({ changed: true, reason: 'directory-policy-updated' });
+  expect(signal.aborted).toBe(true);
+  expect(store.state$.value.items).toEqual([]);
+  old.resolve(page('no-longer-authorized'));
+  await Promise.resolve();
+  expect(store.state$.value.items).toEqual([]);
+  authorized.resolve(page('authorized'));
+  await vi.waitFor(() =>
+    expect(store.state$.value.items[0]?.id).toBe('authorized')
+  );
+  expect(gql).toHaveBeenCalledTimes(3);
+});
+
+test('dispose prevents queued notifications from starting another request', async () => {
+  const { store, gql, resourceEvents$ } = fixture();
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
+  const pending = Promise.withResolvers<ReturnType<typeof page>>();
+  gql.mockReturnValueOnce(pending.promise);
+  resourceEvents$.next({ changed: true });
+  resourceEvents$.next({ changed: true });
+  store.dispose();
+  pending.resolve(page('late'));
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(gql).toHaveBeenCalledTimes(2);
 });
 
 test('directory writes use the loaded revision and refresh after server completion', async () => {

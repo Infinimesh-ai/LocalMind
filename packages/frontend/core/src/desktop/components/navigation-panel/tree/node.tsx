@@ -57,7 +57,7 @@ export type NavigationPanelTreeNodeDropEffectData = {
 };
 export type NavigationPanelTreeNodeDropEffect = (
   data: NavigationPanelTreeNodeDropEffectData
-) => 'copy' | 'move' | 'link' | undefined;
+) => 'copy' | 'move' | 'link' | 'manual' | undefined;
 export type NavigationPanelTreeNodeIcon = React.ComponentType<{
   className?: string;
   draggedOver?: boolean;
@@ -104,6 +104,8 @@ interface WebNavigationPanelTreeNodeProps extends BaseNavigationPanelTreeNodePro
   canDrop?: DropTargetOptions<AffineDNDData>['canDrop'];
   reorderable?: boolean;
   dndData?: AffineDNDData;
+  externalDragData?: Record<string, string>;
+  canDrag?: boolean;
   onDrop?: (data: DropTargetDropEvent<AffineDNDData>) => void;
   dropEffect?: NavigationPanelTreeNodeDropEffect;
 }
@@ -200,6 +202,8 @@ export const NavigationPanelTreeNode = ({
   childrenPlaceholder,
   linkComponent: LinkComponent = WorkbenchLink,
   dndData,
+  externalDragData,
+  canDrag,
   explorerIconConfig,
   onDrop,
   dropEffect,
@@ -247,18 +251,26 @@ export const NavigationPanelTreeNode = ({
   >(
     () => ({
       data: { ...dndData?.draggable, __cid: cid },
+      toExternalData: externalDragData ? () => externalDragData : undefined,
+      canDrag,
       dragPreviewPosition: 'pointer-outside',
     }),
-    [cid, dndData]
+    [cid, dndData, externalDragData, canDrag]
   );
   const handleCanDrop = useMemo<DropTargetOptions<AffineDNDData>['canDrop']>(
     () => args => {
+      if (
+        args.source.data.nativeResource &&
+        args.treeInstruction?.type === 'make-child' &&
+        dndData?.dropTarget.at !== 'navigation-panel:organize:folder'
+      )
+        return false;
       if (!reorderable && args.treeInstruction?.type !== 'make-child') {
         return false;
       }
       return (typeof canDrop === 'function' ? canDrop(args) : canDrop) ?? true;
     },
-    [canDrop, reorderable]
+    [canDrop, reorderable, dndData?.dropTarget.at]
   );
 
   const {

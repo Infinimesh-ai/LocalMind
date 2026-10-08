@@ -4,4 +4,5 @@ export interface NodeInfo {
   type: 'folder' | 'doc' | 'tag' | 'collection' | 'file' | 'office';
   data: string;
   index: string;
+  defaultSortMode?: 'name-desc' | null;
 }

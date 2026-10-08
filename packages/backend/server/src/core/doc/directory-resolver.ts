@@ -24,6 +24,7 @@ import { RealtimePublisher } from '../realtime/publisher';
 import { realtimeWorkspaceDirectoryPolicyRoom } from '../realtime/rooms';
 import { ResourceError } from './resource-types';
 import { WorkspaceOrganizationService } from './workspace-organization';
+import { WorkspaceResourceService } from './workspace-resource';
 
 @ObjectType()
 class WorkspaceDirectoryRightsType {
@@ -108,6 +109,7 @@ class WorkspaceDirectoryEntryType {
   @Field() type!: string;
   @Field() data!: string;
   @Field() index!: string;
+  @Field(() => String, { nullable: true }) defaultSortMode?: string | null;
   @Field(() => WorkspaceDirectoryRightsType)
   rights!: WorkspaceDirectoryRightsType;
 }
@@ -129,6 +131,7 @@ class WorkspaceDirectoryValuesInput {
   @Field() type!: string;
   @Field() data!: string;
   @Field() index!: string;
+  @Field(() => String, { nullable: true }) defaultSortMode?: string;
   @Field(() => ID, { nullable: true }) parentId!: string | null;
 }
 
@@ -151,6 +154,7 @@ const entrySchema = z.object({
   type: z.enum(['folder', 'doc', 'tag', 'collection', 'file', 'office']),
   data: z.string().min(1).max(512),
   index: z.string().min(1).max(256),
+  defaultSortMode: z.literal('name-desc').optional(),
 });
 
 @Throttle()
@@ -160,7 +164,8 @@ export class WorkspaceDirectoryResolver {
     private readonly models: Models,
     private readonly ac: PermissionAccess,
     private readonly organization: WorkspaceOrganizationService,
-    private readonly realtime: RealtimePublisher
+    private readonly realtime: RealtimePublisher,
+    private readonly resources: WorkspaceResourceService
   ) {}
 
   private mapPolicy(policy: {
@@ -382,6 +387,57 @@ export class WorkspaceDirectoryResolver {
           actorId: actor.id,
           expectedRevision,
           operations: parsed.data,
+          authorizeDocument: async docId => {
+            await this.ac
+              .user(actor.id)
+              .doc(workspaceId, docId)
+              .projectScope(null)
+              .assert('Doc.Read');
+          },
+        });
+      }
+    );
+  }
+
+  @Mutation(() => WorkspaceDirectoryMutationType)
+  async reorderWorkspaceDirectory(
+    @CurrentUser() actor: Actor,
+    @Args('workspaceId', { type: () => ID }) workspaceId: string,
+    @Args('folderId', { type: () => ID }) folderId: string,
+    @Args('expectedRevision') expectedRevision: string,
+    @Args('expectedOrder', { type: () => [ID] }) expectedOrder: string[],
+    @Args('nodeIds', { type: () => [ID] }) nodeIds: string[]
+  ) {
+    const ids = z.array(z.string().min(1).max(256)).min(1).max(10_000);
+    if (
+      !workspaceId ||
+      workspaceId.length > 256 ||
+      !folderId ||
+      folderId.length > 256 ||
+      !/^[a-f0-9]{64}$/.test(expectedRevision) ||
+      !ids.safeParse(expectedOrder).success ||
+      !ids.safeParse(nodeIds).success
+    )
+      throw new BadRequest('Invalid folder order');
+    return this.resources.snapshot(
+      { workspaceId, actorId: actor.id },
+      async () => {
+        await this.ac
+          .user(actor.id)
+          .workspace(workspaceId)
+          .assert('Workspace.Organize.Read');
+        await this.ac
+          .user(actor.id)
+          .doc(workspaceId, `db$${workspaceId}$folders`)
+          .projectScope(null)
+          .assert('Doc.Update');
+        return this.organization.reorderFolder({
+          workspaceId,
+          actorId: actor.id,
+          folderId,
+          expectedRevision,
+          expectedOrder,
+          nodeIds,
           authorizeDocument: async docId => {
             await this.ac
               .user(actor.id)

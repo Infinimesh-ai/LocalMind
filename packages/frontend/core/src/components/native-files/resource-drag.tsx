@@ -6,6 +6,7 @@ import type { DragEvent, ReactNode } from 'react';
 import { z } from 'zod';
 
 const mime = 'application/x-localmind-native-resource';
+const directoryNodeMime = 'application/x-localmind-directory-node';
 const identity = z.object({
   workspaceId: z.string(),
   resourceId: z.string(),
@@ -17,6 +18,11 @@ export function dragNativeResource(
 ) {
   event.dataTransfer.setData(mime, JSON.stringify(resource));
   event.dataTransfer.effectAllowed = 'move';
+}
+export function nativeResourceDirectoryDragData(
+  resource: z.infer<typeof identity>
+) {
+  return { [mime]: JSON.stringify(resource), [directoryNodeMime]: 'true' };
 }
 export function NativeResourceDropTarget({
   folderId,
@@ -33,6 +39,8 @@ export function NativeResourceDropTarget({
     <div
       style={{ display: 'contents' }}
       onDragOver={event => {
+        if (folderId && event.dataTransfer.types.includes(directoryNodeMime))
+          return;
         if (!disabled && event.dataTransfer.types.includes(mime)) {
           event.preventDefault();
           event.stopPropagation();
@@ -40,6 +48,8 @@ export function NativeResourceDropTarget({
         }
       }}
       onDrop={event => {
+        if (folderId && event.dataTransfer.types.includes(directoryNodeMime))
+          return;
         if (disabled || !event.dataTransfer.types.includes(mime)) return;
         event.preventDefault();
         event.stopPropagation();

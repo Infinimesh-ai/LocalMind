@@ -1,17 +1,18 @@
-import { useQuery } from '@affine/core/components/hooks/use-query';
-import { dragNativeResource } from '@affine/core/components/native-files/resource-drag';
+import {
+  dragNativeResource,
+  nativeResourceDirectoryDragData,
+} from '@affine/core/components/native-files/resource-drag';
 import { WorkspaceNativeActions } from '@affine/core/components/native-files/workspace-actions';
-import { NbstoreService } from '@affine/core/modules/storage';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
-import { workspaceNativeResourceQuery } from '@affine/graphql';
+import { useWorkspaceResources } from '@affine/core/modules/workspace-resources/use-resources';
 import { PageIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
-import { type ReactNode, useEffect } from 'react';
-import { merge } from 'rxjs';
+import type { ReactNode } from 'react';
 
 import { NavigationPanelTreeNode } from '../../tree';
 import type { NavigationPanelTreeNodeIcon } from '../../tree/node';
+import type { GenericNavigationPanelNode } from '../types';
 
 const ignoreCollapse = () => {};
 const NativeFileIcon: NavigationPanelTreeNodeIcon = ({ className }) => (
@@ -21,6 +22,11 @@ export function NavigationPanelNativeFileNode({
   resourceId,
   kind,
   renderNode,
+  location,
+  onDrop,
+  canDrop,
+  dropEffect,
+  reorderable,
 }: {
   resourceId: string;
   kind: 'file' | 'office';
@@ -29,41 +35,16 @@ export function NavigationPanelNativeFileNode({
     open: () => void,
     actions: ReactNode
   ) => ReactNode;
-}) {
+} & Partial<GenericNavigationPanelNode>) {
   const { workspace } = useService(WorkspaceService);
   const { workbench } = useService(WorkbenchService);
-  const realtime = useService(NbstoreService).realtime;
-  const query = useQuery(
-    {
-      query: workspaceNativeResourceQuery,
-      variables: { input: { workspaceId: workspace.id, resourceId, kind } },
-    },
-    { suspense: false, shouldRetryOnError: false }
+  const catalog = useWorkspaceResources();
+  // The shared authorized catalog owns visibility, including remote trash.
+  // A separate cached query per row can outlive its removal from the catalog.
+  const resource = catalog.items.find(
+    item => item.id === resourceId && item.kind === kind
   );
-  const { mutate } = query;
-  useEffect(() => {
-    const subscription = merge(
-      realtime.subscribe('workspace.nativeResources.changed', {
-        workspaceId: workspace.id,
-      }),
-      realtime.subscribe('workspace.access.changed', {
-        workspaceId: workspace.id,
-      }),
-      realtime.subscribe('workspace.directory-policy.changed', {
-        workspaceId: workspace.id,
-      })
-    ).subscribe({
-      next: () => {
-        void mutate().catch(() => undefined);
-      },
-      error: () => {
-        void mutate().catch(() => undefined);
-      },
-    });
-    return () => subscription.unsubscribe();
-  }, [realtime, workspace.id, mutate]);
-  const resource = query.data?.workspaceNativeResource;
-  if (query.error || !resource) return null;
+  if (catalog.error || !resource || resource.trashedAt) return null;
   const openResource = () => {
     if (kind === 'office') workbench.openOffice(resourceId);
     else workbench.openNativeFile(resourceId);
@@ -76,9 +57,37 @@ export function NavigationPanelNativeFileNode({
       kind={kind}
       title={resource.title}
       capabilities={resource}
-      onChanged={() => void mutate().catch(() => undefined)}
+      onChanged={() => catalog.service.invalidate()}
     />
   );
+  if (!renderNode && location?.at === 'navigation-panel:organize:folder-node') {
+    const identity = { workspaceId: workspace.id, resourceId, kind };
+    return (
+      <NavigationPanelTreeNode
+        name={resource.title}
+        icon={NativeFileIcon}
+        collapsed
+        collapsible={false}
+        setCollapsed={ignoreCollapse}
+        canDrag={resource.canMove === true && reorderable !== false}
+        reorderable={reorderable}
+        dndData={{
+          draggable: {
+            entity: { type: 'doc', id: resourceId },
+            from: location,
+            nativeResource: identity,
+          },
+          dropTarget: { at: 'navigation-panel:doc' },
+        }}
+        externalDragData={nativeResourceDirectoryDragData(identity)}
+        canDrop={canDrop}
+        onDrop={onDrop}
+        dropEffect={dropEffect}
+        onClick={openResource}
+        operations={[{ index: 0, inline: true, view: actions }]}
+      />
+    );
+  }
   return renderNode ? (
     renderNode(resource.title, openResource, actions)
   ) : (

@@ -1,11 +1,12 @@
 import {
   mutateWorkspaceDirectoryMutation,
+  reorderWorkspaceDirectoryMutation,
   type WorkspaceDirectoryChangeInput,
   type WorkspaceDirectoryQuery,
   workspaceDirectoryQuery,
 } from '@affine/graphql';
 import { LiveData, Store } from '@toeverything/infra';
-import { merge, of, type Subscription, switchMap } from 'rxjs';
+import { map, merge, of, type Subscription, switchMap } from 'rxjs';
 
 import type { WorkspaceServerService } from '../../cloud';
 import type { NbstoreService } from '../../storage';
@@ -31,6 +32,9 @@ export class DirectoryAccessStore extends Store {
   private identityGeneration = 0;
   private accessSubscription?: Subscription;
   private refreshing = false;
+  private activeRefresh?: Promise<void>;
+  private refreshRequested = false;
+  private stopped = false;
   private controller?: AbortController;
 
   constructor(
@@ -52,21 +56,18 @@ export class DirectoryAccessStore extends Store {
         if (account && this.nbstoreService) {
           const input = { workspaceId: this.workspaceService.workspace.id };
           this.accessSubscription = merge(
-            this.nbstoreService.realtime.subscribe(
-              'workspace.nativeResources.changed',
-              input
-            ),
-            this.nbstoreService.realtime.subscribe(
-              'workspace.access.changed',
-              input
-            ),
-            this.nbstoreService.realtime.subscribe(
-              'workspace.directory-policy.changed',
-              input
-            )
+            this.nbstoreService.realtime
+              .subscribe('workspace.nativeResources.changed', input)
+              .pipe(map(() => false)),
+            this.nbstoreService.realtime
+              .subscribe('workspace.access.changed', input)
+              .pipe(map(() => true)),
+            this.nbstoreService.realtime
+              .subscribe('workspace.directory-policy.changed', input)
+              .pipe(map(() => true))
           ).subscribe({
-            next: () => {
-              this.refresh(true).catch(console.error);
+            next: clear => {
+              this.refresh(clear).catch(console.error);
             },
             error: () => {
               this.refresh(true).catch(console.error);
@@ -82,6 +83,8 @@ export class DirectoryAccessStore extends Store {
       () => subscription.unsubscribe(),
       () => clearInterval(timer),
       () => {
+        this.stopped = true;
+        this.refreshRequested = false;
         this.generation++;
         this.identityGeneration++;
         this.accessSubscription?.unsubscribe();
@@ -91,14 +94,44 @@ export class DirectoryAccessStore extends Store {
   }
 
   async refresh(clear = false) {
-    if (this.workspaceService.workspace.flavour === 'local') return;
+    if (this.workspaceService.workspace.flavour === 'local' || this.stopped)
+      return;
+    if (this.activeRefresh && !clear) {
+      // Ordinary notifications must not starve a slow request. Catch up once
+      // after it completes, even when many notifications arrived meanwhile.
+      this.refreshRequested = true;
+      return this.activeRefresh;
+    }
     const generation = ++this.generation;
     this.refreshing = true;
     this.controller?.abort();
     const controller = new AbortController();
     this.controller = controller;
+    this.refreshRequested = false;
     if (clear || this.state$.value.mode === 'error')
       this.state$.next({ mode: 'loading', items: [], error: null });
+    const active = this.revalidate(generation, controller);
+    this.activeRefresh = active;
+    try {
+      await active;
+    } finally {
+      if (this.activeRefresh === active) this.activeRefresh = undefined;
+      if (generation === this.generation) this.refreshing = false;
+    }
+  }
+
+  private async revalidate(generation: number, controller: AbortController) {
+    do {
+      this.refreshRequested = false;
+      await this.load(generation, controller);
+    } while (
+      this.refreshRequested &&
+      generation === this.generation &&
+      !this.stopped
+    );
+  }
+
+  private async load(generation: number, controller: AbortController) {
     try {
       const server = this.workspaceServerService.server;
       if (!server?.account$.value)
@@ -125,7 +158,13 @@ export class DirectoryAccessStore extends Store {
         )
           throw new Error('Directory permissions changed while loading; retry');
         if (page.fullSyncAllowed) {
-          this.state$.next({ mode: 'full', items: [], error: null });
+          this.state$.next({
+            mode: 'full',
+            items: [],
+            error: null,
+            revision: page.revision,
+            rootRights: page.rootRights,
+          });
           return;
         }
         for (const item of page.items) items.set(item.id, item);
@@ -153,8 +192,49 @@ export class DirectoryAccessStore extends Store {
         error:
           error instanceof Error ? error.message : 'Directory loading failed',
       });
+    }
+  }
+
+  async reorder(
+    folderId: string,
+    nodeIds: string[],
+    expectedOrder: string[],
+    expectedRevision?: string
+  ) {
+    const state = this.state$.value;
+    const server = this.workspaceServerService.server;
+    const revision = expectedRevision ?? state.revision;
+    if (
+      (state.mode !== 'full' && state.mode !== 'filtered') ||
+      !server?.account$.value ||
+      !revision
+    )
+      throw new Error('Reload directory permissions before editing');
+    if (this.saving$.value)
+      throw new Error('A directory change is already in progress');
+    const identityGeneration = this.identityGeneration;
+    this.saving$.next(true);
+    try {
+      const result = await server.gql({
+        query: reorderWorkspaceDirectoryMutation,
+        variables: {
+          workspaceId: this.workspaceService.workspace.id,
+          folderId,
+          expectedRevision: revision,
+          nodeIds,
+          expectedOrder,
+        },
+      });
+      if (identityGeneration !== this.identityGeneration)
+        throw new Error('Account changed during reordering');
+      await this.refresh();
+      return result.reorderWorkspaceDirectory.revision;
+    } catch (error) {
+      if (identityGeneration === this.identityGeneration)
+        await this.refresh(true);
+      throw error;
     } finally {
-      if (generation === this.generation) this.refreshing = false;
+      this.saving$.next(false);
     }
   }
 
@@ -180,7 +260,7 @@ export class DirectoryAccessStore extends Store {
         throw new Error(
           'The active directory account changed during the operation'
         );
-      await this.refresh(true);
+      await this.refresh();
       return result.mutateWorkspaceDirectory;
     } catch (error) {
       if (identityGeneration === this.identityGeneration)

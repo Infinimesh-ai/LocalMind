@@ -1,4 +1,8 @@
-import { LiveData, Store } from '@toeverything/infra';
+import {
+  generateFractionalIndexingKeyBetween,
+  LiveData,
+  Store,
+} from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import {
   combineLatest,
@@ -12,6 +16,7 @@ import {
 
 import type { WorkspaceDBService } from '../../db';
 import type { DocsService } from '../../doc';
+import { compareNodeIds } from '../folder-sorting';
 import type { DirectoryAccessStore } from './directory-access';
 
 export class FolderStore extends Store {
@@ -123,7 +128,13 @@ export class FolderStore extends Store {
         ]).pipe(
           map(([state, saving]) => {
             if (saving) return false;
-            if (state.mode === 'local' || state.mode === 'full') return true;
+            if (state.mode === 'local') return true;
+            if (state.mode === 'full') {
+              const rights = state.rootRights;
+              return rights
+                ? rights.canRead && rights.canWrite && rights.canOrganize
+                : true;
+            }
             if (state.mode !== 'filtered') return false;
             const rights =
               nodeId === null
@@ -198,7 +209,13 @@ export class FolderStore extends Store {
       {
         op: 'upsert',
         key: id,
-        values: { type: 'folder', data: name, parentId, index },
+        values: {
+          type: 'folder',
+          data: name,
+          parentId,
+          index,
+          defaultSortMode: 'name-desc',
+        },
       },
     ]);
     return id;
@@ -310,6 +327,100 @@ export class FolderStore extends Store {
     return nodeId;
   }
 
+  orderRevision(folderId: string) {
+    const state = this.directoryAccess?.state$.value;
+    if (state && state.mode !== 'local') return state.revision;
+    return JSON.stringify(
+      this.dbService.db.folders
+        .find({ parentId: folderId })
+        .sort((a, b) => compareNodeIds(a.id, b.id))
+    );
+  }
+
+  async reorderChildren(
+    folderId: string,
+    nodeIds: string[],
+    expectedOrder: string[],
+    expectedRevision?: string
+  ) {
+    await this.prepareAuthorizedMutation();
+    const selected = new Set(nodeIds);
+    if (
+      !nodeIds.length ||
+      nodeIds.length > 10_000 ||
+      selected.size !== nodeIds.length ||
+      expectedOrder.length !== nodeIds.length ||
+      new Set(expectedOrder).size !== expectedOrder.length ||
+      expectedOrder.some(id => !selected.has(id))
+    )
+      throw new Error('Invalid folder order');
+    if (
+      this.directoryAccess &&
+      this.directoryAccess.state$.value.mode !== 'local'
+    ) {
+      const revision = await this.directoryAccess.reorder(
+        folderId,
+        nodeIds,
+        expectedOrder,
+        expectedRevision
+      );
+      // Full-sync workspaces read the CRDT table. Wait for the committed order
+      // before switching the view from automatic to manual.
+      await firstValueFrom(
+        this.watchNodeChildren(folderId).pipe(
+          map(rows =>
+            rows
+              .filter(row => selected.has(row.id))
+              .sort(
+                (a, b) =>
+                  compareNodeIds(a.index, b.index) || compareNodeIds(a.id, b.id)
+              )
+              .map(row => row.id)
+          ),
+          filter(ids => JSON.stringify(ids) === JSON.stringify(nodeIds)),
+          timeout({ first: 15_000 })
+        )
+      );
+      return revision;
+    }
+    if (expectedRevision && expectedRevision !== this.orderRevision(folderId))
+      throw new Error('Folder changed; refresh before reordering');
+    const folder = this.getNode(folderId);
+    if (!folder || folder.type !== 'folder')
+      throw new Error('Folder not found');
+    const siblings = this.dbService.db.folders
+      .find({ parentId: folderId })
+      .sort(
+        (a, b) => compareNodeIds(a.index, b.index) || compareNodeIds(a.id, b.id)
+      );
+    const previous = siblings
+      .filter(row => selected.has(row.id))
+      .map(row => row.id);
+    if (JSON.stringify(previous) !== JSON.stringify(expectedOrder))
+      throw new Error('Folder changed; refresh before reordering');
+    let offset = 0;
+    const indices = new Map<string, string>();
+    for (let slot = 0; slot < siblings.length; ) {
+      if (!selected.has(siblings[slot].id)) {
+        slot++;
+        continue;
+      }
+      let end = slot;
+      while (end < siblings.length && selected.has(siblings[end].id)) end++;
+      let before = slot ? siblings[slot - 1].index : null;
+      const after = end < siblings.length ? siblings[end].index : null;
+      for (; slot < end; slot++) {
+        before = generateFractionalIndexingKeyBetween(before, after);
+        indices.set(nodeIds[offset++], before);
+      }
+    }
+    this.dbService.transact('folders', () => {
+      for (const [id, index] of indices)
+        this.dbService.db.folders.update(id, { index });
+    });
+    return this.orderRevision(folderId);
+  }
+
   private getNode(id: string) {
     const state = this.directoryAccess?.state$.value;
     return !state || state.mode === 'local' || state.mode === 'full'
@@ -407,6 +518,7 @@ export class FolderStore extends Store {
       type: 'folder',
       data: name,
       index: index,
+      defaultSortMode: 'name-desc',
     }).id;
   }
 

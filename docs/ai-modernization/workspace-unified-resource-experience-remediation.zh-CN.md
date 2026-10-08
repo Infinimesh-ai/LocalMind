@@ -244,3 +244,15 @@ Prisma Client、GraphQL schema/client 与 i18n 使用仓库生成流程；Prisma
 28 项 Linux 聚焦测试通过（native-files 17、project-file 8、resource-selection 3），9 个修改文件范围类型检查和 i18n 生成通过。真实页面验证文件夹新建 TXT/DOCX、两作用域 JSON 修正后同 ID 保存并重开、Project 草稿跨轮询无误报、图片与 BlockSuite 页面选择 1→2→1→0。用户确认后，仅永久删除专用 PDF/TXT 测试副本，并确认其从各自 Trash 消失。没有改动服务端授权、数据库或冻结权限。
 
 详细原始审计、回归步骤和浏览器操作限制分别在 `.codex-artifacts/crud-ui-browser-report-2026-09-28.md`、`crud-ui-fix-verification.md`、`crud-ui-fix-live-evidence.json`。本轮复用 `localmind-affine:dev-base` 容器及源码热更新，无镜像重建或部署；不将组件测试和键盘激活等同于所有真实鼠标、多用户和权限分支均已验证。
+
+### 7.7 Workspace 侧边栏文件夹排序
+
+2026-10-07 本地修复：文件夹右键菜单增加“排序”，支持名称倒序、名称正序、手动排序，作用于该文件夹的直接子项。名称采用固定中文区域、数字感知的自然比较，倒序示例为 `10-2 → 9-24 → 9-23 → 9-9`；比较显示名称，不解析文件时间或补猜年份。文件夹、普通文档与原生文件/Office 使用同一比较规则，同名以目录节点 ID 稳定排序。
+
+新文件夹保存共享默认值 `defaultSortMode: name-desc`；历史文件夹缺少该字段时保留原有手动顺序。用户选择保存在现有 Userspace 中，按服务实例、账号、Workspace、文件夹隔离；纯本地 Workspace 使用既有个人 settings。选择名称正序/倒序不改写共享 `index`，切回手动可恢复原排列。只读成员也可选择个人展示方式，目录重排仍受写入和组织权限限制。
+
+自动排序下同层拖拽提示“松开后切换为手动排序”，将当前可见排列及拖动结果一次保存，成功后切换个人模式，并提供一次撤销。撤销同时恢复原手动顺序与原模式；账号变化、目录版本或原排列变化时拒绝覆盖。跨文件夹移动按目标模式展示，手动模式追加到末尾；自动模式下重命名会立即重新排序。原生资源同层拖拽携带独立资源身份与目录节点身份，跨目录继续复用原生资源移动服务。
+
+在线重排使用独立 GraphQL 命令，复用现有资源快照事务、目录锁和实时权限检查。它校验目录版本、同父级节点集合与原顺序，最多 10,000 项/512 KiB，不拆成多个 100 项请求；不可见节点保留原 index，操作仅重新分配可见节点所在槽位。纯本地重排使用单次 Yjs transaction。没有 Prisma、native 或工具链变更。
+
+实现入口、精确验证命令及范围见 `.codex-artifacts/folder-sorting/validation.json`。复用 `localmind_hot_web`、`localmind_hot_backend` 的 `localmind-affine:dev-base` Linux 容器和现有源码热更新，没有重建镜像。实际浏览器验证菜单选择、Office 同层重排、成功提示及刷新保留，并恢复验证前的手动排列；截图为 `sidebar-sorting.jpg`。跨设备真实网络同步、已安装 Electron 和移动端未单独验收。

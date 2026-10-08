@@ -21056,7 +21056,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.v9.workOrderDraftHelp"](): string;
     /**
-      * `Only you can see this Agent draft. Recipients receive the work order after you send it.`
+      * `Only you can see this Agent draft. Recipients receive the work order after you send it. The system checks required text, file count and real format; review the business content requirements before sending.`
       */
     ["com.affine.localmind.workbench.v9.proposalNotice"](): string;
     /**
@@ -21925,6 +21925,38 @@ export function useAFFiNEI18N(): {
       * `View whole orbit`
       */
     ["com.affine.localmind.workbench.orbit.fit"](): string;
+    /**
+      * `Sort`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.label"](): string;
+    /**
+      * `Name descending`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.name-desc"](): string;
+    /**
+      * `Name ascending`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.name-asc"](): string;
+    /**
+      * `Manual order`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.manual"](): string;
+    /**
+      * `Drop to switch to manual order`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.drag-hint"](): string;
+    /**
+      * `Manual order saved`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.saved"](): string;
+    /**
+      * `Undo`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.undo"](): string;
+    /**
+      * `Unable to save folder order. Refresh the folder and try again.`
+      */
+    ["com.affine.rootAppSidebar.organize.folder.sort.conflict"](): string;
     /**
       * `An internal error occurred.`
       */
