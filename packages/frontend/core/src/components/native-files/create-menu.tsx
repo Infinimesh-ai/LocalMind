@@ -8,9 +8,9 @@ import {
   toast,
   usePromptModal,
 } from '@affine/component';
+import { useGuard } from '@affine/core/components/guard';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import { OrganizeService } from '@affine/core/modules/organize';
-import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { WorkspaceResourcesService } from '@affine/core/modules/workspace-resources';
@@ -71,9 +71,7 @@ export function WorkspaceCreateMenu({
   const canOrganize = useLiveData(
     parentId ? parent?.canMutate$ : tree.canMutate$
   );
-  const canWrite =
-    useLiveData(useService(GuardService).can$('Workspace_Blobs_Write')) ===
-    true;
+  const canWrite = useGuard('Workspace_Blobs_Write') === true;
   const { openPromptModal } = usePromptModal();
   const [format, setFormat] = useState<NativeFileFormat | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);

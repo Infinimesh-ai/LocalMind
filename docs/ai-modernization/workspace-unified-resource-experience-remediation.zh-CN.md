@@ -245,6 +245,31 @@ Prisma Client、GraphQL schema/client 与 i18n 使用仓库生成流程；Prisma
 
 详细原始审计、回归步骤和浏览器操作限制分别在 `.codex-artifacts/crud-ui-browser-report-2026-09-28.md`、`crud-ui-fix-verification.md`、`crud-ui-fix-live-evidence.json`。本轮复用 `localmind-affine:dev-base` 容器及源码热更新，无镜像重建或部署；不将组件测试和键盘激活等同于所有真实鼠标、多用户和权限分支均已验证。
 
+### 7.6 回收操作延迟与列表同步修复
+
+2026-09-30 源码修复：在线生命周期提交后，客户端主动通过现有授权同步队列拉取 Workspace 根文档和目录文档；不在本地额外写入 `trash`，保留目录回收声明与恢复语义。服务端在事务返回后唤醒持久化 outbox，合并并发唤醒、分批排空，原十秒定时任务继续兜底。尚在外层事务内的调用不提前广播，回滚不产生事件。生命周期写入复用同一快照，减少重复读取。
+
+共享确认弹窗仅在成功后自动关闭，超时、冲突、撤权等错误显示脱敏提示并允许重试；同一资源的回收和恢复不能并发提交，旧弹窗的异步结果不能关闭新弹窗。超时重试复用原请求键，版本冲突后重新读取。该弹窗错误行为同时适用于其他使用 ConfirmModalProvider 的入口。
+
+隔离 Linux 验证共 45 个不同用例通过：前端/同步 25 项、后端 20 项，覆盖无广播时权威状态拉取、恢复与目录声明、本地编辑保留、重复提交、请求重放、撤权、提交后即时事件、事务回滚和 outbox 失败重试。命令如下（后端使用专用临时 PostgreSQL/Redis）：
+
+```sh
+yarn vitest run \
+  packages/frontend/core/src/modules/workspace-resources/lifecycle.spec.ts \
+  packages/frontend/core/src/modules/workspace-resources/service.spec.ts \
+  packages/frontend/component/src/ui/modal/confirm-modal.spec.tsx \
+  packages/common/nbstore/src/__tests__/request-pull.spec.ts \
+  packages/common/nbstore/src/__tests__/sync.spec.ts --maxWorkers=1
+NODE_OPTIONS=--import=/workspace/tools/cli/register.js yarn workspace @affine/server test \
+  src/core/doc/__tests__/outbox.spec.ts \
+  src/__tests__/copilot/workspace-unified-lifecycle.e2e.ts \
+  src/core/doc/__tests__/workspace-organization.spec.ts
+```
+
+日志为 `.codex-artifacts/trash-fix-frontend-tests.log` 和 `trash-fix-backend-final.log`。后端完整类型检查及修改文件范围类型检查、ESLint、oxlint、Prettier 通过；前端范围检查不代表整个 monorepo 无既有诊断。实际组件在独立预览中验证失败提示、重试成功和浅色/深色窄窗口；未对用户业务文档执行回收测试。
+
+复用固定镜像 `localmind-affine:dev-base`，没有重建镜像、数据库结构变化、生产数据修改或运行实例同步。此次验证不代表正在运行的 Electron 客户端已经更新，也不构成真实网络环境下的延迟承诺。
+
 ### 7.7 Workspace 侧边栏文件夹排序
 
 2026-10-07 本地修复：文件夹右键菜单增加“排序”，支持名称倒序、名称正序、手动排序，作用于该文件夹的直接子项。名称采用固定中文区域、数字感知的自然比较，倒序示例为 `10-2 → 9-24 → 9-23 → 9-9`；比较显示名称，不解析文件时间或补猜年份。文件夹、普通文档与原生文件/Office 使用同一比较规则，同名以目录节点 ID 稳定排序。

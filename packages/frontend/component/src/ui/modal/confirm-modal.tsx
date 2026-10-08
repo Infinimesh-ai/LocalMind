@@ -1,3 +1,5 @@
+import { UserFriendlyError } from '@affine/error';
+import { useI18n } from '@affine/i18n';
 import { DialogTrigger } from '@radix-ui/react-dialog';
 import clsx from 'clsx';
 import {
@@ -5,6 +7,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -22,6 +25,7 @@ export interface ConfirmModalProps extends ModalProps {
   childrenContentClassName?: string;
   onConfirm?: (() => void) | (() => Promise<void>);
   onCancel?: (() => void) | false;
+  errorMessage?: React.ReactNode;
   confirmText?: React.ReactNode;
   cancelText?: React.ReactNode;
   cancelButtonOptions?: Omit<ButtonProps, 'children'>;
@@ -49,6 +53,7 @@ export const ConfirmModal = ({
   reverseFooter,
   onConfirm,
   onCancel,
+  errorMessage,
   width = 480,
   autoFocusConfirm = true,
   headerClassName,
@@ -59,9 +64,11 @@ export const ConfirmModal = ({
   ...props
 }: ConfirmModalProps) => {
   const onConfirmClick = useCallback(() => {
-    Promise.resolve(onConfirm?.()).catch(err => {
-      console.error(err);
-    });
+    Promise.resolve()
+      .then(() => onConfirm?.())
+      .catch(err => {
+        console.error(err);
+      });
   }, [onConfirm]);
   const handleCancel = useCallback(() => {
     if (onCancel === false) {
@@ -90,6 +97,11 @@ export const ConfirmModal = ({
       {children ? (
         <div className={clsx(styles.content, childrenContentClassName)}>
           {children}
+        </div>
+      ) : null}
+      {errorMessage ? (
+        <div role="alert" className={styles.error}>
+          {errorMessage}
         </div>
       ) : null}
       <div
@@ -157,6 +169,8 @@ const ConfirmModalContext = createContext<ConfirmModalContextProps>({
   closeConfirmModal: () => {},
 });
 export const ConfirmModalProvider = ({ children }: React.PropsWithChildren) => {
+  const t = useI18n();
+  const generation = useRef(0);
   const [modalProps, setModalProps] = useState<ConfirmModalProps>({
     open: false,
   });
@@ -172,11 +186,13 @@ export const ConfirmModalProvider = ({ children }: React.PropsWithChildren) => {
   }, []);
 
   const closeConfirmModal = useCallback(() => {
+    generation.current++;
     setModalProps({ open: false });
   }, []);
 
   const openConfirmModal = useCallback(
     (props?: ConfirmModalProps, options?: OpenConfirmModalOptions) => {
+      const current = ++generation.current;
       const { autoClose = true, onSuccess } = options ?? {};
       if (!props) {
         setModalProps({ open: true });
@@ -185,21 +201,47 @@ export const ConfirmModalProvider = ({ children }: React.PropsWithChildren) => {
 
       const { onConfirm: _onConfirm, ...otherProps } = props;
 
-      const onConfirm = () => {
+      let pending = false;
+      const onConfirm = async () => {
+        if (pending || current !== generation.current) return;
+        pending = true;
+        setModalProps(prev => ({ ...prev, errorMessage: undefined }));
         setLoading(true);
-        return Promise.resolve(_onConfirm?.())
-          .then(() => onSuccess?.())
-          .catch(console.error)
-          .finally(() => setLoading(false))
-          .finally(() => autoClose && closeConfirmModal());
+        try {
+          await _onConfirm?.();
+          if (current !== generation.current) return;
+          onSuccess?.();
+          if (autoClose && current === generation.current) closeConfirmModal();
+        } catch (error) {
+          if (current !== generation.current) return;
+          const status = UserFriendlyError.fromAny(error).status;
+          const key =
+            status === 409
+              ? 'conflict'
+              : status === 401 || status === 403
+                ? 'permission'
+                : status === 404
+                  ? 'unavailable'
+                  : status === 499 || status === 504
+                    ? 'network'
+                    : 'failed';
+          setModalProps(prev => ({
+            ...prev,
+            errorMessage: t[`com.affine.confirmModal.error.${key}`](),
+          }));
+        } finally {
+          pending = false;
+          if (current === generation.current) setLoading(false);
+        }
       };
       setModalProps({ ...otherProps, onConfirm, open: true });
     },
-    [closeConfirmModal, setLoading]
+    [closeConfirmModal, setLoading, t]
   );
 
   const onOpenChange = useCallback(
     (open: boolean) => {
+      if (!open) generation.current++;
       modalProps.onOpenChange?.(open);
       setModalProps(props => ({ ...props, open }));
     },

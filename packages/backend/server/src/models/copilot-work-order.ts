@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
+import { nativeFileFormatsForMimeTypes } from '@localmind/office';
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
@@ -581,7 +582,7 @@ export class CopilotWorkOrderModel extends BaseModel {
 
   async getDeliveryDraft(workOrderId: string, actorId: string) {
     const order = await this.assertRecipient(workOrderId, actorId);
-    const [draft, requirements, blobs] = await Promise.all([
+    const [draft, requirements, blobs, generations] = await Promise.all([
       this.db.workOrderDeliveryDraft.findUnique({
         where: { workOrderId: order.id, ownerId: actorId },
       }),
@@ -592,6 +593,10 @@ export class CopilotWorkOrderModel extends BaseModel {
       this.db.workOrderBlob.findMany({
         where: { workOrderId: order.id, ownerId: actorId, status: 'staged' },
       }),
+      this.models.copilotWorkOrderAgentRuntime.latestPrivateFiles(
+        order.id,
+        actorId
+      ),
     ]);
     const items = deliveryDraftItemsSchema.parse(draft?.items ?? []);
     const itemByRequirement = new Map(
@@ -635,6 +640,11 @@ export class CopilotWorkOrderModel extends BaseModel {
         requirementId: requirement.id,
         ready: reason === null,
         reason,
+        generation:
+          generations.find(run => run.requirementId === requirement.id) ?? null,
+        supportedGenerationFormats: nativeFileFormatsForMimeTypes(
+          requirement.acceptedMimeTypes
+        ),
       };
     });
     const canSubmit = ['open', 'validating', 'delivered'].includes(

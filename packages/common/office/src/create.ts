@@ -1,6 +1,8 @@
 import { strToU8, zipSync } from 'fflate';
 import { z } from 'zod';
 
+import { OFFICE_PACKAGE_MIME_TYPE } from './format';
+
 const validXmlText = (value: string) =>
   Array.from(value).every(character => {
     const code = character.codePointAt(0) ?? 0;
@@ -96,6 +98,21 @@ export const NativeFileContentSchema = z.discriminatedUnion('format', [
 
 export type NativeFileContent = z.infer<typeof NativeFileContentSchema>;
 export const NATIVE_FILE_MAX_INPUT_BYTES = 1024 * 1024;
+export const NATIVE_FILE_MIME_TYPES = {
+  docx: OFFICE_PACKAGE_MIME_TYPE.document,
+  xlsx: OFFICE_PACKAGE_MIME_TYPE.workbook,
+  pptx: OFFICE_PACKAGE_MIME_TYPE.presentation,
+  txt: 'text/plain',
+  md: 'text/markdown',
+  csv: 'text/csv',
+  json: 'application/json',
+} as const satisfies Record<NativeFileContent['format'], string>;
+
+export function nativeFileFormatsForMimeTypes(mimeTypes: readonly string[]) {
+  return Object.entries(NATIVE_FILE_MIME_TYPES)
+    .filter(([, mimeType]) => mimeTypes.includes(mimeType))
+    .map(([format]) => format);
+}
 
 const relationships =
   'http://schemas.openxmlformats.org/package/2006/relationships';
@@ -235,7 +252,7 @@ export function createNativeFile(input: NativeFileContent) {
           'word/styles.xml': 'wordprocessingml.styles+xml',
         }
       ),
-      mimeType: `${officeMime}wordprocessingml.document`,
+      mimeType: NATIVE_FILE_MIME_TYPES.docx,
     };
   }
   if (content.format === 'xlsx') {
@@ -277,7 +294,7 @@ export function createNativeFile(input: NativeFileContent) {
     });
     return {
       bytes: packageBytes('xl/workbook.xml', entries, types),
-      mimeType: `${officeMime}spreadsheetml.sheet`,
+      mimeType: NATIVE_FILE_MIME_TYPES.xlsx,
     };
   }
   if (content.format === 'pptx') {
@@ -320,7 +337,7 @@ export function createNativeFile(input: NativeFileContent) {
     });
     return {
       bytes: packageBytes('ppt/presentation.xml', entries, types),
-      mimeType: `${officeMime}presentationml.presentation`,
+      mimeType: NATIVE_FILE_MIME_TYPES.pptx,
     };
   }
   if (content.format === 'csv') {
@@ -331,16 +348,11 @@ export function createNativeFile(input: NativeFileContent) {
           .join(',')
       )
       .join('\r\n');
-    return { bytes: strToU8(csv), mimeType: 'text/csv' };
+    return { bytes: strToU8(csv), mimeType: NATIVE_FILE_MIME_TYPES.csv };
   }
   if (content.format === 'json') JSON.parse(content.text);
   return {
     bytes: strToU8(content.text),
-    mimeType:
-      content.format === 'json'
-        ? 'application/json'
-        : content.format === 'md'
-          ? 'text/markdown'
-          : 'text/plain',
+    mimeType: NATIVE_FILE_MIME_TYPES[content.format],
   };
 }

@@ -2,6 +2,62 @@
 
 日期：2026-09-29。对应[产品契约](project-work-order-ai-delivery-contract.zh-CN.md)。
 
+## 2026-09-30：Markdown 工单失败与占位交付修复
+
+通过 `ssh localmind` 只读核对 infinimesh 项目工单 `21a632b1-…`、接单会话
+`28fdc284-…` 和 run `f21262a0-…`。最初两次生成 TXT、一次生成 DOCX，均因冻结要求
+只接受 Markdown 而失败；后续重试生成了“暂无业务内容”的 Markdown 说明文件，
+收件人确认后工单已经变为 `delivered`。因此原问题既有生成失败无反馈，也有占位
+内容被误作业务交付。此次未修改远端工单、不可变回执或会话记录。
+
+根因与修改：
+
+- 工单冻结上下文以第二条 `system` 消息插入，而 native request 构造仅保留第一条
+  `system`。远端运行 sourcemap 也确认存在此路径。改为与 Project 引用一致的
+  `user` 参考数据，明确它不能授权变更权限或豁免要求；用真实 native 请求构造验证
+  要求 ID、CPU 主题、内容说明、MIME 均进入请求，发单人私人历史仍不进入。
+- 原格式校验发生在异步暂存阶段，AI 只能看到缺项。现在复用原生文件 writer 的
+  MIME 映射，在生成入队前拒绝不匹配格式并提示支持的 `content.format`。真实
+  Blob 暂存校验继续保留，不放宽允许格式。
+- 草稿检查向接单人返回每项最新任务状态、格式和有界错误码，转换状态通过现有
+  durable realtime outbox 刷新。工具同时返回冻结要求，失败不再假装排队；发送方
+  和其他用户不能读取私有任务、正文或原始 worker 错误。
+- AI policy 区分“没有补充资料”和“无法提供交付物”，含糊回答先澄清，后者引导
+  本人填写原因并确认拒绝。禁止生成无内容占位文件；就绪卡片提醒核对业务内容。
+  这属于上下文与行为指引修复，没有新增通用语义判定器或自动拒绝权限。
+
+实现主要位于 `runtime/turn-orchestrator.ts`、`tools/work-order-file-create.ts`、
+`models/copilot-work-order-agent-runtime.ts`、`models/copilot-work-order.ts`、
+共享 `office/src/create.ts` 及接单对话的 `work-order-generation-status.tsx`。
+GraphQL schema、operation/client 和 i18n 均通过现有生成流程更新；没有数据库模型
+变化或新增迁移。依据本契约以及 Agent Runtime、Project Native Resources active track。
+
+验证环境复用固定镜像 `localmind-affine:dev-base`，以临时 Linux runner 和一次性
+PostgreSQL/Redis 执行；数据库从空库应用全部迁移，没有使用业务数据库。未重建
+镜像，未同步或部署本机/远端业务服务。验证时 `docker system df`：镜像 29.22 GB、
+容器 1.617 GB、卷 19 GB、构建缓存 3.586 GB；未删除持久卷或其他项目镜像。
+
+聚焦命令与结果：
+
+```sh
+docker exec localmind_workorder_validation yarn workspace @affine/server test src/__tests__/copilot/project-workbench-v9.e2e.ts src/__tests__/copilot/file-create-input.spec.ts
+docker exec localmind_workorder_validation yarn workspace @affine/server test src/__tests__/copilot/project-workbench-v9.e2e.ts --match='recipient-confirmed inability*'
+docker exec localmind_workorder_validation yarn vitest run packages/frontend/core/src/desktop/pages/intelligence/work-order-generation-status.spec.tsx packages/frontend/core/src/desktop/pages/intelligence/work-order-delivery.spec.tsx packages/frontend/core/src/desktop/pages/intelligence/work-order-panel.spec.ts packages/common/office/src/create.spec.ts --maxWorkers=1
+```
+
+已通过 41 个不重复测试：既有后端回归及新增上下文/生成恢复用例 29 项，确认拒绝
+专项 1 项，前端和原生文件 writer 11 项。覆盖入队前 TXT/DOCX 拒绝、旧失败可见、
+Markdown 实际生成、草稿恢复、幂等、确认前不交付、拒绝权限/原因/单一通知/无回执。
+模型行为本身未调用生产 provider 做端到端评估，测试不证明任意自然语言内容合格。
+真实提示组件在隔离预览中验证了桌面浅色和 420px 深色、失败到排队到就绪状态，
+无横向溢出，旧错误会随状态更新清除；尚未在生产客户端验证完整往返。
+
+后端整包 TypeScript、Office/GraphQL 声明构建及本轮后端/前端文件的定向类型检查
+通过；所改 TypeScript 的仓库 ESLint/oxlint、Prettier、`git diff --check` 通过，
+新增提示组件的设计扫描无发现。日志保存在本地 `.codex-artifacts/workorder-fix-*`。
+通用语义检查仍未实现，已经确认的错误交付不能靠覆盖历史回执修正；运行环境
+上线与该工单后续业务处理须分别执行。
+
 ## 已落地
 
 - 新工单写入模板版本 2；发单人确认后才创建各收件人的工单、通知与私人会话。版本 1

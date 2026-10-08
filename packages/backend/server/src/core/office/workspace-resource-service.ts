@@ -139,18 +139,23 @@ export class WorkspaceNativeResourceService {
   }
 
   async get(input: Identity, trash = false) {
-    const resource = await this.access.assert(input, { trash });
-    const acl = this.ac.user(input.actorId).workspace(input.workspaceId);
-    const { locations, paths } =
-      await this.organization.nativeResourceLocations(input);
-    const rights = await Promise.all(
-      locations.map(location =>
-        this.models.workspaceDirectoryGrant.rights({
-          ...input,
-          directoryIds: location.path,
-        })
-      )
+    const { resource, locations, paths, rights } = await this.resources.observe(
+      async () => {
+        const resource = await this.access.assert(input, { trash });
+        const { locations, paths } =
+          await this.organization.nativeResourceLocations(input);
+        const rights = await Promise.all(
+          locations.map(location =>
+            this.models.workspaceDirectoryGrant.rights({
+              ...input,
+              directoryIds: location.path,
+            })
+          )
+        );
+        return { resource, locations, paths, rights };
+      }
     );
+    const acl = this.ac.user(input.actorId).workspace(input.workspaceId);
     const canEdit =
       !resource.state.trashedAt &&
       (await acl.can('Workspace.Blobs.Write')) &&

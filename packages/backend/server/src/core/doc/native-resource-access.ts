@@ -5,6 +5,7 @@ import { Models } from '../../models';
 import type { WorkspaceNativeIdentity } from '../../models/workspace-native-resource';
 import { PermissionAccess } from '../permission';
 import { ResourceError } from './resource-types';
+import { workspaceDocTransaction } from './transaction-context';
 import { WorkspaceOrganizationService } from './workspace-organization';
 import { WorkspaceResourceService } from './workspace-resource';
 
@@ -26,6 +27,25 @@ export class WorkspaceNativeResourceAccess {
       trash?: boolean;
       deleted?: boolean;
     } = {}
+  ) {
+    if (
+      !options.write &&
+      !options.organize &&
+      !workspaceDocTransaction.getStore()
+    ) {
+      return this.resources.observe(() => this.assertCurrent(input, options));
+    }
+    return this.assertCurrent(input, options);
+  }
+
+  private async assertCurrent(
+    input: WorkspaceNativeIdentity & { actorId: string },
+    options: {
+      write?: boolean;
+      organize?: boolean;
+      trash?: boolean;
+      deleted?: boolean;
+    }
   ) {
     const permission = this.ac.user(input.actorId).workspace(input.workspaceId);
     await permission.assert('Workspace.Blobs.Read');

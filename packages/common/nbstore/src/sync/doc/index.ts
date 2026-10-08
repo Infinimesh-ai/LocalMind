@@ -40,6 +40,7 @@ export interface DocSync {
   waitForSynced(docId?: string, abort?: AbortSignal): Promise<void>;
   addPriority(id: string, priority: number): () => void;
   resetSync(): Promise<void>;
+  requestPull(docId: string): Promise<void>;
 }
 
 export class DocSyncImpl implements DocSync {
@@ -181,5 +182,9 @@ export class DocSyncImpl implements DocSync {
     if (running) {
       this.start();
     }
+  }
+
+  async requestPull(docId: string) {
+    this.peers.forEach(peer => peer.requestPull(docId));
   }
 }

@@ -6,6 +6,11 @@ import { globalStateStorage } from './shared-storage/storage';
 
 const beforeAppQuitRegistry: (() => void)[] = [];
 const beforeTabCloseRegistry: ((tabId: string) => void)[] = [];
+let quitting = false;
+
+export function isAppQuitting() {
+  return quitting;
+}
 
 export function beforeAppQuit(fn: () => void) {
   beforeAppQuitRegistry.push(fn);
@@ -16,6 +21,10 @@ export function beforeTabClose(fn: (tabId: string) => void) {
 }
 
 app.on('before-quit', () => {
+  if (quitting) {
+    return;
+  }
+  quitting = true;
   beforeAppQuitRegistry.forEach(fn => {
     // some cleanup functions might throw on quit and crash the app
     try {

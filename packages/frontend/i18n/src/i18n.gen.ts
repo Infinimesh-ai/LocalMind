@@ -21926,6 +21926,50 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.orbit.fit"](): string;
     /**
+      * `Preview the files and check their content against the original requirements. File checks verify format and availability, not whether the content answers the request.`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryContentReview"](): string;
+    /**
+      * `Delivery file status`
+      */
+    ["com.affine.localmind.workbench.v9.fileGenerationStatus"](): string;
+    /**
+      * `The file is being generated. It is not yet part of the delivery draft.`
+      */
+    ["com.affine.localmind.workbench.v9.fileGenerationPending"](): string;
+    /**
+      * `File generation failed because the format did not match this requirement.`
+      */
+    ["com.affine.localmind.workbench.v9.fileGenerationFormatMismatch"](): string;
+    /**
+      * `No usable delivery file is available from this attempt.`
+      */
+    ["com.affine.localmind.workbench.v9.fileGenerationFailed"](): string;
+    /**
+      * `Ask the AI to regenerate it according to the original requirements, or upload a matching file in the delivery checklist. If you cannot provide it, enter the reason and click Refuse work order. The work order is still incomplete.`
+      */
+    ["com.affine.localmind.workbench.v9.fileGenerationRecovery"](): string;
+    /**
+      * `This resource changed. Check its current state, then try again.`
+      */
+    ["com.affine.confirmModal.error.conflict"](): string;
+    /**
+      * `Your access may have changed. Check that you are signed in and have permission to continue.`
+      */
+    ["com.affine.confirmModal.error.permission"](): string;
+    /**
+      * `This resource is unavailable. It may have been deleted or your access may have changed.`
+      */
+    ["com.affine.confirmModal.error.unavailable"](): string;
+    /**
+      * `The connection was interrupted. The result is not yet confirmed; retry to confirm it.`
+      */
+    ["com.affine.confirmModal.error.network"](): string;
+    /**
+      * `The operation could not be completed. Please try again.`
+      */
+    ["com.affine.confirmModal.error.failed"](): string;
+    /**
       * `Sort`
       */
     ["com.affine.rootAppSidebar.organize.folder.sort.label"](): string;

@@ -91,6 +91,7 @@ interface GroupedWorkerOps {
     waitForSynced: [string | null, void];
     addPriority: [{ docId: string; priority: number }, boolean];
     resetSync: [void, void];
+    requestPull: [string, void];
   };
 
   blobSync: {

@@ -111,6 +111,7 @@ export class GuardService extends Service {
           this.isAdmin$,
         ]).subscribe(([permissions, isAdmin]) => {
           if (isAdmin) {
+            prev = true;
             return subscriber.next(true);
           }
           const current = this.isDeniedByDocumentScope(action, docId)
@@ -169,8 +170,8 @@ export class GuardService extends Service {
       this.workspacePermissionService.permission.revalidate();
     }
 
-    if (this.isAdmin$.value === true) {
-      // if the user is admin, the permission is always true
+    // Workspace ACL still needs to load if a cached admin role is corrected.
+    if (docId && this.isAdmin$.value === true) {
       return;
     }
 
@@ -184,7 +185,7 @@ export class GuardService extends Service {
 
   private readonly revalidateWorkspacePermission = effect(
     exhaustMapWithTrailing(() =>
-      fromPromise(() => this.guardStore.getWorkspacePermissions()).pipe(
+      fromPromise(() => this.loadWorkspacePermission()).pipe(
         backoffRetry({
           count: Infinity,
         })

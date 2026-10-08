@@ -4,11 +4,15 @@ import {
   workspaceTrashedFoldersQuery,
 } from '@affine/graphql';
 import { createMinimalPdfFixture } from '@localmind/office/testing';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import type { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { PrismaClient } from '@prisma/client';
 import test from 'ava';
 import * as Y from 'yjs';
 
+import { EventBus } from '../../base';
 import { DocWriter, WorkspaceOrganizationService } from '../../core/doc';
+import { WorkspaceDocOutboxPublisher } from '../../core/doc/outbox';
 import { WorkspaceLifecycleService } from '../../core/doc/workspace-lifecycle';
 import { WorkspaceNativeResourceService } from '../../core/office/workspace-resource-service';
 import { WorkspaceBlobStorage } from '../../core/storage';
@@ -19,6 +23,7 @@ test.before(async () => {
   app = await createTestingApp();
 });
 test.beforeEach(async () => {
+  await app.get(WorkspaceDocOutboxPublisher).publish();
   await app.initTestingDB();
 });
 test.after.always(async () => {
@@ -40,6 +45,102 @@ async function fixture() {
   root.destroy();
   return { actorId: user.id, workspaceId: workspace.id };
 }
+
+test.serial(
+  'lifecycle broadcasts immediately and handlers see the committed receipt',
+  async t => {
+    const actor = await fixture();
+    const doc = await app
+      .get(DocWriter)
+      .createDoc(actor.workspaceId, 'Immediate trash', 'body', actor.actorId);
+    const lifecycle = app.get(WorkspaceLifecycleService);
+    const identity = { ...actor, kind: 'doc' as const, resourceId: doc.docId };
+    const current = await lifecycle.get(identity);
+    const db = app.get(PrismaClient);
+    let resolve!: (committed: boolean) => void;
+    const delivered = new Promise<boolean>(done => {
+      resolve = done;
+    });
+    const off = app.get(EventBus).on('doc.updates.pushed', async event => {
+      if (
+        event.spaceId !== actor.workspaceId ||
+        event.docId !== actor.workspaceId
+      )
+        return;
+      const receipt = await db.workspaceLifecycleOperation.findFirst({
+        where: {
+          workspaceId: actor.workspaceId,
+          requestKey: 'immediate-trash',
+        },
+      });
+      resolve(!!receipt);
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await lifecycle.change({
+        ...identity,
+        action: 'trash',
+        expectedVersion: current.version,
+        requestKey: 'immediate-trash',
+      });
+      const committed = await Promise.race([
+        delivered,
+        new Promise<boolean>(done => {
+          timer = setTimeout(() => done(false), 2000);
+        }),
+      ]);
+      t.true(committed);
+      t.true((await lifecycle.get(identity)).trashed);
+    } finally {
+      if (timer) clearTimeout(timer);
+      off();
+      await app.get(WorkspaceDocOutboxPublisher).publish();
+    }
+  }
+);
+
+test.serial(
+  'an outer transaction rollback never publishes or leaves a lifecycle receipt',
+  async t => {
+    const actor = await fixture();
+    const doc = await app
+      .get(DocWriter)
+      .createDoc(actor.workspaceId, 'Rollback trash', 'body', actor.actorId);
+    const lifecycle = app.get(WorkspaceLifecycleService);
+    const identity = { ...actor, kind: 'doc' as const, resourceId: doc.docId };
+    const current = await lifecycle.get(identity);
+    const db = app.get(PrismaClient);
+    let broadcasts = 0;
+    const off = app.get(EventBus).on('doc.updates.pushed', event => {
+      if (event.spaceId === actor.workspaceId) broadcasts++;
+    });
+    try {
+      const transactions =
+        app.get<TransactionHost<TransactionalAdapterPrisma>>(TransactionHost);
+      await t.throwsAsync(
+        transactions.withTransaction(async () => {
+          await lifecycle.change({
+            ...identity,
+            action: 'trash',
+            expectedVersion: current.version,
+            requestKey: 'rolled-back-trash',
+          });
+          await new Promise(resolve => setImmediate(resolve));
+          t.is(broadcasts, 0);
+          throw new Error('outer rollback');
+        }),
+        { message: 'outer rollback' }
+      );
+      await app.get(WorkspaceDocOutboxPublisher).publish();
+      t.is(broadcasts, 0);
+      t.is(await db.workspaceDocOutbox.count(), 0);
+      t.is(await db.workspaceLifecycleOperation.count(), 0);
+      t.false((await lifecycle.get(identity)).trashed);
+    } finally {
+      off();
+    }
+  }
+);
 
 test.serial(
   'browser lifecycle operations authenticate, recycle and restore the same folder',

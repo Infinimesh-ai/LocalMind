@@ -77,10 +77,11 @@ export class WorkspaceLifecycleService extends Service {
       local();
       return;
     }
-    const id = `${kind}:${resourceId}:${action}`;
-    if (this.pending.has(id))
+    const identity = `${kind}:${resourceId}`;
+    const id = `${identity}:${action}`;
+    if (this.pending.has(identity))
       throw new Error('Operation is already in progress');
-    this.pending.add(id);
+    this.pending.add(identity);
     try {
       const server = this.server;
       const generation = this.generation;
@@ -104,6 +105,14 @@ export class WorkspaceLifecycleService extends Service {
       });
       if (generation !== this.generation) return;
       this.requests.delete(id);
+      // Pull committed CRDT state through storage, never author a second local
+      // trash flag that could overwrite directory trash claims or a restore.
+      const workspace = this.workspaceService.workspace;
+      for (const docId of [workspace.id, 'db$folders']) {
+        void workspace.engine.doc.requestPull(docId).catch(() => {
+          // The durable outbox and normal sync retry remain the fallback.
+        });
+      }
       this.resources.invalidate();
       this.changes$.next(this.changes$.value + 1);
     } catch (error) {
@@ -114,7 +123,7 @@ export class WorkspaceLifecycleService extends Service {
         this.requests.delete(id);
       throw error;
     } finally {
-      this.pending.delete(id);
+      this.pending.delete(identity);
     }
   }
   discardRetry(

@@ -14,6 +14,7 @@ import { MenubarStateKey, MenubarStateSchema } from '../shared-state-schema';
 import { globalStateStorage } from '../shared-storage/storage';
 import { uiSubjects } from '../ui/subject';
 import { buildWebPreferences } from '../web-preferences';
+import { closeAllWindows } from './close-all-windows';
 
 const IS_DEV: boolean =
   process.env.NODE_ENV === 'development' && !process.env.CI;
@@ -32,14 +33,6 @@ const TraySettingsState = {
     );
   },
 };
-
-function closeAllWindows() {
-  BrowserWindow.getAllWindows().forEach(w => {
-    if (!w.isDestroyed()) {
-      w.destroy();
-    }
-  });
-}
 
 export class MainWindowManager {
   static readonly instance = new MainWindowManager();
@@ -91,7 +84,6 @@ export class MainWindowManager {
     closeAllWindows();
     this.mainWindowReady = undefined;
     this.mainWindow$.next(undefined);
-    this.hiddenMacWindow?.destroy();
     this.hiddenMacWindow = undefined;
   }
 

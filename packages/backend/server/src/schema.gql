@@ -6771,7 +6771,6 @@ type Query {
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
-  hello: String!
   latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
   localmindAuditEnvelopes(limit: Int, projectId: String, workspaceId: String!): [JSONObject!]!
   localmindLogArchiveBatches(limit: Int): [JSONObject!]!
@@ -7777,9 +7776,11 @@ type WorkOrderConversationTargetType {
 }
 
 type WorkOrderDeliveryDraftCheckType {
+  generation: WorkOrderFileGenerationType
   ready: Boolean!
   reason: String
   requirementId: ID!
+  supportedGenerationFormats: [String!]!
 }
 
 type WorkOrderDeliveryDraftItemType {
@@ -7851,6 +7852,13 @@ type WorkOrderExchangeType {
   createdAt: DateTime!
   id: ID!
   kind: String!
+}
+
+type WorkOrderFileGenerationType {
+  failureCode: String
+  format: String
+  runId: ID!
+  status: String!
 }
 
 type WorkOrderMutationResultType {

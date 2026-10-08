@@ -295,6 +295,10 @@ vi.mock('@affine/core/modules/desktop-api', () => ({
   useAppLayoutReady: state.layoutReady,
 }));
 
+vi.mock('@affine/core/modules/app-tabs-header', () => ({
+  AppTabsHeader: () => <div data-testid="desktop-tabs-header" />,
+}));
+
 vi.mock('@affine/core/modules/quicksearch/services/cmdk', () => ({
   CMDKQuickSearchService: tokens.QuickSearchService,
 }));
@@ -726,6 +730,28 @@ const renderWorkbench = (route = '/project/project-1') =>
   );
 
 describe('Intelligence workbench shell', () => {
+  test('reserves a desktop titlebar on project routes without adding it to the browser', () => {
+    const isElectron = BUILD_CONFIG.isElectron;
+    try {
+      BUILD_CONFIG.isElectron = false;
+      const browser = renderWorkbench('/project');
+      expect(screen.queryByTestId('project-desktop-titlebar')).toBeNull();
+      browser.unmount();
+
+      BUILD_CONFIG.isElectron = true;
+      renderWorkbench('/project');
+      expect(
+        screen
+          .getByTestId('project-desktop-titlebar')
+          .contains(screen.getByTestId('desktop-tabs-header'))
+      ).toBe(true);
+      expect(screen.getByTestId('intelligence-workbench')).toBeTruthy();
+      expect(screen.queryByTestId('host-workspace')).toBeNull();
+    } finally {
+      BUILD_CONFIG.isElectron = isElectron;
+    }
+  });
+
   beforeEach(() => {
     state.conversationMounts = 0;
     state.conversationUnmounts = 0;

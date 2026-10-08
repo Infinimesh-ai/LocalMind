@@ -30,7 +30,7 @@ import {
 } from '../../shared/deep-link';
 import { mainWindowOrigin, shellViewUrl } from '../../shared/internal-origin';
 import { isMacOS } from '../../shared/utils';
-import { beforeAppQuit, onTabClose } from '../cleanup';
+import { beforeAppQuit, isAppQuitting, onTabClose } from '../cleanup';
 import { ensureHelperProcess } from '../helper-process';
 import { logger } from '../logger';
 import {
@@ -987,9 +987,8 @@ export class WebContentViewsManager {
           [...this.tabViewsMap.entries()].filter(([key]) => key !== viewId)
         )
       );
-      // if all views are destroyed, close the app
-      // should only happen in tests
-      if (this.tabViewsMap.size === 0) {
+      // Tests can close every view without going through the app's quit flow.
+      if (this.tabViewsMap.size === 0 && !isAppQuitting()) {
         app.quit();
       }
       this.updateBackgroundThrottling();
@@ -1208,10 +1207,9 @@ export const reloadView = async () => {
 };
 
 export const onTabAction = (fn: (event: TabAction) => void) => {
-  const { unsubscribe } =
-    WebContentViewsManager.instance.tabAction$.subscribe(fn);
+  const subscription = WebContentViewsManager.instance.tabAction$.subscribe(fn);
 
-  return unsubscribe;
+  return () => subscription.unsubscribe();
 };
 
 export const onActiveTabChanged = (fn: (tabId: string) => void) => {

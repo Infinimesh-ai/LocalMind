@@ -458,113 +458,110 @@ export class WorkspaceDirectoryResolver {
   ) {
     if (!workspaceId || workspaceId.length > 256 || (after?.length ?? 0) > 256)
       throw new BadRequest('Invalid directory page');
-    return await this.models.workspaceDirectoryGrant.withMutationLock(
-      workspaceId,
-      async () => {
-        await this.ac
+    return await this.resources.observe(async () => {
+      await this.ac
+        .user(actor.id)
+        .workspace(workspaceId)
+        .assert('Workspace.Organize.Read');
+      const snapshot = await this.organization.readDirectory(
+        workspaceId,
+        actor.id
+      );
+      const rows = snapshot.entries.flatMap(({ row, rights }) => {
+        const parsed = entrySchema.safeParse(row);
+        return parsed.success
+          ? [
+              {
+                ...parsed.data,
+                parentId: parsed.data.parentId ?? null,
+                rights,
+              },
+            ]
+          : [];
+      });
+      const byId = new Map(rows.map(row => [row.id, row]));
+      const candidates = rows
+        .filter(row => {
+          let parentId = row.parentId;
+          for (let depth = 0; parentId !== null; depth++) {
+            const parent = byId.get(parentId);
+            if (!parent || parent.type !== 'folder' || depth >= 64)
+              return false;
+            parentId = parent.parentId;
+          }
+          return true;
+        })
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      const readable = new Set<string>();
+      const documents = candidates.flatMap(row =>
+        row.type === 'doc' ? [{ docId: row.data }] : []
+      );
+      // Bound native permission payloads while sharing the workspace context
+      // within each batch. Every page still checks current personal ACL.
+      for (let offset = 0; offset < documents.length; offset += 500) {
+        const allowed = await this.ac
           .user(actor.id)
           .workspace(workspaceId)
-          .assert('Workspace.Organize.Read');
-        const snapshot = await this.organization.readDirectory(
-          workspaceId,
-          actor.id
-        );
-        const rows = snapshot.entries.flatMap(({ row, rights }) => {
-          const parsed = entrySchema.safeParse(row);
-          return parsed.success
-            ? [
-                {
-                  ...parsed.data,
-                  parentId: parsed.data.parentId ?? null,
-                  rights,
-                },
-              ]
-            : [];
-        });
-        const byId = new Map(rows.map(row => [row.id, row]));
-        const candidates = rows
-          .filter(row => {
-            let parentId = row.parentId;
-            for (let depth = 0; parentId !== null; depth++) {
-              const parent = byId.get(parentId);
-              if (!parent || parent.type !== 'folder' || depth >= 64)
-                return false;
-              parentId = parent.parentId;
-            }
-            return true;
-          })
-          .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-        const readable = new Set<string>();
-        const documents = candidates.flatMap(row =>
-          row.type === 'doc' ? [{ docId: row.data }] : []
-        );
-        // Bound native permission payloads while sharing the workspace context
-        // within each batch. Every page still checks current personal ACL.
-        for (let offset = 0; offset < documents.length; offset += 500) {
-          const allowed = await this.ac
-            .user(actor.id)
-            .workspace(workspaceId)
-            .projectScope(null)
-            .docs(documents.slice(offset, offset + 500), 'Doc.Read');
-          for (const document of allowed) readable.add(document.docId);
-        }
-        const items: WorkspaceDirectoryEntryType[] = [];
-        for (const row of candidates) {
-          if (row.type === 'doc' && !readable.has(row.data)) continue;
-          if (row.type === 'file' || row.type === 'office') {
-            if (
-              !(await this.ac
-                .user(actor.id)
-                .workspace(workspaceId)
-                .can('Workspace.Blobs.Read'))
-            )
-              continue;
-            const identity = {
-              workspaceId,
-              actorId: actor.id,
-              resourceId: row.data,
-              kind: row.type,
-            };
-            try {
-              await this.models.workspaceNativeResource.get(identity);
-              await this.organization.nativeResourceLocations(identity);
-            } catch (error) {
-              if (error instanceof NotFound || error instanceof ResourceError)
-                continue;
-              throw error;
-            }
-          }
-          items.push(row);
-        }
-        const { fullSyncAllowed, rootRights } = snapshot;
-        // Include the entire visible authorization snapshot on every page: a
-        // content-only revision cannot detect policy changes between requests.
-        const authorizationRevision = createHash('sha256')
-          .update(
-            JSON.stringify({
-              workspaceId,
-              actorId: actor.id,
-              fullSyncAllowed,
-              rootRights,
-              entries: items.map(item => ({
-                id: item.id,
-                rights: item.rights,
-              })),
-            })
-          )
-          .digest('hex');
-        const page = items
-          .filter(item => !after || item.id > after)
-          .slice(0, 100);
-        return {
-          revision: snapshot.revision,
-          authorizationRevision,
-          items: page,
-          nextCursor: page.length === 100 ? (page.at(-1)?.id ?? null) : null,
-          fullSyncAllowed,
-          rootRights,
-        };
+          .projectScope(null)
+          .docs(documents.slice(offset, offset + 500), 'Doc.Read');
+        for (const document of allowed) readable.add(document.docId);
       }
-    );
+      const items: WorkspaceDirectoryEntryType[] = [];
+      for (const row of candidates) {
+        if (row.type === 'doc' && !readable.has(row.data)) continue;
+        if (row.type === 'file' || row.type === 'office') {
+          if (
+            !(await this.ac
+              .user(actor.id)
+              .workspace(workspaceId)
+              .can('Workspace.Blobs.Read'))
+          )
+            continue;
+          const identity = {
+            workspaceId,
+            actorId: actor.id,
+            resourceId: row.data,
+            kind: row.type,
+          };
+          try {
+            await this.models.workspaceNativeResource.get(identity);
+            await this.organization.nativeResourceLocations(identity);
+          } catch (error) {
+            if (error instanceof NotFound || error instanceof ResourceError)
+              continue;
+            throw error;
+          }
+        }
+        items.push(row);
+      }
+      const { fullSyncAllowed, rootRights } = snapshot;
+      // Include the entire visible authorization snapshot on every page: a
+      // content-only revision cannot detect policy changes between requests.
+      const authorizationRevision = createHash('sha256')
+        .update(
+          JSON.stringify({
+            workspaceId,
+            actorId: actor.id,
+            fullSyncAllowed,
+            rootRights,
+            entries: items.map(item => ({
+              id: item.id,
+              rights: item.rights,
+            })),
+          })
+        )
+        .digest('hex');
+      const page = items
+        .filter(item => !after || item.id > after)
+        .slice(0, 100);
+      return {
+        revision: snapshot.revision,
+        authorizationRevision,
+        items: page,
+        nextCursor: page.length === 100 ? (page.at(-1)?.id ?? null) : null,
+        fullSyncAllowed,
+        rootRights,
+      };
+    });
   }
 }

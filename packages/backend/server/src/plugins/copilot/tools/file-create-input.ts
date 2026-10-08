@@ -18,6 +18,6 @@ export const NativeFileCreateToolSchema = NativeFileCreateSchema.extend({
       }
     }, NativeFileCreateSchema.shape.content)
     .describe(
-      'A structured object, not a JSON string. Example: {"format":"docx","paragraphs":[{"text":"Title","heading":1},{"text":"Body"}]}. TXT example: {"format":"txt","text":"Body"}.'
+      'A structured object, not a JSON string. Example: {"format":"docx","paragraphs":[{"text":"Title","heading":1},{"text":"Body"}]}. Markdown (.md, text/markdown): {"format":"md","text":"# Title\\n\\nBody"}. Plain text (.txt, text/plain): {"format":"txt","text":"Body"}.'
     ),
 });

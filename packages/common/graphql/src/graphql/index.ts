@@ -8679,6 +8679,13 @@ export const copilotWorkOrderGetQuery = {
             requirementId
             ready
             reason
+            supportedGenerationFormats
+            generation {
+              runId
+              status
+              format
+              failureCode
+            }
           }
         }
         deliveriesReleased

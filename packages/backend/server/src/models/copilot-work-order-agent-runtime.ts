@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  NATIVE_FILE_MIME_TYPES,
+  NativeFileContentSchema,
+  nativeFileFormatsForMimeTypes,
+} from '@localmind/office';
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { type AiAgentRun, Prisma } from '@prisma/client';
@@ -77,6 +82,21 @@ export class CopilotWorkOrderAgentRuntimeModel extends BaseModel {
       where: { id: requirementId, workOrderId, kind: 'file' },
     });
     if (!requirement) throw new NotFound('File requirement unavailable');
+
+    const content = NativeFileContentSchema.parse(input.command.content);
+    const mimeType = NATIVE_FILE_MIME_TYPES[content.format];
+    if (!requirement.acceptedMimeTypes.includes(mimeType)) {
+      const formats = nativeFileFormatsForMimeTypes(
+        requirement.acceptedMimeTypes
+      );
+      throw new BadRequest(
+        `File format ${content.format} (${mimeType}) does not match requirement ${requirementId}. ` +
+          `Accepted MIME types: ${requirement.acceptedMimeTypes.join(', ')}. ` +
+          (formats.length
+            ? `Generate the requested content with content.format: ${formats.join(', ')}; do not substitute another format or a no-content statement.`
+            : 'Upload a matching file or ask the sender to clarify the requirement.')
+      );
+    }
 
     const targetFingerprint = agentRuntimeFingerprint({
       workOrderId,
@@ -170,7 +190,48 @@ export class CopilotWorkOrderAgentRuntimeModel extends BaseModel {
       step.id,
       'tool_step'
     );
+    await this.notifyRecipient(actorId);
     return this.read(workOrderId, run.id);
+  }
+
+  async latestPrivateFiles(workOrderId: string, actorId: string) {
+    // Return only the latest attempt per requirement. Never expose private
+    // command bodies or raw worker errors to the sender or another recipient.
+    return this.db.$queryRaw<
+      {
+        requirementId: string;
+        runId: string;
+        status: string;
+        format: string | null;
+        failureCode: string | null;
+      }[]
+    >(Prisma.sql`
+      SELECT DISTINCT ON (step.input->>'requirementId')
+        step.input->>'requirementId' AS "requirementId",
+        run.id AS "runId", run.status,
+        step.input->'file'->'content'->>'format' AS format,
+        CASE WHEN run.status = 'failed' THEN
+          CASE WHEN run.failure_message = 'File MIME type does not match this requirement'
+            THEN 'mime_mismatch' ELSE 'generation_failed' END
+          ELSE NULL END AS "failureCode"
+      FROM ai_agent_runs run
+      JOIN ai_agent_steps step ON step.run_id = run.id
+        AND step.step_key = 'generate_private_file'
+      JOIN work_orders work_order ON work_order.id = run.work_order_id
+      JOIN work_order_session_bindings binding ON binding.work_order_id = work_order.id
+        AND binding.session_id = run.session_id AND binding.owner_user_id = run.actor_id
+      WHERE run.work_order_id = ${id.parse(workOrderId)}
+        AND run.actor_id = ${id.parse(actorId)}
+        AND work_order.recipient_id = run.actor_id
+        AND run.workflow = ${WORK_ORDER_PRIVATE_FILE_WORKFLOW}
+      ORDER BY step.input->>'requirementId', run.created_at DESC, run.id DESC
+    `);
+  }
+
+  private async notifyRecipient(actorId: string) {
+    await this.db.projectRealtimeOutbox.create({
+      data: { topic: 'project.task.changed', scopeId: actorId },
+    });
   }
 
   async pendingPrivateFiles(limit = 50) {
@@ -641,6 +702,7 @@ export class CopilotWorkOrderAgentRuntimeModel extends BaseModel {
       undefined,
       eventType
     );
+    await this.notifyRecipient(run.actorId);
     return this.asPrivateRun(updated);
   }
 

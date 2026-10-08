@@ -5,10 +5,23 @@ export const railWidthVar = createVar();
 export const paneWidthVar = createVar();
 export const treeWidthVar = createVar();
 
+export const shell = style({
+  width: '100%',
+  height: '100dvh',
+  display: 'flex',
+  flexDirection: 'column',
+  background: cssVarV2('layer/background/primary'),
+});
+
+export const desktopTitlebar = style({
+  height: 40,
+  flexShrink: 0,
+});
+
 export const root = style({
   position: 'relative',
   width: '100vw',
-  height: '100dvh',
+  flex: 1,
   minWidth: 0,
   minHeight: 0,
   display: 'grid',

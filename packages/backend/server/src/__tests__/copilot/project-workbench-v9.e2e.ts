@@ -5,6 +5,17 @@ import test from 'ava';
 
 import { NativeFileCreateService } from '../../core/office/create-service';
 import { StorageRuntimeProvider } from '../../core/storage-runtime';
+import { TurnSchema } from '../../plugins/copilot/core';
+import { buildNativeRequest } from '../../plugins/copilot/runtime/native-request-runtime';
+import {
+  appendChatSystemPolicy,
+  TurnOrchestrator,
+} from '../../plugins/copilot/runtime/turn-orchestrator';
+import { ChatSessionService } from '../../plugins/copilot/session';
+import {
+  createWorkOrderFileTool,
+  WORK_ORDER_DELIVERY_POLICY,
+} from '../../plugins/copilot/tools/work-order-file-create';
 import { WorkOrderJobs } from '../../plugins/copilot/work-order-jobs';
 import { WorkOrderStorage } from '../../plugins/copilot/work-order-storage';
 import { createTestingApp, type TestingApp } from '../utils';
@@ -270,6 +281,299 @@ async function fixture() {
     sourceSession,
   };
 }
+
+async function markdownWorkOrder() {
+  const context = await fixture();
+  const prepared = await app.models.copilotWorkOrder.prepareDispatch({
+    actorId: context.sender.id,
+    sourceSessionId: context.sourceSession.id,
+    requestKey: 'cpu-markdown-dispatch',
+    recipients: [
+      {
+        recipientId: context.recipientB.id,
+        title: 'CPU Markdown document',
+        purpose: 'Explain CPU concepts in a real Markdown file.',
+        requirements: [
+          {
+            itemKey: 'cpu-md',
+            kind: 'file',
+            title: 'CPU concepts',
+            instructions:
+              'Explain what a CPU is, its basic definition and core role. Use headings and paragraphs.',
+            required: true,
+            acceptedMimeTypes: ['text/markdown', 'text/x-markdown'],
+            minCount: 1,
+            maxCount: 1,
+            validationMode: 'mime_and_container',
+          },
+        ],
+      },
+    ],
+  });
+  const dispatch = await app.models.copilotWorkOrder.confirmDispatch({
+    actorId: context.sender.id,
+    dispatchId: prepared.dispatch.id,
+    confirmationToken: prepared.confirmationToken!,
+    expectedDraftVersion: prepared.dispatch.draftVersion,
+    requestKey: 'cpu-markdown-confirm',
+  });
+  return { ...context, order: dispatch.orders[0] };
+}
+
+test.serial(
+  'work-order frozen requirements survive native request construction without sender history',
+  async t => {
+    const { db, sender, sourceSession, order } = await markdownWorkOrder();
+    await db.aiSessionMessage.create({
+      data: {
+        sessionId: sourceSession.id,
+        role: 'user',
+        content: 'PRIVATE_SENDER_HISTORY_DO_NOT_SHARE',
+      },
+    });
+    const session = await app
+      .get(ChatSessionService)
+      .get(order.sessionBinding!.sessionId);
+    t.truthy(session);
+    session!.pushTurn(
+      TurnSchema.parse({
+        conversationId: session!.config.sessionId,
+        role: 'user',
+        content: '没有补充材料，按工单要求生成文档。',
+        createdAt: new Date(),
+      })
+    );
+    const reference = await app
+      .get(TurnOrchestrator)
+      ['materializeWorkOrderContext'](session!);
+    t.truthy(reference);
+    const messages = await session!.finishAsync(
+      {},
+      { referenceMessages: [reference!], modelId: 'gpt-4.1' }
+    );
+    const { request } = await buildNativeRequest({
+      model: 'gpt-4.1',
+      messages: appendChatSystemPolicy(messages, {
+        role: 'system',
+        content: WORK_ORDER_DELIVERY_POLICY,
+      }),
+    });
+    const payload = JSON.stringify(request.messages);
+    t.true(payload.includes(order.requirements[0].id));
+    t.true(payload.includes('CPU concepts'));
+    t.true(payload.includes('text/markdown'));
+    t.true(payload.includes('Explain what a CPU is'));
+    t.true(payload.includes('supportedGenerationFormats'));
+    t.true(payload.includes('does not waive'));
+    t.true(payload.includes('clarify an ambiguous reply'));
+    t.true(payload.includes('confirm Refuse work order'));
+    t.false(payload.includes('PRIVATE_SENDER_HISTORY_DO_NOT_SHARE'));
+    t.false(payload.includes(sender.email));
+  }
+);
+
+test.serial(
+  'work-order Markdown generation rejects wrong formats before enqueue and exposes recoverable failure',
+  async t => {
+    const { db, sender, recipientB, outsider, order } =
+      await markdownWorkOrder();
+    const storage = app.get(WorkOrderStorage);
+    const runtime = app.models.copilotWorkOrderAgentRuntime;
+    const input = {
+      actorId: recipientB.id,
+      workOrderId: order.id,
+      sessionId: order.sessionBinding!.sessionId,
+      requirementId: order.requirements[0].id,
+      requestKey: 'cpu-file',
+      title: 'CPU',
+      file: {
+        title: 'CPU',
+        content: {
+          format: 'md',
+          text: '# CPU\n\nA CPU executes program instructions and coordinates computation.',
+        },
+      },
+    };
+    for (const content of [
+      { format: 'txt', text: 'Nothing to deliver' },
+      { format: 'docx', paragraphs: [{ text: 'Nothing to deliver' }] },
+    ]) {
+      await t.throwsAsync(
+        storage.queuePrivateFileGeneration({
+          ...input,
+          file: { title: 'Wrong', content },
+        }),
+        { message: /content.format: md/ }
+      );
+    }
+    t.is(await db.aiAgentRun.count({ where: { workOrderId: order.id } }), 0);
+    t.is(await db.workOrderBlob.count({ where: { workOrderId: order.id } }), 0);
+    const queued = await storage.queuePrivateFileGeneration(input);
+    const initial = await storage.deliveryPreview(order.id, recipientB.id);
+    t.is(initial.checks[0].generation?.status, 'queued');
+    t.false(initial.ready);
+    const lease = await runtime.acquirePrivateFile({
+      workOrderId: order.id,
+      runId: queued.id,
+      workerLeaseId: 'test-file-worker',
+    });
+    t.truthy(lease);
+    await runtime.failPrivateFile(
+      {
+        workOrderId: order.id,
+        actorId: recipientB.id,
+        runId: queued.id,
+        workerLeaseId: 'test-file-worker',
+        workerAttempt: lease!.workerAttempt,
+      },
+      'work_order_file_generation_failed',
+      'File MIME type does not match this requirement'
+    );
+    const failed = await storage.deliveryPreview(order.id, recipientB.id);
+    t.is(failed.checks[0].generation?.status, 'failed');
+    t.is(failed.checks[0].generation?.failureCode, 'mime_mismatch');
+    t.deepEqual(failed.checks[0].supportedGenerationFormats, ['md']);
+    t.false(failed.ready);
+    const tool = createWorkOrderFileTool(app.models, storage, {
+      workOrderId: order.id,
+      actorId: recipientB.id,
+      sessionId: input.sessionId,
+    }).work_order_delivery_check;
+    const feedback = await tool.execute!({}, {});
+    t.true(JSON.stringify(feedback).includes('CPU concepts'));
+    t.true(JSON.stringify(feedback).includes('mime_mismatch'));
+    t.false(JSON.stringify(feedback).includes('Nothing to deliver'));
+    t.deepEqual(await runtime.latestPrivateFiles(order.id, sender.id), []);
+    t.deepEqual(await runtime.latestPrivateFiles(order.id, outsider.id), []);
+    await t.throwsAsync(storage.deliveryPreview(order.id, sender.id));
+    const notifications = await db.projectRealtimeOutbox.findMany({
+      where: { scopeId: recipientB.id, topic: 'project.task.changed' },
+    });
+    t.true(notifications.length >= 3);
+    const recovered = await storage.queuePrivateFileGeneration({
+      ...input,
+      requestKey: 'cpu-file-corrected',
+    });
+    await app
+      .get(WorkOrderJobs)
+      .runPrivateFileGeneration({ workOrderId: order.id, runId: recovered.id });
+    const ready = await storage.deliveryPreview(order.id, recipientB.id);
+    t.true(ready.ready);
+    t.is(ready.checks[0].generation?.runId, recovered.id);
+    t.is(ready.checks[0].generation?.status, 'completed');
+    const stored = await storage.read({
+      workOrderId: order.id,
+      actorId: recipientB.id,
+      blobId: ready.items[0].blobIds[0],
+    });
+    t.is(stored.blob.mimeType, 'text/markdown');
+    t.is(stored.blob.fileName, 'CPU.md');
+    t.true(stored.bytes.toString('utf8').includes('CPU executes'));
+    t.is(
+      (
+        await storage.queuePrivateFileGeneration({
+          ...input,
+          requestKey: 'cpu-file-corrected',
+        })
+      ).id,
+      recovered.id
+    );
+    t.is(
+      (await db.workOrder.findUniqueOrThrow({ where: { id: order.id } }))
+        .status,
+      'open'
+    );
+    t.is(
+      await db.workOrderDeliveryRevision.count({
+        where: { workOrderId: order.id },
+      }),
+      0
+    );
+    t.is(
+      (
+        await db.aiSessionWorkState.findUniqueOrThrow({
+          where: { sessionId: input.sessionId },
+        })
+      ).completedAt,
+      null
+    );
+  }
+);
+
+test.serial(
+  'recipient-confirmed inability to provide the file refuses the order and notifies the sender without a delivery',
+  async t => {
+    const { db, sender, recipientB, outsider, sourceSession, order } =
+      await markdownWorkOrder();
+    const sessionId = order.sessionBinding!.sessionId;
+    const reason = '没有所需的 CPU 文档，也无法提供符合要求的文件。';
+    await db.aiSessionMessage.create({
+      data: { sessionId, role: 'user', content: reason },
+    });
+    const preview = await app
+      .get(WorkOrderStorage)
+      .deliveryPreview(order.id, recipientB.id);
+    t.false(preview.ready);
+    t.is(
+      (await db.workOrder.findUniqueOrThrow({ where: { id: order.id } }))
+        .status,
+      'open'
+    );
+    const input = {
+      workOrderId: order.id,
+      actorId: recipientB.id,
+      expectedVersion: order.version,
+      requestKey: 'unable-to-provide-cpu',
+      reason,
+    };
+    for (const actor of [sender, outsider]) {
+      await t.throwsAsync(
+        app.models.copilotWorkOrder.refuse({ ...input, actorId: actor.id })
+      );
+    }
+    const refused = await app.models.copilotWorkOrder.refuse(input);
+    const replay = await app.models.copilotWorkOrder.refuse(input);
+    t.is(refused.order.status, 'refused');
+    t.is(refused.order.terminalReason, reason);
+    t.is(replay.exchange.id, refused.exchange.id);
+    t.is(
+      await db.workOrderOutbox.count({
+        where: {
+          workOrderId: order.id,
+          recipientId: sender.id,
+          topic: 'work-order.refused',
+        },
+      }),
+      1
+    );
+    t.is(
+      await db.aiSessionAttention.count({
+        where: {
+          sessionId: sourceSession.id,
+          actorId: sender.id,
+          sourceId: order.id,
+          reason: 'work_order_refused',
+          status: 'open',
+        },
+      }),
+      1
+    );
+    t.truthy(
+      (
+        await db.aiSessionWorkState.findUniqueOrThrow({
+          where: { sessionId },
+        })
+      ).completedAt
+    );
+    t.is(await db.workOrderBlob.count({ where: { workOrderId: order.id } }), 0);
+    t.is(
+      await db.workOrderDeliveryRevision.count({
+        where: { workOrderId: order.id },
+      }),
+      0
+    );
+  }
+);
 
 async function dispatchTextOrders(
   sourceSessionId: string,

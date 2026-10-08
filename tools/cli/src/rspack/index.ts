@@ -18,6 +18,7 @@ import {
   type CreateHTMLPluginConfig,
   createHTMLPlugins,
 } from '../rspack-shared/html-plugin.js';
+import { desktopContextAliases } from './desktop-context-aliases.js';
 
 const require = createRequire(import.meta.url);
 
@@ -163,25 +164,10 @@ export function createHTMLTargetConfig(
         // Desktop's focused install can place context libraries in several
         // workspaces. Renderer packages must share their React contexts.
         ...(buildConfig.isElectron
-          ? {
-              react: pkg.join('node_modules', 'react').value,
-              'react-dom': pkg.join('node_modules', 'react-dom').value,
-              'react-router-dom': pkg.join('node_modules', 'react-router-dom')
-                .value,
-              'react-router': pkg.join('node_modules', 'react-router').value,
-              '@remix-run/router': pkg.join(
-                'node_modules',
-                '@remix-run',
-                'router'
-              ).value,
-              jotai: ProjectRoot.join(
-                'packages',
-                'frontend',
-                'core',
-                'node_modules',
-                'jotai'
-              ).value,
-            }
+          ? desktopContextAliases(
+              pkg.path.value,
+              ProjectRoot.join('packages', 'frontend', 'core').value
+            )
           : {}),
         '@preact/signals-core': ProjectRoot.join(
           'node_modules',

@@ -1,4 +1,4 @@
-# Building AFFiNE Desktop Client App
+# Building LocalMind Desktop Client App
 
 > **Warning**:
 >
@@ -35,6 +35,54 @@ Before you start building AFFiNE Desktop Client Application, please following th
 
 LocalMind standardizes local development on Linux and Linux containers. Platform
 specific desktop release flows are handled by CI when needed.
+
+## Local macOS arm64 build
+
+Apple Silicon Macs can build the native module, Electron renderer, desktop
+processes, and DMG/ZIP locally. Use the repository's Node.js 22, Yarn 4.13.0,
+Rust toolchain, and Xcode Command Line Tools. Use the system `strip` executable.
+
+From the repository root, with dependencies installed using the default Yarn
+configuration:
+
+```sh
+yarn install --immutable
+MACOSX_DEPLOYMENT_TARGET=12.0 yarn affine @affine/native build
+BUILD_TYPE=canary NODE_OPTIONS=--max-old-space-size=12288 yarn affine @affine/electron generate-assets
+BUILD_TYPE=canary SKIP_GENERATE_ASSETS=1 NODE_OPTIONS='--max-old-space-size=12288 --import=tsx' yarn affine @affine/electron make --platform=darwin --arch=arm64
+```
+
+Check that both renderer and desktop-layer builds succeeded before running the
+last command. `SKIP_GENERATE_ASSETS=1` reuses the assets from the preceding command.
+The explicit `tsx` loader lets Forge load the TypeScript helpers imported by its
+configuration. The default packaging hook links the root `node_modules`, and the
+packager dereferences that link when copying production dependencies. Do not set
+`HOIST_NODE_MODULES=1` for this default layout: that flag is for the separate
+workspace-local dependency installation used by CI below.
+
+Outputs are under `packages/frontend/apps/electron/out/canary/`:
+
+- Application: `LocalMind-canary-darwin-arm64/LocalMind-canary.app`
+- Disk image: `make/LocalMind.dmg`
+- ZIP: `make/zip/darwin/arm64/LocalMind-canary-darwin-arm64-0.27.0.zip`
+  (the version follows `packages/frontend/apps/electron/package.json`).
+
+An unsigned local build does not establish Developer ID signing or Apple
+notarization. Those require the Apple signing/notarization configuration in
+`forge.config.mjs` and the desktop release workflow. An arm64 build also does not
+verify the separate Intel x64 target.
+
+Local verification on 2026-09-30 passed compilation, DMG/ZIP creation, archive
+integrity checks, and startup from a DMG copy outside the checkout, including
+rendering the local sample document. An initial normal-Quit `SIGSEGV` was traced
+to workbench `WebContentsView` contents left alive when their windows were
+destroyed. Window cleanup now explicitly closes standalone contents, including
+detached background tabs, before destroying windows. Quit cleanup also guards
+against reentry, and tab-action subscriptions retain their receiver when disposed.
+The rebuilt DMG copy passed normal macOS Quit without a debugger, Quit with three
+loaded tabs, and Quit with the main window hidden (all exit code 0). Five focused
+lifecycle regression tests passed. Signing/notarization and Intel target
+validation remain separate release requirements.
 
 ## Build, package & make the desktop client app
 

@@ -8643,7 +8643,6 @@ export interface Query {
   externalMcpSettings: ExternalMcpSettingsType;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
-  hello: Scalars['String']['output'];
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   localmindAuditEnvelopes: Array<Scalars['JSONObject']['output']>;
   localmindLogArchiveBatches: Array<Scalars['JSONObject']['output']>;
@@ -10057,9 +10056,11 @@ export interface WorkOrderConversationTargetType {
 
 export interface WorkOrderDeliveryDraftCheckType {
   __typename?: 'WorkOrderDeliveryDraftCheckType';
+  generation: Maybe<WorkOrderFileGenerationType>;
   ready: Scalars['Boolean']['output'];
   reason: Maybe<Scalars['String']['output']>;
   requirementId: Scalars['ID']['output'];
+  supportedGenerationFormats: Array<Scalars['String']['output']>;
 }
 
 export interface WorkOrderDeliveryDraftItemType {
@@ -10139,6 +10140,14 @@ export interface WorkOrderExchangeType {
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
   kind: Scalars['String']['output'];
+}
+
+export interface WorkOrderFileGenerationType {
+  __typename?: 'WorkOrderFileGenerationType';
+  failureCode: Maybe<Scalars['String']['output']>;
+  format: Maybe<Scalars['String']['output']>;
+  runId: Scalars['ID']['output'];
+  status: Scalars['String']['output'];
 }
 
 export interface WorkOrderMutationResultType {
@@ -20523,6 +20532,14 @@ export type CopilotWorkOrderGetQuery = {
             requirementId: string;
             ready: boolean;
             reason: string | null;
+            supportedGenerationFormats: Array<string>;
+            generation: {
+              __typename?: 'WorkOrderFileGenerationType';
+              runId: string;
+              status: string;
+              format: string | null;
+              failureCode: string | null;
+            } | null;
           }>;
         } | null;
       };

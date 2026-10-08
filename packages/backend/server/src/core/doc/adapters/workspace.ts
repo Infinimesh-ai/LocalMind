@@ -69,11 +69,21 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
   }
 
   async withTransactionalReads<T>(operation: () => Promise<T>) {
+    // The enclosing repeatable-read transaction keeps these records stable.
+    // Native ACL checks and directory rendering often need the same tree.
+    const records = new Map<string, Promise<DocRecord | null>>();
     return await workspaceDocTransaction.run(
       {
         writable: false,
-        read: (workspaceId, docId) =>
-          this.readAuthoritative(workspaceId, docId, false),
+        read: (workspaceId, docId) => {
+          const key = JSON.stringify([workspaceId, docId]);
+          let record = records.get(key);
+          if (!record) {
+            record = this.readAuthoritative(workspaceId, docId, false);
+            records.set(key, record);
+          }
+          return record;
+        },
       },
       operation
     );

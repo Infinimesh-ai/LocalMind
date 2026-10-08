@@ -1,8 +1,20 @@
+import { cssVar } from '@toeverything/theme';
 import { bodyEmphasized, bodyRegular } from '@toeverything/theme/typography';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
+
+const error = style({
+  color: cssVarV2('text/primary'),
+  borderLeft: `2px solid ${cssVarV2('status/error')}`,
+  paddingLeft: 12,
+  fontSize: cssVar('fontSm'),
+  marginTop: 12,
+  overflowWrap: 'anywhere',
+});
 
 // desktop
 export const desktopStyles = {
+  error,
   container: style({
     display: 'flex',
     flexDirection: 'column',
@@ -36,6 +48,7 @@ export const desktopStyles = {
 
 // mobile
 export const mobileStyles = {
+  error,
   container: style({
     display: 'flex',
     flexDirection: 'column',

@@ -4,16 +4,24 @@ import {
   orderRingRadius,
 } from './collaboration-orbit-model';
 
-export const ORDER_ORBIT_MS = 2000 / 1.5 / 1.5 / 2 / 0.7 / 0.7 / 0.7;
-export const ORDER_GLIDE_MS = 400;
-export const ORDER_MORPH_MS = 640;
+// One lap (plus a short overrun to the exit point) takes about 0.75 s, and a
+// ball becomes a finished capsule about 1.2 s after it appears.
+export const ORDER_ORBIT_MS = 750;
+export const ORDER_GLIDE_MS = 420;
+export const ORDER_MORPH_MS = 450;
 export const ORDER_TRANSFER_MS = Math.max(ORDER_GLIDE_MS, ORDER_MORPH_MS);
 export const ORDER_ENTER_MS = ORDER_ORBIT_MS + ORDER_TRANSFER_MS;
 export const ORDER_EXIT_MS = 160;
-// At most six balls share the 50px orbit, leaving over 6px between their edges.
-export const ORDER_LAUNCH_GAP_MS = Math.ceil(ORDER_ORBIT_MS / 6);
+// Only the first few orders launch as balls; the rest form in place afterwards.
+export const ORDER_ORBIT_LIMIT = 6;
+// The first ball overruns the emitter and flies out across the ring ahead of
+// it, so all launches finish before it gets there. Wider gaps put the youngest
+// ball in that flight path; narrower ones crowd the emitter.
+export const ORDER_LAUNCH_GAP_MS = 90;
+export const ORDER_FORM_GAP_MS = 60;
 export const ORDER_TITLE_OFFSET =
-  (ORDER_ORBIT_MS + ORDER_MORPH_MS * 0.25) / ORDER_ENTER_MS;
+  (ORDER_ORBIT_MS + ORDER_MORPH_MS * 0.45) / ORDER_ENTER_MS;
+export const ORDER_FORM_TITLE_OFFSET = 0.45;
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 /** Zero velocity and acceleration at both ends, with a single speed peak. */
@@ -21,12 +29,16 @@ const settle = (value: number) => {
   const t = clamp(value);
   return t * t * t * (t * (t * 6 - 15) + 10);
 };
-/** Gentle acceleration preserves launch order; the exit speed stays one. */
+// A small launch kick separates consecutive balls at the emitter.
+const ORBIT_KICK = 0.2;
+/** Spins up from a gentle start and keeps accelerating until flung off the ring. */
 const orbitProgress = (value: number) => {
   const t = clamp(value);
-  return 0.9 * t + 0.1 * t * t * t * (t * (3 * t - 8) + 6);
+  return ORBIT_KICK * t + (1 - ORBIT_KICK) * (1 - Math.cos((t * Math.PI) / 2));
 };
-/** Starts at unit speed, matching the orbit's tangent, and settles on landing. */
+// Exit speed as a share of the average lap speed (the slope of orbitProgress).
+const ORBIT_EXIT_SPEED = ORBIT_KICK + ((1 - ORBIT_KICK) * Math.PI) / 2;
+/** Leaves at the orbit's exit speed along its tangent and settles on landing. */
 const glideProgress = (value: number) => {
   const t = clamp(value);
   return t + t * t - t * t * t;
@@ -34,14 +46,25 @@ const glideProgress = (value: number) => {
 const mix = (from: number, to: number, progress: number) =>
   from + (to - from) * progress;
 const pixel = (value: number) => Math.round(value * 10000) / 10000;
-const spring = (value: number, damping = 6, frequency = 10) => {
-  const response = (t: number) =>
-    1 -
-    Math.exp(-damping * t) *
-      (Math.cos(frequency * t) +
-        (damping / frequency) * Math.sin(frequency * t));
-  return response(clamp(value)) / response(1);
+/** CSS-style cubic-bezier easing, solved for x with Newton steps. */
+const cubicBezier = (x1: number, y1: number, x2: number, y2: number) => {
+  const curve = (a: number, b: number, s: number) =>
+    3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3;
+  const slope = (a: number, b: number, s: number) =>
+    3 * a * (1 - s) ** 2 + 6 * (b - a) * s * (1 - s) + 3 * (1 - b) * s * s;
+  return (value: number) => {
+    const x = clamp(value);
+    let s = x;
+    for (let i = 0; i < 8; i++) {
+      const d = slope(x1, x2, s);
+      if (Math.abs(d) < 1e-6) break;
+      s = clamp(s - (curve(x1, x2, s) - x) / d);
+    }
+    return curve(y1, y2, s);
+  };
 };
+/** Soft start while the dot leaves the ring, then a long overshoot-free settle. */
+const stretch = cubicBezier(0.45, 0, 0.15, 1);
 const speedEnvelope = (value: number) => {
   const t = clamp(value);
   return 16 * t * t * (1 - t) * (1 - t);
@@ -73,7 +96,7 @@ export function orderMotionFrames(
     y: card.y + card.height / 2,
   };
   const distance = Math.hypot(end.x - start.x, end.y - start.y);
-  const exitSpeed = (sweep * radius) / ORDER_ORBIT_MS;
+  const exitSpeed = (sweep * radius * ORBIT_EXIT_SPEED) / ORDER_ORBIT_MS;
   const tangentLength = (exitSpeed * ORDER_GLIDE_MS) / 3;
   const control1 = {
     x: start.x - sign * Math.sin(exitAngle) * tangentLength,
@@ -86,7 +109,7 @@ export function orderMotionFrames(
   const morphStart = ORDER_ORBIT_MS;
   const times = new Set([
     0,
-    100,
+    80,
     ORDER_ORBIT_MS / 2,
     ORDER_ORBIT_MS - 15,
     morphStart,
@@ -105,7 +128,7 @@ export function orderMotionFrames(
       const morphTime = clamp((time - morphStart) / ORDER_MORPH_MS);
       const orbitalSpeed = speedEnvelope(orbitTime);
       const travel = glideProgress(glideTime);
-      const morph = spring(morphTime);
+      const morph = stretch(morphTime);
       const growth = mix(0.18, 1, settle(orbitTime));
       let x: number, y: number;
       if (time <= ORDER_ORBIT_MS) {
@@ -138,8 +161,8 @@ export function orderMotionFrames(
         // Grow outward while gliding; the near end settles with the flight path.
         x += (sign * (width - ORDER_DOT_DIAMETER)) / 2;
       }
-      // Fade the fill during the last 100 ms of orbit, before capsule growth.
-      const fill = 1 - settle((time - ORDER_ORBIT_MS + 100) / 100);
+      // The solid dot dissolves into the outline as it stretches, not before.
+      const fill = 1 - settle(morphTime / 0.6);
       const position = `translate(${pixel(x - card.x - width / 2)}px, ${pixel(y - card.y - height / 2)}px)`;
       return {
         offset: time / ORDER_ENTER_MS,
@@ -154,7 +177,82 @@ export function orderMotionFrames(
             : fill === 0
               ? 'transparent'
               : `color-mix(in srgb, var(--order-tone) ${pixel(fill * 100)}%, transparent)`,
-        opacity: settle(time / 100),
+        opacity: settle(time / 80),
       };
     });
+}
+
+/** Capsule end nearest the avatar, where a ball lands before stretching. */
+function orderFormFrame(
+  layout: OrderCardLayout,
+  index: number,
+  morphTime: number
+): Keyframe {
+  const card = layout.cards[index];
+  const sign = layout.side === 'right' ? 1 : -1;
+  const morph = stretch(morphTime);
+  const width = mix(ORDER_DOT_DIAMETER, card.width, morph);
+  const height = mix(ORDER_DOT_DIAMETER, card.height, morph);
+  const x =
+    (layout.side === 'right'
+      ? ORDER_DOT_DIAMETER / 2
+      : card.width - ORDER_DOT_DIAMETER / 2) +
+    (sign * (width - ORDER_DOT_DIAMETER)) / 2;
+  const fill = 1 - settle(morphTime / 0.6);
+  return {
+    transform: `translate(${pixel(x - width / 2)}px, ${pixel(card.height / 2 - height / 2)}px)`,
+    width: `${pixel(width)}px`,
+    height: `${pixel(height)}px`,
+    paddingLeft: `${14 * morph}px`,
+    paddingRight: `${14 * morph}px`,
+    backgroundColor:
+      fill === 1
+        ? 'var(--order-tone)'
+        : fill === 0
+          ? 'transparent'
+          : `color-mix(in srgb, var(--order-tone) ${pixel(fill * 100)}%, transparent)`,
+  };
+}
+
+/** Orders beyond the orbit limit pop in as dots and stretch where they land. */
+export function orderFormFrames(
+  layout: OrderCardLayout,
+  index: number
+): Keyframe[] {
+  const frames: Keyframe[] = [];
+  for (let time = 0; time <= ORDER_MORPH_MS; time += 15) {
+    const t = Math.min(time, ORDER_MORPH_MS) / ORDER_MORPH_MS;
+    frames.push({
+      ...orderFormFrame(layout, index, t),
+      offset: t,
+      opacity: settle(time / 80),
+    });
+  }
+  if (frames.at(-1)?.offset !== 1)
+    frames.push({ ...orderFormFrame(layout, index, 1), offset: 1, opacity: 1 });
+  return frames;
+}
+
+/**
+ * Up to six balls orbit in turn; once the last one flies out, the remaining
+ * capsules form one after another.
+ */
+export function orderEntrance(count: number, index: number) {
+  const balls = Math.min(count, ORDER_ORBIT_LIMIT);
+  if (index < balls)
+    return {
+      orbit: true,
+      delay: index * ORDER_LAUNCH_GAP_MS,
+      duration: ORDER_ENTER_MS,
+      titleOffset: ORDER_TITLE_OFFSET,
+    };
+  return {
+    orbit: false,
+    delay:
+      (balls - 1) * ORDER_LAUNCH_GAP_MS +
+      ORDER_ORBIT_MS +
+      (index - balls) * ORDER_FORM_GAP_MS,
+    duration: ORDER_MORPH_MS,
+    titleOffset: ORDER_FORM_TITLE_OFFSET,
+  };
 }

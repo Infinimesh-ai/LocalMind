@@ -17,6 +17,8 @@ import {
   WorkbenchService,
 } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useWorkspaceResources } from '@affine/core/modules/workspace-resources/use-resources';
+import { UserFriendlyError } from '@affine/error';
 import {
   type WorkspaceNativeResourceQuery,
   workspaceNativeResourceQuery,
@@ -39,12 +41,16 @@ function WorkspaceOffice({
   nativeResource,
   refreshLifecycle,
   unavailable = false,
+  refreshFailed = false,
+  refreshing = false,
 }: {
   workspaceId: string;
   artifactId: string;
   nativeResource: WorkspaceNativeResourceQuery['workspaceNativeResource'];
   refreshLifecycle: () => void;
   unavailable?: boolean;
+  refreshFailed?: boolean;
+  refreshing?: boolean;
 }) {
   const graphql = useService(GraphQLService);
   const t = useI18n();
@@ -79,6 +85,25 @@ function WorkspaceOffice({
   }, [view, unsaved, dirty, confirmUnsaved, report]);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const { artifact, revision } = session;
+  const unavailableNotice = unavailable ? (
+    <div role="alert">
+      <p>
+        {t[
+          nativeResource.trashedAt
+            ? 'com.affine.localmind.resources.inTrash'
+            : refreshFailed
+              ? 'com.affine.error.unexpected-error.title'
+              : 'com.affine.localmind.resources.unavailable'
+        ]()}
+        {unsaved && ` ${t['com.affine.localmind.resources.draftWarning']()}`}
+      </p>
+      {refreshFailed && (
+        <Button disabled={refreshing} onClick={refreshLifecycle}>
+          {t['com.affine.error.retry']()}
+        </Button>
+      )}
+    </div>
+  ) : null;
   return (
     <>
       <ViewTitle title={artifact?.title ?? 'LocalMind Office'} />
@@ -124,17 +149,7 @@ function WorkspaceOffice({
             {BUILD_CONFIG.isMobileWeb ? (
               <div className={styles.mobileRoot}>
                 {header}
-                {unavailable && (
-                  <p role="alert">
-                    {t[
-                      nativeResource.trashedAt
-                        ? 'com.affine.localmind.resources.inTrash'
-                        : 'com.affine.localmind.resources.unavailable'
-                    ]()}
-                    {unsaved &&
-                      ` ${t['com.affine.localmind.resources.draftWarning']()}`}
-                  </p>
-                )}
+                {unavailableNotice}
                 <div
                   hidden={unavailable}
                   style={{ display: unavailable ? 'none' : 'contents' }}
@@ -146,17 +161,7 @@ function WorkspaceOffice({
               <>
                 <ViewHeader>{header}</ViewHeader>
                 <ViewBody>
-                  {unavailable && (
-                    <p role="alert">
-                      {t[
-                        nativeResource.trashedAt
-                          ? 'com.affine.localmind.resources.inTrash'
-                          : 'com.affine.localmind.resources.unavailable'
-                      ]()}
-                      {unsaved &&
-                        ` ${t['com.affine.localmind.resources.draftWarning']()}`}
-                    </p>
-                  )}
+                  {unavailableNotice}
                   <div
                     hidden={unavailable}
                     style={{ display: unavailable ? 'none' : 'contents' }}
@@ -208,6 +213,7 @@ export const Component = () => {
   const workspaceId = useService(WorkspaceService).workspace.id;
   const realtime = useService(NbstoreService).realtime;
   const t = useI18n();
+  const catalog = useWorkspaceResources();
   const query = useQuery(
     {
       query: workspaceNativeResourceQuery,
@@ -216,20 +222,71 @@ export const Component = () => {
         trash: true,
       },
     },
-    { suspense: false, shouldRetryOnError: false }
+    {
+      suspense: false,
+      shouldRetryOnError: error =>
+        error instanceof UserFriendlyError &&
+        (error.is('NETWORK_ERROR') || error.is('INTERNAL_SERVER_ERROR')),
+      errorRetryCount: 2,
+      errorRetryInterval: 1000,
+    }
   );
   const { mutate } = query;
+  const catalogMissing =
+    catalog.ready &&
+    !catalog.error &&
+    !catalog.items.some(
+      item => item.kind === 'office' && item.id === artifactId
+    );
   useEffect(() => {
-    const subscription = merge(
-      realtime.subscribe('workspace.nativeResources.changed', { workspaceId }),
+    // Catalog reconciliation also catches a missed lifecycle notification.
+    if (catalogMissing) void mutate().catch(() => undefined);
+  }, [catalogMissing, mutate]);
+  useEffect(() => {
+    let stopped = false;
+    let generation = 0;
+    let active: Promise<void> | undefined;
+    let requested = false;
+    const refresh = () => {
+      requested = true;
+      if (active) return;
+      const currentGeneration = generation;
+      const run = async () => {
+        do {
+          requested = false;
+          await mutate().catch(() => undefined);
+        } while (requested && !stopped && generation === currentGeneration);
+      };
+      const operation = run();
+      active = operation;
+      void operation
+        .finally(() => {
+          if (active === operation) active = undefined;
+        })
+        .catch(() => undefined);
+    };
+    const subscription = realtime
+      .subscribe('workspace.nativeResources.changed', { workspaceId })
+      .subscribe({ next: refresh, error: refresh });
+    const accessSubscription = merge(
       realtime.subscribe('workspace.access.changed', { workspaceId }),
       realtime.subscribe('workspace.directory-policy.changed', { workspaceId })
     ).subscribe({
-      next: () => void mutate().catch(() => undefined),
+      next: () => {
+        generation++;
+        requested = false;
+        active = undefined;
+        void mutate().catch(() => undefined);
+      },
       error: () => void mutate().catch(() => undefined),
     });
-    return () => subscription.unsubscribe();
-  }, [realtime, workspaceId, mutate]);
+    return () => {
+      stopped = true;
+      requested = false;
+      subscription.unsubscribe();
+      accessSubscription.unsubscribe();
+    };
+  }, [realtime, workspaceId, artifactId, mutate]);
   const resource = query.data?.workspaceNativeResource;
   // Keep an already opened editor mounted so a remote trash/revocation cannot
   // silently discard local drafts. Its content and write controls are hidden.
@@ -247,7 +304,14 @@ export const Component = () => {
         workspaceId={workspaceId}
         artifactId={artifactId}
         nativeResource={resource ?? retained.current.resource}
-        unavailable={!!query.error || !!resource?.trashedAt}
+        unavailable={
+          !!query.error ||
+          !!resource?.trashedAt ||
+          catalogMissing ||
+          catalog.error
+        }
+        refreshFailed={!!query.error}
+        refreshing={query.isValidating}
         refreshLifecycle={() => void mutate().catch(() => undefined)}
       />
     );

@@ -256,6 +256,7 @@ class StoreConsumer {
       'docSync.waitForSynced': (docId, ctx) =>
         this.docSync.waitForSynced(docId ?? undefined, ctx.signal),
       'docSync.resetSync': () => this.docSync.resetSync(),
+      'docSync.requestPull': docId => this.docSync.requestPull(docId),
       'blobSync.state': () => this.blobSync.state$,
       'blobSync.blobState': blobId => this.blobSync.blobState$(blobId),
       'blobSync.downloadBlob': key => this.blobSync.downloadBlob(key),

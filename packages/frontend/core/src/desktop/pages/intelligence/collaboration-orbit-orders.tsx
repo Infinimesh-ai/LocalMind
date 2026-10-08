@@ -10,10 +10,9 @@ import {
   orderDirection,
 } from './collaboration-orbit-model';
 import {
-  ORDER_ENTER_MS,
   ORDER_EXIT_MS,
-  ORDER_LAUNCH_GAP_MS,
-  ORDER_TITLE_OFFSET,
+  orderEntrance,
+  orderFormFrames,
   orderMotionFrames,
 } from './collaboration-orbit-motion';
 
@@ -109,13 +108,12 @@ export function CollaborationOrbitOrders({
     layout?.cards.forEach((card, index) => {
       const button = buttons.current.get(card.order.id);
       if (!button?.animate) return;
-      const duration = closing
-        ? ORDER_EXIT_MS
-        : fullEntrance && !reduced
-          ? ORDER_ENTER_MS
-          : 150;
-      const delay =
-        !closing && fullEntrance && !reduced ? index * ORDER_LAUNCH_GAP_MS : 0;
+      const entrance =
+        !closing && fullEntrance && !reduced
+          ? orderEntrance(layout.cards.length, index)
+          : null;
+      const duration = closing ? ORDER_EXIT_MS : (entrance?.duration ?? 150);
+      const delay = entrance?.delay ?? 0;
       const frames: Keyframe[] = closing
         ? [
             current.get(card.order.id) ?? {},
@@ -126,8 +124,10 @@ export function CollaborationOrbitOrders({
               opacity: 0,
             },
           ]
-        : fullEntrance && !reduced
-          ? orderMotionFrames(layout, node, index)
+        : entrance
+          ? entrance.orbit
+            ? orderMotionFrames(layout, node, index)
+            : orderFormFrames(layout, index)
           : [{ opacity: 0.35 }, { opacity: 1 }];
       const cardAnimations = [
         button.animate(frames, {
@@ -145,7 +145,7 @@ export function CollaborationOrbitOrders({
               { opacity: 0, offset: 0 },
               {
                 opacity: 0,
-                offset: fullEntrance && !reduced ? ORDER_TITLE_OFFSET : 0.1,
+                offset: entrance?.titleOffset ?? 0.1,
                 easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
               },
               { opacity: 1, offset: 1 },

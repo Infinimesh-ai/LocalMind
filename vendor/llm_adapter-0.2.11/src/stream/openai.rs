@@ -18,6 +18,12 @@ fn nonempty<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
   value.get(key)?.as_str().filter(|s| !s.trim().is_empty())
 }
 
+fn text_delta<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
+  // Whitespace-only deltas carry Markdown line breaks, word spacing and code indentation.
+  // Only identity fields should use the blank-string filtering in `nonempty`.
+  value.get(key)?.as_str().filter(|s| !s.is_empty())
+}
+
 fn error(code: &str) -> StreamEvent {
   StreamEvent::Error {
     message: format!("OpenAI stream rejected: {code}"),
@@ -228,7 +234,7 @@ impl OpenaiChatStreamParser {
         }
         if let Some(delta) = choice.get("delta") {
           for (field, reasoning) in [("content", false), ("reasoning_content", true)] {
-            if let Some(text) = nonempty(delta, field) {
+            if let Some(text) = text_delta(delta, field) {
               events.push(if reasoning {
                 StreamEvent::ReasoningDelta { text: text.to_string() }
               } else {
@@ -344,7 +350,7 @@ impl OpenaiResponsesStreamParser {
     match event {
       "error" | "response.error" | "response.failed" | "response.incomplete" => return Ok(self.round.fail(event)),
       "response.output_text.delta" | "response.reasoning.delta" | "response.reasoning_summary_text.delta" => {
-        if let Some(text) = nonempty(&json, "delta") {
+        if let Some(text) = text_delta(&json, "delta") {
           events.push(if event == "response.output_text.delta" {
             StreamEvent::TextDelta { text: text.to_string() }
           } else {
@@ -477,6 +483,84 @@ mod tests {
     assert_eq!(count(events), 0);
     assert!(events.iter().any(|e| matches!(e, StreamEvent::Error { .. })));
     assert!(!events.iter().any(|e| matches!(e, StreamEvent::Done { .. })));
+  }
+
+  // Providers can split Markdown whitespace into its own streaming delta.
+  const MARKDOWN_CHUNKS: &[&str] = &[
+    "目前的情况：",
+    "\n\n",
+    "###",
+    " ",
+    "工单状态",
+    "\n\n",
+    "| 项目 | 内容 |",
+    "\n",
+    "| --- | --- |",
+    "\n",
+    "| 标题 | CPU 文档 |",
+    "\n\n",
+    "```python",
+    "\n",
+    "if ready:",
+    "\n",
+    "    ",
+    "print('CPU')",
+    "\n",
+    "```",
+    "\r\n",
+    "\t",
+    "\u{3000}",
+  ];
+
+  #[test]
+  fn chat_preserves_whitespace_deltas_in_text_and_reasoning() {
+    for field in ["content", "reasoning_content"] {
+      let mut parser = OpenaiChatStreamParser::default();
+      let mut chunks = vec![];
+      for text in MARKDOWN_CHUNKS.iter().copied().chain([""]) {
+        let events = parser
+          .push_frame(frame(json!({"choices":[{"index":0,"delta":{field:text}}]})))
+          .unwrap();
+        for event in events {
+          match event {
+            StreamEvent::TextDelta { text } if field == "content" => chunks.push(text),
+            StreamEvent::ReasoningDelta { text } if field == "reasoning_content" => chunks.push(text),
+            StreamEvent::TextDelta { .. } | StreamEvent::ReasoningDelta { .. } => panic!("wrong delta type"),
+            _ => {}
+          }
+        }
+      }
+      assert_eq!(
+        chunks, MARKDOWN_CHUNKS,
+        "{field} must preserve every nonempty delta verbatim"
+      );
+    }
+  }
+
+  #[test]
+  fn responses_preserves_whitespace_deltas_in_text_and_reasoning() {
+    for kind in [
+      "response.output_text.delta",
+      "response.reasoning.delta",
+      "response.reasoning_summary_text.delta",
+    ] {
+      let mut parser = OpenaiResponsesStreamParser::default();
+      let mut chunks = vec![];
+      for text in MARKDOWN_CHUNKS.iter().copied().chain([""]) {
+        for event in response(&mut parser, json!({"type":kind,"delta":text})) {
+          match event {
+            StreamEvent::TextDelta { text } if kind == "response.output_text.delta" => chunks.push(text),
+            StreamEvent::ReasoningDelta { text } if kind != "response.output_text.delta" => chunks.push(text),
+            StreamEvent::TextDelta { .. } | StreamEvent::ReasoningDelta { .. } => panic!("wrong delta type"),
+            _ => {}
+          }
+        }
+      }
+      assert_eq!(
+        chunks, MARKDOWN_CHUNKS,
+        "{kind} must preserve every nonempty delta verbatim"
+      );
+    }
   }
 
   #[test]

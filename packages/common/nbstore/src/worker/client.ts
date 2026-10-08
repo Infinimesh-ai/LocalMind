@@ -408,6 +408,10 @@ class WorkerDocSync implements DocSync {
   resetSync(): Promise<void> {
     return this.client.call('docSync.resetSync');
   }
+
+  requestPull(docId: string) {
+    return this.client.call('docSync.requestPull', docId);
+  }
 }
 
 class WorkerBlobSync implements BlobSync {

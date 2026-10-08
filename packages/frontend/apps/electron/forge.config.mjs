@@ -27,6 +27,7 @@ import {
   platform,
   productName,
   protocolSchemes,
+  REPO_ROOT,
 } from './scripts/make-env.js';
 
 const fromBuildIdentifier = utils.fromBuildIdentifier;
@@ -385,6 +386,9 @@ export default {
       },
     ],
     executableName: productName,
+    // The default hoisted install links node_modules to the repository root.
+    // Copy its contents so the packaged ASAR never depends on that checkout.
+    derefSymlinks: true,
     ignore: [
       // Previous channel artifacts must not be embedded in the next package.
       /^\/out($|\/)/,
@@ -445,7 +449,7 @@ export default {
         });
 
         await symlink(
-          path.join(__dirname, '..', '..', '..', 'node_modules'),
+          path.join(REPO_ROOT, 'node_modules'),
           path.join(__dirname, 'node_modules')
         );
       }

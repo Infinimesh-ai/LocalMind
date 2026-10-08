@@ -17,6 +17,7 @@ import { nativeOperationHash } from '../../models/workspace-native-resource';
 import { CurrentUser, type CurrentUser as User } from '../auth/session';
 import { PermissionAccess } from '../permission';
 import { WorkspaceNativeResourceAccess } from './native-resource-access';
+import { WorkspaceDocOutboxPublisher } from './outbox';
 import { WorkspaceOrganizationService } from './workspace-organization';
 import { WorkspaceResourceService } from './workspace-resource';
 
@@ -81,7 +82,8 @@ export class WorkspaceLifecycleService {
     private readonly resources: WorkspaceResourceService,
     private readonly models: Models,
     private readonly nativeAccess: WorkspaceNativeResourceAccess,
-    private readonly ac: PermissionAccess
+    private readonly ac: PermissionAccess,
+    private readonly outbox: WorkspaceDocOutboxPublisher
   ) {}
   private async snapshot(workspaceId: string, actorId: string) {
     await this.ac
@@ -285,13 +287,15 @@ export class WorkspaceLifecycleService {
     };
   }
   async get(input: z.infer<typeof identitySchema> & { actorId: string }) {
-    return this.describe(
-      input,
-      await this.snapshot(input.workspaceId, input.actorId)
+    const snapshot = await this.resources.observe(() =>
+      this.snapshot(input.workspaceId, input.actorId)
     );
+    // Capability checks may refresh quota state outside this transaction. Read
+    // their current result rather than pinning it to the older content snapshot.
+    return this.describe(input, snapshot);
   }
   async change(input: z.infer<typeof changeSchema> & { actorId: string }) {
-    return this.resources.snapshot(input, async () => {
+    const result = await this.resources.snapshot(input, async () => {
       const acl = this.ac.user(input.actorId).workspace(input.workspaceId);
       await acl.assert('Workspace.Sync');
       if (input.action === 'delete' && input.kind === 'folder')
@@ -364,7 +368,7 @@ export class WorkspaceLifecycleService {
           )?.parentId;
         }
       }
-      const current = await this.get(input);
+      const current = await this.describe(input, snapshot);
       if (current.version !== input.expectedVersion)
         throw new ResourceConflict('Resource changed; refresh before editing');
       const can =
@@ -436,6 +440,8 @@ export class WorkspaceLifecycleService {
       });
       return result;
     });
+    this.outbox.requestPublish();
+    return result;
   }
 }
 @Resolver()

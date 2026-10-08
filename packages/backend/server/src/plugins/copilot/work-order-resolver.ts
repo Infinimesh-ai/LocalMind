@@ -138,10 +138,21 @@ class WorkOrderDeliveryDraftItemType {
 }
 
 @ObjectType()
+class WorkOrderFileGenerationType {
+  @Field(() => ID) runId!: string;
+  @Field(() => String) status!: string;
+  @Field(() => String, { nullable: true }) format!: string | null;
+  @Field(() => String, { nullable: true }) failureCode!: string | null;
+}
+
+@ObjectType()
 class WorkOrderDeliveryDraftCheckType {
   @Field(() => ID) requirementId!: string;
   @Field(() => Boolean) ready!: boolean;
   @Field(() => String, { nullable: true }) reason!: string | null;
+  @Field(() => [String]) supportedGenerationFormats!: string[];
+  @Field(() => WorkOrderFileGenerationType, { nullable: true })
+  generation!: WorkOrderFileGenerationType | null;
 }
 
 @ObjectType()

@@ -5,6 +5,7 @@ import { IPCMode } from '@sentry/electron/main';
 import { app, protocol } from 'electron';
 
 import { createApplicationMenu } from './application-menu/create';
+import { isAppQuitting } from './cleanup';
 import { isDev } from './config';
 import { persistentConfig } from './config-storage/persist';
 import { setupDeepLink } from './deep-link';
@@ -83,7 +84,9 @@ if (!isSingleInstance) {
  * Shout down background process if all windows was closed
  */
 app.on('window-all-closed', () => {
-  app.quit();
+  if (!isAppQuitting()) {
+    app.quit();
+  }
 });
 
 /**

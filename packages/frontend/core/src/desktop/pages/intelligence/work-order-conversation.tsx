@@ -42,6 +42,7 @@ import { useFramework, useLiveData, useService } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { WorkOrderGenerationStatus } from './work-order-generation-status';
 import * as styles from './workbench-conversation.css';
 
 type WorkOrderConversationProps = {
@@ -302,6 +303,7 @@ export function WorkOrderConversation({
           )}
         </div>
       ) : null}
+      {order ? <WorkOrderGenerationStatus order={order} /> : null}
       {showReadyCard && order && draft ? (
         <section className={styles.deliveryCard} role="status">
           <div className={styles.deliveryCardHeader}>
@@ -310,6 +312,9 @@ export function WorkOrderConversation({
             </strong>
             <span>
               {t['com.affine.localmind.workbench.v9.deliveryReadyQuestion']()}
+            </span>
+            <span>
+              {t['com.affine.localmind.workbench.v9.deliveryContentReview']()}
             </span>
           </div>
           <ul className={styles.deliveryCardList}>

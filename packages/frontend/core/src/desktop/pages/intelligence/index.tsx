@@ -13,6 +13,7 @@ import {
   getWorkspaceDocPath,
   PROJECT_NEW_CONVERSATION_PATH,
 } from '@affine/core/desktop/route-paths';
+import { AppTabsHeader } from '@affine/core/modules/app-tabs-header';
 import {
   DefaultServerService,
   GraphQLService,
@@ -171,33 +172,43 @@ export const Component = () => {
   );
 
   return (
-    <FrameworkScope scope={defaultServer?.scope}>
-      <SWRConfigProvider>
-        <QuickSearchContainer />
-        <ProjectFileRequestModal
-          requestId={searchParams.get('fileRequest')}
-          onClose={() =>
-            setSearchParams(
-              current => {
-                const next = new URLSearchParams(current);
-                next.delete('fileRequest');
-                return next;
-              },
-              { replace: true }
-            )
-          }
-        />
-        <IntelligenceWorkbench
-          selectedProjectId={selectedProjectId}
-          selectedResourceId={selectedResourceId}
-          selectedSessionId={selectedSessionId}
-          workOrderId={workOrderId}
-          newConversation={newConversation}
-          onSelectResource={selectResource}
-          onSelectProject={selectProject}
-        />
-      </SWRConfigProvider>
-    </FrameworkScope>
+    <div className={styles.shell}>
+      {BUILD_CONFIG.isElectron && (
+        <div
+          className={styles.desktopTitlebar}
+          data-testid="project-desktop-titlebar"
+        >
+          <AppTabsHeader />
+        </div>
+      )}
+      <FrameworkScope scope={defaultServer?.scope}>
+        <SWRConfigProvider>
+          <QuickSearchContainer />
+          <ProjectFileRequestModal
+            requestId={searchParams.get('fileRequest')}
+            onClose={() =>
+              setSearchParams(
+                current => {
+                  const next = new URLSearchParams(current);
+                  next.delete('fileRequest');
+                  return next;
+                },
+                { replace: true }
+              )
+            }
+          />
+          <IntelligenceWorkbench
+            selectedProjectId={selectedProjectId}
+            selectedResourceId={selectedResourceId}
+            selectedSessionId={selectedSessionId}
+            workOrderId={workOrderId}
+            newConversation={newConversation}
+            onSelectResource={selectResource}
+            onSelectProject={selectProject}
+          />
+        </SWRConfigProvider>
+      </FrameworkScope>
+    </div>
   );
 };
 

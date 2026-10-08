@@ -901,6 +901,14 @@ export class DocSyncPeer {
     this.statusUpdatedSubject$.next(job.docId);
   }
 
+  /** Reconcile a server-side mutation even if its broadcast has not arrived. */
+  requestPull(docId: string) {
+    this.actions.addDoc(docId);
+    if (!this.status.jobMap.get(docId)?.some(job => job.type === 'pull')) {
+      this.schedule({ type: 'pull', docId });
+    }
+  }
+
   addPriority(id: string, priority: number) {
     const oldPriority = this.prioritySettings.get(id) ?? 0;
     this.prioritySettings.set(id, priority);

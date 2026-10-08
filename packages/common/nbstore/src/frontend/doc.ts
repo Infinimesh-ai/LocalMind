@@ -537,4 +537,8 @@ ${changedList}
   async resetSync() {
     await this.sync.resetSync();
   }
+
+  requestPull(docId: string) {
+    return this.sync.requestPull(docId);
+  }
 }

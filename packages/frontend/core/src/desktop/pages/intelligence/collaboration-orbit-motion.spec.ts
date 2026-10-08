@@ -10,11 +10,15 @@ import {
 import {
   ORDER_ENTER_MS,
   ORDER_EXIT_MS,
+  ORDER_FORM_GAP_MS,
   ORDER_GLIDE_MS,
   ORDER_LAUNCH_GAP_MS,
   ORDER_MORPH_MS,
+  ORDER_ORBIT_LIMIT,
   ORDER_ORBIT_MS,
   ORDER_TITLE_OFFSET,
+  orderEntrance,
+  orderFormFrames,
   orderMotionFrames,
 } from './collaboration-orbit-motion';
 
@@ -74,18 +78,66 @@ const ballAt = (frames: Keyframe[], time: number) => {
 };
 
 describe('collaboration orbit motion', () => {
-  test('keeps the locked per-order timing and one independent exit', () => {
-    const currentOrbit = 2000 / 1.5 / 1.5 / 2 / 0.7 / 0.7 / 0.7;
-    expect(ORDER_LAUNCH_GAP_MS).toBe(216);
-    expect(ORDER_LAUNCH_GAP_MS).toBeLessThan(ORDER_ORBIT_MS / 4);
-    expect(ORDER_ORBIT_MS).toBeCloseTo(currentOrbit);
-    expect(ORDER_GLIDE_MS).toBe(400);
-    expect(ORDER_MORPH_MS).toBe(640);
-    expect(ORDER_ENTER_MS).toBeCloseTo(currentOrbit + 640);
+  test('keeps a lap near 0.75 s and each capsule near 1.2 s after its ball', () => {
+    expect(ORDER_ORBIT_MS).toBe(750);
+    expect(ORDER_ENTER_MS).toBe(1200);
+    expect(ORDER_LAUNCH_GAP_MS).toBe(90);
+    expect(ORDER_GLIDE_MS).toBeLessThanOrEqual(ORDER_MORPH_MS);
     expect(ORDER_EXIT_MS).toBe(160);
     expect(ORDER_TITLE_OFFSET).toBeCloseTo(
-      (ORDER_ORBIT_MS + ORDER_MORPH_MS * 0.25) / ORDER_ENTER_MS
+      (ORDER_ORBIT_MS + ORDER_MORPH_MS * 0.45) / ORDER_ENTER_MS
     );
+  });
+
+  test('launches at most six balls, then forms the rest after the last exit', () => {
+    const entrances = Array.from({ length: 9 }, (_, i) => orderEntrance(9, i));
+    expect(entrances.filter(entrance => entrance.orbit)).toHaveLength(
+      ORDER_ORBIT_LIMIT
+    );
+    const lastExit =
+      (ORDER_ORBIT_LIMIT - 1) * ORDER_LAUNCH_GAP_MS + ORDER_ORBIT_MS;
+    expect(entrances.slice(ORDER_ORBIT_LIMIT).map(e => e.delay)).toEqual([
+      lastExit,
+      lastExit + ORDER_FORM_GAP_MS,
+      lastExit + ORDER_FORM_GAP_MS * 2,
+    ]);
+    expect(entrances[ORDER_ORBIT_LIMIT].duration).toBe(ORDER_MORPH_MS);
+    const frames = orderFormFrames(layout('right'), 0);
+    expect(frames[0]).toMatchObject({ width: '32px', opacity: 0 });
+    expect(frames.at(-1)).toMatchObject({
+      offset: 1,
+      width: '276px',
+      height: '40px',
+      transform: 'translate(0px, 0px)',
+      backgroundColor: 'transparent',
+    });
+    expect(orderFormFrames(layout('left'), 0).at(-1)?.transform).toBe(
+      'translate(0px, 0px)'
+    );
+  });
+
+  test('spins up from rest and leaves the ring at full speed', () => {
+    const frames = orderMotionFrames(layout('right'), node, 0);
+    const radius = orderRingRadius(node.diameter, 1);
+    const angle = (time: number) => {
+      const ball = ballAt(frames, time);
+      return Math.atan2(
+        ball.y + layout('right').cards[0].y - node.y,
+        ball.x + layout('right').cards[0].x - node.x
+      );
+    };
+    const speed = (time: number) => {
+      let delta = angle(time + 15) - angle(time);
+      if (delta < -Math.PI) delta += Math.PI * 2;
+      if (delta > Math.PI) delta -= Math.PI * 2;
+      return (Math.abs(delta) * radius) / 15;
+    };
+    const start = speed(0);
+    const middle = speed(ORDER_ORBIT_MS / 2);
+    const end = speed(ORDER_ORBIT_MS - 30);
+    expect(start).toBeLessThan(end / 5);
+    expect(middle).toBeGreaterThan(start);
+    expect(end).toBeGreaterThan(middle);
   });
 
   test.each(['left', 'right'] as const)(
@@ -116,7 +168,15 @@ describe('collaboration orbit motion', () => {
       const duringGlide = at(frames, ORDER_ORBIT_MS + 200);
       expect(Number.parseFloat(String(duringGlide.width))).toBeGreaterThan(32);
       expect(Number.parseFloat(String(duringGlide.height))).toBeGreaterThan(32);
-      expect(duringGlide.backgroundColor).toBe('transparent');
+      expect(String(duringGlide.backgroundColor)).toContain('color-mix');
+      expect(
+        at(frames, ORDER_ORBIT_MS + ORDER_MORPH_MS * 0.7).backgroundColor
+      ).toBe('transparent');
+      // The capsule never grows past its final size.
+      for (const frame of frames)
+        expect(Number.parseFloat(String(frame.width))).toBeLessThanOrEqual(
+          276 + 1e-6
+        );
       expect(frames.at(-1)?.transform).toBe('translate(0px, 0px)');
       const before = position(at(frames, ORDER_ORBIT_MS - 15));
       const exit = position(at(frames, ORDER_ORBIT_MS));
@@ -181,12 +241,19 @@ describe('collaboration orbit motion', () => {
           const motions = cards.cards.map((_, i) =>
             orderMotionFrames(cards, avatar, i)
           );
-          for (let later = 1; later < count; later++) {
+          for (
+            let later = 1;
+            later < Math.min(count, ORDER_ORBIT_LIMIT);
+            later++
+          ) {
             for (let earlier = 0; earlier < later; earlier++) {
               const delay = (later - earlier) * ORDER_LAUNCH_GAP_MS;
-              if (delay >= ORDER_ORBIT_MS) continue;
+              // Include earlier balls that already left the ring and glide across it.
+              if (delay >= ORDER_ENTER_MS) continue;
               for (let sample = 0; sample <= 180; sample++) {
-                const time = ((ORDER_ORBIT_MS - delay) * sample) / 180;
+                const time =
+                  (Math.min(ORDER_ORBIT_MS, ORDER_ENTER_MS - delay) * sample) /
+                  180;
                 const front = ballAt(motions[earlier], time + delay);
                 const back = ballAt(motions[later], time);
                 const separation = Math.hypot(
