@@ -1,19 +1,30 @@
-import { Button, usePromptModal } from '@affine/component';
+import { Button, toast, usePromptModal } from '@affine/component';
 import {
   createDocExplorerContext,
   DocExplorerContext,
 } from '@affine/core/components/explorer/context';
 import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
+import {
+  migrateResourcePreference,
+  resourcePreferenceKey,
+} from '@affine/core/components/explorer/resource-preferences';
 import type { ExplorerDisplayPreference } from '@affine/core/components/explorer/types';
 import { Filters } from '@affine/core/components/filter';
 import { WorkspaceResourceExplorer } from '@affine/core/components/native-files/resource-explorer';
+import { WorkspaceServerService } from '@affine/core/modules/cloud';
 import {
   CollectionService,
   PinnedCollectionService,
 } from '@affine/core/modules/collection';
 import { CollectionRulesService } from '@affine/core/modules/collection-rules';
 import type { FilterParams } from '@affine/core/modules/collection-rules/types';
-import { WorkspaceLocalState } from '@affine/core/modules/workspace';
+import { WorkspaceDBService } from '@affine/core/modules/db';
+import { DocsService } from '@affine/core/modules/doc';
+import {
+  WorkspaceLocalState,
+  WorkspaceService,
+} from '@affine/core/modules/workspace';
+import { WorkspacePropertyService } from '@affine/core/modules/workspace-property';
 import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useState } from 'react';
@@ -103,6 +114,9 @@ type ViewMode = NonNullable<ExplorerDisplayPreference['view']>;
 export const AllPage = () => {
   const t = useI18n();
 
+  const [tempFilters, setTempFilters] = useState<FilterParams[] | null>(null);
+  const [tempFiltersInitial, setTempFiltersInitial] =
+    useState<FilterParams | null>(null);
   const collectionService = useService(CollectionService);
   const pinnedCollectionService = useService(PinnedCollectionService);
   const {
@@ -110,9 +124,28 @@ export const AllPage = () => {
     setViewMode,
     selectedCollectionId,
     setSelectedCollectionId,
-    displayPreference,
-    setDisplayPreference,
+    displayPreference: resourcePreference,
+    setDisplayPreference: setResourcePreference,
+    legacyPreference,
+    setLegacyPreference,
   } = useAllDocsOptions();
+  const definitions = useLiveData(
+    useService(WorkspacePropertyService).sortedProperties$
+  );
+  const mixed =
+    !selectedCollectionId &&
+    (!tempFilters?.length ||
+      tempFilters.every(
+        filter =>
+          (filter.type === 'system'
+            ? filter.key
+            : definitions.find(definition => definition.id === filter.key)
+                ?.type) === 'tags'
+      ));
+  const displayPreference = mixed ? resourcePreference : legacyPreference;
+  const setDisplayPreference = mixed
+    ? setResourcePreference
+    : setLegacyPreference;
 
   const isCollectionDataReady = useLiveData(
     collectionService.collectionDataReady$
@@ -164,10 +197,6 @@ export const AllPage = () => {
     selectedCollection ? selectedCollection.info$ : null
   );
 
-  const [tempFilters, setTempFilters] = useState<FilterParams[] | null>(null);
-  const [tempFiltersInitial, setTempFiltersInitial] =
-    useState<FilterParams | null>(null);
-
   const [explorerContextValue] = useState(() =>
     createDocExplorerContext(displayPreference)
   );
@@ -176,8 +205,9 @@ export const AllPage = () => {
     explorerContextValue.displayPreference$.next(displayPreference);
   }, [displayPreference, explorerContextValue]);
 
-  const groupBy = displayPreference.groupBy;
-  const orderBy = displayPreference.orderBy;
+  // The mixed explorer performs one comparison over the complete authorized catalog.
+  const groupBy = mixed ? undefined : displayPreference.groupBy;
+  const orderBy = mixed ? undefined : displayPreference.orderBy;
 
   const { openPromptModal } = usePromptModal();
 
@@ -400,8 +430,8 @@ export const AllPage = () => {
             )}
           </div>
           <div className={styles.scrollArea}>
-            {!selectedCollectionId && !tempFilters?.length ? (
-              <WorkspaceResourceExplorer />
+            {mixed ? (
+              <WorkspaceResourceExplorer filters={tempFilters ?? []} />
             ) : (
               <>
                 <p>{t['com.affine.localmind.resources.documentFilter']()}</p>
@@ -426,70 +456,133 @@ export const Component = () => {
  */
 const useAllDocsOptions = () => {
   const workspaceLocalState = useService(WorkspaceLocalState);
-
-  const readSavedViewMode = useCallback(() => {
-    return workspaceLocalState.get<ViewMode>('allDocsMode') ?? 'list';
-  }, [workspaceLocalState]);
-
-  const readSavedDisplayPreference = useCallback(
-    (mode: ViewMode) => {
-      const saved = workspaceLocalState.get<ExplorerDisplayPreference>(
+  const serverService = useService(WorkspaceServerService);
+  const server = useLiveData(serverService.server$);
+  const account = useLiveData(server?.account$);
+  const definitions = useLiveData(
+    useService(WorkspacePropertyService).sortedProperties$
+  );
+  const t = useI18n();
+  const { workspace } = useService(WorkspaceService);
+  const isLocal = workspace.flavour === 'local';
+  const definitionsReady = useLiveData(
+    useService(WorkspaceDBService).db.docCustomPropertyInfo.isReady$
+  );
+  const rootReady = useLiveData(useService(DocsService).list.isAvailable$);
+  const ready = definitionsReady && rootReady && (isLocal || !!account?.id);
+  const identity = isLocal
+    ? null
+    : `${server?.baseUrl ?? 'pending'}:${account?.id ?? 'signed-out'}`;
+  const scope = JSON.stringify(identity ?? 'local');
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () =>
+      workspaceLocalState.get<ViewMode>(`allResources:view:${scope}`) ?? 'list'
+  );
+  const readLegacy = useCallback(
+    (mode: ViewMode) => ({
+      ...DefaultDisplayPreference[mode],
+      ...workspaceLocalState.get<ExplorerDisplayPreference>(
         'allDocsDisplayPreference:' + mode
-      );
-      return {
-        ...DefaultDisplayPreference[mode],
-        ...saved,
-        view: mode,
-      };
-    },
+      ),
+      view: mode,
+    }),
     [workspaceLocalState]
   );
-
-  const [viewMode, setViewMode] = useState(readSavedViewMode);
-  const [displayPreference, setDisplayPreference] =
-    useState<ExplorerDisplayPreference>(() =>
-      readSavedDisplayPreference(viewMode)
-    );
-  const [selectedCollectionId, setSelectedCollectionId] = useState(
-    () =>
-      workspaceLocalState.get<string | null>('allDocsSelectedCollectionId') ??
-      null
-  );
-
-  const handleViewModeChange = useCallback(
+  const read = useCallback(
     (mode: ViewMode) => {
-      workspaceLocalState.set('allDocsMode', mode);
-      setViewMode(mode);
-      setDisplayPreference(readSavedDisplayPreference(mode));
+      const key = resourcePreferenceKey(identity, mode);
+      const saved = workspaceLocalState.get<ExplorerDisplayPreference>(key);
+      // An unscoped legacy preference may be claimed once, never inherited by another account.
+      const owner = workspaceLocalState.get<string>('allResources:legacyOwner');
+      const legacy =
+        !saved && (!owner || owner === scope)
+          ? workspaceLocalState.get<ExplorerDisplayPreference>(
+              'allDocsDisplayPreference:' + mode
+            )
+          : undefined;
+      return migrateResourcePreference(saved ?? legacy, definitions, {
+        ...DefaultDisplayPreference[mode],
+        view: mode,
+      });
     },
-    [workspaceLocalState, readSavedDisplayPreference]
+    [definitions, identity, scope, workspaceLocalState]
   );
-
-  const handleDisplayPreferenceChange = useCallback(
-    (displayPreference: ExplorerDisplayPreference) => {
+  const [state, setState] = useState(() => ({
+    scope,
+    mode: viewMode,
+    preference: read(viewMode).preference,
+  }));
+  const displayPreference =
+    state.scope === scope && state.mode === viewMode
+      ? state.preference
+      : read(viewMode).preference;
+  const [legacyPreference, setLegacyPreferenceState] =
+    useState<ExplorerDisplayPreference>(() => readLegacy(viewMode));
+  const [selectedCollectionId, setSelectedCollectionId] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    if (!ready) return;
+    const mode =
+      workspaceLocalState.get<ViewMode>(`allResources:view:${scope}`) ?? 'list';
+    setViewMode(mode);
+    setSelectedCollectionId(
+      workspaceLocalState.get<string | null>(
+        `allResources:collection:${scope}`
+      ) ?? null
+    );
+    setLegacyPreferenceState(readLegacy(mode));
+    const migrated = read(mode);
+    setState({ scope, mode, preference: migrated.preference });
+    if (!workspaceLocalState.get('allResources:legacyOwner'))
+      workspaceLocalState.set('allResources:legacyOwner', scope);
+    if (migrated.adjustedSort)
+      toast(t['com.affine.localmind.resource-display.migratedSort']());
+    workspaceLocalState.set(
+      resourcePreferenceKey(identity, mode),
+      migrated.preference
+    );
+  }, [scope, workspaceLocalState, ready, identity, readLegacy, read, t]);
+  const changeView = useCallback(
+    (mode: ViewMode) => {
+      workspaceLocalState.set(`allResources:view:${scope}`, mode);
+      setViewMode(mode);
+      setState({ scope, mode, preference: read(mode).preference });
+      setLegacyPreferenceState(readLegacy(mode));
+    },
+    [scope, read, readLegacy, workspaceLocalState]
+  );
+  const changePreference = useCallback(
+    (preference: ExplorerDisplayPreference) => {
+      workspaceLocalState.set(
+        resourcePreferenceKey(identity, viewMode),
+        preference
+      );
+      setState({ scope, mode: viewMode, preference });
+    },
+    [identity, scope, viewMode, workspaceLocalState]
+  );
+  const setLegacyPreference = useCallback(
+    (preference: ExplorerDisplayPreference) => {
       workspaceLocalState.set(
         'allDocsDisplayPreference:' + viewMode,
-        displayPreference
+        preference
       );
-      setDisplayPreference(displayPreference);
+      setLegacyPreferenceState(preference);
     },
     [viewMode, workspaceLocalState]
   );
-
-  const handleSelectedCollectionIdChange = useCallback(
-    (collectionId: string | null) => {
-      workspaceLocalState.set('allDocsSelectedCollectionId', collectionId);
-      setSelectedCollectionId(collectionId);
-    },
-    [workspaceLocalState]
-  );
-
   return {
     viewMode,
-    setViewMode: handleViewModeChange,
+    setViewMode: changeView,
     displayPreference,
-    setDisplayPreference: handleDisplayPreferenceChange,
+    setDisplayPreference: changePreference,
+    legacyPreference,
+    setLegacyPreference,
     selectedCollectionId,
-    setSelectedCollectionId: handleSelectedCollectionIdChange,
+    setSelectedCollectionId: (id: string | null) => {
+      workspaceLocalState.set(`allResources:collection:${scope}`, id);
+      setSelectedCollectionId(id);
+    },
   };
 };

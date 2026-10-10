@@ -414,6 +414,7 @@ export const projectPublicationFieldsFragment = `fragment ProjectPublicationFiel
   runId
   revision
   kind
+  resourceKind
   title
   status
   sourceSequence
@@ -448,6 +449,17 @@ export const projectWorkspaceImportTaskFragment = `fragment ProjectWorkspaceImpo
   failureCode
 }`;
 export const workspaceNativeResourceFieldsFragment = `fragment WorkspaceNativeResourceFields on WorkspaceNativeResourceType {
+  documentType
+  createdBy
+  lastUpdatedAt
+  lastUpdatedBy
+  lastUpdateActor
+  canEditTags
+  tags {
+    id
+    name
+    color
+  }
   id
   workspaceId
   kind
@@ -474,6 +486,30 @@ export const workspaceNativeResourceFieldsFragment = `fragment WorkspaceNativeRe
   updatedAt
   trashedAt
   deletedAt
+}`;
+export const workspacePageTreeNodeFragment = `fragment WorkspacePageTreeNode on WorkspacePageTreeItem {
+  nodeId
+  resourceId
+  kind
+  primaryMode
+  parentNodeId
+  title
+  documentType
+  order
+  trashed
+  isContainer
+  canRename
+  canConvertToPage
+  folder {
+    title
+    metadataVersion
+    createdAt
+    createdBy
+    updatedAt
+    updatedBy
+  }
+  canOrganize
+  defaultSortMode
 }`;
 export const licenseBodyFragment = `fragment licenseBody on License {
   expiredAt
@@ -1235,6 +1271,18 @@ export const validateConfigQuery = {
     valid
     error
   }
+}`,
+};
+
+export const adoptWorkspaceLocalPageTreeMutation = {
+  id: 'adoptWorkspaceLocalPageTreeMutation' as const,
+  op: 'adoptWorkspaceLocalPageTree',
+  query: `mutation adoptWorkspaceLocalPageTree($workspaceId: ID!, $contractVersion: String!, $positions: [WorkspaceLocalPageTreePosition!]!) {
+  adoptWorkspaceLocalPageTree(
+    workspaceId: $workspaceId
+    contractVersion: $contractVersion
+    positions: $positions
+  )
 }`,
 };
 
@@ -9831,6 +9879,18 @@ export const getPublicUserByIdQuery = {
 }`,
 };
 
+export const getPublicUsersByIdsQuery = {
+  id: 'getPublicUsersByIdsQuery' as const,
+  op: 'getPublicUsersByIds',
+  query: `query getPublicUsersByIds($ids: [String!]!) {
+  publicUsersByIds(ids: $ids) {
+    id
+    name
+    avatarUrl
+  }
+}`,
+};
+
 export const getRecentlyUpdatedDocsQuery = {
   id: 'getRecentlyUpdatedDocsQuery' as const,
   op: 'getRecentlyUpdatedDocs',
@@ -10405,6 +10465,23 @@ export const mentionUserMutation = {
 }`,
 };
 
+export const mutateWorkspacePageTreeMutation = {
+  id: 'mutateWorkspacePageTreeMutation' as const,
+  op: 'mutateWorkspacePageTree',
+  query: `mutation mutateWorkspacePageTree($input: WorkspacePageTreeCommandInput!) {
+  mutateWorkspacePageTree(input: $input) {
+    operationId
+    nodeId
+    resourceId
+    parentNodeId
+    revision
+    oldParentNodeId
+    oldSiblingOrder
+    oldBeforeNodeId
+  }
+}`,
+};
+
 export const officeArtifactQuery = {
   id: 'officeArtifactQuery' as const,
   op: 'officeArtifact',
@@ -10956,7 +11033,7 @@ export const previewProjectOfficeCommandQuery = {
 export const previewProjectPublicationMutation = {
   id: 'previewProjectPublicationMutation' as const,
   op: 'previewProjectPublication',
-  query: `mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String, $targetKind: String) {
+  query: `mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String, $targetKind: String, $pageTree: ProjectPublicationPageTreeTargetInput) {
   previewProjectPublication(
     projectId: $projectId
     publicationId: $publicationId
@@ -10965,6 +11042,7 @@ export const previewProjectPublicationMutation = {
     folderId: $folderId
     targetResourceId: $targetResourceId
     targetKind: $targetKind
+    pageTree: $pageTree
   ) {
     ...ProjectPublicationFields
   }
@@ -12583,6 +12661,89 @@ export const copyWorkspaceNativeResourceMutation = {
   }
 }
 ${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const setWorkspaceNativeResourceTagsMutation = {
+  id: 'setWorkspaceNativeResourceTagsMutation' as const,
+  op: 'setWorkspaceNativeResourceTags',
+  query: `mutation setWorkspaceNativeResourceTags($input: SetWorkspaceNativeResourceTagsInput!) {
+  setWorkspaceNativeResourceTags(input: $input) {
+    ...WorkspaceNativeResourceFields
+  }
+}
+${workspaceNativeResourceFieldsFragment}`,
+};
+
+export const workspacePageTreeConversionPreviewQuery = {
+  id: 'workspacePageTreeConversionPreviewQuery' as const,
+  op: 'workspacePageTreeConversionPreview',
+  query: `query workspacePageTreeConversionPreview($workspaceId: ID!, $nodeId: ID!) {
+  workspacePageTreeConversionPreview(workspaceId: $workspaceId, nodeId: $nodeId) {
+    nodeId
+    title
+    revision
+    authorizationRevision
+    resourceVersion
+    targetKind
+  }
+}`,
+};
+
+export const workspacePageTreeImpactQuery = {
+  id: 'workspacePageTreeImpactQuery' as const,
+  op: 'workspacePageTreeImpact',
+  query: `query workspacePageTreeImpact($workspaceId: ID!, $nodeId: ID!, $action: String!) {
+  workspacePageTreeImpact(
+    workspaceId: $workspaceId
+    nodeId: $nodeId
+    action: $action
+  ) {
+    revision
+    authorizationRevision
+    parentNodeId
+    total
+    truncated
+    items {
+      nodeId
+      title
+      documentType
+    }
+  }
+}`,
+};
+
+export const workspacePageTreeQuery = {
+  id: 'workspacePageTreeQuery' as const,
+  op: 'workspacePageTree',
+  query: `query workspacePageTree($workspaceId: ID!, $parentNodeId: ID, $after: String, $trash: Boolean, $resourceId: ID, $resourceKind: String, $clientContract: String!) {
+  workspacePageTree(
+    workspaceId: $workspaceId
+    parentNodeId: $parentNodeId
+    after: $after
+    trash: $trash
+    resourceId: $resourceId
+    resourceKind: $resourceKind
+    clientContract: $clientContract
+  ) {
+    contractVersion
+    canCreateFolder
+    canCreatePage
+    enabled
+    revision
+    authorizationRevision
+    nextCursor
+    parent {
+      ...WorkspacePageTreeNode
+    }
+    ancestors {
+      ...WorkspacePageTreeNode
+    }
+    items {
+      ...WorkspacePageTreeNode
+    }
+  }
+}
+${workspacePageTreeNodeFragment}`,
 };
 
 export const getWorkspaceRolePermissionsQuery = {

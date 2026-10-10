@@ -6,6 +6,7 @@ import {
   useConfirmModal,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
 import type { NodeOperation } from '@affine/core/desktop/components/navigation-panel';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
@@ -41,9 +42,9 @@ export const useNavigationPanelTagNodeNewDoc = (
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
-  return useCallback(() => {
+  return useAsyncCallback(async () => {
     if (!tagRecord) return;
-    const newDoc = createPage();
+    const newDoc = await createPage();
     tagRecord.tag(newDoc.id);
     track.$.navigationPanel.tags.createDoc();
     openNodeCollapsed();

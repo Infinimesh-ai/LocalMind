@@ -258,6 +258,10 @@ model MagicLinkOtp {
 }
 
 model Workspace {
+  pageTreeState WorkspacePageTreeState?
+  pageTreePlans WorkspacePageTreePlan[]
+  pageTreeMappings WorkspacePageTreeMapping[]
+  pageTreeOperations WorkspacePageTreeOperation[]
   lifecycleOperations WorkspaceLifecycleOperation[]
   files               WorkspaceFile[]
 
@@ -341,6 +345,9 @@ model Workspace {
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
   @@map("workspaces")
+  pageTreeTypedMappings WorkspacePageTreeTypedMapping[]
+  pageTreeConversions WorkspacePageTreeConversion[]
+
 }
 
 model WorkspaceDirectoryGrant {
@@ -3918,6 +3925,7 @@ enum OfficeRevisionOrigin {
 }
 
 model OfficeArtifact {
+  displayTags      WorkspaceNativeTag[]
   comments         OfficeComment[]
   workspaceState   WorkspaceOfficeState?
   nativeOperations WorkspaceNativeOperation[]
@@ -5074,6 +5082,7 @@ model OfficeCommentReply {
 
 // Independent downloadable files; Office resources retain their native revision model.
 model WorkspaceFile {
+  displayTags        WorkspaceNativeTag[]
   id                 String                     @id @default(uuid()) @db.VarChar
   workspaceId        String                     @map("workspace_id") @db.VarChar
   createdBy          String                     @map("created_by") @db.VarChar
@@ -5101,6 +5110,10 @@ model WorkspaceFile {
 }
 
 model WorkspaceFileState {
+  lastUpdatedAt    DateTime?             @map("last_updated_at") @db.Timestamptz(3)
+  lastUpdatedBy    String?               @map("last_updated_by") @db.VarChar
+  lastUpdateActor  String                @default("unknown") @map("last_update_actor") @db.VarChar(16)
+  lastUpdateEvent  String?               @map("last_update_event") @db.VarChar(512)
   fileId           String                @id @map("file_id") @db.VarChar
   workspaceId      String                @map("workspace_id") @db.VarChar
   title            String                @db.VarChar(512)
@@ -5152,6 +5165,10 @@ model WorkspaceFileRevision {
 }
 
 model WorkspaceOfficeState {
+  lastUpdatedAt    DateTime?      @map("last_updated_at") @db.Timestamptz(3)
+  lastUpdatedBy    String?        @map("last_updated_by") @db.VarChar
+  lastUpdateActor  String         @default("unknown") @map("last_update_actor") @db.VarChar(16)
+  lastUpdateEvent  String?        @map("last_update_event") @db.VarChar(512)
   artifactId       String         @id @map("artifact_id") @db.VarChar
   workspaceId      String         @map("workspace_id") @db.VarChar
   metadataVersion  Int            @default(1) @map("metadata_version")
@@ -5217,4 +5234,122 @@ model WorkspaceLifecycleOperation {
   @@unique([workspaceId, actorId, requestKey], map: "workspace_lifecycle_operation_request_key")
   @@index([workspaceId, resourceId, createdAt], map: "workspace_lifecycle_operation_resource_created")
   @@map("workspace_lifecycle_operations")
+}
+
+// Definitions live in the existing Workspace root CRDT; this stores membership only.
+model WorkspaceNativeTag {
+  id          String          @id @default(uuid()) @db.VarChar
+  workspaceId String          @map("workspace_id") @db.VarChar
+  tagId       String          @map("tag_id") @db.VarChar(256)
+  fileId      String?         @map("file_id") @db.VarChar
+  artifactId  String?         @map("artifact_id") @db.VarChar
+  file        WorkspaceFile?  @relation(fields: [fileId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict)
+  artifact    OfficeArtifact? @relation(fields: [artifactId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([fileId, tagId])
+  @@unique([artifactId, tagId])
+  @@index([workspaceId, tagId])
+  @@map("workspace_native_tags")
+}
+
+// Ownership remains in the existing folders Yjs document. SQL owns cutover,
+// fencing and immutable evidence, never another mutable copy of parentId.
+model WorkspacePageTreeState {
+  workspaceId String @id @map("workspace_id") @db.VarChar
+  contractVersion String? @map("contract_version") @db.VarChar(64)
+  revision Int @default(0)
+  phase String @default("preflight") @db.VarChar(32)
+  planId String? @map("plan_id") @db.VarChar
+  leaseToken String? @map("lease_token") @db.VarChar
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  attempts Int @default(0)
+  checkpoint Int @default(0)
+  errorCode String? @map("error_code") @db.VarChar(64)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan WorkspacePageTreePlan? @relation(fields: [planId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  @@map("workspace_page_tree_states")
+}
+model WorkspacePageTreePlan {
+  id String @id @default(uuid()) @db.VarChar
+  workspaceId String @map("workspace_id") @db.VarChar
+  actorId String @map("actor_id") @db.VarChar
+  sourceRevision String @map("source_revision") @db.VarChar(64)
+  fingerprint String @db.VarChar(64)
+  plan Json @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activeStates WorkspacePageTreeState[]
+  @@unique([id, workspaceId])
+  @@unique([workspaceId, fingerprint])
+  @@map("workspace_page_tree_plans")
+  typedMappings WorkspacePageTreeTypedMapping[]
+
+}
+model WorkspacePageTreeMapping {
+  workspaceId String @map("workspace_id") @db.VarChar
+  oldFolderId String @map("old_folder_id") @db.VarChar
+  nodeId String @map("node_id") @db.VarChar
+  documentId String @map("document_id") @db.VarChar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@id([workspaceId, oldFolderId])
+  @@unique([workspaceId, nodeId])
+  @@unique([workspaceId, documentId])
+  @@map("workspace_page_tree_mappings")
+}
+model WorkspacePageTreeOperation {
+  id String @id @default(uuid()) @db.VarChar
+  workspaceId String @map("workspace_id") @db.VarChar
+  actorId String @map("actor_id") @db.VarChar
+  requestKey String @map("request_key") @db.VarChar(256)
+  fingerprint String @db.VarChar(64)
+  contractVersion String @map("contract_version") @db.VarChar(64)
+  beforeRevision Int @map("before_revision")
+  afterRevision Int @map("after_revision")
+  result Json @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@unique([workspaceId, actorId, requestKey])
+  @@map("workspace_page_tree_operations")
+  conversions WorkspacePageTreeConversion[]
+  @@unique([id, workspaceId])
+
+}
+
+// v1 evidence is retained unchanged. Targets are typed; folder IDs never masquerade as docs.
+model WorkspacePageTreeTypedMapping {
+  workspaceId String @map("workspace_id") @db.VarChar
+  planId String @map("plan_id") @db.VarChar
+  sourceKind String @map("source_kind") @db.VarChar(16)
+  sourceId String @map("source_id") @db.VarChar
+  nodeId String @map("node_id") @db.VarChar
+  targetKind String @map("target_kind") @db.VarChar(16)
+  targetId String @map("target_id") @db.VarChar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan WorkspacePageTreePlan @relation(fields: [planId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  @@id([planId, sourceKind, sourceId])
+  @@unique([planId, nodeId])
+  @@unique([planId, targetKind, targetId])
+  @@map("workspace_page_tree_typed_mappings")
+}
+model WorkspacePageTreeConversion {
+  id String @id @default(uuid()) @db.VarChar
+  workspaceId String @map("workspace_id") @db.VarChar
+  operationId String @map("operation_id") @db.VarChar
+  nodeId String @map("node_id") @db.VarChar
+  sourceKind String @map("source_kind") @db.VarChar(16)
+  sourceId String @map("source_id") @db.VarChar
+  targetKind String @map("target_kind") @db.VarChar(16)
+  targetId String @map("target_id") @db.VarChar
+  sourceVersion Int @map("source_version")
+  authorizationRevision String @map("authorization_revision") @db.VarChar(64)
+  evidence Json @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  operation WorkspacePageTreeOperation @relation(fields: [operationId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([operationId])
+  @@index([workspaceId, sourceKind, sourceId])
+  @@map("workspace_page_tree_conversions")
 }

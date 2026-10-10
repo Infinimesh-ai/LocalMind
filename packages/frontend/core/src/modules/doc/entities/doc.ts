@@ -17,21 +17,29 @@ export class Doc extends Entity {
     super();
 
     const handleTransactionThrottled = throttle(
-      (trx: Transaction) => {
-        if (trx.local) {
-          this.setUpdatedAt(Date.now());
-        }
-      },
+      (event: ReturnType<DocsStore['captureUpdate']>) =>
+        this.store.recordUpdate(this.id, event.at, event.actorId),
       1000,
       {
         leading: true,
         trailing: true,
       }
     );
-    this.yDoc.on('afterTransaction', handleTransactionThrottled);
+    const handleTransaction = (trx: Transaction) => {
+      if (
+        trx.local &&
+        [...trx.changedParentTypes.keys()].some(
+          type => type === this.yDoc.share.get('blocks')
+        )
+      ) {
+        handleTransactionThrottled(this.store.captureUpdate());
+      }
+    };
+    this.yDoc.on('afterTransaction', handleTransaction);
 
     this.disposables.push(() => {
-      this.yDoc.off('afterTransaction', handleTransactionThrottled);
+      this.yDoc.off('afterTransaction', handleTransaction);
+      handleTransactionThrottled.flush();
       handleTransactionThrottled.cancel();
     });
 
@@ -139,6 +147,11 @@ export class Doc extends Entity {
     const pageBlock = this.blockSuiteDoc.getBlocksByFlavour('affine:page').at(0)
       ?.model as RootBlockModel | undefined;
     if (pageBlock) {
+      if (
+        pageBlock.props.title.toString() === newTitle &&
+        this.record.title$.value === newTitle
+      )
+        return;
       this.blockSuiteDoc.transact(() => {
         pageBlock.props.title.delete(0, pageBlock.props.title.length);
         pageBlock.props.title.insert(newTitle, 0);

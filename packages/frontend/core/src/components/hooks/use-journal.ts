@@ -61,8 +61,8 @@ export const useJournalRouteHelper = () => {
    * open journal by date, create one if not exist
    */
   const openJournal = useCallback(
-    (maybeDate: MaybeDate, options?: WorkbenchOpenOptions) => {
-      const page = getJournalByDate(maybeDate);
+    async (maybeDate: MaybeDate, options?: WorkbenchOpenOptions) => {
+      const page = await getJournalByDate(maybeDate);
       workbench.openDoc(page.id, options);
       track.$.navigationPanel.journal.navigate({
         to: 'journal',

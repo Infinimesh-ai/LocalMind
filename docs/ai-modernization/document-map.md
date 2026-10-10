@@ -41,6 +41,36 @@ section or landing record.
 | [MCP direct resources](./mcp-direct-resource-tools-design.zh-CN.md)                  | Implemented, disabled by default: 10 direct Workspace MCP tools plus 3 existing delegation tools, independent capabilities, version checks and durable receipts                       | Public resource contracts, implementation scope and acceptance                                   |
 | [archive](./archive/README.md)                                                       | Split historical audit log                                                                                                                                                            | A concise landing record is required for traceability                                            |
 
+## Workspace Page Tree
+
+The [Workspace folder and page container plan](workspace-resource-tree-dual-container-development.zh-CN.md)
+is the current development contract. The v2 implementation is integrated into local main; see the
+[v2 execution record](workspace-resource-tree-dual-container.execution.zh-CN.md) for verification
+and remaining limits, including disabled reverse conversion. No remote push or production
+migration has been performed. Folders and BlockSuite
+pages can both contain resources, with unique ownership, common authorization and
+lifecycle rules. Legacy folders remain folders; existing v1 pages are preserved.
+The plan defines v2 migration, conversion, client and tool boundaries, P0–P5 and B01–B40.
+
+It supersedes folder retirement and automatic folder-to-page conversion in the
+[original page tree plan](workspace-page-tree-development.zh-CN.md). That plan's
+content preservation, read-only storage, sync lock, metadata and compatible A01–A46
+requirements remain applicable. The [v1 execution record](workspace-page-tree.execution.zh-CN.md)
+describes the isolated page-only candidate, not v2 implementation, mainline integration
+or production migration.
+
+## Workspace Resource Display And Sorting
+
+The [Workspace resource display and sorting development plan](./workspace-resource-display-and-sorting-development.zh-CN.md)
+defines the implemented four display properties: tags, creator with creation time,
+last updater with update time, and document type. It covers native resource
+metadata, explicit sort directions, preference migration and acceptance tests.
+The [execution record](./workspace-resource-display-and-sorting.execution.zh-CN.md)
+records P0–P3 source changes, isolated migration/backfill tests, component browser
+checks and their limits, including the inline folder sorting entry. Runtime
+migration and deployment have not been performed. Sidebar root sorting remains
+a separately proposed follow-up.
+
 ## Context And Session Remediation
 
 The [v9 relationship graph contract](./project-relationship-graph-v9-implementation.zh-CN.md)

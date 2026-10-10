@@ -207,22 +207,10 @@ export class WorkspaceDirectoryResolver {
       workspaceId,
       actor.id,
       async () => {
-        const rows = await this.organization.readFoldersForAdministration(
+        const directories = await this.organization.administrationDirectories(
           workspaceId,
           actor.id
         );
-        const directories = rows.flatMap(row => {
-          const parsed = entrySchema.safeParse(row);
-          return parsed.success && parsed.data.type === 'folder'
-            ? [
-                {
-                  id: parsed.data.id,
-                  parentId: parsed.data.parentId ?? null,
-                  name: parsed.data.data,
-                },
-              ]
-            : [];
-        });
         if (directories.length > 10_000)
           throw new BadRequest(
             'Directory permission administration exceeds its supported limit'
@@ -309,15 +297,11 @@ export class WorkspaceDirectoryResolver {
           await this.organization.directoryRevision(workspaceId, actor.id),
         assertDirectoryTarget: async () => {
           if (!rights || directoryId === WORKSPACE_DIRECTORY_ROOT) return;
-          const folders = await this.organization.readFoldersForAdministration(
+          const directories = await this.organization.administrationDirectories(
             workspaceId,
             actor.id
           );
-          if (
-            !folders.some(
-              folder => folder.id === directoryId && folder.type === 'folder'
-            )
-          )
+          if (!directories.some(directory => directory.id === directoryId))
             throw new BadRequest(
               'Directory permission target no longer exists'
             );

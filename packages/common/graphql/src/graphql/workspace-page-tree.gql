@@ -1,0 +1,15 @@
+#import './fragments/workspace-page-tree.gql'
+query workspacePageTree($workspaceId: ID!, $parentNodeId: ID, $after: String, $trash: Boolean, $resourceId: ID, $resourceKind: String, $clientContract: String!) {
+  workspacePageTree(workspaceId: $workspaceId, parentNodeId: $parentNodeId, after: $after, trash: $trash, resourceId: $resourceId, resourceKind: $resourceKind, clientContract: $clientContract) {
+    contractVersion
+    canCreateFolder
+    canCreatePage
+    enabled
+    revision
+    authorizationRevision
+    nextCursor
+    parent { ...WorkspacePageTreeNode }
+    ancestors { ...WorkspacePageTreeNode }
+    items { ...WorkspacePageTreeNode }
+  }
+}

@@ -15,6 +15,7 @@ import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import { isNil, omitBy } from 'lodash-es';
 
 import {
+  BadRequest,
   CannotDeleteOwnAccount,
   EventBus,
   type FileUpload,
@@ -91,6 +92,21 @@ export class UserResolver {
     if (!allowed) return null;
 
     return sessionUser(user);
+  }
+
+  @Throttle('strict')
+  @Query(() => [PublicUserType], {
+    name: 'publicUsersByIds',
+    description:
+      'Get bounded public profiles using the same public fields as publicUserById',
+  })
+  @Public()
+  async getPublicUsersByIds(
+    @Args('ids', { type: () => [String] }) ids: string[]
+  ): Promise<PublicUserType[]> {
+    if (ids.length > 100 || ids.some(id => !id || id.length > 256))
+      throw new BadRequest('Provide at most 100 valid public user IDs');
+    return this.models.user.getPublicUsers([...new Set(ids)]);
   }
 
   @Throttle('strict')

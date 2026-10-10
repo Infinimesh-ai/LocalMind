@@ -52,6 +52,19 @@ this modernization plan.
 Project 与 Workspace 复用同一套 Office 文件界面、编辑状态和公共操作的修复方案见
 [`project-workspace-office-surface-remediation.zh-CN.md`](project-workspace-office-surface-remediation.zh-CN.md)。
 
+Workspace 四项组合显示属性、原生标签与更新事件、明确排序方向及文件夹行内排序入口，
+见[开发契约](workspace-resource-display-and-sorting-development.zh-CN.md)和
+[实施记录](workspace-resource-display-and-sorting.execution.zh-CN.md)。P0—P3 源码与隔离验证已完成，
+实际运行环境尚未迁移/同步；根目录统一排序仍为后续阶段。
+
+Workspace 资源树的当前开发目标见
+[`workspace-resource-tree-dual-container-development.zh-CN.md`](workspace-resource-tree-dual-container-development.zh-CN.md)：
+文件夹和原生页面并列作为容器，资源唯一归属；旧文件夹默认保留，v1 已有页面不自动降回文件夹。
+该方案覆盖[原页面树方案](workspace-page-tree-development.zh-CN.md)的文件夹退场规则，
+双容器 v2 已集成本地 main，实现、隔离验证和未开放能力见
+[双容器执行记录](workspace-resource-tree-dual-container.execution.zh-CN.md)。
+[旧 v1 执行记录](workspace-page-tree.execution.zh-CN.md)保留为历史基线；尚未推送、部署或迁移业务库。
+
 Workspace / Project AI 会话授权、项目级共享 Memory（个人会话与摘要不共享）、引用版本、删除与长期审计、
 唯一上下文及滚动整理的现行专项契约见
 [`workspace-project-context-session-remediation.zh-CN.md`](workspace-project-context-session-remediation.zh-CN.md)。

@@ -1,5 +1,9 @@
+import { mock } from 'node:test';
+
+import { TransactionHost } from '@nestjs-cls/transactional';
 import { PrismaClient } from '@prisma/client';
 import test, { type ExecutionContext } from 'ava';
+import type { Server } from 'socket.io';
 import { io, type Socket as SocketIOClient } from 'socket.io-client';
 import { applyUpdate, Doc, encodeStateAsUpdate, encodeStateVector } from 'yjs';
 
@@ -1472,6 +1476,65 @@ test('concurrent regular and scoped joins cannot create dual socket state', asyn
       );
     }
   } finally {
+    socket.disconnect();
+  }
+});
+
+test('slow socket discovery does not expire the broadcast authorization transaction', async t => {
+  const owner = await loginWithCookie(app);
+  const workspace = await app.get(Models).workspace.create(owner.user.id);
+  const docId = 'slow-discovery-doc';
+  await createSnapshot(app.get(PrismaClient), {
+    workspaceId: workspace.id,
+    docId,
+    userId: owner.user.id,
+    ...createYjsSnapshot('body'),
+  });
+  const socket = createClient(url, owner.cookieHeader);
+  const gateway = app.get(SpaceSyncGateway);
+  const server = (gateway as unknown as { server: Server }).server;
+  const operator = server.in([
+    `workspace:${workspace.id}:sync-025`,
+    `workspace:${workspace.id}:sync-026`,
+  ]);
+  const fetchSockets = operator.fetchSockets.bind(operator);
+  const discovery = mock.method(operator, 'fetchSockets', async () => {
+    t.false(app.get(TransactionHost).isTransactionActive());
+    await new Promise(resolve => setTimeout(resolve, 5200));
+    t.false(app.get(TransactionHost).isTransactionActive());
+    return await fetchSockets();
+  });
+  const rooms = mock.method(server, 'in', () => operator);
+  try {
+    await waitForConnect(socket);
+    unwrapResponse(
+      t,
+      await emitWithAck(socket, 'space:join', {
+        spaceType: 'workspace',
+        spaceId: workspace.id,
+        clientVersion: '0.26.0',
+      })
+    );
+    const delivered = withTimeout(
+      new Promise<{ docId: string }>(resolve => {
+        socket.once('space:broadcast-doc-updates', resolve);
+      }),
+      10000,
+      'slow broadcast'
+    );
+    await gateway.onDocUpdatesPushed({
+      spaceType: 'workspace',
+      spaceId: workspace.id,
+      docId,
+      updates: [Buffer.from(createYjsUpdateBase64(), 'base64')],
+      timestamp: Date.now(),
+      editor: owner.user.id,
+    });
+    t.is((await delivered).docId, docId);
+    t.is(discovery.mock.callCount(), 1);
+  } finally {
+    rooms.mock.restore();
+    discovery.mock.restore();
     socket.disconnect();
   }
 });

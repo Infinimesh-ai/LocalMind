@@ -4,6 +4,7 @@ import {
   useDropTarget,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import type { FavoriteSupportTypeUnion } from '@affine/core/modules/favorite';
 import {
   FavoriteService,
@@ -77,9 +78,9 @@ export const NavigationPanelFavorites = () => {
     [navigationPanelService, favoriteService.favoriteList, path]
   );
 
-  const handleCreateNewFavoriteDoc: MouseEventHandler = useCallback(
-    e => {
-      const newDoc = createPage(undefined, { at: inferOpenMode(e) });
+  const handleCreateNewFavoriteDoc: MouseEventHandler = useAsyncCallback(
+    async e => {
+      const newDoc = await createPage(undefined, { at: inferOpenMode(e) });
       favoriteService.favoriteList.add(
         'doc',
         newDoc.id,

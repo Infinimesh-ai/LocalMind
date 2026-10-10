@@ -4298,12 +4298,16 @@ input CopyProjectResourceInput {
 }
 
 input CopyWorkspaceNativeResourceInput {
+  expectedAuthorizationRevision: String
   expectedContentVersion: Int!
+  expectedTreeRevision: Int
   folderId: ID
   kind: String!
+  parentNodeId: ID
   requestKey: String!
   resourceId: ID!
   title: String!
+  treeContractVersion: String
   workspaceId: ID!
 }
 
@@ -4440,9 +4444,13 @@ input CreateUserInput {
 input CreateWorkspaceNativeResourceInput {
   blobKey: String
   content: JSONObject
+  expectedAuthorizationRevision: String
+  expectedTreeRevision: Int
   folderId: ID
+  parentNodeId: ID
   requestKey: String!
   title: String!
+  treeContractVersion: String
   workspaceId: ID!
 }
 
@@ -5483,6 +5491,7 @@ type Mutation {
   """Update workspace flags for admin"""
   adminUpdateWorkspace(input: AdminUpdateWorkspaceInput!): AdminWorkspace
   adoptWorkOrderDeliveries(expectedContextVersion: Int!, requestKey: String!, revisions: [WorkOrderAdoptionRevisionInput!]!, sourceSessionId: ID!): WorkOrderAdoptionType!
+  adoptWorkspaceLocalPageTree(contractVersion: String!, positions: [WorkspaceLocalPageTreePosition!]!, workspaceId: ID!): Boolean!
   answerWorkOrderQuestion(body: String!, expectedVersion: Int!, requestKey: String!, workOrderId: ID!): WorkOrderMutationResultType!
   approveCopilotAccessRequest(input: ResolveCopilotAccessRequestInput!): CopilotAccessRequestType!
   approveMember(userId: String!, workspaceId: String!): Boolean!
@@ -5683,6 +5692,7 @@ type Mutation {
   """mention user in a doc"""
   mentionUser(input: MentionInput!): ID!
   mutateWorkspaceDirectory(changes: [WorkspaceDirectoryChangeInput!]!, expectedRevision: String!, workspaceId: ID!): WorkspaceDirectoryMutationType!
+  mutateWorkspacePageTree(input: WorkspacePageTreeCommandInput!): WorkspacePageTreeReceipt!
   openWorkOrderConversation(workOrderId: ID!): WorkOrderConversationTargetType!
   permanentlyDeleteProjectResource(input: PermanentlyDeleteProjectResourceInput!): Boolean!
   prepareProjectPublication(kind: String!, projectId: String!, requestKey: String!, resourceId: String!, sessionId: String): ProjectPublicationType!
@@ -5693,7 +5703,7 @@ type Mutation {
   """
   previewCopilotPromptRegistryBodyEdit(input: CopilotPromptRegistryBodyEditPreviewInput!): CopilotPromptRegistryBodyEditPreviewType!
   previewLicense(license: Upload!): AdminLicensePreview!
-  previewProjectPublication(expectedRevision: Int!, folderId: String, projectId: String!, publicationId: String!, targetKind: String, targetResourceId: String, workspaceId: String!): ProjectPublicationType!
+  previewProjectPublication(expectedRevision: Int!, folderId: String, pageTree: ProjectPublicationPageTreeTargetInput, projectId: String!, publicationId: String!, targetKind: String, targetResourceId: String, workspaceId: String!): ProjectPublicationType!
 
   """
   Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
@@ -5841,6 +5851,7 @@ type Mutation {
   setProjectByokEnabled(enabled: Boolean!, expectedRevision: SafeInt!): ProjectByokSettingsType!
   setWorkOrderByokEnabled(enabled: Boolean!, expectedRevision: SafeInt!): ProjectByokSettingsType!
   setWorkOrderDeliveryDraftItem(blobIds: [ID!], expectedDraftVersion: Int!, requirementId: ID!, text: String, workOrderId: ID!): WorkOrderDeliveryDraftType!
+  setWorkspaceNativeResourceTags(input: SetWorkspaceNativeResourceTagsInput!): WorkspaceNativeResourceType!
   settleTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
   submitProjectFileRequest(expectedVersion: Int!, file: Upload!, requestId: String!, shareWithProject: Boolean!): ProjectFileRequestType!
   submitProjectWorkspaceImport(input: SubmitProjectWorkspaceImportInput!): ProjectWorkspaceImportTaskType!
@@ -6588,6 +6599,14 @@ type ProjectPublicationCandidatesType {
   nextCursor: String
 }
 
+input ProjectPublicationPageTreeTargetInput {
+  authorizationRevision: String!
+  contractVersion: String!
+  parentKind: String!
+  parentNodeId: ID
+  revision: Int!
+}
+
 type ProjectPublicationPageType {
   items: [ProjectPublicationType!]!
   nextCursor: String
@@ -6608,6 +6627,7 @@ type ProjectPublicationType {
   projectId: ID!
   receipt: JSONObject
   resourceId: ID!
+  resourceKind: String!
   revision: Int!
   runId: ID
   sourceSequence: Int!
@@ -6771,6 +6791,7 @@ type Query {
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
+  hello: String!
   latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
   localmindAuditEnvelopes(limit: Int, projectId: String, workspaceId: String!): [JSONObject!]!
   localmindLogArchiveBatches(limit: Int): [JSONObject!]!
@@ -6840,6 +6861,11 @@ type Query {
   """Get public user by id"""
   publicUserById(id: String!): PublicUserType
 
+  """
+  Get bounded public profiles using the same public fields as publicUserById
+  """
+  publicUsersByIds(ids: [String!]!): [PublicUserType!]!
+
   """query workspace embedding status"""
   queryWorkspaceEmbeddingStatus(workspaceId: String!): ContextWorkspaceEmbeddingStatus! @deprecated(reason: "Use realtime subscription \"workspace.embedding.progress.changed\" instead.")
   searchProjectResources(cursor: String, limit: Int, projectId: String!, query: String!): ProjectSearchPageType!
@@ -6874,6 +6900,9 @@ type Query {
   workspaceNativeResource(input: WorkspaceNativeIdentityInput!, trash: Boolean): WorkspaceNativeResourceType!
   workspaceNativeResources(cursor: String, limit: Int, query: String, trash: Boolean, workspaceId: String!): WorkspaceNativePageType!
   workspaceNativeRevisions(before: Int, input: WorkspaceNativeIdentityInput!, limit: Int): [WorkspaceNativeRevisionType!]!
+  workspacePageTree(after: String, clientContract: String, parentNodeId: ID, resourceId: ID, resourceKind: String, trash: Boolean, workspaceId: ID!): WorkspacePageTreePage!
+  workspacePageTreeConversionPreview(nodeId: ID!, workspaceId: ID!): WorkspacePageTreeConversionPreview!
+  workspacePageTreeImpact(action: String!, nodeId: ID!, workspaceId: ID!): WorkspacePageTreeImpact!
 
   """Get workspace role permissions"""
   workspaceRolePermissions(id: String!): WorkspaceRolePermissions! @deprecated(reason: "use WorkspaceType[permissions] instead")
@@ -7231,6 +7260,15 @@ enum ServerFeature {
 input SetCopilotProjectAiPolicyInput {
   policy: String!
   projectId: ID!
+}
+
+input SetWorkspaceNativeResourceTagsInput {
+  expectedVersion: Int!
+  kind: String!
+  requestKey: String!
+  resourceId: ID!
+  tagIds: [ID!]!
+  workspaceId: ID!
 }
 
 type SpaceAccessDeniedDataType {
@@ -8180,6 +8218,18 @@ type WorkspaceLifecycleResult {
   success: Boolean!
 }
 
+input WorkspaceLocalPageTreePosition {
+  defaultSortMode: String
+  folder: WorkspacePageTreeFolderInput
+  kind: String!
+  nodeId: ID!
+  order: String!
+  parentNodeId: ID
+  resourceId: ID!
+  trashRootNodeId: ID
+  trashed: Boolean!
+}
+
 """Member invite status in workspace"""
 enum WorkspaceMemberStatus {
   Accepted
@@ -8207,6 +8257,7 @@ type WorkspaceNativeResourceType {
   canCopy: Boolean
   canDeletePermanently: Boolean
   canEdit: Boolean
+  canEditTags: Boolean
   canManage: Boolean
   canMove: Boolean
   canRename: Boolean
@@ -8214,16 +8265,22 @@ type WorkspaceNativeResourceType {
   canTrash: Boolean
   contentVersion: Int!
   createdAt: DateTime!
+  createdBy: ID
   deletedAt: DateTime
+  documentType: String
   fileName: String!
   folderIds: [ID!]
   folderPaths: [String!]
   id: ID!
   kind: String!
+  lastUpdateActor: String
+  lastUpdatedAt: DateTime
+  lastUpdatedBy: ID
   metadataVersion: Int!
   mimeType: String!
   revisionId: ID!
   searchStatus: String!
+  tags: [WorkspaceResourceTagType!]
   title: String!
   trashedAt: DateTime
   updatedAt: DateTime!
@@ -8244,6 +8301,7 @@ type WorkspaceNativeTextType {
   canCopy: Boolean
   canDeletePermanently: Boolean
   canEdit: Boolean
+  canEditTags: Boolean
   canManage: Boolean
   canMove: Boolean
   canRename: Boolean
@@ -8251,21 +8309,130 @@ type WorkspaceNativeTextType {
   canTrash: Boolean
   contentVersion: Int!
   createdAt: DateTime!
+  createdBy: ID
   deletedAt: DateTime
+  documentType: String
   fileName: String!
   folderIds: [ID!]
   folderPaths: [String!]
   id: ID!
   kind: String!
+  lastUpdateActor: String
+  lastUpdatedAt: DateTime
+  lastUpdatedBy: ID
   metadataVersion: Int!
   mimeType: String!
   revisionId: ID!
   searchStatus: String!
+  tags: [WorkspaceResourceTagType!]
   text: String!
   title: String!
   trashedAt: DateTime
   updatedAt: DateTime!
   workspaceId: ID!
+}
+
+input WorkspacePageTreeCommandInput {
+  action: String!
+  beforeNodeId: ID
+  contractVersion: String!
+  expectedAuthorizationRevision: String!
+  expectedParentNodeId: ID
+  expectedResourceVersion: Int
+  expectedRevision: Int!
+  insertAfterBlockId: ID
+  nodeId: ID
+  parentNodeId: ID
+  primaryMode: String
+  requestKey: String!
+  resourceId: ID
+  siblingOrder: [ID!]
+  title: String
+  workspaceId: ID!
+}
+
+type WorkspacePageTreeConversionPreview {
+  authorizationRevision: String!
+  nodeId: ID!
+  resourceVersion: Int!
+  revision: Int!
+  targetKind: String!
+  title: String!
+}
+
+input WorkspacePageTreeFolderInput {
+  createdAt: String
+  createdBy: ID
+  metadataVersion: Int!
+  title: String!
+  updatedAt: String
+  updatedBy: ID
+}
+
+type WorkspacePageTreeFolderMetadata {
+  createdAt: String
+  createdBy: ID
+  metadataVersion: Int!
+  title: String!
+  updatedAt: String
+  updatedBy: ID
+}
+
+type WorkspacePageTreeImpact {
+  authorizationRevision: String!
+  items: [WorkspacePageTreeImpactItem!]!
+  parentNodeId: ID
+  revision: Int!
+  total: Int!
+  truncated: Boolean!
+}
+
+type WorkspacePageTreeImpactItem {
+  documentType: String!
+  nodeId: ID!
+  title: String!
+}
+
+type WorkspacePageTreeItem {
+  canConvertToPage: Boolean!
+  canOrganize: Boolean!
+  canRename: Boolean!
+  defaultSortMode: String
+  documentType: String!
+  folder: WorkspacePageTreeFolderMetadata
+  isContainer: Boolean!
+  kind: String!
+  nodeId: ID!
+  order: String!
+  parentNodeId: ID
+  primaryMode: String
+  resourceId: ID!
+  title: String!
+  trashed: Boolean!
+}
+
+type WorkspacePageTreePage {
+  ancestors: [WorkspacePageTreeItem!]!
+  authorizationRevision: String!
+  canCreateFolder: Boolean!
+  canCreatePage: Boolean!
+  contractVersion: String
+  enabled: Boolean!
+  items: [WorkspacePageTreeItem!]!
+  nextCursor: String
+  parent: WorkspacePageTreeItem
+  revision: Int!
+}
+
+type WorkspacePageTreeReceipt {
+  nodeId: ID!
+  oldBeforeNodeId: ID
+  oldParentNodeId: ID
+  oldSiblingOrder: [ID!]
+  operationId: ID!
+  parentNodeId: ID
+  resourceId: ID!
+  revision: Int!
 }
 
 type WorkspacePermissionNotFoundDataType {
@@ -8316,6 +8483,12 @@ type WorkspaceQuotaType {
   overcapacityMemberCount: Int!
   storageQuota: SafeInt!
   usedStorageQuota: SafeInt!
+}
+
+type WorkspaceResourceTagType {
+  color: String!
+  id: ID!
+  name: String!
 }
 
 type WorkspaceRolePermissions {

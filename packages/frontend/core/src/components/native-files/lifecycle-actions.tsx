@@ -46,7 +46,7 @@ export function LifecycleActions({
     busy.current = true;
     setPending(true);
     try {
-      await lifecycle.change(kind, resourceId, action);
+      if ((await lifecycle.change(kind, resourceId, action)) === false) return;
       onChanged?.();
     } catch {
       toast(t['com.affine.localmind.project-files.operationFailed']());

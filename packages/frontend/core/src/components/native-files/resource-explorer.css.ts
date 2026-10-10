@@ -73,10 +73,25 @@ export const editorBody = style({
   overflow: 'auto',
   height: '100%',
 });
-export const select = style({
-  color: cssVarV2('text/primary'),
-  background: cssVarV2('layer/background/primary'),
-  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: 4,
-  padding: 6,
+export const typeFilter = style({
+  minWidth: 144,
+  height: 32,
+  fontSize: 14,
+  selectors: {
+    '&[data-state="open"]': {
+      backgroundColor: cssVarV2('layer/background/hoverOverlay'),
+    },
+  },
+});
+export const typeMenu = style({
+  minWidth: 208,
+  maxWidth: 'calc(100vw - 32px)',
+});
+export const typeMenuItem = style({
+  minHeight: 32,
+  selectors: {
+    '&[aria-checked="true"]': {
+      backgroundColor: cssVarV2('layer/background/hoverOverlay'),
+    },
+  },
 });

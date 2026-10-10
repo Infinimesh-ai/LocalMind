@@ -1,5 +1,6 @@
 /** @vitest-environment happy-dom */
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,7 +17,13 @@ const state = vi.hoisted(() => ({
   catalog: null as unknown,
   navigate: vi.fn(),
 }));
-vi.mock('@affine/core/modules/cloud', () => ({ GraphQLService: class {} }));
+vi.mock('@affine/core/components/providers/current-server-scope', () => ({
+  useCurrentServerService: () => undefined,
+}));
+vi.mock('@affine/core/modules/cloud', () => ({
+  GraphQLService: class {},
+  WorkspaceServerService: class {},
+}));
 vi.mock('@affine/core/modules/doc', () => ({ DocsService: class {} }));
 vi.mock('@affine/core/modules/doc-display-meta', () => ({
   DocDisplayMetaService: class {},
@@ -30,6 +37,7 @@ vi.mock('@affine/core/modules/workspace', () => ({
 }));
 vi.mock('@affine/core/modules/workspace-resources', () => ({
   WorkspaceLifecycleService: class {},
+  WorkspaceResourcesService: class {},
 }));
 vi.mock('@affine/core/modules/workspace-resources/use-resources', () => ({
   useWorkspaceResources: () => state.catalog,
@@ -57,6 +65,7 @@ vi.mock('@toeverything/infra', async importOriginal => ({
   useServiceOptional: () => undefined,
 }));
 vi.mock('@affine/i18n', () => ({
+  useTranslation: () => ({ i18n: { language: 'zh-Hans' } }),
   useI18n: () =>
     new Proxy(
       {},
@@ -144,6 +153,10 @@ import { WorkspaceResourceExplorer } from './resource-explorer';
 
 beforeEach(() => {
   const record$ = new LiveData({
+    id: 'page',
+    createdBy$: new LiveData('creator'),
+    displayUpdate$: new LiveData({ at: 2, actor: 'user', by: 'editor' }),
+    primaryMode$: new LiveData('page'),
     title$: new LiveData('Page'),
     meta$: new LiveData({ title: 'Page' }),
     createdAt$: new LiveData(1),
@@ -154,8 +167,12 @@ beforeEach(() => {
   const icon$ = new LiveData(() => null);
   state.service = {
     workspace: { id: 'workspace', flavour: 'affine-cloud', docCollection: {} },
-    // eslint-disable-next-line rxjs/finnish
-    list: { doc$: (id: string) => (id.startsWith('page') ? record$ : absent$) },
+    list: {
+      // eslint-disable-next-line rxjs/finnish
+      doc$: (id: string) => (id.startsWith('page') ? record$ : absent$),
+      docs$: new LiveData([record$.value]),
+      isAvailable$: new LiveData(true),
+    },
     // eslint-disable-next-line rxjs/finnish
     title$: () => title$,
     // eslint-disable-next-line rxjs/finnish
@@ -165,6 +182,7 @@ beforeEach(() => {
       openOffice: vi.fn(),
       openNativeFile: vi.fn(),
     },
+    tagList: { tagMetas$: new LiveData([]) },
     online: true,
     changes$: new LiveData(0),
     folders: async () => [
@@ -179,6 +197,9 @@ beforeEach(() => {
     ],
     get: async () => ({ originalPaths: ['Root'] }),
     can: async () => true,
+    // The mock keeps the production observable method name.
+    // eslint-disable-next-line rxjs/finnish
+    can$: () => new LiveData(false),
   };
   state.catalog = {
     items: [
@@ -186,6 +207,14 @@ beforeEach(() => {
         id: 'file',
         workspaceId: 'workspace',
         kind: 'file',
+        documentType: 'image',
+        mimeType: 'image/png',
+        createdBy: 'creator',
+        lastUpdatedAt: '2026-09-28',
+        lastUpdatedBy: 'editor',
+        lastUpdateActor: 'user',
+        tags: [],
+        canEditTags: false,
         fileName: 'Image.png',
         title: 'Image.png',
         folderPaths: ['Root'],
@@ -198,19 +227,32 @@ beforeEach(() => {
     ],
     ready: true,
     loading: false,
-    service: { online: false },
+    service: { online: false, invalidate: vi.fn() },
   };
   state.navigate.mockClear();
 });
 afterEach(cleanup);
-function mount(trash = false) {
-  const context = createDocExplorerContext();
+function mount(trash = false, mixed = false) {
+  const context = createDocExplorerContext(
+    mixed
+      ? {
+          resourceProperties: {
+            tags: true,
+            created: true,
+            updated: true,
+            documentType: true,
+          },
+          groupBy: undefined,
+        }
+      : undefined
+  );
   context.groups$.next([{ key: 'today', items: ['page'] }]);
   render(
     <DocExplorerContext.Provider value={context}>
       <WorkspaceResourceExplorer trash={trash} />
     </DocExplorerContext.Provider>
   );
+  return context;
 }
 function checkbox(name: string) {
   return screen.getByRole('checkbox', { name }).querySelector('input')!;
@@ -269,5 +311,41 @@ test('document checkbox shift selection preserves the existing range behavior', 
     'native:file',
     'page-b',
   ]);
+  expect(state.navigate).not.toHaveBeenCalled();
+});
+
+test('the mixed renderer applies all four property switches equally to documents and native resources', async () => {
+  const context = mount(false, true);
+  await screen.findByRole('button', { name: 'Image.png' });
+  await screen.findByRole('button', { name: 'Page' });
+  expect(
+    screen.getAllByLabelText(
+      'com.affine.localmind.resource-display.created.tip'
+    )
+  ).toHaveLength(2);
+  expect(
+    screen.getAllByLabelText(
+      'com.affine.localmind.resource-display.updated.tip'
+    )
+  ).toHaveLength(2);
+  for (const key of ['tags', 'created', 'updated', 'documentType'] as const) {
+    act(() =>
+      context.displayPreference$.next({
+        ...context.displayPreference$.value,
+        resourceProperties: {
+          tags: false,
+          created: false,
+          updated: false,
+          documentType: false,
+          [key]: true,
+        },
+      })
+    );
+    const label =
+      key === 'created' || key === 'updated' ? `${key}.tip` : `property.${key}`;
+    expect(
+      screen.getAllByLabelText(`com.affine.localmind.resource-display.${label}`)
+    ).toHaveLength(2);
+  }
   expect(state.navigate).not.toHaveBeenCalled();
 });

@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { nanoid } from 'nanoid';
+import * as Y from 'yjs';
 
 import { EventBus } from '../../base';
 import {
@@ -79,6 +80,30 @@ export class DocWriter {
     const result = await this.deferredBroadcasts.run(broadcasts, transaction);
     this.publishDocUpdatesPushed(broadcasts);
     return result;
+  }
+
+  @Transactional()
+  async withMetadataTransaction<T>(
+    workspaceId: string,
+    operation: () => Promise<T>
+  ) {
+    return this.storage.withTransactionalWrites(async () => {
+      await this.storage.getDoc(workspaceId, workspaceId);
+      return operation();
+    });
+  }
+
+  async recordMetadataUpdate(
+    workspaceId: string,
+    docId: string,
+    editorId: string
+  ) {
+    await this.updateDocProperties(
+      workspaceId,
+      docId,
+      { updatedBy: editorId },
+      editorId
+    );
   }
 
   /**
@@ -176,14 +201,6 @@ export class DocWriter {
         );
       }
       await beforeWrite?.();
-      await this.updateDocProperties(
-        workspaceId,
-        docId,
-        { updatedBy: editorId },
-        editorId,
-        undefined,
-        beforeWrite
-      );
       return { docId, idempotentReplay: true };
     }
 
@@ -587,9 +604,6 @@ export class DocWriter {
     broadcasts?: WorkspaceDocUpdatesPushedPayload[],
     beforeWrite?: () => Promise<void>
   ) {
-    if (!editorId) {
-      return;
-    }
     if (
       workspaceId === docId ||
       docId.startsWith('db$') ||
@@ -597,8 +611,71 @@ export class DocWriter {
     ) {
       return;
     }
-    if (!props.createdBy && !props.updatedBy) {
+    if (editorId && !props.createdBy && !props.updatedBy) {
       return;
+    }
+
+    const root = await this.storage.getDoc(workspaceId, workspaceId);
+    if (root?.bin) {
+      const doc = new Y.Doc();
+      try {
+        Y.applyUpdate(doc, root.bin);
+        const pages = doc.getMap('meta').get('pages');
+        if (pages instanceof Y.Array) {
+          const pageIndex = pages
+            .toArray()
+            .findIndex(page =>
+              page instanceof Y.Map
+                ? page.get('id') === docId
+                : page?.id === docId
+            );
+          if (pageIndex >= 0) {
+            const page = pages.get(pageIndex);
+            const before = Y.encodeStateVector(doc);
+            const at = props.createdBy
+              ? ((page instanceof Y.Map
+                  ? page.get('createDate')
+                  : page.createDate) ?? Date.now())
+              : Date.now();
+            const event = JSON.stringify({
+              at,
+              actor: editorId ? 'user' : 'system',
+              by: editorId ?? null,
+            });
+            doc.transact(() => {
+              if (page instanceof Y.Map) {
+                page.set('updatedDate', at);
+                page.set('displayUpdateEvent', event);
+              } else {
+                pages.delete(pageIndex, 1);
+                pages.insert(pageIndex, [
+                  { ...page, updatedDate: at, displayUpdateEvent: event },
+                ]);
+              }
+            });
+            const delta = Y.encodeStateAsUpdate(doc, before);
+            await beforeWrite?.();
+            const timestamp = await this.storage.pushDocUpdates(
+              workspaceId,
+              workspaceId,
+              [delta],
+              editorId,
+              beforeWrite
+            );
+            const payload = {
+              spaceId: workspaceId,
+              docId: workspaceId,
+              updates: [delta],
+              timestamp,
+              editor: editorId,
+            };
+            if (broadcasts) broadcasts.push(payload);
+            else this.emitDocUpdatesPushed(payload);
+          }
+        }
+      } finally {
+        doc.destroy();
+      }
     }
 
     const propertiesDocId = `db$${workspaceId}$docProperties`;

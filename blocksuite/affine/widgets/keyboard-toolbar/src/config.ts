@@ -50,7 +50,7 @@ import { REFERENCE_NODE } from '@blocksuite/affine-shared/consts';
 import { TelemetryProvider } from '@blocksuite/affine-shared/services';
 import type { AffineTextStyleAttributes } from '@blocksuite/affine-shared/types';
 import {
-  createDefaultDoc,
+  createDefaultEditorDoc,
   isInsideBlockByFlavour,
   openSingleFileWith,
   type Signal,
@@ -384,14 +384,16 @@ const pageToolGroup: KeyboardToolPanelGroup = {
           .chain()
           .pipe(getSelectedModelsCommand)
           .pipe(({ selectedModels }) => {
-            const newDoc = createDefaultDoc(std.store.workspace);
             if (!selectedModels?.length) return;
-            insertContent(std, selectedModels[0], REFERENCE_NODE, {
-              reference: {
-                type: 'LinkedPage',
-                pageId: newDoc.id,
-              },
-            });
+            const target = selectedModels[0];
+            void createDefaultEditorDoc(std)
+              .then(newDoc => {
+                if (!std.store.getBlock(target.id)) return;
+                insertContent(std, target, REFERENCE_NODE, {
+                  reference: { type: 'LinkedPage', pageId: newDoc.id },
+                });
+              })
+              .catch(console.error);
           })
           .run();
       },

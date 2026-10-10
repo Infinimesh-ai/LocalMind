@@ -30,6 +30,16 @@ UI 与内部 AI 共用领域服务，更新绑定资源 ID 与版本，失败不
 新原生文件跨域流转必须绑定来源/目标类型，旧附件发布记录保留原契约；新增能力
 不得扩大公开 MCP 凭据或旧任务冻结权限。
 
+Workspace 资源树的当前开发目标见
+`docs/ai-modernization/workspace-resource-tree-dual-container-development.zh-CN.md`。
+文件夹与 BlockSuite 原生页面并列作为容器，可相互嵌套；资源保持唯一归属，正文引用
+不决定归属。旧目录升级默认保留文件夹，已切换页面树 v1 的页面不自动降回文件夹。
+此目标覆盖旧页面树方案的“文件夹退出／全部转页面”规则，其余内容、权限、回收、
+审计及旧能力不扩张边界继续适用。双容器 v2 实现已按用户授权集成本地 main，
+实际证据和限制见 `docs/ai-modernization/workspace-resource-tree-dual-container.execution.zh-CN.md`。
+文件夹转页面已开放，页面转文件夹因历史归档尚未完成而关闭。尚未推送或切换业务环境；
+Project 内部文件树与 Office 内容存储保持各自契约。
+
 Project 原生资源已实现，产品及验收契约的 source of truth 是
 `docs/ai-modernization/tracks/project-native-resources.md`。Project 拥有独立文档
 和文件树，默认内部保存不属于任何 Workspace；只有用户明确要求才发布或更新

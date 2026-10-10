@@ -36,6 +36,10 @@ function createProxy(initValue: (key: string) => any) {
 }
 export function useAFFiNEI18N(): {
     /**
+      * `Move or permanently delete child resources before changing the default mode. Wait for the page tree to finish loading.`
+      */
+    ["com.affine.localmind.page-tree.modeBlocked"](): string;
+    /**
       * `Quick actions`
       */
     ["com.affine.rootAppSidebar.shortcuts"](): string;
@@ -22001,6 +22005,313 @@ export function useAFFiNEI18N(): {
       * `Unable to save folder order. Refresh the folder and try again.`
       */
     ["com.affine.rootAppSidebar.organize.folder.sort.conflict"](): string;
+    /**
+      * `Tags`
+      */
+    ["com.affine.localmind.resource-display.property.tags"](): string;
+    /**
+      * `Creator`
+      */
+    ["com.affine.localmind.resource-display.property.created"](): string;
+    /**
+      * `Updated`
+      */
+    ["com.affine.localmind.resource-display.property.updated"](): string;
+    /**
+      * `Document type`
+      */
+    ["com.affine.localmind.resource-display.property.documentType"](): string;
+    /**
+      * `Creator and creation time`
+      */
+    ["com.affine.localmind.resource-display.created.tip"](): string;
+    /**
+      * `Last updater and update time`
+      */
+    ["com.affine.localmind.resource-display.updated.tip"](): string;
+    /**
+      * `Tags`
+      */
+    ["com.affine.localmind.resource-display.field.tags"](): string;
+    /**
+      * `Creator`
+      */
+    ["com.affine.localmind.resource-display.field.createdBy"](): string;
+    /**
+      * `Name`
+      */
+    ["com.affine.localmind.resource-display.field.title"](): string;
+    /**
+      * `Created time`
+      */
+    ["com.affine.localmind.resource-display.field.createdAt"](): string;
+    /**
+      * `Last updated time`
+      */
+    ["com.affine.localmind.resource-display.field.updatedAt"](): string;
+    /**
+      * `Document type`
+      */
+    ["com.affine.localmind.resource-display.field.documentType"](): string;
+    /**
+      * `No grouping`
+      */
+    ["com.affine.localmind.resource-display.noGroup"](): string;
+    /**
+      * `Sort field`
+      */
+    ["com.affine.localmind.resource-display.sortField"](): string;
+    /**
+      * `Sort direction`
+      */
+    ["com.affine.localmind.resource-display.sortDirection"](): string;
+    /**
+      * `Name ascending`
+      */
+    ["com.affine.localmind.resource-display.sort.title.asc"](): string;
+    /**
+      * `Name descending`
+      */
+    ["com.affine.localmind.resource-display.sort.title.desc"](): string;
+    /**
+      * `Oldest created first`
+      */
+    ["com.affine.localmind.resource-display.sort.createdAt.asc"](): string;
+    /**
+      * `Newest created first`
+      */
+    ["com.affine.localmind.resource-display.sort.createdAt.desc"](): string;
+    /**
+      * `Oldest updated first`
+      */
+    ["com.affine.localmind.resource-display.sort.updatedAt.asc"](): string;
+    /**
+      * `Newest updated first`
+      */
+    ["com.affine.localmind.resource-display.sort.updatedAt.desc"](): string;
+    /**
+      * `Type ascending`
+      */
+    ["com.affine.localmind.resource-display.sort.documentType.asc"](): string;
+    /**
+      * `Type descending`
+      */
+    ["com.affine.localmind.resource-display.sort.documentType.desc"](): string;
+    /**
+      * `System`
+      */
+    ["com.affine.localmind.resource-display.system"](): string;
+    /**
+      * `Profile unavailable`
+      */
+    ["com.affine.localmind.resource-display.restrictedUser"](): string;
+    /**
+      * `No tags`
+      */
+    ["com.affine.localmind.resource-display.noTags"](): string;
+    /**
+      * `Creator not recorded`
+      */
+    ["com.affine.localmind.resource-display.unknownCreator"](): string;
+    /**
+      * `Date not recorded`
+      */
+    ["com.affine.localmind.resource-display.unknownDate"](): string;
+    /**
+      * `All tags`
+      */
+    ["com.affine.localmind.resource-display.allTags"](): string;
+    /**
+      * `Sorting was updated to newest update first.`
+      */
+    ["com.affine.localmind.resource-display.migratedSort"](): string;
+    /**
+      * `Sort contents · Current: {{mode}}`
+      */
+    ["com.affine.localmind.resource-display.folderSortTip"](options: {
+        readonly mode: string;
+    }): string;
+    /**
+      * `Sort {{name}} contents · Current: {{mode}}`
+      */
+    ["com.affine.localmind.resource-display.folderSortLabel"](options: Readonly<{
+        name: string;
+        mode: string;
+    }>): string;
+    /**
+      * `Page`
+      */
+    ["com.affine.localmind.resource-display.type.page"](): string;
+    /**
+      * `Whiteboard`
+      */
+    ["com.affine.localmind.resource-display.type.edgeless"](): string;
+    /**
+      * `Word`
+      */
+    ["com.affine.localmind.resource-display.type.docx"](): string;
+    /**
+      * `Excel`
+      */
+    ["com.affine.localmind.resource-display.type.xlsx"](): string;
+    /**
+      * `PowerPoint`
+      */
+    ["com.affine.localmind.resource-display.type.pptx"](): string;
+    /**
+      * `PDF`
+      */
+    ["com.affine.localmind.resource-display.type.pdf"](): string;
+    /**
+      * `TXT`
+      */
+    ["com.affine.localmind.resource-display.type.txt"](): string;
+    /**
+      * `Markdown`
+      */
+    ["com.affine.localmind.resource-display.type.markdown"](): string;
+    /**
+      * `CSV`
+      */
+    ["com.affine.localmind.resource-display.type.csv"](): string;
+    /**
+      * `JSON`
+      */
+    ["com.affine.localmind.resource-display.type.json"](): string;
+    /**
+      * `Image`
+      */
+    ["com.affine.localmind.resource-display.type.image"](): string;
+    /**
+      * `Audio`
+      */
+    ["com.affine.localmind.resource-display.type.audio"](): string;
+    /**
+      * `Video`
+      */
+    ["com.affine.localmind.resource-display.type.video"](): string;
+    /**
+      * `Other file`
+      */
+    ["com.affine.localmind.resource-display.type.other"](): string;
+    /**
+      * `Duplicate (without child resources)`
+      */
+    ["com.affine.localmind.page-tree.duplicate"](): string;
+    /**
+      * `New subpage`
+      */
+    ["com.affine.localmind.page-tree.newPage"](): string;
+    /**
+      * `Move to…`
+      */
+    ["com.affine.localmind.page-tree.move"](): string;
+    /**
+      * `Workspace root`
+      */
+    ["com.affine.localmind.page-tree.root"](): string;
+    /**
+      * `Move here`
+      */
+    ["com.affine.localmind.page-tree.moveHere"](): string;
+    /**
+      * `Child resources`
+      */
+    ["com.affine.localmind.page-tree.children"](): string;
+    /**
+      * `This page has no child resources`
+      */
+    ["com.affine.localmind.page-tree.empty"](): string;
+    /**
+      * `Move this page and all its child resources to Trash. Content references are not included.`
+      */
+    ["com.affine.localmind.page-tree.trashDescription"](): string;
+    /**
+      * `Could not save the page tree. Refresh and try again.`
+      */
+    ["com.affine.localmind.page-tree.error"](): string;
+    /**
+      * `Destination: {{name}}`
+      */
+    ["com.affine.localmind.page-tree.destination"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Loading page tree…`
+      */
+    ["com.affine.localmind.page-tree.loading"](): string;
+    /**
+      * `Location`
+      */
+    ["com.affine.localmind.page-tree.location"](): string;
+    /**
+      * `Undo last move or trash`
+      */
+    ["com.affine.localmind.page-tree.undo"](): string;
+    /**
+      * `The tree has changed. Reload before moving this item again.`
+      */
+    ["com.affine.localmind.page-tree.undoConflict"](): string;
+    /**
+      * `Page tree trash`
+      */
+    ["com.affine.localmind.page-tree.recycle"](): string;
+    /**
+      * `Move to {{name}}`
+      */
+    ["com.affine.localmind.page-tree.moveTarget"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Permanently delete this resource and its recycled descendants? This cannot be undone. Resolve any separately recycled descendants first.`
+      */
+    ["com.affine.localmind.page-tree.deleteDescription"](): string;
+    /**
+      * `Subpage`
+      */
+    ["com.affine.localmind.page-tree.subpage"](): string;
+    /**
+      * `Reference`
+      */
+    ["com.affine.localmind.page-tree.reference"](): string;
+    /**
+      * `Subpage unavailable`
+      */
+    ["com.affine.localmind.page-tree.entryUnavailable"](): string;
+    /**
+      * `Move to Workspace root`
+      */
+    ["com.affine.localmind.page-tree.rootDrop"](): string;
+    /**
+      * `Resources affected: {{count}}`
+      */
+    ["com.affine.localmind.page-tree.impactCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Showing the first 20 resources. The entire authorized subtree will be processed.`
+      */
+    ["com.affine.localmind.page-tree.impactMore"](): string;
+    /**
+      * `Folder`
+      */
+    ["com.affine.localmind.resource-display.type.folder"](): string;
+    /**
+      * `Not applicable`
+      */
+    ["com.affine.localmind.page-tree.notApplicable"](): string;
+    /**
+      * `Convert to page`
+      */
+    ["com.affine.localmind.page-tree.convertToPage"](): string;
+    /**
+      * `Add editable content. Existing children, position and order will stay the same.`
+      */
+    ["com.affine.localmind.page-tree.convertToPageHint"](): string;
+    /**
+      * `This folder is empty`
+      */
+    ["com.affine.localmind.page-tree.folderEmpty"](): string;
     /**
       * `An internal error occurred.`
       */

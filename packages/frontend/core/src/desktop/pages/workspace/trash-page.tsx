@@ -3,12 +3,14 @@ import {
   DocExplorerContext,
 } from '@affine/core/components/explorer/context';
 import { WorkspaceResourceExplorer } from '@affine/core/components/native-files/resource-explorer';
+import { PageTreeTrash } from '@affine/core/components/page-tree/trash';
 import { Header } from '@affine/core/components/pure/header';
 import { CollectionRulesService } from '@affine/core/modules/collection-rules';
 import { GlobalContextService } from '@affine/core/modules/global-context';
+import { WorkspacePageTreeService } from '@affine/core/modules/organize';
 import { useI18n } from '@affine/i18n';
 import { DeleteIcon } from '@blocksuite/icons/rc';
-import { useService } from '@toeverything/infra';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useEffect, useState } from 'react';
 
 import {
@@ -36,6 +38,7 @@ const TrashHeader = () => {
 
 export const TrashPage = () => {
   const t = useI18n();
+  const pageTree = useLiveData(useService(WorkspacePageTreeService).enabled$);
   const collectionRulesService = useService(CollectionRulesService);
   const globalContextService = useService(GlobalContextService);
 
@@ -106,7 +109,7 @@ export const TrashPage = () => {
       </ViewHeader>
       <ViewBody>
         <div className={styles.body}>
-          <WorkspaceResourceExplorer trash />
+          {pageTree ? <PageTreeTrash /> : <WorkspaceResourceExplorer trash />}
         </div>
       </ViewBody>
     </DocExplorerContext.Provider>

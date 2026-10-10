@@ -10,6 +10,7 @@ import { nanoid } from 'nanoid';
 import { of, switchMap } from 'rxjs';
 
 import type { WorkspaceServerService } from '../cloud';
+import type { WorkspacePageTreeService } from '../organize/services/page-tree';
 import type { WorkspaceService } from '../workspace';
 import type { WorkspaceResourcesService } from './service';
 
@@ -23,7 +24,8 @@ export class WorkspaceLifecycleService extends Service {
   constructor(
     private readonly workspaceService: WorkspaceService,
     private readonly serverService: WorkspaceServerService,
-    private readonly resources: WorkspaceResourcesService
+    private readonly resources: WorkspaceResourcesService,
+    private readonly pageTree: WorkspacePageTreeService
   ) {
     super();
     const subscription = serverService.server$
@@ -72,10 +74,21 @@ export class WorkspaceLifecycleService extends Service {
     action: LifecycleAction,
     local?: () => void
   ) {
+    if (this.pageTree.enabled$.value === null) await this.pageTree.load(null);
+    if (this.pageTree.enabled$.value && kind === 'doc') {
+      const current = await this.pageTree.locate('doc', resourceId);
+      if (!current.parent) throw new Error('Resource unavailable');
+      if (
+        !(await this.pageTree.confirmLifecycle(action, current.parent.nodeId))
+      )
+        return false;
+      this.changes$.next(this.changes$.value + 1);
+      return undefined;
+    }
     if (!this.online) {
       if (!local) throw new Error('This action requires an online workspace');
       local();
-      return;
+      return undefined;
     }
     const identity = `${kind}:${resourceId}`;
     const id = `${identity}:${action}`;
@@ -103,7 +116,7 @@ export class WorkspaceLifecycleService extends Service {
         query: changeWorkspaceLifecycleMutation,
         variables: { input: request },
       });
-      if (generation !== this.generation) return;
+      if (generation !== this.generation) return undefined;
       this.requests.delete(id);
       // Pull committed CRDT state through storage, never author a second local
       // trash flag that could overwrite directory trash claims or a restore.
@@ -125,6 +138,7 @@ export class WorkspaceLifecycleService extends Service {
     } finally {
       this.pending.delete(identity);
     }
+    return undefined;
   }
   discardRetry(
     kind: LifecycleKind,

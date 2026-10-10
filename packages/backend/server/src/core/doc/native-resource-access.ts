@@ -4,6 +4,7 @@ import { NotFound } from '../../base';
 import { Models } from '../../models';
 import type { WorkspaceNativeIdentity } from '../../models/workspace-native-resource';
 import { PermissionAccess } from '../permission';
+import { pageTreeWriteContext } from './page-tree-context';
 import { ResourceError } from './resource-types';
 import { workspaceDocTransaction } from './transaction-context';
 import { WorkspaceOrganizationService } from './workspace-organization';
@@ -99,6 +100,15 @@ export class WorkspaceNativeResourceAccess {
     options: { trash?: boolean; organize?: boolean; deleted?: boolean } = {}
   ) {
     return this.resources.snapshot(input, async () => {
+      const state = await this.models.workspacePageTree.state(
+        input.workspaceId
+      );
+      if (
+        state &&
+        !['preflight', 'needs_resolution', 'switched'].includes(state.phase) &&
+        pageTreeWriteContext.getStore() !== input.workspaceId
+      )
+        throw new ResourceError('temporarily_unavailable');
       await this.models.workspaceNativeResource.lock(input);
       await this.assert(input, { ...options, write: true });
       return operation();

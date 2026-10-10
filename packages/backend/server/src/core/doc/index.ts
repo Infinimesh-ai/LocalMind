@@ -15,6 +15,7 @@ import { DocStorageCronJob } from './job';
 import { WorkspaceNativeResourceAccess } from './native-resource-access';
 import { DocStorageOptions } from './options';
 import { WorkspaceDocOutboxPublisher } from './outbox';
+import { WorkspacePageTreeResolver } from './page-tree-resolver';
 import { DatabaseDocReader, DocReader, DocReaderProvider } from './reader';
 import { StructuredDocService } from './structured';
 import {
@@ -22,6 +23,7 @@ import {
   WorkspaceLifecycleService,
 } from './workspace-lifecycle';
 import { WorkspaceOrganizationService } from './workspace-organization';
+import { WorkspacePageTreeService } from './workspace-page-tree';
 import { WorkspaceResourceService } from './workspace-resource';
 import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
 
@@ -30,8 +32,10 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
   providers: [
     WorkspaceLifecycleService,
     WorkspaceLifecycleResolver,
+    WorkspacePageTreeResolver,
     WorkspaceNativeResourceAccess,
     DocStorageOptions,
+    WorkspacePageTreeService,
     WorkspaceResourceService,
     WorkspaceDocOutboxPublisher,
     PgWorkspaceDocStorageAdapter,
@@ -48,6 +52,7 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
   ],
   exports: [
     WorkspaceNativeResourceAccess,
+    WorkspacePageTreeService,
     WorkspaceResourceService,
     DatabaseDocReader,
     DocReader,
@@ -83,3 +88,5 @@ export {
 } from './workspace-organization';
 
 export { WorkspaceResourceService };
+
+export { WorkspacePageTreeService };

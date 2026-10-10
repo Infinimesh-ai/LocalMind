@@ -520,7 +520,7 @@ const NavigationPanelFolderNodeFolder = ({
   const handleNewDoc = useCallback(
     async (mode?: 'page' | 'edgeless') => {
       try {
-        const newDoc = createPage(mode);
+        const newDoc = await createPage(mode);
         await node.createLink('doc', newDoc.id, node.indexAt('before'));
         track.$.navigationPanel.folders.createDoc();
         track.$.navigationPanel.organize.createOrganizeItem({

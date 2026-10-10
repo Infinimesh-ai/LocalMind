@@ -77,7 +77,19 @@ export const postfix = style({
   opacity: 0,
   pointerEvents: 'none',
   selectors: {
-    [`${itemRoot}:hover &`]: {
+    [`${itemRoot}:hover &, ${itemRoot}:focus-within &`]: {
+      opacity: 1,
+      pointerEvents: 'initial',
+      position: 'initial',
+    },
+    '&:has([data-folder-sort-visible="true"])': {
+      opacity: 1,
+      pointerEvents: 'initial',
+      position: 'initial',
+    },
+  },
+  '@media': {
+    '(hover: none)': {
       opacity: 1,
       pointerEvents: 'initial',
       position: 'initial',

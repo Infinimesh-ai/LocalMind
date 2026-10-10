@@ -57,7 +57,7 @@ export class WorkspaceNativeResourceModel extends BaseModel {
     if (input.kind === 'file') {
       const state = await this.db.workspaceFileState.findFirst({
         where: { fileId: input.resourceId, workspaceId: input.workspaceId },
-        include: { file: true, revision: true },
+        include: { file: { include: { displayTags: true } }, revision: true },
       });
       if (
         !state ||
@@ -78,6 +78,8 @@ export class WorkspaceNativeResourceModel extends BaseModel {
         mimeType: state.revision.mimeType,
         byteSize: state.revision.byteSize,
         createdAt: state.file.createdAt,
+        createdBy: state.file.createdBy,
+        tagIds: state.file.displayTags.map(tag => tag.tagId),
         updatedAt: state.updatedAt,
         officeKind: null,
       } as const;
@@ -86,7 +88,10 @@ export class WorkspaceNativeResourceModel extends BaseModel {
       where: { artifactId: input.resourceId, workspaceId: input.workspaceId },
       include: {
         artifact: {
-          include: { revisions: { orderBy: { sequence: 'desc' }, take: 1 } },
+          include: {
+            displayTags: true,
+            revisions: { orderBy: { sequence: 'desc' }, take: 1 },
+          },
         },
       },
     });
@@ -111,6 +116,8 @@ export class WorkspaceNativeResourceModel extends BaseModel {
       mimeType: revision.packageMimeType,
       byteSize: revision.packageByteSize,
       createdAt: state.artifact.createdAt,
+      createdBy: state.artifact.createdBy,
+      tagIds: state.artifact.displayTags.map(tag => tag.tagId),
       updatedAt: new Date(
         Math.max(state.updatedAt.getTime(), state.artifact.updatedAt.getTime())
       ),
@@ -177,6 +184,8 @@ export class WorkspaceNativeResourceModel extends BaseModel {
   async change(
     input: WorkspaceNativeIdentity & {
       expectedVersion: number;
+      actorId?: string;
+      tagIds?: string[];
       title?: string;
       trash?: boolean;
       permanentlyDelete?: boolean;
@@ -194,7 +203,50 @@ export class WorkspaceNativeResourceModel extends BaseModel {
       throw new BadRequest(
         'Move the native resource to trash before permanently deleting it'
       );
+    const renamed = input.title !== undefined && input.title !== current.title;
+    const tagsChanged =
+      input.tagIds !== undefined &&
+      JSON.stringify([...input.tagIds].sort()) !==
+        JSON.stringify([...current.tagIds].sort());
+    if (
+      (input.title !== undefined || input.tagIds !== undefined) &&
+      !renamed &&
+      !tagsChanged
+    )
+      return current;
+    if ((renamed || tagsChanged) && !input.actorId)
+      throw new BadRequest('A metadata change requires its actual actor');
+    if (tagsChanged) {
+      const where = {
+        workspaceId: input.workspaceId,
+        ...(input.kind === 'file'
+          ? { fileId: input.resourceId }
+          : { artifactId: input.resourceId }),
+      };
+      await this.db.workspaceNativeTag.deleteMany({ where });
+      if (input.tagIds?.length)
+        await this.db.workspaceNativeTag.createMany({
+          data: input.tagIds.map(tagId => ({ ...where, tagId })),
+        });
+    }
+    if (input.permanentlyDelete)
+      await this.db.workspaceNativeTag.deleteMany({
+        where: {
+          workspaceId: input.workspaceId,
+          ...(input.kind === 'file'
+            ? { fileId: input.resourceId }
+            : { artifactId: input.resourceId }),
+        },
+      });
     const data = {
+      ...(renamed || tagsChanged
+        ? {
+            lastUpdatedAt: new Date(),
+            lastUpdatedBy: input.actorId,
+            lastUpdateActor: 'user',
+            lastUpdateEvent: `metadata:${current.metadataVersion + 1}`,
+          }
+        : {}),
       metadataVersion: { increment: 1 },
       ...(input.trash === undefined
         ? {}
@@ -240,6 +292,7 @@ export class WorkspaceNativeResourceModel extends BaseModel {
       mimeType: string;
       byteSize: number;
       fingerprint: string;
+      forceRevision?: boolean;
       searchText: string;
       origin: string;
       sourceSessionId?: string | null;
@@ -253,6 +306,12 @@ export class WorkspaceNativeResourceModel extends BaseModel {
       throw new ResourceConflict(
         'Native file content changed; read and merge before saving'
       );
+    if (
+      !input.forceRevision &&
+      current.fingerprint === input.fingerprint &&
+      current.mimeType === input.mimeType
+    )
+      return current;
     const revision = await this.db.workspaceFileRevision.create({
       data: {
         workspaceId: input.workspaceId,
@@ -265,6 +324,7 @@ export class WorkspaceNativeResourceModel extends BaseModel {
         byteSize: input.byteSize,
         fingerprint: input.fingerprint,
         origin: input.origin,
+        createdAt: new Date(),
         sourceSessionId: input.sourceSessionId,
         requestKey: input.requestKey,
         requestHash: input.requestHash,
@@ -274,6 +334,10 @@ export class WorkspaceNativeResourceModel extends BaseModel {
       where: { fileId: input.resourceId },
       data: {
         contentVersion: revision.sequence,
+        lastUpdatedAt: revision.createdAt,
+        lastUpdatedBy: input.actorId,
+        lastUpdateActor: 'user',
+        lastUpdateEvent: `revision:${revision.id}`,
         searchText: input.searchText,
         searchVersion: revision.sequence,
       },

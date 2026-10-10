@@ -17,6 +17,13 @@ import { CurrentUser, type CurrentUser as User } from '../auth';
 import { WorkspaceNativeResourceService } from './workspace-resource-service';
 
 @ObjectType()
+class WorkspaceResourceTagType {
+  @Field(() => ID) id!: string;
+  @Field() name!: string;
+  @Field() color!: string;
+}
+
+@ObjectType()
 class WorkspaceNativeResourceType {
   @Field(() => ID) id!: string;
   @Field(() => ID) workspaceId!: string;
@@ -40,6 +47,14 @@ class WorkspaceNativeResourceType {
   @Field(() => [ID], { nullable: true }) folderIds?: string[];
   @Field(() => [String], { nullable: true }) folderPaths?: string[];
   @Field(() => Boolean, { nullable: true }) atRoot?: boolean;
+  @Field(() => String, { nullable: true }) documentType?: string;
+  @Field(() => ID, { nullable: true }) createdBy?: string;
+  @Field(() => Date, { nullable: true }) lastUpdatedAt?: Date | null;
+  @Field(() => ID, { nullable: true }) lastUpdatedBy?: string | null;
+  @Field(() => String, { nullable: true }) lastUpdateActor?: string;
+  @Field(() => [WorkspaceResourceTagType], { nullable: true })
+  tags?: WorkspaceResourceTagType[];
+  @Field(() => Boolean, { nullable: true }) canEditTags?: boolean;
   @Field(() => Date) createdAt!: Date;
   @Field(() => Date) updatedAt!: Date;
   @Field(() => Date, { nullable: true }) trashedAt!: Date | null;
@@ -76,6 +91,11 @@ class WorkspaceNativeIdentityInput {
 
 @InputType()
 class CreateWorkspaceNativeResourceInput {
+  @Field(() => ID, { nullable: true }) parentNodeId?: string | null;
+  @Field(() => String, { nullable: true }) treeContractVersion?: string;
+  @Field(() => Int, { nullable: true }) expectedTreeRevision?: number;
+  @Field(() => String, { nullable: true })
+  expectedAuthorizationRevision?: string;
   @Field(() => ID) workspaceId!: string;
   @Field() title!: string;
   @Field() requestKey!: string;
@@ -103,6 +123,13 @@ class ChangeWorkspaceNativeResourceInput extends WorkspaceNativeIdentityInput {
 }
 
 @InputType()
+class SetWorkspaceNativeResourceTagsInput extends WorkspaceNativeIdentityInput {
+  @Field(() => Int) expectedVersion!: number;
+  @Field() requestKey!: string;
+  @Field(() => [ID]) tagIds!: string[];
+}
+
+@InputType()
 class RestoreWorkspaceNativeVersionInput extends WorkspaceNativeIdentityInput {
   @Field(() => Int) expectedContentVersion!: number;
   @Field(() => Int) sequence!: number;
@@ -111,6 +138,11 @@ class RestoreWorkspaceNativeVersionInput extends WorkspaceNativeIdentityInput {
 
 @InputType()
 class CopyWorkspaceNativeResourceInput extends WorkspaceNativeIdentityInput {
+  @Field(() => ID, { nullable: true }) parentNodeId?: string | null;
+  @Field(() => String, { nullable: true }) treeContractVersion?: string;
+  @Field(() => Int, { nullable: true }) expectedTreeRevision?: number;
+  @Field(() => String, { nullable: true })
+  expectedAuthorizationRevision?: string;
   @Field(() => Int) expectedContentVersion!: number;
   @Field() title!: string;
   @Field() requestKey!: string;
@@ -219,6 +251,18 @@ export class WorkspaceNativeResourceResolver {
       action: z
         .enum(['rename', 'move', 'trash', 'restore', 'delete'])
         .parse(input.action),
+    });
+  }
+
+  @Mutation(() => WorkspaceNativeResourceType)
+  @Throttle('strict')
+  setWorkspaceNativeResourceTags(
+    @CurrentUser() user: User,
+    @Args('input') input: SetWorkspaceNativeResourceTagsInput
+  ) {
+    return this.resources.setTags({
+      ...input,
+      ...this.identity(input, user.id),
     });
   }
 

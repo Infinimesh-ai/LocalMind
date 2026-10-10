@@ -52,6 +52,10 @@ export const workbenchRoutes = [
     lazy: () => import('./pages/workspace/trash'),
   },
   {
+    path: '/folder/:nodeId',
+    lazy: () => import('../desktop/pages/workspace/folder'),
+  },
+  {
     path: '/files/:resourceId',
     lazy: () => import('../desktop/pages/workspace/native-file'),
   },

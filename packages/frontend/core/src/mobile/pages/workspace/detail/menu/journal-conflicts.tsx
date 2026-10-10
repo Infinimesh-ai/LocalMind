@@ -44,7 +44,7 @@ export const ResolveConflictOperations = ({
           variant: 'error',
         },
         onConfirm: async () => {
-          await docRecord.moveToTrash();
+          if ((await docRecord.moveToTrash()) === false) return;
         },
       });
     },

@@ -1,3 +1,5 @@
 fragment WorkspaceNativeResourceFields on WorkspaceNativeResourceType {
+  documentType createdBy lastUpdatedAt lastUpdatedBy lastUpdateActor canEditTags
+  tags { id name color }
   id workspaceId kind title fileName mimeType byteSize metadataVersion contentVersion revisionId searchStatus canEdit canManage canRename canMove canCopy canTrash canRestore canDeletePermanently folderIds folderPaths atRoot createdAt updatedAt trashedAt deletedAt
 }

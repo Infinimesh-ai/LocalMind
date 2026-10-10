@@ -1,0 +1,3 @@
+mutation adoptWorkspaceLocalPageTree($workspaceId: ID!, $contractVersion: String!, $positions: [WorkspaceLocalPageTreePosition!]!) {
+  adoptWorkspaceLocalPageTree(workspaceId: $workspaceId, contractVersion: $contractVersion, positions: $positions)
+}

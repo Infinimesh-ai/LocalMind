@@ -14,7 +14,7 @@ import {
   TemplateIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 import { type DocRecord, DocsService } from '../../doc';
 import { DocDisplayMetaService } from '../../doc-display-meta';
@@ -153,9 +153,9 @@ export const TemplateListMenuAdd = () => {
   const docsService = useService(DocsService);
   const workbench = useService(WorkbenchService).workbench;
 
-  const createNewTemplate = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const record = docsService.createDoc({ isTemplate: true });
+  const createNewTemplate = useAsyncCallback(
+    async (e: React.MouseEvent<HTMLDivElement>) => {
+      const record = await docsService.createDocAsync({ isTemplate: true });
       workbench.openDoc(record.id, { at: inferOpenMode(e) });
     },
     [docsService, workbench]

@@ -44,15 +44,15 @@ export const CollectionListHeader = ({
   const name = useLiveData(collection.name$);
 
   const createAndAddDocument = useCallback(
-    (createDocumentFn: () => DocRecord) => {
-      const newDoc = createDocumentFn();
+    async (createDocumentFn: () => Promise<DocRecord>) => {
+      const newDoc = await createDocumentFn();
       collectionService.addDocToCollection(collection.id, newDoc.id);
     },
     [collection.id, collectionService]
   );
 
   const onConfirmAddDocument = useCallback(
-    (createDocumentFn: () => DocRecord) => {
+    (createDocumentFn: () => Promise<DocRecord>) => {
       openConfirmModal({
         title: t['com.affine.collection.add-doc.confirm.title'](),
         description: t['com.affine.collection.add-doc.confirm.description'](),

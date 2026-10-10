@@ -43,7 +43,7 @@ const useNewDoc = () => {
           await docsService.duplicateFromTemplate(pageTemplateDocId);
         workbench.openDoc(docId, { at: inferOpenMode(e) });
       } else {
-        pageHelper.createPage(mode, { at: inferOpenMode(e) });
+        await pageHelper.createPage(mode, { at: inferOpenMode(e) });
       }
     },
     [docsService, enablePageTemplate, pageHelper, pageTemplateDocId, workbench]

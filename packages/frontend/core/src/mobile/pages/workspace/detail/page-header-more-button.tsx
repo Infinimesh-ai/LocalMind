@@ -108,7 +108,7 @@ export const PageHeaderMenuButton = () => {
         variant: 'error',
       },
       async onConfirm() {
-        await doc.moveToTrash();
+        if ((await doc.moveToTrash()) === false) return;
         track.$.navigationPanel.docs.deleteDoc({
           control: 'button',
         });

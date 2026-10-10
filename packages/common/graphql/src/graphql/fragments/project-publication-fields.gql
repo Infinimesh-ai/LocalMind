@@ -5,6 +5,7 @@ fragment ProjectPublicationFields on ProjectPublicationType {
   runId
   revision
   kind
+  resourceKind
   title
   status
   sourceSequence

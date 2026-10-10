@@ -11,6 +11,8 @@ import { Models } from '../../models';
 import type { DirectoryRights } from '../../models/workspace-directory-grant';
 import type { WorkspaceNativeIdentity } from '../../models/workspace-native-resource';
 import { PermissionAccess } from '../permission';
+import { folderTrashFingerprint } from './folder-trash-manifest';
+import { pageTreeWriteContext } from './page-tree-context';
 import { DocReader } from './reader';
 import { ResourceError } from './resource-types';
 import { workspaceDocTransaction } from './transaction-context';
@@ -274,39 +276,6 @@ function stringArray(value: unknown) {
     : [];
 }
 
-function folderTrashFingerprint(input: {
-  rootFolderId: string;
-  nodes: JsonObject[];
-  documentIds: string[];
-  newlyTrashedDocumentIds: string[];
-  previouslyTrashedDocumentIds: string[];
-}) {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        version: 'localmind-folder-trash-manifest/v1',
-        rootFolderId: input.rootFolderId,
-        nodes: input.nodes
-          .map(record => ({
-            id: record.id,
-            parentId: record.parentId ?? null,
-            type: record.type,
-            data: record.data,
-            index: record.index,
-          }))
-          .sort((left, right) =>
-            String(left.id).localeCompare(String(right.id))
-          ),
-        documentIds: [...input.documentIds].sort(),
-        newlyTrashedDocumentIds: [...input.newlyTrashedDocumentIds].sort(),
-        previouslyTrashedDocumentIds: [
-          ...input.previouslyTrashedDocumentIds,
-        ].sort(),
-      })
-    )
-    .digest('hex');
-}
-
 type FolderTrashManifestRepair = {
   rootId: string;
   documentIds: string[];
@@ -565,6 +534,12 @@ function validateTableRecord(
       }
       break;
     case 'document_properties':
+      if (
+        record.primaryMode !== undefined &&
+        record.primaryMode !== null &&
+        !['page', 'edgeless'].includes(String(record.primaryMode))
+      )
+        throw new BadRequest('Unsupported document primary mode');
       for (const field of [
         'primaryMode',
         'edgelessColorTheme',
@@ -1021,6 +996,9 @@ export class WorkspaceOrganizationService {
       throw new Error('Document location page exceeds its bounds');
     const raw = await this.readDirectorySnapshot(workspaceId, userId);
     const visible = await this.readDirectory(workspaceId, userId);
+    const pageTree =
+      (await this.models.workspacePageTree.state(workspaceId))?.phase ===
+      'switched';
     const requested = new Set(docIds);
     const placed = new Set(
       raw.rows
@@ -1033,7 +1011,7 @@ export class WorkspaceOrganizationService {
     );
     return docIds.flatMap(docId => {
       if (!placed.has(docId))
-        return visible.rootRights.canRead
+        return !pageTree && visible.rootRights.canRead
           ? [{ docId, folderId: null as string | null }]
           : [];
       return visible.entries
@@ -1116,6 +1094,24 @@ export class WorkspaceOrganizationService {
       workspaceId,
       userId
     );
+    const pageTree =
+      (await this.models.workspacePageTree.state(workspaceId))?.phase ===
+      'switched';
+    const isContainer = (row: JsonObject) =>
+      row.type === 'folder' || (pageTree && row.type === 'doc');
+    const docPermission = new Map<string, boolean>();
+    const canReadDoc = async (id: string) => {
+      if (!docPermission.has(id))
+        docPermission.set(
+          id,
+          await this.ac
+            .user(userId)
+            .workspace(workspaceId)
+            .doc(id)
+            .can('Doc.Read')
+        );
+      return docPermission.get(id) === true;
+    };
     const records = new Map(rows.map(row => [String(row.id), row]));
     const byPath = new Map<string, DirectoryRights>();
     const entries: { row: JsonObject; rights: DirectoryRights }[] = [];
@@ -1126,15 +1122,23 @@ export class WorkspaceOrganizationService {
       let valid = true;
       while (current) {
         const id = String(current.id);
-        if (seen.has(id) || (current.type === 'folder' && path.length >= 64)) {
+        if (seen.has(id) || (isContainer(current) && path.length >= 64)) {
           valid = false;
           break;
         }
         seen.add(id);
-        if (current.type === 'folder') path.push(id);
+        if (
+          pageTree &&
+          current.type === 'doc' &&
+          !(await canReadDoc(String(current.data)))
+        ) {
+          valid = false;
+          break;
+        }
+        if (isContainer(current)) path.push(id);
         if (typeof current.parentId !== 'string') break;
         current = records.get(current.parentId);
-        if (!current || current.type !== 'folder') {
+        if (!current || !isContainer(current)) {
           valid = false;
           break;
         }
@@ -1211,22 +1215,51 @@ export class WorkspaceOrganizationService {
       organize?: boolean;
     }
   ) {
+    const pageTree =
+      (await this.models.workspacePageTree.state(input.workspaceId))?.phase ===
+      'switched';
     const raw = await this.readDirectorySnapshot(
       input.workspaceId,
       input.actorId
     );
+    const titles = new Map<string, string>();
+    if (pageTree) {
+      const all = await this.load(
+        input.workspaceId,
+        resolveWorkspaceDataDocId('folders', input.workspaceId, input.actorId),
+        true
+      );
+      const root = await this.load(input.workspaceId, input.workspaceId);
+      try {
+        raw.rows = tableRecords(all.doc, true).filter(
+          row => row.$pageTreeRetired !== true
+        );
+        for (const value of rootPages(root.doc).toArray()) {
+          const page = rootPageRecord(value);
+          titles.set(
+            String(page.id),
+            typeof page.title === 'string' ? page.title : ''
+          );
+        }
+      } finally {
+        all.doc.destroy();
+        root.doc.destroy();
+      }
+    }
     const records = new Map(raw.rows.map(row => [String(row.id), row]));
     const placements = raw.rows.filter(
       row =>
         (row.type === input.kind ||
-          (input.kind === 'office' && row.type === 'doc')) &&
+          (!pageTree && input.kind === 'office' && row.type === 'doc')) &&
         row.data === input.resourceId
     );
     const resource = await this.models.workspaceNativeResource.get(input, {
       trash: true,
       deleted: true,
     });
-    const locations = (resource.state.trashedAt ? [] : placements).map(row => {
+    const locations = (
+      resource.state.trashedAt && !pageTree ? [] : placements
+    ).map(row => {
       const path: string[] = [];
       let parent = typeof row.parentId === 'string' ? row.parentId : null;
       while (parent) {
@@ -1234,7 +1267,10 @@ export class WorkspaceOrganizationService {
           throw new ResourceError('resource_not_found');
         path.push(parent);
         const folder = records.get(parent);
-        if (!folder || folder.type !== 'folder')
+        if (
+          !folder ||
+          (folder.type !== 'folder' && !(pageTree && folder.type === 'doc'))
+        )
           throw new ResourceError('resource_not_found');
         parent = typeof folder.parentId === 'string' ? folder.parentId : null;
       }
@@ -1264,8 +1300,26 @@ export class WorkspaceOrganizationService {
         });
       }
     }
-    if (!locations.length) locations.push({ folderId: null, path: [] });
+    if (!locations.length) {
+      if (pageTree) throw new ResourceError('resource_not_found');
+      locations.push({ folderId: null, path: [] });
+    }
     for (const location of locations) {
+      if (pageTree)
+        for (const id of location.path) {
+          const parent = records.get(id);
+          if (
+            !parent ||
+            (parent.type !== 'folder' && parent.type !== 'doc') ||
+            (parent.type === 'doc' &&
+              !(await this.ac
+                .user(input.actorId)
+                .workspace(input.workspaceId)
+                .doc(String(parent.data))
+                .can('Doc.Read')))
+          )
+            throw new ResourceError('resource_not_found');
+        }
       const rights = await this.models.workspaceDirectoryGrant.rights({
         workspaceId: input.workspaceId,
         actorId: input.actorId,
@@ -1285,7 +1339,19 @@ export class WorkspaceOrganizationService {
       paths: locations.map(location =>
         [...location.path]
           .reverse()
-          .map(id => String(records.get(id)?.data ?? '…'))
+          .map(id =>
+            pageTree
+              ? records.get(id)?.type === 'folder'
+                ? String(
+                    (
+                      records.get(id)?.$pageTreeFolder as
+                        | { title?: string }
+                        | undefined
+                    )?.title ?? '…'
+                  )
+                : (titles.get(String(records.get(id)?.data)) ?? '…')
+              : String(records.get(id)?.data ?? '…')
+          )
           .join(' / ')
       ),
     };
@@ -1627,6 +1693,77 @@ export class WorkspaceOrganizationService {
     return (await this.readDirectorySnapshot(workspaceId, actorId)).rows;
   }
 
+  async administrationDirectories(workspaceId: string, actorId: string) {
+    const rows = await this.readFoldersForAdministration(workspaceId, actorId);
+    if (
+      (await this.models.workspacePageTree.state(workspaceId))?.phase !==
+      'switched'
+    )
+      return rows
+        .filter(row => row.type === 'folder')
+        .map(row => ({
+          id: String(row.id),
+          parentId: typeof row.parentId === 'string' ? row.parentId : null,
+          name: String(row.data),
+        }));
+    // Page titles obey document and ancestor visibility even in administration.
+    const visible = await this.readDirectory(workspaceId, actorId);
+    const root = await this.load(workspaceId, workspaceId);
+    try {
+      const titles = new Map(
+        rootPages(root.doc)
+          .toArray()
+          .map(value => {
+            const page = rootPageRecord(value);
+            return [
+              String(page.id),
+              typeof page.title === 'string' ? page.title : '',
+            ];
+          })
+      );
+      const directories: {
+        id: string;
+        parentId: string | null;
+        name: string;
+      }[] = [];
+      for (const { row } of visible.entries) {
+        if (row.type === 'folder') {
+          const metadata = row.$pageTreeFolder;
+          directories.push({
+            id: String(row.id),
+            parentId: typeof row.parentId === 'string' ? row.parentId : null,
+            name:
+              metadata &&
+              typeof metadata === 'object' &&
+              !Array.isArray(metadata) &&
+              'title' in metadata &&
+              typeof metadata.title === 'string'
+                ? metadata.title
+                : String(row.data),
+          });
+          continue;
+        }
+        if (
+          row.type !== 'doc' ||
+          !titles.has(String(row.data)) ||
+          (await this.readDocumentPrimaryMode(
+            workspaceId,
+            String(row.data)
+          )) !== 'page'
+        )
+          continue;
+        directories.push({
+          id: String(row.id),
+          parentId: typeof row.parentId === 'string' ? row.parentId : null,
+          name: titles.get(String(row.data)) ?? '',
+        });
+      }
+      return directories;
+    } finally {
+      root.doc.destroy();
+    }
+  }
+
   async directoryRevision(workspaceId: string, userId: string) {
     const record = await (
       workspaceDocTransaction.getStore()?.read ??
@@ -1817,6 +1954,26 @@ export class WorkspaceOrganizationService {
         }
       }
     );
+  }
+
+  /** The Workspace CRDT remains the only tag dictionary. Call inside the resource ACL boundary. */
+  async resourceTagDefinitions(workspaceId: string) {
+    const root = await this.load(workspaceId, workspaceId, true);
+    try {
+      return rootTagOptions(root.doc)
+        .toArray()
+        .map(value => {
+          const tag = jsonObject(value);
+          return {
+            id: String(tag.id ?? ''),
+            name: String(tag.value ?? ''),
+            color: String(tag.color ?? ''),
+          };
+        })
+        .filter(tag => tag.id);
+    } finally {
+      root.doc.destroy();
+    }
   }
 
   async readOrganization(workspaceId: string, userId: string) {
@@ -2782,7 +2939,21 @@ export class WorkspaceOrganizationService {
               if (index < 0)
                 throw new Error(`Document ${operation.docId} was not found.`);
               const page = pages.get(index);
+              const previousTags = jsonObject(page).tags ?? [];
+              if (
+                JSON.stringify(previousTags) ===
+                JSON.stringify(operation.tagIds)
+              )
+                break;
+              const at = Date.now();
+              const displayUpdateEvent = JSON.stringify({
+                at,
+                actor: 'user',
+                by: editorId,
+              });
               if (page instanceof Y.Map) {
+                page.set('updatedDate', at);
+                page.set('displayUpdateEvent', displayUpdateEvent);
                 let pageTags = page.get('tags');
                 if (!(pageTags instanceof Y.Array)) {
                   pageTags = new Y.Array<string>();
@@ -2794,6 +2965,8 @@ export class WorkspaceOrganizationService {
                 replaceArrayEntry(pages, index, {
                   ...jsonObject(page),
                   tags: [...operation.tagIds],
+                  updatedDate: at,
+                  displayUpdateEvent,
                 });
               }
               break;
@@ -2864,6 +3037,14 @@ export class WorkspaceOrganizationService {
     table: WorkspaceDataTable,
     operations: WorkspaceDataOperation[]
   ) {
+    if (
+      table === 'folders' &&
+      pageTreeWriteContext.getStore() !== workspaceId
+    ) {
+      const state = await this.models.workspacePageTree.state(workspaceId);
+      if (state && !['preflight', 'needs_resolution'].includes(state.phase))
+        throw new BadRequest('page_tree_protocol_retired');
+    }
     const apply = () =>
       this.applyDataOperationsInternal(
         workspaceId,
@@ -2871,6 +3052,10 @@ export class WorkspaceOrganizationService {
         editorId,
         table,
         operations
+      );
+    if (table === 'document_properties')
+      return this.writer.withDeferredBroadcasts(() =>
+        this.writer.withMetadataTransaction(workspaceId, apply)
       );
     return table === 'folders'
       ? await this.models.workspaceDirectoryGrant.withMutationLock(
@@ -2894,6 +3079,12 @@ export class WorkspaceOrganizationService {
     try {
       const previousFolders =
         table === 'folders' ? tableRecords(loaded.doc) : [];
+      const previousModes = new Map(
+        operations.map(operation => [
+          operation.key,
+          loaded.doc.getMap(operation.key).get('primaryMode'),
+        ])
+      );
       loaded.doc.transact(() => {
         for (const operation of operations) {
           const existed = loaded.doc.share.has(operation.key);
@@ -2946,6 +3137,13 @@ export class WorkspaceOrganizationService {
         );
       }
       const saved = await this.save(workspaceId, docId, editorId, loaded);
+      if (table === 'document_properties') {
+        for (const [id, previousMode] of previousModes) {
+          const nextMode = loaded.doc.getMap(id).get('primaryMode');
+          if (previousMode !== nextMode)
+            await this.writer.recordMetadataUpdate(workspaceId, id, editorId);
+        }
+      }
       return { workspaceId, table, storageDocId: docId, ...saved };
     } finally {
       loaded.doc.destroy();

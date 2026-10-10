@@ -9,7 +9,10 @@ import { type BlockModel, type Store, Text } from '@blocksuite/store';
 import { TestWorkspace } from '@blocksuite/store/test';
 import { beforeEach, describe, expect, test } from 'vitest';
 
-import { deleteBlockWithListOrder } from '../../utils/model/list.js';
+import {
+  deleteBlockWithListOrder,
+  interceptUserBlockDeletion,
+} from '../../utils/model/list.js';
 
 describe('numbered list deletion', () => {
   let store: Store;
@@ -155,6 +158,26 @@ describe('numbered list deletion', () => {
     list(3);
     deleteBlockWithListOrder(store, removed, { bringChildrenTo: note });
     expect(orders()).toEqual([1, 2, 3, 4]);
+  });
+
+  test('UI deletion can require a domain action without intercepting raw content edits', () => {
+    const protectedBlock = list(1);
+    const ordinary = list(2);
+    let requested = 0;
+    const dispose = interceptUserBlockDeletion(store, model => {
+      if (model === protectedBlock) {
+        requested++;
+        return false;
+      }
+      return true;
+    });
+    deleteBlockWithListOrder(store, protectedBlock);
+    expect(store.getBlock(protectedBlock.id)).toBeTruthy();
+    deleteBlockWithListOrder(store, ordinary);
+    expect(store.getBlock(ordinary.id)).toBeUndefined();
+    store.deleteBlock(protectedBlock);
+    expect(requested).toBe(1);
+    dispose();
   });
 
   test('does not mutate a readonly document', () => {

@@ -170,7 +170,7 @@ export const QuickDelete = memo(function QuickDelete({
               toast(t['com.affine.no-permission']());
               return;
             }
-            await doc.moveToTrash();
+            if ((await doc.moveToTrash()) === false) return;
           } catch (error) {
             console.error(error);
             const userFriendlyError = UserFriendlyError.fromAny(error);

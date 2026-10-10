@@ -389,19 +389,23 @@ export class SpaceSyncGateway
       `${SpaceType.Workspace}:${Room(input.spaceId, 'sync-025')}`,
       `${SpaceType.Workspace}:${Room(input.spaceId, 'sync-026')}`,
     ];
+    // Socket discovery can wait on Redis/other nodes. Do not spend a database
+    // transaction or hold the authorization lock while waiting on that I/O.
+    const sockets = await this.server.in(rooms).fetchSockets();
+    if (!sockets.length) return;
+    const payload = this.buildBroadcastPayload(
+      SpaceType.Workspace,
+      input.spaceId,
+      input.docId,
+      input.updates,
+      input.timestamp,
+      input.editor ?? undefined
+    );
+    const encodedUpdates = this.encodeUpdates(input.updates);
     await this.models.workspaceDirectoryGrant.withMutationLock(
       input.spaceId,
       async () => {
-        const sockets = await this.server.in(rooms).fetchSockets();
         const access = new Map<string, boolean>();
-        const payload = this.buildBroadcastPayload(
-          SpaceType.Workspace,
-          input.spaceId,
-          input.docId,
-          input.updates,
-          input.timestamp,
-          input.editor ?? undefined
-        );
         for (const socket of sockets) {
           if (socket.id === input.excludeSocketId) continue;
           const actorId = this.resolvePresenceUserId(socket);
@@ -432,7 +436,7 @@ export class SpaceSyncGateway
           if (socket.rooms.has(rooms[1]))
             socket.emit('space:broadcast-doc-updates', payload);
           if (socket.rooms.has(rooms[0])) {
-            for (const update of this.encodeUpdates(input.updates))
+            for (const update of encodedUpdates)
               socket.emit('space:broadcast-doc-update', {
                 spaceType: SpaceType.Workspace,
                 spaceId: input.spaceId,

@@ -266,7 +266,7 @@ describe('ImportCommitService', () => {
     const originalSetDocMeta = collection.meta.setDocMeta.bind(collection.meta);
     const setDocMeta = vi.spyOn(collection.meta, 'setDocMeta');
     setDocMeta.mockImplementation((id, meta) => {
-      if (id === 'doc-meta') {
+      if (id === 'doc-meta' && meta.favorite === true) {
         throw new Error('meta failed');
       }
       return originalSetDocMeta(id, meta);
@@ -280,7 +280,7 @@ describe('ImportCommitService', () => {
             id: 'doc-meta',
             sourcePath: 'docs/meta.md',
             snapshot: docSnapshot('doc-meta', 'Meta'),
-            meta: { title: 'Meta' },
+            meta: { title: 'Meta', favorite: true },
           },
           {
             id: 'doc-ok',
@@ -586,4 +586,110 @@ describe('ImportCommitService', () => {
       { parentId: 'folder-2', docId: 'nested' },
     ]);
   });
+});
+
+test('page tree import awaits resource creation, preserves folders once and imports subpage blocks as ordinary references', async () => {
+  const collection = new TestWorkspace({ id: 'tree-import' });
+  collection.meta.initialize();
+  const created: string[] = [];
+  const locations = new Map<
+    string,
+    { nodeId: string; parentNodeId: string | null }
+  >();
+  const commands: {
+    action: string;
+    nodeId?: string;
+    parentNodeId: string | null;
+  }[] = [];
+  const tree = {
+    enabled$: { value: true },
+    locate: async (_kind: string, id: string) => ({
+      parent: locations.get(id),
+    }),
+    execute: async (command: {
+      action: string;
+      nodeId?: string;
+      parentNodeId: string | null;
+    }) => {
+      commands.push(command);
+      if (command.action === 'create-folder')
+        return { nodeId: 'imported-folder', resourceId: 'folder-resource' };
+      const found = [...locations.values()].find(
+        node => node.nodeId === command.nodeId
+      );
+      if (!found) throw new Error('Missing imported resource');
+      found.parentNodeId = command.parentNodeId;
+      return undefined;
+    },
+  };
+  const service = new ImportCommitService({
+    collection,
+    schema: getAFFiNEWorkspaceSchema(),
+    extensions: getStoreManager().config.init().value.get('store'),
+    pageTree: tree as never,
+    logger: { warn: vi.fn() },
+    docCRUD: {
+      create: async id => {
+        await Promise.resolve();
+        created.push(id);
+        locations.set(id, { nodeId: `node:${id}`, parentNodeId: null });
+        return collection.createDoc(id).getStore({
+          id,
+          extensions: getStoreManager().config.init().value.get('store'),
+        });
+      },
+      get: id => collection.getDoc(id)?.getStore({ id }) ?? null,
+      delete: id => collection.removeDoc(id),
+    },
+  });
+  const snapshot = docSnapshot('parent', 'Imported parent');
+  snapshot.blocks.children[0].children.push({
+    type: 'block',
+    id: 'old-entry',
+    flavour: 'localmind:subpage',
+    props: { resourceId: 'existing-target', kind: 'doc' },
+    children: [],
+  });
+  const folders = [
+    { path: 'root', name: 'Old folder' },
+    {
+      path: 'root/parent',
+      name: 'Parent',
+      parentPath: 'root',
+      pageId: 'parent',
+    },
+    {
+      path: 'root/parent/child',
+      name: 'Child',
+      parentPath: 'root/parent',
+      pageId: 'child',
+    },
+  ];
+  const result = await service.commitBatch({
+    blobs: [],
+    docs: [
+      { id: 'parent', snapshot },
+      { id: 'child', snapshot: docSnapshot('child', 'Child') },
+    ],
+    folders,
+    done: true,
+  });
+  expect(result.warnings).toEqual([]);
+  expect(created).toEqual(['parent', 'child']);
+  expect(locations.get('parent')?.parentNodeId).toBe('imported-folder');
+  expect(locations.get('child')?.parentNodeId).toBe('node:parent');
+  const parent = collection.getDoc('parent')!.getStore({
+    id: 'parent',
+    extensions: getStoreManager().config.init().value.get('store'),
+  });
+  parent.load();
+  expect(parent.getBlocksByFlavour('localmind:subpage')).toHaveLength(0);
+  expect(
+    parent.getBlocksByFlavour('affine:embed-linked-doc')[0].model.props
+  ).toMatchObject({ pageId: 'existing-target' });
+  await service.commitBatch({ blobs: [], docs: [], folders, done: true });
+  expect(
+    commands.filter(command => command.action === 'create-folder')
+  ).toHaveLength(1);
+  expect(locations.has('existing-target')).toBe(false);
 });

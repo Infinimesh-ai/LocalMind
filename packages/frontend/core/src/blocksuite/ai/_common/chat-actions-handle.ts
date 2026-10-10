@@ -23,6 +23,7 @@ import {
   NotificationProvider,
   TelemetryProvider,
 } from '@blocksuite/affine/shared/services';
+import { createEditorDoc } from '@blocksuite/affine/shared/utils';
 import {
   type BlockComponent,
   type BlockSelection,
@@ -511,34 +512,17 @@ export const SAVE_AS_DOC = {
   },
   showWhen: () => true,
   toast: 'New doc created',
-  handler: (host: EditorHost, content: string) => {
+  handler: async (host: EditorHost, content: string) => {
     reportResponse('result:add-page', host);
-    const doc = host.store.workspace.createDoc();
-    const newDoc = doc.getStore();
-    newDoc.load();
+    const newDoc = await createEditorDoc(host.std);
     const rootId = newDoc.addBlock('affine:page');
     newDoc.addBlock('affine:surface', {}, rootId);
     const noteId = newDoc.addBlock('affine:note', {}, rootId);
 
-    host.std.getOptional(RefNodeSlotsProvider)?.docLinkClicked.next({
-      pageId: newDoc.id,
-      host,
-    });
-    let complete = false;
-    (function addContent() {
-      if (complete) return;
-      const newHost = document.querySelector('editor-host');
-      // FIXME: this is a hack to wait for the host to be ready, now we don't have a way to know if the new host is ready
-      if (!newHost || newHost === host) {
-        setTimeout(addContent, 100);
-        return;
-      }
-      complete = true;
-      const { store } = newHost;
-      insertFromMarkdown(newHost, content, store, noteId, 0).catch(
-        console.error
-      );
-    })();
+    await insertFromMarkdown(host, content, newDoc, noteId, 0);
+    host.std
+      .getOptional(RefNodeSlotsProvider)
+      ?.docLinkClicked.next({ pageId: newDoc.id, host });
 
     return true;
   },
@@ -574,8 +558,7 @@ const CREATE_AS_LINKED_DOC = {
     }
 
     // Create a new doc and add the content to it
-    const newDoc = host.store.workspace.createDoc().getStore();
-    newDoc.load();
+    const newDoc = await createEditorDoc(host.std);
     const rootId = newDoc.addBlock('affine:page');
     newDoc.addBlock('affine:surface', {}, rootId);
     const noteId = newDoc.addBlock('affine:note', {}, rootId);

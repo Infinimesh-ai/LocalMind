@@ -1,10 +1,11 @@
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { TagService } from '@affine/core/modules/tag';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { inferOpenMode } from '@affine/core/utils';
 import { useI18n } from '@affine/i18n';
 import { AllDocsIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { type MouseEvent, useCallback } from 'react';
+import { type MouseEvent } from 'react';
 
 import { usePageHelper } from '../../../blocksuite/block-suite-page-list/utils';
 import { ActionButton } from './action-button';
@@ -36,9 +37,9 @@ export const EmptyDocs = ({
 
   const showActionButton = type !== 'trash'; // && !BUILD_CONFIG.isMobileEdition;
 
-  const onCreate = useCallback(
-    (e: MouseEvent) => {
-      const doc = pageHelper.createPage(undefined, {
+  const onCreate = useAsyncCallback(
+    async (e: MouseEvent) => {
+      const doc = await pageHelper.createPage(undefined, {
         at: inferOpenMode(e),
       });
 

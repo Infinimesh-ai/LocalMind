@@ -111,6 +111,7 @@ describe('FolderStore links', () => {
           type: 'folder',
           data: 'Visible',
           parentId: null,
+          defaultSortMode: null,
           index: 'a0',
           rights: {
             canRead: true,
@@ -173,6 +174,7 @@ describe('FolderStore links', () => {
           type: 'folder',
           data: 'Visible',
           parentId: null,
+          defaultSortMode: null,
           index: 'a0',
           rights: {
             canRead: true,

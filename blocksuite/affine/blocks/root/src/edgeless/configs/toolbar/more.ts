@@ -244,8 +244,24 @@ export const moreActions = [
             const surfaceId = edgeless.surfaceBlockModel.id;
             if (!surfaceId) return;
 
-            const linkedDoc = createLinkedDocFromNote(ctx.store, model, title);
+            const sourceSnapshot = JSON.stringify(
+              ctx.store.getTransformer().blockToSnapshot(model)
+            );
+            const linkedDoc = await createLinkedDocFromNote(
+              ctx.std,
+              model,
+              title
+            );
             if (!linkedDoc) return;
+            if (
+              ctx.store.getBlock(model.id)?.model !== model ||
+              JSON.stringify(
+                ctx.store.getTransformer().blockToSnapshot(model)
+              ) !== sourceSnapshot
+            )
+              throw new Error(
+                'Source changed while creating the copy; the original was retained'
+              );
 
             // Inserts linked doc card
             const cardId = ctx.std.get(EdgelessCRUDIdentifier).addBlock(
@@ -319,12 +335,13 @@ export const moreActions = [
             if (title === null) return;
 
             const clonedModels = getSortedCloneElements(models);
-            const linkedDoc = createLinkedDocFromEdgelessElements(
+            const linkedDoc = await createLinkedDocFromEdgelessElements(
               ctx.host,
               clonedModels,
               title
             );
 
+            if (!linkedDoc) return;
             ctx.store.transact(() => {
               deleteElements(edgeless, clonedModels);
             });

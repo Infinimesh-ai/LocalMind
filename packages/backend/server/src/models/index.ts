@@ -89,11 +89,13 @@ import { WorkspaceDocOutboxModel } from './workspace-doc-outbox';
 import { WorkspaceFileModel } from './workspace-file';
 import { WorkspaceLifecycleModel } from './workspace-lifecycle';
 import { WorkspaceNativeResourceModel } from './workspace-native-resource';
+import { WorkspacePageTreeModel } from './workspace-page-tree';
 import { WorkspaceUserModel } from './workspace-user';
 
 const MODELS = {
   workspaceFile: WorkspaceFileModel,
   workspaceNativeResource: WorkspaceNativeResourceModel,
+  workspacePageTree: WorkspacePageTreeModel,
   workspaceLifecycle: WorkspaceLifecycleModel,
   user: UserModel,
   session: SessionModel,

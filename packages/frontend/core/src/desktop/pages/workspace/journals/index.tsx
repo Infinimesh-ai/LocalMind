@@ -4,6 +4,7 @@ import {
   type WeekDatePickerHandle,
 } from '@affine/component';
 import { BlocksuiteEditorJournalDocTitleUI } from '@affine/core/blocksuite/block-suite-editor/journal-doc-title';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
   JOURNAL_DATE_FORMAT,
   JournalService,
@@ -40,10 +41,10 @@ export const JournalPlaceholder = ({ dateString }: { dateString: string }) => {
   const workbench = useService(WorkbenchService).workbench;
   const journalService = useService(JournalService);
 
-  const createJournal = useCallback(() => {
+  const createJournal = useAsyncCallback(async () => {
     if (redirecting) return;
     setRedirecting(true);
-    const doc = journalService.ensureJournalByDate(dateString);
+    const doc = await journalService.ensureJournalByDate(dateString);
     workbench.openDoc(doc.id, {
       replaceHistory: true,
       at: 'active',

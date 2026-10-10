@@ -1,21 +1,29 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
+import { WORKSPACE_PAGE_TREE_CONTRACT } from '@affine/graphql';
 import {
   createMinimalPdfFixture,
   createMinimalPptxFixture,
   createMinimalXlsxFixture,
 } from '@localmind/office/testing';
-import { PrismaClient } from '@prisma/client';
+import { type Prisma, PrismaClient } from '@prisma/client';
 import test from 'ava';
 import Sinon from 'sinon';
-import { applyUpdate, Doc, encodeStateAsUpdate, Map as YMap } from 'yjs';
+import {
+  applyUpdate,
+  Array as YArray,
+  Doc,
+  encodeStateAsUpdate,
+  Map as YMap,
+} from 'yjs';
 
 import {
   DocReader,
   DocumentDestinationService,
   DocWriter,
   WorkspaceOrganizationService,
+  WorkspacePageTreeService,
 } from '../../core/doc';
 import {
   createFileCopySnapshot,
@@ -63,6 +71,7 @@ async function workspace(actorId: string) {
   });
   const doc = new Doc();
   doc.getMap('meta').set('name', 'Publication destination');
+  doc.getMap('meta').set('pages', new YArray());
   const bytes = encodeStateAsUpdate(doc);
   doc.destroy();
   await db.snapshot.create({
@@ -124,6 +133,7 @@ async function prepare(
     targetResourceId?: string;
     targetKind?: 'legacy' | 'workspace_file';
     folderId?: string;
+    pageTreeParent?: string | null;
     requestKey?: string;
   } = {}
 ) {
@@ -132,6 +142,15 @@ async function prepare(
     kind: options.targetResourceId ? 'update' : 'publish',
     requestKey: options.requestKey ?? randomUUID(),
   });
+  const treeVersion =
+    options.pageTreeParent !== undefined
+      ? await app
+          .get(WorkspacePageTreeService)
+          .list(
+            { workspaceId: scope.workspaceId, actorId: scope.actorId },
+            options.pageTreeParent ?? null
+          )
+      : null;
   return scope.service.preview({
     ...scope,
     publicationId: record.id,
@@ -140,6 +159,22 @@ async function prepare(
     folderId: options.folderId ?? null,
     targetResourceId: options.targetResourceId,
     targetKind: options.targetKind,
+    ...(treeVersion
+      ? {
+          pageTree: {
+            contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+            parentKind:
+              treeVersion.parent?.resource.kind === 'folder'
+                ? ('folder' as const)
+                : treeVersion.parent
+                  ? ('doc' as const)
+                  : ('root' as const),
+            parentNodeId: options.pageTreeParent ?? null,
+            revision: treeVersion.revision,
+            authorizationRevision: treeVersion.authorizationRevision,
+          },
+        }
+      : {}),
   });
 }
 
@@ -612,8 +647,9 @@ test.serial(
         scope.workspaceId,
         target.resourceId
       );
-      t.is(next?.sequence, 2);
-      t.is(next?.parentRevisionId, result?.id);
+      // Republishing identical content succeeds without fabricating a user edit.
+      t.is(next?.sequence, 1);
+      t.is(next?.id, result?.id);
       t.is(
         (
           await app.models.officeArtifact.getCurrentRevision(
@@ -680,7 +716,10 @@ test.serial(
       targetKind: 'workspace_file',
     });
     t.is((await execute(source, update)).status, 'completed');
-    t.is((await files.read(identity)).contentVersion, 2);
+    const unchanged = await files.read(identity);
+    t.is(unchanged.contentVersion, 1);
+    t.deepEqual(unchanged.lastUpdatedAt, stored.lastUpdatedAt);
+    t.is(unchanged.createdBy, scope.actorId);
     t.is(
       (
         await scope.db.projectPublicationTarget.findFirstOrThrow({
@@ -825,6 +864,265 @@ test.serial(
           .readFolders(scope.workspaceId, scope.actorId)
       ).filter(row => row.type === 'folder').length,
       1
+    );
+  }
+);
+
+test.serial(
+  'v4 publication freezes an explicit folder target, rejects legacy tasks and preserves Project content',
+  async t => {
+    const scope = await fixture();
+    const legacy = await prepare(scope);
+    const tree = app.get(WorkspacePageTreeService);
+    const actor = { workspaceId: scope.workspaceId, actorId: scope.actorId };
+    const plan = await tree.preflight(actor);
+    await tree.migrate(actor, plan.fingerprint);
+    await t.throwsAsync(execute(scope, legacy));
+    let root = await tree.list(actor, null);
+    await tree.execute(actor, {
+      action: 'create-folder',
+      title: 'Published copies',
+      parentNodeId: null,
+      contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+      expectedRevision: root.revision,
+      expectedAuthorizationRevision: root.authorizationRevision,
+      requestKey: 'parent',
+    });
+    root = await tree.list(actor, null);
+    const parentNodeId = root.items[0].nodeId;
+    const record = await scope.service.prepare({
+      ...scope,
+      kind: 'publish',
+      requestKey: 'tree-publication',
+    });
+    const preview = await scope.service.preview({
+      ...scope,
+      publicationId: record.id,
+      expectedRevision: record.revision,
+      folderId: null,
+      pageTree: {
+        contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+        parentKind: 'folder',
+        parentNodeId,
+        revision: root.revision,
+        authorizationRevision: root.authorizationRevision,
+      },
+    });
+    const target = publicationTargetSchema.parse(preview.target);
+    const frozenRun = await app.models.copilotProjectAgentRuntime.get({
+      ...scope,
+      runId: preview.runId!,
+    });
+    const frozenStep = frozenRun.steps.find(
+      step => step.stepKey === 'execute'
+    )!;
+    const frozenCommand = frozenStep.input as Prisma.JsonObject;
+    t.is(frozenCommand.version, 'project-publication/v4');
+    t.true(
+      target.pageTree?.contractVersion === WORKSPACE_PAGE_TREE_CONTRACT &&
+        target.pageTree.parentKind === 'folder'
+    );
+    await t.throwsAsync(
+      scope.service.execute({
+        ...frozenRun,
+        steps: frozenRun.steps.map(step =>
+          step === frozenStep
+            ? {
+                ...step,
+                input: { ...frozenCommand, version: 'project-publication/v3' },
+              }
+            : step
+        ),
+      })
+    );
+    const run = await execute(scope, preview);
+    t.is(run.status, 'completed', JSON.stringify(run));
+    t.is((await execute(scope, preview)).status, 'completed');
+    const children = await tree.list(actor, parentNodeId);
+    t.deepEqual(
+      children.items.map(item => item.resource.resourceId),
+      [target.resourceId]
+    );
+    t.true(
+      (await body(scope.workspaceId, target.resourceId)).includes(
+        'Original internal body'
+      )
+    );
+    t.is(
+      (
+        await scope.db.projectResource.findUniqueOrThrow({
+          where: { id: scope.resourceId },
+        })
+      ).contentVersion,
+      1
+    );
+    const stale = await scope.service.prepare({
+      ...scope,
+      kind: 'publish',
+      requestKey: 'stale-tree',
+    });
+    await t.throwsAsync(
+      scope.service.preview({
+        ...scope,
+        publicationId: stale.id,
+        expectedRevision: stale.revision,
+        folderId: null,
+        pageTree: target.pageTree,
+      })
+    );
+  }
+);
+
+test.serial(
+  'page tree Office publication and update preserve all four package types and independent revisions',
+  async t => {
+    const scope = await fixture();
+    const actor = { workspaceId: scope.workspaceId, actorId: scope.actorId };
+    const tree = app.get(WorkspacePageTreeService);
+    await tree.migrate(actor, (await tree.preflight(actor)).fingerprint);
+    const fixtures = [
+      {
+        format: 'docx' as const,
+        bytes: await readFile(
+          new URL(
+            '../../../../../common/native/fixtures/demo.docx',
+            import.meta.url
+          )
+        ),
+      },
+      {
+        format: 'xlsx' as const,
+        bytes: Buffer.from(createMinimalXlsxFixture()),
+      },
+      {
+        format: 'pptx' as const,
+        bytes: Buffer.from(createMinimalPptxFixture()),
+      },
+      {
+        format: 'pdf' as const,
+        bytes: Buffer.from(await createMinimalPdfFixture()),
+      },
+    ];
+    for (const { format, bytes } of fixtures) {
+      const blob = await app
+        .get(ProjectBlobStorage)
+        .put({ ...scope, bytes, mimeType: OFFICE_FORMATS[format].mimeType });
+      const imported = await app.get(OfficeImportService).import({
+        projectId: scope.projectId,
+        actorId: scope.actorId,
+        title: `Native ${format}`,
+        sourceFileName: `native.${format}`,
+        sourceBlobKey: blob.key,
+        importIdempotencyKey: format,
+      });
+      const source = { ...scope, resourceId: imported.artifact.id };
+      const organization = app.get(WorkspaceOrganizationService);
+      const version = await tree.list(actor, null);
+      const created = await tree.execute(actor, {
+        action: 'create',
+        title: format,
+        primaryMode: 'page',
+        parentNodeId: null,
+        contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+        expectedRevision: version.revision,
+        expectedAuthorizationRevision: version.authorizationRevision,
+        requestKey: `office-parent-${format}`,
+      });
+      const parentNodeId = (created.result as { nodeId: string }).nodeId;
+      const record = await prepare(source, { pageTreeParent: parentNodeId });
+      t.truthy(
+        record.preview &&
+          (record.preview as { difference?: { after?: string } }).difference
+            ?.after,
+        `${format} preview includes saved content`
+      );
+      const run = await execute(source, record);
+      t.is(run.status, 'completed', `${format}: ${run.failureMessage}`);
+      const target = publicationTargetSchema.parse(record.target);
+      const result = await app.models.officeArtifact.getCurrentRevision(
+        scope.workspaceId,
+        target.resourceId
+      );
+      t.is(result?.packageFingerprint, imported.revision.packageFingerprint);
+      t.not(target.resourceId, imported.artifact.id);
+      t.is(
+        (await organization.readFolders(scope.workspaceId, scope.actorId)).find(
+          row => row.data === target.resourceId
+        )?.type,
+        'office'
+      );
+      const update = await prepare(source, {
+        targetResourceId: target.resourceId,
+        pageTreeParent: parentNodeId,
+      });
+      const updatedRun = await execute(source, update);
+      t.is(
+        updatedRun.status,
+        'completed',
+        `${format}: ${updatedRun.failureMessage}`
+      );
+      const next = await app.models.officeArtifact.getCurrentRevision(
+        scope.workspaceId,
+        target.resourceId
+      );
+      // Republishing identical content succeeds without fabricating a user edit.
+      t.is(next?.sequence, 1);
+      t.is(next?.id, result?.id);
+      t.is(
+        (
+          await app.models.officeArtifact.getCurrentRevision(
+            { projectId: scope.projectId },
+            source.resourceId
+          )
+        )?.sequence,
+        1
+      );
+    }
+  }
+);
+
+test.serial(
+  'page tree file publication and update keep bytes and unique root placement',
+  async t => {
+    const scope = await fixture(),
+      actor = { workspaceId: scope.workspaceId, actorId: scope.actorId };
+    const tree = app.get(WorkspacePageTreeService);
+    await tree.migrate(actor, (await tree.preflight(actor)).fingerprint);
+    const bytes = Buffer.from('Independent Project file');
+    const blob = await app
+      .get(ProjectBlobStorage)
+      .put({ ...scope, bytes, mimeType: 'text/plain' });
+    const file = await app.get(ProjectResourceService).createFile({
+      projectId: scope.projectId,
+      actorId: scope.actorId,
+      title: 'independent.txt',
+      blobKey: blob.key,
+      requestKey: 'tree-file',
+    });
+    const source = { ...scope, resourceId: file.id };
+    const record = await prepare(source, { pageTreeParent: null });
+    const published = await execute(source, record);
+    t.is(published.status, 'completed', published.failureMessage ?? undefined);
+    const target = publicationTargetSchema.parse(record.target);
+    const content = await app
+      .get(WorkspaceNativeResourceService)
+      .read({ ...actor, kind: 'file', resourceId: target.resourceId });
+    t.deepEqual(content.bytes, bytes);
+    t.is(
+      (await tree.list(actor, null)).items.filter(
+        node => node.resource.resourceId === target.resourceId
+      ).length,
+      1
+    );
+    const update = await prepare(source, {
+      pageTreeParent: null,
+      targetKind: 'workspace_file',
+      targetResourceId: target.resourceId,
+    });
+    t.is((await execute(source, update)).status, 'completed');
+    t.deepEqual(
+      (await app.get(ProjectResourceService).readFile(source)).bytes,
+      bytes
     );
   }
 );

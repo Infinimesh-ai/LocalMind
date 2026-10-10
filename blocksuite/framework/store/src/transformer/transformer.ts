@@ -197,7 +197,7 @@ export class Transformer {
       });
       DocSnapshotSchema.parse(snapshot);
       const { meta, blocks } = snapshot;
-      const doc = this.docCRUD.create(meta.id);
+      const doc = await this.docCRUD.create(meta.id);
       doc.load();
       await this.snapshotToBlock(blocks, doc);
       this._slots.afterImport.next({

@@ -16,6 +16,7 @@ import { useService, useServiceOptional } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 
+import { PageTreeBreadcrumbs } from '../page-tree/children';
 import { nativeFileError } from './file-error';
 import * as styles from './native-files.css';
 import { uploadWorkspaceNativeBlob } from './workspace-upload';
@@ -142,7 +143,15 @@ export function WorkspaceNativeFileEditor({
       setCurrentTitle(resource.title);
       setCanEdit(resource.canEdit === true);
       const textEditable =
-        /\.(txt|md|csv|json)$/i.test(resource.title) &&
+        [
+          'text/plain',
+          'text/markdown',
+          'text/x-markdown',
+          'text/csv',
+          'application/csv',
+          'application/json',
+          'text/json',
+        ].includes(resource.mimeType.toLowerCase().split(';')[0].trim()) &&
         resource.byteSize <= 1024 * 1024;
       if (textEditable) {
         const content = (
@@ -431,6 +440,7 @@ export function WorkspaceNativeFileEditor({
   };
   const content = (
     <div className={styles.form}>
+      <PageTreeBreadcrumbs kind="file" resourceId={resourceId} />
       {loading && <span role="status">{t['Loading']()}</span>}
       {error && <p role="alert">{t[error.messageKey]()}</p>}
       {remoteChanged && (

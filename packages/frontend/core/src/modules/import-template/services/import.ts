@@ -25,14 +25,15 @@ export class ImportTemplateService extends Service {
         metadata: workspaceMetadata,
       });
     await workspace.engine.doc.waitForDocReady(workspace.id); // wait for root doc ready
+    const docsService = workspace.scope.get(DocsService);
     const [importedDoc] = await ZipTransformer.importDocs(
       workspace.docCollection,
       getAFFiNEWorkspaceSchema(),
       new Blob([toArrayBuffer(docBinary)], {
         type: 'application/zip',
-      })
+      }),
+      docsService.importDocCRUD()
     );
-    const docsService = workspace.scope.get(DocsService);
     if (importedDoc) {
       // only support page mode for now
       docsService.list.setPrimaryMode(importedDoc.id, mode);

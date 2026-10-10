@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
 import {
+  WORKSPACE_PAGE_TREE_CONTRACT,
+  workspaceDocumentType,
+} from '@affine/graphql';
+import {
   createNativeFile,
   NativeFileContentSchema,
   officeDownloadFileName,
@@ -22,8 +26,13 @@ import {
 import {
   WorkspaceNativeResourceAccess,
   WorkspaceOrganizationService,
+  WorkspacePageTreeService,
   WorkspaceResourceService,
 } from '../doc';
+import {
+  pageTreeNativeCreatedContext,
+  pageTreeWriteContext,
+} from '../doc/page-tree-context';
 import { ResourceError } from '../doc/resource-types';
 import { PermissionAccess } from '../permission';
 import { OfficeArtifactService } from './artifact-service';
@@ -32,6 +41,7 @@ import {
   encodeNativeText,
   NATIVE_FILE_MAX_BYTES,
   nativeFileSearchText,
+  nativeTextIdentity,
 } from './file-content';
 import {
   OFFICE_FORMATS,
@@ -69,6 +79,7 @@ const resourceResultSchema = z.object({
   contentVersion: z.number(),
   revisionId: z.string(),
   canEdit: z.boolean().optional(),
+  canEditTags: z.boolean().optional(),
   canManage: z.boolean().optional(),
   canRename: z.boolean().optional(),
   canMove: z.boolean().optional(),
@@ -80,6 +91,15 @@ const resourceResultSchema = z.object({
   folderIds: z.array(z.string()).optional(),
   folderPaths: z.array(z.string()).optional(),
   searchStatus: z.string(),
+  createdBy: z.string().nullish(),
+  documentType: z.string().optional(),
+  tagIds: z.array(z.string()).optional(),
+  tags: z
+    .array(z.object({ id: z.string(), name: z.string(), color: z.string() }))
+    .optional(),
+  lastUpdatedAt: z.coerce.date().nullish(),
+  lastUpdatedBy: z.string().nullish(),
+  lastUpdateActor: z.enum(['unknown', 'user', 'system']).optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   trashedAt: z.coerce.date().nullable(),
@@ -88,6 +108,7 @@ const resourceResultSchema = z.object({
 function resourceReceipt(resource: z.infer<typeof resourceResultSchema>) {
   return {
     ...resource,
+    lastUpdatedAt: resource.lastUpdatedAt?.toISOString() ?? null,
     createdAt: resource.createdAt.toISOString(),
     updatedAt: resource.updatedAt.toISOString(),
     trashedAt: resource.trashedAt?.toISOString() ?? null,
@@ -105,6 +126,7 @@ export class WorkspaceNativeResourceService {
     private readonly ac: PermissionAccess,
     private readonly access: WorkspaceNativeResourceAccess,
     private readonly organization: WorkspaceOrganizationService,
+    private readonly pageTree: WorkspacePageTreeService,
     private readonly resources: WorkspaceResourceService,
     private readonly storage: OfficeResourceStorage,
     private readonly imports: OfficeImportService,
@@ -131,6 +153,15 @@ export class WorkspaceNativeResourceService {
           : resource.state.searchText
             ? 'content'
             : 'metadata_only',
+      createdBy: resource.createdBy,
+      documentType: workspaceDocumentType(resource),
+      tagIds: resource.tagIds,
+      lastUpdatedAt: resource.state.lastUpdatedAt,
+      lastUpdatedBy: resource.state.lastUpdatedBy,
+      lastUpdateActor: resource.state.lastUpdateActor as
+        | 'unknown'
+        | 'user'
+        | 'system',
       createdAt: resource.createdAt,
       updatedAt: resource.updatedAt,
       trashedAt: resource.state.trashedAt,
@@ -138,7 +169,13 @@ export class WorkspaceNativeResourceService {
     };
   }
 
-  async get(input: Identity, trash = false) {
+  async get(
+    input: Identity,
+    trash = false,
+    definitions?: Awaited<
+      ReturnType<WorkspaceOrganizationService['resourceTagDefinitions']>
+    >
+  ) {
     const { resource, locations, paths, rights } = await this.resources.observe(
       async () => {
         const resource = await this.access.assert(input, { trash });
@@ -166,6 +203,11 @@ export class WorkspaceNativeResourceService {
       rights.every(row => row.canWrite && row.canOrganize);
     return {
       ...this.describe(resource),
+      tags: (
+        definitions ??
+        (await this.organization.resourceTagDefinitions(input.workspaceId))
+      ).filter(tag => resource.tagIds.includes(tag.id)),
+      canEditTags: canEdit,
       canEdit,
       canManage,
       canRename: canManage && !resource.state.trashedAt,
@@ -224,6 +266,9 @@ export class WorkspaceNativeResourceService {
     ]);
     if (cursor && cursor.scope !== scope)
       throw new BadRequest('The file cursor belongs to another query');
+    const definitions = await this.organization.resourceTagDefinitions(
+      input.workspaceId
+    );
     const items = [];
     let after = cursor?.after;
     let more = true;
@@ -242,7 +287,8 @@ export class WorkspaceNativeResourceService {
           items.push(
             await this.get(
               { ...input, resourceId: row.id, kind: row.kind },
-              input.trash
+              input.trash,
+              definitions
             )
           );
         } catch (error) {
@@ -287,7 +333,10 @@ export class WorkspaceNativeResourceService {
 
   async readText(input: Identity & { sequence?: number }) {
     const { bytes, ...resource } = await this.read(input);
-    return { ...resource, text: decodeNativeText(bytes, resource.title) };
+    return {
+      ...resource,
+      text: decodeNativeText(bytes, nativeTextIdentity(resource.mimeType)),
+    };
   }
 
   async create(
@@ -297,12 +346,56 @@ export class WorkspaceNativeResourceService {
       resourceId?: string;
       fileOnly?: boolean;
       folderId?: string | null;
+      parentNodeId?: string | null;
+      treeContractVersion?: string;
+      expectedTreeRevision?: number;
+      expectedAuthorizationRevision?: string;
       blobKey?: string;
       content?: z.input<typeof NativeFileContentSchema>;
       origin?: 'user' | 'ai' | 'import' | 'copy' | 'publication';
       sourceSessionId?: string;
     }
   ) {
+    if (input.treeContractVersion !== undefined) {
+      if (
+        input.treeContractVersion !== WORKSPACE_PAGE_TREE_CONTRACT ||
+        input.expectedTreeRevision === undefined ||
+        input.expectedAuthorizationRevision === undefined ||
+        input.parentNodeId === undefined ||
+        input.folderId != null
+      )
+        throw new BadRequest('Explicit page tree target and version required');
+      const {
+        treeContractVersion: _treeContractVersion,
+        expectedTreeRevision,
+        expectedAuthorizationRevision,
+        parentNodeId,
+        ...native
+      } = input;
+      const receipt = await this.pageTree.execute(
+        { workspaceId: input.workspaceId, actorId: input.actorId },
+        {
+          action: 'create-native',
+          contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+          expectedRevision: expectedTreeRevision,
+          expectedAuthorizationRevision,
+          requestKey: input.requestKey,
+          parentNodeId,
+          title: input.title,
+          nativeFingerprint: nativeOperationHash(native),
+        },
+        () => this.create(native)
+      );
+      const result = z
+        .object({
+          resource: z.object({
+            kind: z.enum(['file', 'office']),
+            resourceId: z.string(),
+          }),
+        })
+        .parse(receipt.result);
+      return this.get({ ...input, ...result.resource });
+    }
     const title = nativeTitleSchema.parse(input.title);
     nativeRequestKeySchema.parse(input.requestKey);
     if ((input.blobKey === undefined) === (input.content === undefined))
@@ -326,6 +419,13 @@ export class WorkspaceNativeResourceService {
     });
     return this.resources.snapshot(input, async () => {
       const authorize = async () => {
+        if (pageTreeWriteContext.getStore() !== input.workspaceId) {
+          const state = await this.models.workspacePageTree.state(
+            input.workspaceId
+          );
+          if (state && !['preflight', 'needs_resolution'].includes(state.phase))
+            throw new BadRequest('page_tree_protocol_retired');
+        }
         const acl = this.ac.user(input.actorId).workspace(input.workspaceId);
         await Promise.all([
           acl.assert('Workspace.CreateDoc'),
@@ -429,6 +529,10 @@ export class WorkspaceNativeResourceService {
           text: nativeFileSearchText(bytes, fileName),
         });
       }
+      await pageTreeNativeCreatedContext.getStore()?.({
+        kind: identity.kind,
+        resourceId: identity.resourceId,
+      });
       if (input.folderId && identity.kind === 'file')
         await this.organization.placeNewNativeResource({
           ...identity,
@@ -492,7 +596,10 @@ export class WorkspaceNativeResourceService {
       let blobKey = input.blobKey;
       if (input.text !== undefined) {
         await this.readText(input);
-        bytes = encodeNativeText(input.text, current.title);
+        bytes = encodeNativeText(
+          input.text,
+          nativeTextIdentity(current.mimeType)
+        );
         blobKey = await this.storage.putGenerated(
           input.workspaceId,
           input.actorId,
@@ -526,7 +633,7 @@ export class WorkspaceNativeResourceService {
         mimeType,
         byteSize: bytes.length,
         fingerprint: createHash('sha256').update(bytes).digest('hex'),
-        searchText: nativeFileSearchText(bytes, current.title),
+        searchText: nativeFileSearchText(bytes, nativeTextIdentity(mimeType)),
         origin: input.origin ?? 'user',
       });
       await this.models.workspaceNativeResource.record({
@@ -536,6 +643,50 @@ export class WorkspaceNativeResourceService {
         result: resourceReceipt(this.describe(result)),
       });
       return this.describe(result);
+    });
+  }
+
+  async setTags(
+    input: Identity & {
+      expectedVersion: number;
+      requestKey: string;
+      tagIds: string[];
+    }
+  ) {
+    nativeRequestKeySchema.parse(input.requestKey);
+    const tagIds = [
+      ...new Set(
+        z.array(z.string().min(1).max(256)).max(100).parse(input.tagIds)
+      ),
+    ].sort();
+    const requestHash = nativeOperationHash({
+      action: 'tags',
+      kind: input.kind,
+      resourceId: input.resourceId,
+      expectedVersion: input.expectedVersion,
+      tagIds,
+    });
+    return this.access.write(input, async () => {
+      await this.access.assert(input, { write: true });
+      const replay = await this.models.workspaceNativeResource.receipt(
+        input,
+        requestHash
+      );
+      if (replay) return resourceResultSchema.parse(replay.result);
+      const definitions = await this.organization.resourceTagDefinitions(
+        input.workspaceId
+      );
+      if (tagIds.some(id => !definitions.some(tag => tag.id === id)))
+        throw new BadRequest('Choose existing tags in this workspace');
+      await this.models.workspaceNativeResource.change({ ...input, tagIds });
+      const result = await this.get(input);
+      await this.models.workspaceNativeResource.record({
+        ...input,
+        action: 'tags',
+        requestHash,
+        result: resourceReceipt(result),
+      });
+      return result;
     });
   }
 
@@ -570,6 +721,12 @@ export class WorkspaceNativeResourceService {
         const current = await this.models.workspaceNativeResource.get(input, {
           trash: true,
         });
+        if (
+          input.action !== 'rename' &&
+          (await this.models.workspacePageTree.state(input.workspaceId))
+            ?.phase === 'switched'
+        )
+          throw new BadRequest('page_tree_protocol_retired');
         if (current.metadataVersion !== input.expectedVersion)
           throw new ResourceConflict(
             'File metadata changed; reload before editing'
@@ -712,12 +869,16 @@ export class WorkspaceNativeResourceService {
         );
         await this.models.workspaceNativeResource.appendFile({
           ...input,
+          forceRevision: true,
           requestHash: hash,
           blobKey: revision.blobKey,
           mimeType: revision.mimeType,
           byteSize: revision.byteSize,
           fingerprint: revision.fingerprint,
-          searchText: nativeFileSearchText(bytes, current.title),
+          searchText: nativeFileSearchText(
+            bytes,
+            nativeTextIdentity(revision.mimeType)
+          ),
           origin: input.origin ?? 'user',
         });
       } else {
@@ -740,6 +901,7 @@ export class WorkspaceNativeResourceService {
           actorId: input.actorId,
           artifactId: input.resourceId,
           expectedParentRevisionId: current.revisionId,
+          forceRevision: true,
           origin: input.origin ?? 'user',
           idempotencyKey: `restore:${nativeOperationHash([input.actorId, input.requestKey])}`,
           idempotencyFingerprint: `sha256:${hash}`,
@@ -797,6 +959,10 @@ export class WorkspaceNativeResourceService {
       expectedContentVersion: number;
       requestKey: string;
       folderId?: string | null;
+      parentNodeId?: string | null;
+      treeContractVersion?: string;
+      expectedTreeRevision?: number;
+      expectedAuthorizationRevision?: string;
     }
   ) {
     nativeRequestKeySchema.parse(input.requestKey);
@@ -808,6 +974,14 @@ export class WorkspaceNativeResourceService {
       expectedContentVersion: input.expectedContentVersion,
       title: input.title,
       folderId: input.folderId ?? null,
+      ...(input.treeContractVersion
+        ? {
+            treeContractVersion: input.treeContractVersion,
+            parentNodeId: input.parentNodeId,
+            expectedTreeRevision: input.expectedTreeRevision,
+            expectedAuthorizationRevision: input.expectedAuthorizationRevision,
+          }
+        : {}),
     });
     return this.resources.snapshot(input, async () => {
       await this.models.workspaceNativeResource.lock(input);
@@ -838,6 +1012,10 @@ export class WorkspaceNativeResourceService {
           : input.title,
         requestKey: `copy:${nativeOperationHash([input.actorId, input.requestKey])}`,
         folderId: input.folderId,
+        parentNodeId: input.parentNodeId,
+        treeContractVersion: input.treeContractVersion,
+        expectedTreeRevision: input.expectedTreeRevision,
+        expectedAuthorizationRevision: input.expectedAuthorizationRevision,
         blobKey: source.blobKey,
         fileOnly: source.kind === 'file',
         origin: 'copy',

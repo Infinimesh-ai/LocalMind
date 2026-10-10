@@ -28,8 +28,13 @@ tools automatically. Workspace and Project tools remain mutually exclusive.
   placement, current metadata, trash/restore, version history and independent
   copies. TXT/MD/CSV/JSON support complete UTF-8 editing up to 1 MiB; other files
   use explicit version replacement. The upload/read limit is 32 MiB. PDF creation
-  remains import/export rather than an empty-PDF generator. Tags, favorites,
-  collections and local-only native file synchronization are not included.
+  remains import/export rather than an empty-PDF generator. Workspace native tags
+  now reference the existing Workspace tag dictionary through version-checked
+  resource relations. Favorites, collections and local-only native file
+  synchronization are not included. The [resource display execution record](../ai-modernization/workspace-resource-display-and-sorting.execution.zh-CN.md)
+  documents paired user-visible update events, immutable creation evidence,
+  migration/backfill and deployment status; technical state timestamps do not
+  substitute for content or metadata update events.
 - Project files use the existing internal file tree, including `parent_id`, and
   the persisted Project agent workflow. Creating a file never publishes it to
   a Workspace. Ordinary Workspace calls save synchronously with live ACL and

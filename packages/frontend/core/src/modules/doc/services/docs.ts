@@ -2,13 +2,16 @@ import { DebugLogger } from '@affine/debug';
 import { Unreachable } from '@affine/env/constant';
 import { replaceIdMiddleware } from '@blocksuite/affine/shared/adapters';
 import type { AffineTextAttributes } from '@blocksuite/affine/shared/types';
-import type { DeltaInsert } from '@blocksuite/affine/store';
+import type { DeltaInsert, DocCRUD } from '@blocksuite/affine/store';
 import { Slice, Text, Transformer } from '@blocksuite/affine/store';
 import { ObjectPool, Service } from '@toeverything/infra';
-import { combineLatest, map } from 'rxjs';
+import { combineLatest, filter, firstValueFrom, map, timeout } from 'rxjs';
 
 import { initDocFromProps } from '../../../blocksuite/initialization';
+import { subpageReferenceMiddleware } from '../../../blocksuite/page-tree/references';
+import type { WorkspacePageTreeService } from '../../organize/services/page-tree';
 import { getAFFiNEWorkspaceSchema } from '../../workspace/global-schema';
+import type { WorkspaceService } from '../../workspace/services/workspace';
 import type { Doc } from '../entities/doc';
 import { DocRecordList } from '../entities/record-list';
 import { DocCreated, DocInitialized } from '../events';
@@ -26,6 +29,7 @@ const logger = new DebugLogger('DocsService');
 export type AddLinkedDocResult = 'added' | 'already-linked' | 'self-link';
 
 export class DocsService extends Service {
+  private readonly pendingCreation = new Map<string, string>();
   list = this.framework.createEntity(DocRecordList);
 
   pool = new ObjectPool<string, Doc>({
@@ -92,7 +96,9 @@ export class DocsService extends Service {
   constructor(
     private readonly store: DocsStore,
     private readonly docPropertiesStore: DocPropertiesStore,
-    private readonly docCreateMiddlewares: DocCreateMiddleware[]
+    private readonly docCreateMiddlewares: DocCreateMiddleware[],
+    private readonly pageTree: WorkspacePageTreeService,
+    private readonly workspaceService: WorkspaceService
   ) {
     super();
   }
@@ -145,6 +151,8 @@ export class DocsService extends Service {
   }
 
   createDoc(options: DocCreateOptions = {}) {
+    if (this.pageTree.enabled$.value === true)
+      throw new Error('Use the page tree creation command for this Workspace');
     for (const middleware of this.docCreateMiddlewares) {
       options = middleware.beforeCreate
         ? middleware.beforeCreate(options)
@@ -171,13 +179,89 @@ export class DocsService extends Service {
     for (const middleware of this.docCreateMiddlewares) {
       middleware.afterCreate?.(docRecord, options);
     }
-    docRecord.setCreatedAt(Date.now());
-    docRecord.setUpdatedAt(Date.now());
+    const createdAt = Date.now();
+    docRecord.setCreatedAt(createdAt);
+    this.store.recordUpdate(id, createdAt);
     this.eventBus.emit(DocCreated, {
       doc: docRecord,
       docCreateOptions: options,
     });
     return docRecord;
+  }
+
+  /** Online creation waits for authoritative ownership before exposing an editor. */
+  async createDocAsync(options: DocCreateOptions = {}) {
+    if (this.pageTree.enabled$.value === null) await this.pageTree.load(null);
+    if (this.pageTree.enabled$.value === null)
+      throw new Error('Connect to create a page');
+    if (!this.pageTree.enabled$.value) return this.createDoc(options);
+    for (const middleware of this.docCreateMiddlewares)
+      options = middleware.beforeCreate?.(options) ?? options;
+    const generation = this.pageTree.accountGeneration;
+    const creationKey = JSON.stringify([generation, options]);
+    let resourceId = this.pendingCreation.get(creationKey);
+    if (!resourceId) {
+      const receipt = await this.pageTree.execute({
+        action: 'create',
+        title: options.title?.trim() || 'Untitled',
+        primaryMode: options.primaryMode ?? 'page',
+        ...(options.id ? { resourceId: options.id } : {}),
+        parentNodeId: options.parentNodeId ?? null,
+      });
+      resourceId = receipt.resourceId;
+      this.pendingCreation.set(creationKey, resourceId);
+    }
+    const workspace = this.workspaceService.workspace;
+    await workspace.engine.doc.requestPull(workspace.id);
+    const docRecord = await firstValueFrom(
+      this.list.doc$(resourceId).pipe(
+        filter(record => !!record),
+        timeout(15_000)
+      )
+    );
+    if (generation !== this.pageTree.accountGeneration)
+      throw new Error('Account changed while creating a page');
+    this.pendingCreation.delete(creationKey);
+    if (options.isTemplate) docRecord.setProperty('isTemplate', true);
+    if (options.docProps) {
+      const { doc, release } = this.open(docRecord.id);
+      try {
+        await doc.waitForSyncReady();
+        initDocFromProps(doc.blockSuiteDoc, options.docProps, options);
+      } finally {
+        release();
+      }
+    }
+    for (const middleware of this.docCreateMiddlewares)
+      middleware.afterCreate?.(docRecord, options);
+    this.eventBus.emit(DocCreated, {
+      doc: docRecord,
+      docCreateOptions: options,
+    });
+    return docRecord;
+  }
+
+  /** Import adapters allocate through the same ownership command as the UI. */
+  importDocCRUD(): DocCRUD {
+    const collection = this.store.getBlocksuiteCollection();
+    return {
+      create: async id => {
+        await this.createDocAsync({ id, skipInit: true });
+        const { doc, release } = this.open(id);
+        try {
+          await doc.waitForSyncReady();
+          const store = doc.blockSuiteDoc;
+          if (store.root) store.deleteBlock(store.root);
+          return store;
+        } finally {
+          release();
+        }
+      },
+      get: id => collection.getDoc(id)?.getStore({ id }) ?? null,
+      delete: () => {
+        throw new Error('Imported resources must use the normal Trash action');
+      },
+    };
   }
 
   async addLinkedDoc(
@@ -250,7 +334,7 @@ export class DocsService extends Service {
   }
 
   async duplicate(sourceDocId: string, _targetDocId?: string) {
-    const targetDocId = _targetDocId ?? this.createDoc().id;
+    const targetDocId = _targetDocId ?? (await this.createDocAsync()).id;
 
     // check if source doc is removed
     if (this.list.doc$(sourceDocId).value?.trash$.value) {
@@ -263,6 +347,7 @@ export class DocsService extends Service {
     const { release: sourceRelease, doc: sourceDoc } = this.open(sourceDocId);
     const { release: targetRelease, doc: targetDoc } = this.open(targetDocId);
     await sourceDoc.waitForSyncReady();
+    await targetDoc.waitForSyncReady();
 
     // duplicate doc content
     try {
@@ -280,19 +365,11 @@ export class DocsService extends Service {
       const transformer = new Transformer({
         schema: getAFFiNEWorkspaceSchema(),
         blobCRUD: collection.blobSync,
-        docCRUD: {
-          create: (id: string) => {
-            this.createDoc({ id });
-            const store = collection.getDoc(id)?.getStore({ id });
-            if (!store) {
-              throw new Error('Failed to create doc');
-            }
-            return store;
-          },
-          get: (id: string) => collection.getDoc(id)?.getStore({ id }) ?? null,
-          delete: (id: string) => collection.removeDoc(id),
-        },
-        middlewares: [replaceIdMiddleware(collection.idGenerator)],
+        docCRUD: this.importDocCRUD(),
+        middlewares: [
+          subpageReferenceMiddleware,
+          replaceIdMiddleware(collection.idGenerator),
+        ],
       });
       const slice = Slice.fromModels(sourceBsDoc, [
         ...(sourceBsDoc.root?.children ?? []),
@@ -327,8 +404,14 @@ export class DocsService extends Service {
     targetDoc.changeDocTitle(getDuplicatedDocTitle(sourceDoc.title$.value));
 
     // duplicate doc properties
-    const properties = sourceDoc.getProperties();
-    const removedProperties = ['id', 'isTemplate', 'journal'];
+    const properties = { ...sourceDoc.getProperties() };
+    const removedProperties = [
+      'id',
+      'isTemplate',
+      'journal',
+      'createdBy',
+      'updatedBy',
+    ];
     removedProperties.forEach(key => {
       delete properties[key];
     });
@@ -344,7 +427,7 @@ export class DocsService extends Service {
    * @returns the id of the new doc
    */
   async duplicateFromTemplate(sourceDocId: string, _targetDocId?: string) {
-    const targetDocId = _targetDocId ?? this.createDoc().id;
+    const targetDocId = _targetDocId ?? (await this.createDocAsync()).id;
 
     // check if source doc is removed
     if (this.list.doc$(sourceDocId).value?.trash$.value) {
@@ -357,6 +440,7 @@ export class DocsService extends Service {
     const { release: sourceRelease, doc: sourceDoc } = this.open(sourceDocId);
     const { release: targetRelease, doc: targetDoc } = this.open(targetDocId);
     await sourceDoc.waitForSyncReady();
+    await targetDoc.waitForSyncReady();
 
     // duplicate doc content
     try {
@@ -374,19 +458,11 @@ export class DocsService extends Service {
       const transformer = new Transformer({
         schema: getAFFiNEWorkspaceSchema(),
         blobCRUD: collection.blobSync,
-        docCRUD: {
-          create: (id: string) => {
-            this.createDoc({ id });
-            const store = collection.getDoc(id)?.getStore({ id });
-            if (!store) {
-              throw new Error('Failed to create doc');
-            }
-            return store;
-          },
-          get: (id: string) => collection.getDoc(id)?.getStore({ id }) ?? null,
-          delete: (id: string) => collection.removeDoc(id),
-        },
-        middlewares: [replaceIdMiddleware(collection.idGenerator)],
+        docCRUD: this.importDocCRUD(),
+        middlewares: [
+          subpageReferenceMiddleware,
+          replaceIdMiddleware(collection.idGenerator),
+        ],
       });
       const slice = Slice.fromModels(sourceBsDoc, [
         ...(sourceBsDoc.root?.children ?? []),
@@ -413,8 +489,14 @@ export class DocsService extends Service {
     }
 
     // duplicate doc properties
-    const properties = sourceDoc.getProperties();
-    const removedProperties = ['id', 'isTemplate', 'journal'];
+    const properties = { ...sourceDoc.getProperties() };
+    const removedProperties = [
+      'id',
+      'isTemplate',
+      'journal',
+      'createdBy',
+      'updatedBy',
+    ];
     removedProperties.forEach(key => {
       delete properties[key];
     });

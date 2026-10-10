@@ -28,34 +28,34 @@ export function initDocFromProps(
   props?: DocProps,
   options: DocCreateOptions = {}
 ) {
-  doc.load(() => {
-    const pageBlockId = doc.addBlock(
-      'affine:page',
-      props?.page || { title: new Text(options.title || '') }
-    );
-    const surfaceId = doc.addBlock(
-      'affine:surface' as never,
-      props?.surface || {},
-      pageBlockId
-    );
-    const noteBlockId = doc.addBlock(
-      'affine:note',
-      {
-        ...props?.note,
-        displayMode: NoteDisplayMode.DocAndEdgeless,
-      },
-      pageBlockId
-    );
-    const paragraphBlockId = doc.addBlock(
-      'affine:paragraph',
-      props?.paragraph || {},
-      noteBlockId
-    );
-    props?.onStoreLoad?.(doc, {
-      noteId: noteBlockId,
-      paragraphId: paragraphBlockId,
-      surfaceId,
-    });
-    doc.history.undoManager.clear();
+  doc.load();
+  if (doc.root) return;
+  const pageBlockId = doc.addBlock(
+    'affine:page',
+    props?.page || { title: new Text(options.title || '') }
+  );
+  const surfaceId = doc.addBlock(
+    'affine:surface' as never,
+    props?.surface || {},
+    pageBlockId
+  );
+  const noteBlockId = doc.addBlock(
+    'affine:note',
+    {
+      ...props?.note,
+      displayMode: NoteDisplayMode.DocAndEdgeless,
+    },
+    pageBlockId
+  );
+  const paragraphBlockId = doc.addBlock(
+    'affine:paragraph',
+    props?.paragraph || {},
+    noteBlockId
+  );
+  props?.onStoreLoad?.(doc, {
+    noteId: noteBlockId,
+    paragraphId: paragraphBlockId,
+    surfaceId,
   });
+  doc.history.undoManager.clear();
 }

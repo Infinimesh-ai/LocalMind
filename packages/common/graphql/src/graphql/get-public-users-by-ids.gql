@@ -1,0 +1,3 @@
+query getPublicUsersByIds($ids: [String!]!) {
+  publicUsersByIds(ids: $ids) { id name avatarUrl }
+}

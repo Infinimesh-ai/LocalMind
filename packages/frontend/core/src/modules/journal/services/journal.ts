@@ -10,6 +10,10 @@ export type MaybeDate = Date | string | number;
 export const JOURNAL_DATE_FORMAT = 'YYYY-MM-DD';
 
 export class JournalService extends Service {
+  private readonly pending = new Map<
+    string,
+    ReturnType<JournalService['createJournal']>
+  >();
   constructor(
     private readonly store: JournalStore,
     private readonly docsService: DocsService,
@@ -43,10 +47,10 @@ export class JournalService extends Service {
     return this.store.docsByJournalDate$(date);
   }
 
-  private createJournal(maybeDate: MaybeDate) {
+  private async createJournal(maybeDate: MaybeDate) {
     const day = dayjs(maybeDate);
     const title = day.format(JOURNAL_DATE_FORMAT);
-    const docRecord = this.docsService.createDoc({
+    const docRecord = await this.docsService.createDocAsync({
       title,
     });
     // set created date to match the journal date
@@ -81,11 +85,17 @@ export class JournalService extends Service {
     return docRecord;
   }
 
-  ensureJournalByDate(maybeDate: MaybeDate) {
+  async ensureJournalByDate(maybeDate: MaybeDate) {
     const day = dayjs(maybeDate);
     const title = day.format(JOURNAL_DATE_FORMAT);
     const docs = this.journalsByDate$(title).value;
     if (docs.length) return docs[0];
-    return this.createJournal(maybeDate);
+    const pending = this.pending.get(title);
+    if (pending) return pending;
+    const creation = this.createJournal(maybeDate).finally(() =>
+      this.pending.delete(title)
+    );
+    this.pending.set(title, creation);
+    return creation;
   }
 }

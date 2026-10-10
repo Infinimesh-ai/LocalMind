@@ -10,9 +10,11 @@ export async function transformWorkspaceDBLocalToCloud(
   _cloudWorkspaceId: string,
   localDocStorage: DocStorage,
   cloudDocStorage: DocStorage,
-  accountId: string
+  accountId: string,
+  pageTreeUpload = false
 ) {
   for (const tableName of Object.keys(AFFiNE_WORKSPACE_DB_SCHEMA)) {
+    if (pageTreeUpload && tableName === 'folders') continue;
     const localDocName = `db$${tableName}`;
     const localDoc = await localDocStorage.getDoc(localDocName);
     if (localDoc) {

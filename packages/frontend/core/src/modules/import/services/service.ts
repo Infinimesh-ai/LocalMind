@@ -17,8 +17,9 @@ import {
 } from '@blocksuite/affine/widgets/linked-doc';
 import { Service } from '@toeverything/infra';
 
+import type { DocsService } from '../../doc';
 import type { ExplorerIconService } from '../../explorer-icon/services/explorer-icon';
-import type { OrganizeService } from '../../organize';
+import type { OrganizeService, WorkspacePageTreeService } from '../../organize';
 import type { TagService } from '../../tag';
 import type { WorkspaceService } from '../../workspace';
 import { getAFFiNEWorkspaceSchema } from '../../workspace';
@@ -35,7 +36,9 @@ export class ImportService extends Service {
     private readonly workspaceService: WorkspaceService,
     private readonly organizeService: OrganizeService,
     private readonly explorerIconService: ExplorerIconService,
-    private readonly tagService: TagService
+    private readonly tagService: TagService,
+    private readonly docsService: DocsService,
+    private readonly pageTree: WorkspacePageTreeService
   ) {
     super();
   }
@@ -154,6 +157,8 @@ export class ImportService extends Service {
   }) {
     return new ImportCommitService({
       collection: this.workspaceService.workspace.docCollection,
+      docCRUD: this.docsService.importDocCRUD(),
+      pageTree: this.pageTree,
       schema: getAFFiNEWorkspaceSchema(),
       extensions: getStoreManager().config.init().value.get('store'),
       organizeService: options.organize ? this.organizeService : undefined,

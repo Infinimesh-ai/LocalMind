@@ -9,6 +9,7 @@ import {
   DocWriter,
   WorkspaceOrganizationService,
 } from '../../../core/doc';
+import { WorkspacePageTreeService } from '../../../core/doc/workspace-page-tree';
 import { NativeFileCreateService } from '../../../core/office/create-service';
 import { WorkspaceNativeResourceService } from '../../../core/office/workspace-resource-service';
 import { PermissionAccess, PermissionService } from '../../../core/permission';
@@ -79,6 +80,7 @@ import { createProjectFileRequestTools } from '../tools/project-file-request';
 import { createWorkOrderDraftTools } from '../tools/work-order';
 import { createWorkOrderFileTool } from '../tools/work-order-file-create';
 import { createWorkspaceNativeTools } from '../tools/workspace-native';
+import { createWorkspacePageTreeTools } from '../tools/workspace-page-tree';
 import { WorkOrderStorage } from '../work-order-storage';
 import { PromptRuntime } from './prompt-runtime';
 import type { ToolLoopBackend } from './tool/bridge';
@@ -160,7 +162,8 @@ export class ToolRuntime {
     @Optional() private readonly nativeFiles?: NativeFileCreateService,
     @Optional() private readonly workOrderStorage?: WorkOrderStorage,
     @Optional()
-    private readonly workspaceNativeResources?: WorkspaceNativeResourceService
+    private readonly workspaceNativeResources?: WorkspaceNativeResourceService,
+    @Optional() private readonly pageTree?: WorkspacePageTreeService
   ) {}
 
   async getTools(
@@ -639,6 +642,42 @@ export class ToolRuntime {
           break;
         }
       }
+    }
+
+    if (
+      !nativeProjectId &&
+      options.workspace &&
+      this.pageTree &&
+      (await this.models.workspacePageTree.state(options.workspace))?.phase ===
+        'switched'
+    ) {
+      for (const name of Object.keys(tools)) {
+        if (
+          name.startsWith('workspace_folder_') ||
+          name.startsWith('workspace_native_folder_') ||
+          [
+            'workspace_doc_create',
+            'workspace_file_create',
+            'workspace_doc_trash',
+            'workspace_doc_restore',
+            'workspace_doc_delete_permanently',
+            'workspace_doc_copy',
+            'workspace_resource_copy',
+            'workspace_resource_update_meta',
+          ].includes(name)
+        )
+          delete tools[name];
+      }
+      Object.assign(
+        tools,
+        createWorkspacePageTreeTools(
+          this.models,
+          this.pageTree,
+          this.workspaceNativeResources,
+          options,
+          documentWriteToolsEnabled
+        )
+      );
     }
 
     const guarded = this.applyExecutionGuards(

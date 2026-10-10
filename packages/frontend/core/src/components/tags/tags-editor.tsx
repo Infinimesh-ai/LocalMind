@@ -46,6 +46,7 @@ export interface TagsEditorProps {
 }
 
 export interface TagsInlineEditorProps extends TagsEditorProps {
+  renderSelectedTags?: (tags: TagLike[]) => ReactNode;
   placeholder?: ReactNode;
   className?: string;
   readonly?: boolean;
@@ -373,6 +374,7 @@ const MobileInlineEditor = ({
   title,
   style,
   onEditorClose,
+  renderSelectedTags,
   ref,
   ...props
 }: TagsInlineEditorProps) => {
@@ -414,11 +416,23 @@ const MobileInlineEditor = ({
         className={clsx(styles.tagsInlineEditor, className)}
         data-empty={empty}
         data-readonly={readonly}
-        onClick={() => setEditing(true)}
+        role={readonly ? undefined : 'button'}
+        tabIndex={readonly ? undefined : 0}
+        onClick={() => {
+          if (!readonly) setEditing(true);
+        }}
+        onKeyDown={event => {
+          if (!readonly && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            setEditing(true);
+          }
+        }}
         style={style}
       >
         {empty ? (
           placeholder
+        ) : renderSelectedTags ? (
+          renderSelectedTags(selectedTags)
         ) : (
           <InlineTagList {...props} tags={selectedTags} onRemoved={undefined} />
         )}
@@ -436,6 +450,7 @@ const DesktopTagsInlineEditor = ({
   style,
   ref,
   onEditorClose,
+  renderSelectedTags,
   ...props
 }: TagsInlineEditorProps) => {
   const empty = !props.selectedTags || props.selectedTags.length === 0;
@@ -467,10 +482,14 @@ const DesktopTagsInlineEditor = ({
         className={clsx(styles.tagsInlineEditor, className)}
         data-empty={empty}
         data-readonly={readonly}
+        role={readonly ? undefined : 'button'}
+        tabIndex={readonly ? undefined : 0}
         style={style}
       >
         {empty ? (
           placeholder
+        ) : renderSelectedTags ? (
+          renderSelectedTags(selectedTags)
         ) : (
           <InlineTagList
             {...props}

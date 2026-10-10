@@ -1,4 +1,5 @@
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { NavigationPanelTreeRoot } from '@affine/core/desktop/components/navigation-panel';
 import type { FavoriteSupportTypeUnion } from '@affine/core/modules/favorite';
 import { FavoriteService } from '@affine/core/modules/favorite';
@@ -6,7 +7,7 @@ import { NavigationPanelService } from '@affine/core/modules/navigation-panel';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
 import { useLiveData, useServices } from '@toeverything/infra';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { AddItemPlaceholder } from '../../layouts/add-item-placeholder';
 import { CollapsibleSection } from '../../layouts/collapsible-section';
@@ -31,8 +32,8 @@ export const NavigationPanelFavorites = () => {
     workspaceService.workspace.docCollection
   );
 
-  const handleCreateNewFavoriteDoc = useCallback(() => {
-    const newDoc = createPage();
+  const handleCreateNewFavoriteDoc = useAsyncCallback(async () => {
+    const newDoc = await createPage();
     favoriteService.favoriteList.add(
       'doc',
       newDoc.id,

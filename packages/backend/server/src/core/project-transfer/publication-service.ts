@@ -1,5 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 
+import {
+  WORKSPACE_PAGE_TREE_CONTRACT,
+  WORKSPACE_PAGE_TREE_V1_CONTRACT,
+} from '@affine/graphql';
 import { diffOfficeSemanticStates } from '@localmind/office';
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
@@ -35,6 +39,7 @@ import {
   readRootDocPageIdsWithYjs,
   WorkspaceNativeResourceAccess,
   WorkspaceOrganizationService,
+  WorkspacePageTreeService,
 } from '../doc';
 import {
   createFileCopySnapshot,
@@ -44,6 +49,7 @@ import {
   replaceDocumentCopySnapshot,
   retitleDocumentCopySnapshot,
 } from '../doc/copy-snapshot';
+import { pageTreeNativeCreatedContext } from '../doc/page-tree-context';
 import { ResourceError } from '../doc/resource-types';
 import { readRootDocPagesWithYjs } from '../doc/root-doc-registration';
 import { OfficeArtifactService } from '../office';
@@ -60,7 +66,12 @@ import { isolateImportedReferences } from './references';
 
 const commandSchema = z
   .object({
-    version: z.enum(['project-publication/v1', 'project-publication/v2']),
+    version: z.enum([
+      'project-publication/v1',
+      'project-publication/v2',
+      'project-publication/v3',
+      'project-publication/v4',
+    ]),
     publicationId: z.string().uuid(),
     publicationRevision: z.number().int().positive(),
     sourceSequence: z.number().int().positive(),
@@ -72,9 +83,16 @@ const commandSchema = z
   .strict()
   .refine(
     value =>
-      value.version === 'project-publication/v1'
-        ? value.target.targetKind === undefined
-        : !!value.target.targetKind,
+      value.version === 'project-publication/v4'
+        ? value.target.pageTree?.contractVersion ===
+            WORKSPACE_PAGE_TREE_CONTRACT && !!value.target.targetKind
+        : value.version === 'project-publication/v3'
+          ? value.target.pageTree?.contractVersion ===
+              WORKSPACE_PAGE_TREE_V1_CONTRACT && !!value.target.targetKind
+          : !value.target.pageTree &&
+            (value.version === 'project-publication/v1'
+              ? value.target.targetKind === undefined
+              : !!value.target.targetKind),
     'Publication type does not match its frozen contract'
   );
 
@@ -104,7 +122,8 @@ export class ProjectPublicationService {
     private readonly office: OfficeArtifactService,
     private readonly quota: QuotaService,
     private readonly nativeAccess: WorkspaceNativeResourceAccess,
-    private readonly nativeFiles: WorkspaceNativeResourceService
+    private readonly nativeFiles: WorkspaceNativeResourceService,
+    private readonly pageTree: WorkspacePageTreeService
   ) {}
 
   prepare(
@@ -321,6 +340,7 @@ export class ProjectPublicationService {
       folderId: string | null;
       targetResourceId?: string;
       targetKind?: 'legacy' | 'workspace_file';
+      pageTree?: PublicationTarget['pageTree'];
     }
   ) {
     const record = await this.models.projectPublication.lock(input);
@@ -339,6 +359,7 @@ export class ProjectPublicationService {
         const target = await this.target(record, source, {
           workspaceId: input.workspaceId,
           folderId: input.folderId,
+          ...(input.pageTree ? { pageTree: input.pageTree } : {}),
           resourceId: targetId,
           targetKind:
             source.file && record.kind === 'publish'
@@ -347,7 +368,9 @@ export class ProjectPublicationService {
         });
         const preview = await this.compare(record, source, target);
         const command = {
-          version: 'project-publication/v2' as const,
+          version: target.evidence.pageTree
+            ? ('project-publication/v4' as const)
+            : ('project-publication/v2' as const),
           publicationId: record.id,
           publicationRevision: record.revision + 1,
           sourceSequence: source.sequence,
@@ -459,230 +482,280 @@ export class ProjectPublicationService {
             throw new BadRequest('Publication expired');
           await this.targetPermissions(record, target.evidence);
         };
-        let targetVersion: string;
-        if (target.evidence.targetKind === 'workspace_file') {
-          if (!source.file)
-            throw new BadRequest('Publication source is not a native file');
-          const sourceFile = await this.projectBlobs.read({
-            projectId: record.projectId,
-            actorId: record.actorId,
-            key: source.file.key,
-          });
-          const blobKey = await this.transfer(
-            record,
-            target.evidence,
-            sourceFile.bytes,
-            source.file.mimeType,
-            revalidate,
-            allocate
-          );
-          await revalidate();
-          const input = {
-            workspaceId: target.evidence.workspaceId,
-            actorId: record.actorId,
-            resourceId: target.evidence.resourceId,
-            requestKey: `publication:${record.id}:${command.publicationRevision}`,
-            blobKey,
-          };
-          if (record.kind !== 'publish' && !target.file)
-            throw new ProjectPublicationConflict();
-          const result =
-            record.kind === 'publish'
-              ? await this.nativeFiles.create({
-                  ...input,
-                  title: source.resource.title,
-                  fileOnly: true,
-                  origin: 'publication',
-                  folderId: target.evidence.folderId,
-                })
-              : await this.nativeFiles.save({
-                  ...input,
-                  kind: 'file',
-                  expectedContentVersion: target.file?.contentVersion ?? 0,
-                  origin: 'publication',
-                });
-          targetVersion = result.revisionId;
-        } else if (source.office && source.officeRevision) {
-          if (
-            !source.officeRevision.stateBlobKey ||
-            !source.officeRevision.stateFingerprint
-          )
-            throw new BadRequest(
-              'Office publication state evidence is unavailable'
-            );
-          if (record.kind === 'update' && !target.evidence.expectedVersion)
-            throw new BadRequest(
-              'Office update requires the confirmed target version'
-            );
-          const packageAsset = await this.office.readRevisionAsset(
-            { projectId: record.projectId },
-            record.actorId,
-            source.resource.id,
-            source.officeRevision.id,
-            'package'
-          );
-          const stateAsset = await this.office.readRevisionAsset(
-            { projectId: record.projectId },
-            record.actorId,
-            source.resource.id,
-            source.officeRevision.id,
-            'state'
-          );
-          const packageKey = await this.transfer(
-            record,
-            target.evidence,
-            packageAsset.bytes,
-            source.officeRevision.packageMimeType,
-            revalidate,
-            allocate
-          );
-          const stateBlob = await this.models.projectResource.getBlob({
-            projectId: record.projectId,
-            actorId: record.actorId,
-            key: source.officeRevision.stateBlobKey,
-          });
-          const stateKey = await this.transfer(
-            record,
-            target.evidence,
-            stateAsset.bytes,
-            stateBlob.mimeType,
-            revalidate,
-            allocate
-          );
-          await revalidate();
-          const packageInput = {
-            key: packageKey,
-            mimeType: source.officeRevision.packageMimeType,
-            byteSize: packageAsset.bytes.length,
-            fingerprint: source.officeRevision.packageFingerprint,
-          };
-          const stateInput = {
-            key: stateKey,
-            byteSize: stateAsset.bytes.length,
-            fingerprint: source.officeRevision.stateFingerprint,
-          };
-          const operationSummary = {
-            type: 'project_publication',
-            publicationId: record.id,
-            projectId: record.projectId,
-            sourceResourceId: record.resourceId,
-            sourceSequence: source.sequence,
-          };
-          const result =
-            record.kind === 'publish'
-              ? await this.models.officeArtifact.createOrReuseImported({
-                  workspaceId: target.evidence.workspaceId,
-                  actorId: record.actorId,
-                  artifactId: target.evidence.resourceId,
-                  kind: source.office.kind,
-                  title: source.resource.title,
-                  sourceFileName: source.office.sourceFileName,
-                  source: packageInput,
-                  state: stateInput,
-                  modelVersion: source.officeRevision.modelVersion,
-                  importIdempotencyKey: `publication:${record.id}:${command.publicationRevision}`,
-                  importFingerprint: command.sourceFingerprint,
-                  compatibility: json(source.office.compatibility),
-                  operationSummary,
-                })
-              : await this.models.officeArtifact.appendRevision({
-                  workspaceId: target.evidence.workspaceId,
-                  actorId: record.actorId,
-                  artifactId: target.evidence.resourceId,
-                  origin: 'user',
-                  expectedParentRevisionId:
-                    target.evidence.expectedVersion ?? '',
-                  idempotencyKey: `publication:${record.id}:${command.publicationRevision}`,
-                  idempotencyFingerprint: run.targetFingerprint,
-                  package: packageInput,
-                  state: stateInput,
-                  modelVersion: source.officeRevision.modelVersion,
-                  operationSummary,
-                });
-          targetVersion = result.revision.id;
-        } else {
-          if (!source.bytes)
-            throw new BadRequest('Publication source bytes are unavailable');
-          const replacements = new Map<string, string>();
-          for (const key of inspectDocumentCopySnapshot(source.bytes).blobIds) {
-            const blob = await this.projectBlobs.read({
+        let targetVersion = '';
+        const publishContent = async () => {
+          if (target.evidence.targetKind === 'workspace_file') {
+            if (!source.file)
+              throw new BadRequest('Publication source is not a native file');
+            const sourceFile = await this.projectBlobs.read({
               projectId: record.projectId,
               actorId: record.actorId,
-              key,
+              key: source.file.key,
             });
-            replacements.set(
-              key,
-              await this.transfer(
-                record,
-                target.evidence,
-                blob.bytes,
-                blob.blob.mimeType,
-                revalidate,
-                allocate
-              )
+            const blobKey = await this.transfer(
+              record,
+              target.evidence,
+              sourceFile.bytes,
+              source.file.mimeType,
+              revalidate,
+              allocate
             );
-          }
-          const snapshot = retitleDocumentCopySnapshot(
-            isolateImportedReferences(
-              remapDocumentCopyBlobs(source.bytes, replacements),
-              {
-                projectId: record.projectId,
-                sourceResourceId: record.resourceId,
-                resourceId: target.evidence.resourceId,
-              }
-            ),
-            source.resource.title,
-            target.evidence.resourceId
-          );
-          if (record.kind === 'publish') {
-            await this.writer.createDocFromSnapshot(
-              target.evidence.workspaceId,
-              source.resource.title,
-              snapshot,
+            await revalidate();
+            const input = {
+              workspaceId: target.evidence.workspaceId,
+              actorId: record.actorId,
+              resourceId: target.evidence.resourceId,
+              requestKey: `publication:${record.id}:${command.publicationRevision}`,
+              blobKey,
+            };
+            if (record.kind !== 'publish' && !target.file)
+              throw new ProjectPublicationConflict();
+            const result =
+              record.kind === 'publish'
+                ? await this.nativeFiles.create({
+                    ...input,
+                    title: source.resource.title,
+                    fileOnly: true,
+                    origin: 'publication',
+                    folderId: target.evidence.folderId,
+                  })
+                : await this.nativeFiles.save({
+                    ...input,
+                    kind: 'file',
+                    expectedContentVersion: target.file?.contentVersion ?? 0,
+                    origin: 'publication',
+                  });
+            targetVersion = result.revisionId;
+          } else if (source.office && source.officeRevision) {
+            if (
+              !source.officeRevision.stateBlobKey ||
+              !source.officeRevision.stateFingerprint
+            )
+              throw new BadRequest(
+                'Office publication state evidence is unavailable'
+              );
+            if (record.kind === 'update' && !target.evidence.expectedVersion)
+              throw new BadRequest(
+                'Office update requires the confirmed target version'
+              );
+            const packageAsset = await this.office.readRevisionAsset(
+              { projectId: record.projectId },
               record.actorId,
-              target.evidence.resourceId,
-              revalidate
+              source.resource.id,
+              source.officeRevision.id,
+              'package'
             );
-            await this.models.doc.upsertMeta(
-              target.evidence.workspaceId,
-              target.evidence.resourceId,
-              {
-                mode: source.resource.kind === 'edgeless' ? 1 : 0,
-                title: source.resource.title,
-              }
+            const stateAsset = await this.office.readRevisionAsset(
+              { projectId: record.projectId },
+              record.actorId,
+              source.resource.id,
+              source.officeRevision.id,
+              'state'
             );
+            const packageKey = await this.transfer(
+              record,
+              target.evidence,
+              packageAsset.bytes,
+              source.officeRevision.packageMimeType,
+              revalidate,
+              allocate
+            );
+            const stateBlob = await this.models.projectResource.getBlob({
+              projectId: record.projectId,
+              actorId: record.actorId,
+              key: source.officeRevision.stateBlobKey,
+            });
+            const stateKey = await this.transfer(
+              record,
+              target.evidence,
+              stateAsset.bytes,
+              stateBlob.mimeType,
+              revalidate,
+              allocate
+            );
+            await revalidate();
+            const packageInput = {
+              key: packageKey,
+              mimeType: source.officeRevision.packageMimeType,
+              byteSize: packageAsset.bytes.length,
+              fingerprint: source.officeRevision.packageFingerprint,
+            };
+            const stateInput = {
+              key: stateKey,
+              byteSize: stateAsset.bytes.length,
+              fingerprint: source.officeRevision.stateFingerprint,
+            };
+            const operationSummary = {
+              type: 'project_publication',
+              publicationId: record.id,
+              projectId: record.projectId,
+              sourceResourceId: record.resourceId,
+              sourceSequence: source.sequence,
+            };
+            const result =
+              record.kind === 'publish'
+                ? await this.models.officeArtifact.createOrReuseImported({
+                    workspaceId: target.evidence.workspaceId,
+                    actorId: record.actorId,
+                    artifactId: target.evidence.resourceId,
+                    kind: source.office.kind,
+                    title: source.resource.title,
+                    sourceFileName: source.office.sourceFileName,
+                    source: packageInput,
+                    state: stateInput,
+                    modelVersion: source.officeRevision.modelVersion,
+                    importIdempotencyKey: `publication:${record.id}:${command.publicationRevision}`,
+                    importFingerprint: command.sourceFingerprint,
+                    compatibility: json(source.office.compatibility),
+                    operationSummary,
+                  })
+                : await this.models.officeArtifact.appendRevision({
+                    workspaceId: target.evidence.workspaceId,
+                    actorId: record.actorId,
+                    artifactId: target.evidence.resourceId,
+                    origin: 'user',
+                    expectedParentRevisionId:
+                      target.evidence.expectedVersion ?? '',
+                    idempotencyKey: `publication:${record.id}:${command.publicationRevision}`,
+                    idempotencyFingerprint: run.targetFingerprint,
+                    package: packageInput,
+                    state: stateInput,
+                    modelVersion: source.officeRevision.modelVersion,
+                    operationSummary,
+                  });
+            targetVersion = result.revision.id;
           } else {
-            if (!target.document)
-              throw new BadRequest('The selected target is unavailable');
-            const update = replaceDocumentCopySnapshot(
-              target.document.bin,
-              snapshot,
+            if (!source.bytes)
+              throw new BadRequest('Publication source bytes are unavailable');
+            const replacements = new Map<string, string>();
+            for (const key of inspectDocumentCopySnapshot(source.bytes)
+              .blobIds) {
+              const blob = await this.projectBlobs.read({
+                projectId: record.projectId,
+                actorId: record.actorId,
+                key,
+              });
+              replacements.set(
+                key,
+                await this.transfer(
+                  record,
+                  target.evidence,
+                  blob.bytes,
+                  blob.blob.mimeType,
+                  revalidate,
+                  allocate
+                )
+              );
+            }
+            const snapshot = retitleDocumentCopySnapshot(
+              isolateImportedReferences(
+                remapDocumentCopyBlobs(source.bytes, replacements),
+                {
+                  projectId: record.projectId,
+                  sourceResourceId: record.resourceId,
+                  resourceId: target.evidence.resourceId,
+                }
+              ),
               source.resource.title,
               target.evidence.resourceId
             );
-            await this.writer.pushDocUpdate(
+            if (record.kind === 'publish') {
+              await this.writer.createDocFromSnapshot(
+                target.evidence.workspaceId,
+                source.resource.title,
+                snapshot,
+                record.actorId,
+                target.evidence.resourceId,
+                target.evidence.pageTree ? undefined : revalidate
+              );
+              await this.models.doc.upsertMeta(
+                target.evidence.workspaceId,
+                target.evidence.resourceId,
+                {
+                  mode: source.resource.kind === 'edgeless' ? 1 : 0,
+                  title: source.resource.title,
+                }
+              );
+            } else {
+              if (!target.document)
+                throw new BadRequest('The selected target is unavailable');
+              const update = replaceDocumentCopySnapshot(
+                target.document.bin,
+                snapshot,
+                source.resource.title,
+                target.evidence.resourceId
+              );
+              await this.writer.pushDocUpdate(
+                target.evidence.workspaceId,
+                target.evidence.resourceId,
+                update,
+                record.actorId,
+                revalidate
+              );
+              await this.writer.updateDocMeta(
+                target.evidence.workspaceId,
+                target.evidence.resourceId,
+                { title: source.resource.title },
+                record.actorId,
+                revalidate
+              );
+            }
+            const saved = await this.reader.getDoc(
               target.evidence.workspaceId,
-              target.evidence.resourceId,
-              update,
-              record.actorId,
-              revalidate
+              target.evidence.resourceId
             );
-            await this.writer.updateDocMeta(
-              target.evidence.workspaceId,
-              target.evidence.resourceId,
-              { title: source.resource.title },
-              record.actorId,
-              revalidate
+            if (!saved)
+              throw new BadRequest('Published document was not persisted');
+            targetVersion = hash(saved.bin);
+          }
+        };
+        const tree = target.evidence.pageTree;
+        if (record.kind === 'publish' && tree) {
+          const actor = {
+            workspaceId: target.evidence.workspaceId,
+            actorId: record.actorId,
+          };
+          const base = {
+            contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+            requestKey: `publication:${record.id}:${command.publicationRevision}`,
+            expectedRevision: tree.revision,
+            expectedAuthorizationRevision: tree.authorizationRevision,
+            parentNodeId: tree.parentNodeId,
+            title: source.resource.title,
+          };
+          if (source.office || source.file) {
+            await this.pageTree.execute(
+              actor,
+              {
+                ...base,
+                action: 'create-native',
+                nativeFingerprint: agentRuntimeFingerprint(command),
+              },
+              async () => {
+                await publishContent();
+                if (source.office)
+                  await pageTreeNativeCreatedContext.getStore()?.({
+                    kind: 'office',
+                    resourceId: target.evidence.resourceId,
+                  });
+              }
+            );
+          } else {
+            await this.pageTree.execute(
+              actor,
+              {
+                ...base,
+                action: 'create',
+                resourceId: target.evidence.resourceId,
+                primaryMode:
+                  source.resource.kind === 'edgeless' ? 'edgeless' : 'page',
+                contentFingerprint: command.sourceFingerprint,
+              },
+              undefined,
+              async () => publishContent()
             );
           }
-          const saved = await this.reader.getDoc(
-            target.evidence.workspaceId,
-            target.evidence.resourceId
-          );
-          if (!saved)
-            throw new BadRequest('Published document was not persisted');
-          targetVersion = hash(saved.bin);
-        }
+        } else await publishContent();
         if (
           record.kind === 'publish' &&
           target.evidence.folderId &&
@@ -707,6 +780,9 @@ export class ProjectPublicationService {
           targetResourceId: target.evidence.resourceId,
           targetKind: target.evidence.targetKind ?? 'legacy',
           folderId: target.evidence.folderId,
+          ...(target.evidence.pageTree
+            ? { pageTree: target.evidence.pageTree }
+            : {}),
           targetVersion,
           permissionFingerprint: target.evidence.permissionFingerprint,
         };
@@ -804,11 +880,75 @@ export class ProjectPublicationService {
       folderId: string | null;
       resourceId: string;
       targetKind?: 'legacy' | 'workspace_file';
+      pageTree?: PublicationTarget['pageTree'];
     }
   ) {
     if (target.workspaceId === target.resourceId)
       throw new BadRequest(
         'Workspace root documents cannot be publication targets'
+      );
+    const treeState = await this.models.workspacePageTree.state(
+      target.workspaceId
+    );
+    if (target.pageTree) {
+      if (
+        target.pageTree.contractVersion !== WORKSPACE_PAGE_TREE_CONTRACT ||
+        treeState?.contractVersion !== WORKSPACE_PAGE_TREE_CONTRACT
+      )
+        throw new BadRequest(
+          'Publication target contract changed; prepare a new preview'
+        );
+      if (target.folderId !== null || treeState?.phase !== 'switched')
+        throw new BadRequest('Explicit page tree target required');
+      const actor = {
+        workspaceId: target.workspaceId,
+        actorId: record.actorId,
+      };
+      const destination = await this.pageTree.destination(
+        actor,
+        target.pageTree.parentNodeId
+      );
+      if (destination.parentKind !== target.pageTree.parentKind)
+        throw new ProjectPublicationConflict();
+      if (record.kind === 'update') {
+        const office = await this.models.officeArtifact.get(
+          target.workspaceId,
+          target.resourceId
+        );
+        const kind =
+          target.targetKind === 'workspace_file'
+            ? 'file'
+            : office
+              ? 'office'
+              : 'doc';
+        const location = await this.pageTree.list(actor, null, undefined, 1, {
+          resource: { kind, resourceId: target.resourceId },
+        });
+        if (
+          !location.parent ||
+          location.parent.parentNodeId !== target.pageTree.parentNodeId
+        )
+          throw new ProjectPublicationConflict();
+        if (kind === 'doc')
+          await this.ac
+            .user(record.actorId)
+            .doc(target.workspaceId, target.resourceId)
+            .projectScope(null)
+            .assert('Doc.Update');
+        else
+          await this.nativeAccess.assert(
+            { ...actor, kind, resourceId: target.resourceId },
+            { write: true }
+          );
+      }
+      return destination;
+    }
+    if (
+      treeState &&
+      !['preflight', 'needs_resolution'].includes(treeState.phase)
+    )
+      throw new BadRequest(
+        'Publication uses a retired directory contract; prepare a new preview'
       );
     if (record.kind === 'publish')
       return this.destinations.authorize({
@@ -882,9 +1022,23 @@ export class ProjectPublicationService {
       folderId: string | null;
       resourceId: string;
       targetKind?: 'legacy' | 'workspace_file';
+      pageTree?: PublicationTarget['pageTree'];
     }
   ) {
     const destination = await this.destination(record, target);
+    if (target.pageTree) {
+      const current = await this.pageTree.list(
+        { workspaceId: target.workspaceId, actorId: record.actorId },
+        null,
+        undefined,
+        1
+      );
+      if (
+        current.revision !== target.pageTree.revision ||
+        current.authorizationRevision !== target.pageTree.authorizationRevision
+      )
+        throw new ProjectPublicationConflict();
+    }
     const permissions = await this.models.projectPublication.targetPermissions({
       workspaceId: target.workspaceId,
       resourceId: record.kind === 'update' ? target.resourceId : null,

@@ -2,6 +2,7 @@ import { Button, Input, Modal } from '@affine/component';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import {
   createProjectNativeFileMutation,
+  type CreateWorkspaceNativeResourceInput,
   createWorkspaceNativeResourceMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
@@ -34,6 +35,7 @@ export function blankNativeContent(format: Format): NativeFileContent {
 
 export function NativeFileCreateDialog({
   owner,
+  treeTarget,
   parentId,
   initialFormat,
   onClose,
@@ -41,6 +43,13 @@ export function NativeFileCreateDialog({
 }: {
   owner: { workspaceId: string } | { projectId: string };
   parentId?: string | null;
+  treeTarget?: Pick<
+    CreateWorkspaceNativeResourceInput,
+    | 'parentNodeId'
+    | 'treeContractVersion'
+    | 'expectedTreeRevision'
+    | 'expectedAuthorizationRevision'
+  >;
   initialFormat?: NativeFileFormat;
   onClose: () => void;
   onCreated: (id: string, kind: 'file' | 'office') => void;
@@ -76,7 +85,7 @@ export function NativeFileCreateDialog({
                     ...owner,
                     title: frozen.title,
                     requestKey: frozen.requestKey,
-                    folderId: parentId,
+                    ...(treeTarget ?? { folderId: parentId }),
                     content,
                   },
                 },

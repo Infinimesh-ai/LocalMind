@@ -28,7 +28,13 @@ try {
   console.log(
     JSON.stringify({
       mode: apply ? 'apply' : 'inspect',
-      ...(await retireToolContracts(db, apply)),
+      ...(await retireToolContracts(
+        db,
+        apply,
+        process.argv
+          .find(arg => arg.startsWith('--page-tree-workspace='))
+          ?.slice('--page-tree-workspace='.length)
+      )),
       ...(cutoff
         ? {
             reconciliation: await reconcileStaleMcpDelegations(

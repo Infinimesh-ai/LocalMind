@@ -24,6 +24,8 @@ import {
   type ProjectPublicationFieldsFragment,
   projectPublicationQuery,
   projectPublicationsQuery,
+  WORKSPACE_PAGE_TREE_CONTRACT,
+  workspacePageTreeQuery,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
@@ -642,6 +644,13 @@ type Selection = {
   folderId: string | null;
   targetResourceId?: string;
   targetKind?: string;
+  pageTree?: {
+    contractVersion: string;
+    parentKind: 'root' | 'folder' | 'doc';
+    parentNodeId: string | null;
+    revision: number;
+    authorizationRevision: string;
+  };
 };
 function DestinationPicker({
   record,
@@ -700,7 +709,7 @@ function DestinationPicker({
         </p>
       ) : null}
       {workspaceId && workspaces.some(item => item.id === workspaceId) ? (
-        <DestinationDirectory
+        <DestinationContract
           key={`${workspaceId}:${parentId ?? ''}`}
           record={record}
           workspaceId={workspaceId}
@@ -710,6 +719,172 @@ function DestinationPicker({
           onSelect={onSelect}
         />
       ) : null}
+    </div>
+  );
+}
+
+function DestinationContract(
+  props: Parameters<typeof DestinationDirectory>[0]
+) {
+  const query = useQuery(
+    {
+      query: workspacePageTreeQuery,
+      variables: {
+        workspaceId: props.workspaceId,
+        clientContract: WORKSPACE_PAGE_TREE_CONTRACT,
+        parentNodeId: null,
+      },
+    },
+    { suspense: false, shouldRetryOnError: false }
+  );
+  const t = useI18n();
+  if (query.isLoading) return <Loading size={18} />;
+  if (query.error)
+    return (
+      <div role="alert">
+        <p>{projectErrorMessage(query.error)}</p>
+        <Button onClick={() => void query.mutate()}>
+          {t['com.affine.error.retry']()}
+        </Button>
+      </div>
+    );
+  return query.data?.workspacePageTree.enabled ? (
+    <TreePublicationDirectory {...props} />
+  ) : (
+    <DestinationDirectory {...props} />
+  );
+}
+
+function TreePublicationDirectory({
+  record,
+  workspaceId,
+  parentId,
+  pending,
+  onEnter,
+  onSelect,
+}: Parameters<typeof DestinationDirectory>[0]) {
+  const t = useI18n();
+  const [error, setError] = useState<string | null>(null);
+  const [after, setAfter] = useState<string>();
+  const query = useQuery(
+    {
+      query: workspacePageTreeQuery,
+      variables: {
+        workspaceId,
+        clientContract: WORKSPACE_PAGE_TREE_CONTRACT,
+        parentNodeId: parentId,
+        after,
+      },
+    },
+    { suspense: false, shouldRetryOnError: false }
+  );
+  const tree = query.error ? null : query.data?.workspacePageTree;
+  const select = (target?: NonNullable<typeof tree>['items'][number]) => {
+    if (!tree) return;
+    void onSelect({
+      workspaceId,
+      folderId: null,
+      pageTree: {
+        contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+        parentKind:
+          tree.parent?.kind === 'folder'
+            ? 'folder'
+            : tree.parent
+              ? 'doc'
+              : 'root',
+        parentNodeId: parentId,
+        revision: tree.revision,
+        authorizationRevision: tree.authorizationRevision,
+      },
+      ...(target
+        ? {
+            targetResourceId: target.resourceId,
+            targetKind: target.kind === 'file' ? 'workspace_file' : 'legacy',
+          }
+        : {}),
+    }).catch(error => setError(projectErrorMessage(error)));
+  };
+  const matches = (item: NonNullable<typeof tree>['items'][number]) => {
+    if (record.resourceKind === 'file') return item.kind === 'file';
+    if (record.resourceKind === 'page' || record.resourceKind === 'edgeless')
+      return item.kind === 'doc' && item.primaryMode === record.resourceKind;
+    return item.kind === 'office';
+  };
+  return (
+    <div className={styles.form}>
+      {error && <p role="alert">{error}</p>}
+      <nav
+        className={files.breadcrumbs}
+        aria-label={t['com.affine.localmind.page-tree.location']()}
+      >
+        <Button disabled={pending} onClick={() => onEnter(null)}>
+          {t['com.affine.localmind.page-tree.root']()}
+        </Button>
+        {tree?.ancestors.map(item => (
+          <Button
+            key={item.nodeId}
+            disabled={pending}
+            onClick={() => onEnter(item.nodeId)}
+          >
+            {item.title}
+          </Button>
+        ))}
+        {tree?.parent && <span aria-current="page">{tree.parent.title}</span>}
+      </nav>
+      {query.isLoading ? (
+        <Loading size={18} />
+      ) : query.error ? (
+        <div role="alert">
+          <p>{projectErrorMessage(query.error)}</p>
+          <Button onClick={() => void query.mutate()}>
+            {t['com.affine.error.retry']()}
+          </Button>
+        </div>
+      ) : (
+        <div className={styles.browser}>
+          {tree?.items.map(item => (
+            <div key={item.nodeId} className={styles.choice}>
+              <PageIcon />
+              <span className={styles.title}>{item.title}</span>
+              {item.kind === 'doc' && item.primaryMode === 'page' && (
+                <Button
+                  disabled={pending}
+                  onClick={() => onEnter(item.nodeId)}
+                  aria-label={`${t['com.affine.localmind.page-tree.children']()}: ${item.title}`}
+                >
+                  <ArrowRightSmallIcon />
+                </Button>
+              )}
+              {record.kind === 'update' && matches(item) && (
+                <Button disabled={pending} onClick={() => select(item)}>
+                  {t['Select']()}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {tree?.nextCursor && (
+        <Button
+          disabled={pending || query.isLoading}
+          onClick={() => setAfter(tree.nextCursor ?? undefined)}
+        >
+          {t['com.affine.quicksearch.load-more']()}
+        </Button>
+      )}
+      {record.kind === 'publish' && (
+        <Button
+          variant="primary"
+          disabled={
+            pending ||
+            !tree ||
+            (tree.parent !== null && !tree.parent.canOrganize)
+          }
+          onClick={() => select()}
+        >
+          {t['com.affine.localmind.publications.current']()}
+        </Button>
+      )}
     </div>
   );
 }

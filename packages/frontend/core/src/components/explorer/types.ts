@@ -4,10 +4,13 @@ import type {
 } from '@affine/core/modules/collection-rules/types';
 import type { DocCustomPropertyInfo } from '@affine/core/modules/db';
 import type { DocRecord } from '@affine/core/modules/doc';
+import type { ResourceDisplayProperties } from '@affine/graphql';
 
 import type { DocListItemView } from './docs-view/doc-list-item';
 
 export interface ExplorerDisplayPreference {
+  /** Explicit opt-in for the mixed Workspace explorer; editor registries stay intact. */
+  resourceProperties?: ResourceDisplayProperties;
   view?: DocListItemView;
   groupBy?: GroupByParams;
   orderBy?: OrderByParams;

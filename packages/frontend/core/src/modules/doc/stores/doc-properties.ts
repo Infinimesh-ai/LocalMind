@@ -26,6 +26,13 @@ export class DocPropertiesStore extends Store {
   }
 
   updateDocProperties(id: string, config: Partial<DocProperties>) {
+    if (
+      config.primaryMode === 'edgeless' &&
+      this.dbService.hasPageTreeChildren(id)
+    )
+      throw new Error(
+        'Move or permanently delete all child resources before switching to whiteboard'
+      );
     return this.dbService.db.docProperties.create({
       id,
       ...config,

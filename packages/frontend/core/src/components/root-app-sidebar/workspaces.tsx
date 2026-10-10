@@ -4,7 +4,10 @@ import { NavigationPanelDocNode } from '@affine/core/desktop/components/navigati
 import { NavigationPanelNativeFileNode } from '@affine/core/desktop/components/navigation-panel/nodes/folder/native-file';
 import { AddPageButton } from '@affine/core/modules/app-sidebar/views';
 import { DocsService } from '@affine/core/modules/doc';
-import { OrganizeService } from '@affine/core/modules/organize';
+import {
+  OrganizeService,
+  WorkspacePageTreeService,
+} from '@affine/core/modules/organize';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import {
   type WorkspaceMetadata,
@@ -24,6 +27,11 @@ import { useNavigateHelper } from '../hooks/use-navigate-helper';
 import { useWorkspaceInfo } from '../hooks/use-workspace-info';
 import { WorkspaceAvatar } from '../workspace-avatar';
 import * as styles from './index.css';
+import {
+  PageTreeCreateMenu,
+  PageTreeRootSort,
+  WorkspacePageTree,
+} from './page-tree';
 
 const ROOT_DOCS_PATH = ['workspace-files'];
 const PAGE_SIZE = 50;
@@ -109,6 +117,8 @@ export function SidebarWorkspaceRow({
   onSelect: (metadata: WorkspaceMetadata) => void;
 }) {
   const info = useWorkspaceInfo(metadata);
+  const pageTree = useService(WorkspacePageTreeService);
+  const pageTreeEnabled = useLiveData(pageTree.enabled$);
   const t = useI18n();
   const [expanded, setExpanded] = useState(active);
   useEffect(() => setExpanded(active), [active]);
@@ -156,16 +166,32 @@ export function SidebarWorkspaceRow({
             </span>
           )}
         </button>
-        {active && <AddPageButton className={styles.createDoc} />}
+        {active &&
+          (pageTreeEnabled ? (
+            <>
+              <PageTreeCreateMenu name={name} />
+              <PageTreeRootSort expanded={open} />
+            </>
+          ) : pageTreeEnabled === false ? (
+            <AddPageButton className={styles.createDoc} />
+          ) : null)}
       </div>
       {open && (
         <div id={treeId} className={styles.workspaceFiles}>
-          <NavigationPanelOrganize
-            sectionPath="workspace-files"
-            title={t['com.affine.rootAppSidebar.files']()}
-          >
-            <WorkspaceRootDocs />
-          </NavigationPanelOrganize>
+          {pageTreeEnabled ? (
+            <WorkspacePageTree />
+          ) : pageTreeEnabled === null ? (
+            <Button variant="plain" onClick={() => void pageTree.load(null)}>
+              {t['com.affine.error.retry']()}
+            </Button>
+          ) : (
+            <NavigationPanelOrganize
+              sectionPath="workspace-files"
+              title={t['com.affine.rootAppSidebar.files']()}
+            >
+              <WorkspaceRootDocs />
+            </NavigationPanelOrganize>
+          )}
         </div>
       )}
     </div>

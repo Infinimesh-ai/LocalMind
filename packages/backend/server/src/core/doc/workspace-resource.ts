@@ -62,13 +62,9 @@ export class WorkspaceResourceService {
     );
   }
 
-  @Transactional<TransactionalAdapterPrisma>({
-    isolationLevel: 'RepeatableRead',
-    timeout: 15000,
-  })
   async observe<T>(operation: () => Promise<T>) {
     // A receipt query must neither wait on an active writer nor compact its data.
-    return await this.storage.withTransactionalReads(operation);
+    return await this.storage.observe(operation);
   }
 
   async assertWorkspace(

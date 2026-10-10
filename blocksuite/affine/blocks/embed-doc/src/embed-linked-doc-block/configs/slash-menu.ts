@@ -1,7 +1,7 @@
 import { EmbedLinkedDocBlockSchema } from '@blocksuite/affine-model';
 import { insertContent } from '@blocksuite/affine-rich-text';
 import { REFERENCE_NODE } from '@blocksuite/affine-shared/consts';
-import { createDefaultDoc } from '@blocksuite/affine-shared/utils';
+import { createDefaultEditorDoc } from '@blocksuite/affine-shared/utils';
 import {
   type SlashMenuConfig,
   SlashMenuConfigIdentifier,
@@ -25,13 +25,14 @@ const linkedDocSlashMenuConfig: SlashMenuConfig = {
       when: ({ model }) =>
         model.store.schema.flavourSchemaMap.has('affine:embed-linked-doc'),
       action: ({ std, model }) => {
-        const newDoc = createDefaultDoc(std.host.store.workspace);
-        insertContent(std, model, REFERENCE_NODE, {
-          reference: {
-            type: 'LinkedPage',
-            pageId: newDoc.id,
-          },
-        });
+        void createDefaultEditorDoc(std)
+          .then(newDoc => {
+            if (!std.store.getBlock(model.id)) return;
+            insertContent(std, model, REFERENCE_NODE, {
+              reference: { type: 'LinkedPage', pageId: newDoc.id },
+            });
+          })
+          .catch(console.error);
       },
     },
     {

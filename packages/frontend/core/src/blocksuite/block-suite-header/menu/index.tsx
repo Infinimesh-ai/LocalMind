@@ -212,7 +212,7 @@ const PageHeaderMenuItem = ({
           toast(t['com.affine.no-permission']());
           return;
         }
-        await editorService.editor.doc.moveToTrash();
+        if ((await editorService.editor.doc.moveToTrash()) === false) return;
       },
     });
   }, [editorService.editor.doc, guardService, openConfirmModal, pageId, t]);
@@ -224,8 +224,13 @@ const PageHeaderMenuItem = ({
 
   const handleSwitchMode = useCallback(() => {
     const mode = primaryMode === 'page' ? 'edgeless' : 'page';
+    try {
+      editorService.editor.doc.setPrimaryMode(mode);
+    } catch {
+      toast(t['com.affine.localmind.page-tree.modeBlocked']());
+      return;
+    }
     editorService.editor.setMode(mode);
-    editorService.editor.doc.setPrimaryMode(mode);
     track.$.header.docOptions.switchPageMode({
       mode,
     });

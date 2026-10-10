@@ -17,7 +17,7 @@ export class QuickSearch extends Entity {
     query: string;
     sessions: QuickSearchSession<any, any>[];
     options: QuickSearchOptions;
-    callback: (result: QuickSearchItem | null) => void;
+    callback: (result: QuickSearchItem | null) => void | Promise<void>;
   } | null>(null);
 
   readonly items$ = this.state$
@@ -58,7 +58,9 @@ export class QuickSearch extends Entity {
 
   show = <const Sources extends any[]>(
     sources: Sources,
-    cb: (result: QuickSearchSourceItemType<Sources[number]> | null) => void,
+    cb: (
+      result: QuickSearchSourceItemType<Sources[number]> | null
+    ) => void | Promise<void>,
     options: QuickSearchOptions = {}
   ) => {
     if (this.state$.value) {
@@ -103,7 +105,7 @@ export class QuickSearch extends Entity {
   hide() {
     if (this.state$.value) {
       this.state$.value.sessions.forEach(session => session.dispose?.());
-      this.state$.value.callback?.(null);
+      Promise.resolve(this.state$.value.callback?.(null)).catch(console.error);
     }
 
     this.state$.next(null);
@@ -115,7 +117,7 @@ export class QuickSearch extends Entity {
     }
     if (this.state$.value?.callback) {
       this.state$.value.sessions.forEach(session => session.dispose?.());
-      this.state$.value.callback(result);
+      Promise.resolve(this.state$.value.callback(result)).catch(console.error);
     }
     this.state$.next(null);
   }

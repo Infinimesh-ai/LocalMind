@@ -107,6 +107,42 @@ export class WorkspaceDBService extends Service {
     doc.transact(operation);
   }
 
+  hasPageTreeChildren(resourceId: string) {
+    this.db.folders.keys();
+    if (this.db.folders.isLoading$.value)
+      throw new Error('Page tree is still loading');
+    const document = this.tableDocs.get('folders');
+    if (!document) throw new Error('Page tree is unavailable');
+    const rows = [...document.share.keys()].map(key => document.getMap(key));
+    const containers = new Set(
+      rows
+        .filter(
+          row =>
+            row.get('type') === 'doc' &&
+            row.get('data') === resourceId &&
+            row.get('$pageTreeRetired') !== true
+        )
+        .map(row => String(row.get('id')))
+    );
+    // Recycled children still carry recovery dependencies and must be included.
+    return rows.some(
+      row =>
+        row.get('$pageTreeRetired') !== true &&
+        containers.has(String(row.get('parentId')))
+    );
+  }
+
+  localTableDoc(tableName: keyof AFFiNEWorkspaceDbSchema) {
+    if (this.workspaceService.workspace.flavour !== 'local')
+      throw new Error(
+        'Raw page tree access is only available in local Workspaces'
+      );
+    this.db[tableName].keys();
+    const doc = this.tableDocs.get(tableName);
+    if (!doc) throw new Error('Workspace table unavailable');
+    return doc;
+  }
+
   authService = this.workspaceServerService.server?.scope.get(AuthService);
   public get userdataDB$() {
     // if is local workspace or no account, use __local__ userdata

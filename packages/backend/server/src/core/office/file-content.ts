@@ -17,6 +17,23 @@ export function nativeTextFormat(title: string) {
     : null;
 }
 
+/** Select editing semantics from the effective revision, never a mutable title. */
+export function nativeTextIdentity(mimeType: string) {
+  const source = mimeType.toLowerCase().split(';')[0].trim();
+  const mime =
+    (
+      {
+        'text/x-markdown': 'text/markdown',
+        'application/csv': 'text/csv',
+        'text/json': 'application/json',
+      } as Record<string, string>
+    )[source] ?? source;
+  const format = Object.entries(TEXT_MIME).find(
+    ([, value]) => value === mime
+  )?.[0];
+  return format ? `resource.${format}` : 'resource.binary';
+}
+
 /** Complete, lossless UTF-8 only. A preview must never become a replacement. */
 export function decodeNativeText(bytes: Uint8Array, title: string) {
   if (!nativeTextFormat(title))

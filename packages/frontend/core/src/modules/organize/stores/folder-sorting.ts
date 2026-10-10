@@ -1,5 +1,5 @@
 import { LiveData, Store } from '@toeverything/infra';
-import { map, of, switchMap } from 'rxjs';
+import { filter, firstValueFrom, map, of, switchMap, timeout } from 'rxjs';
 
 import type { WorkspaceServerService } from '../../cloud';
 import type { CollectionService } from '../../collection';
@@ -36,9 +36,19 @@ export class FolderSortingStore extends Store {
     null
   );
 
+  private readonly localReady$ =
+    this.workspaceService.workspace.flavour === 'local'
+      ? LiveData.from(
+          this.workspaceService.workspace.engine.doc
+            .docState$('userdata$__local__$settings')
+            .pipe(map(state => state.loaded)),
+          false
+        )
+      : new LiveData(false);
+
   readonly ready$ = LiveData.computed(get => {
     if (this.workspaceService.workspace.flavour === 'local')
-      return get(get(this.dbService.userdataDB$).settings.isReady$);
+      return get(this.localReady$);
     const db = get(this.userDB$);
     return db
       ? (get(db.folderSortPreference.docSyncState$)?.loaded ?? false)
@@ -87,6 +97,32 @@ export class FolderSortingStore extends Store {
       if (table.get(key)) table.update(key, { mode });
       else table.create({ key, mode });
     }
+  }
+
+  async snapshotModes(nodeIds: string[]) {
+    await firstValueFrom(this.ready$.pipe(filter(Boolean), timeout(15000)));
+    const identity = this.identity();
+    const modes: { nodeId: string; mode: FolderSortMode }[] = [];
+    for (const nodeId of new Set(nodeIds)) {
+      const mode = await firstValueFrom(this.watchMode(nodeId));
+      if (mode) modes.push({ nodeId, mode });
+    }
+    if (identity !== this.identity())
+      throw new Error('Preference account changed');
+    return modes;
+  }
+
+  async inheritModes(modes: { nodeId: string; mode: FolderSortMode }[]) {
+    const identity = this.identity();
+    await firstValueFrom(this.ready$.pipe(filter(Boolean), timeout(15000)));
+    for (const { nodeId, mode } of modes) {
+      const current = await firstValueFrom(this.watchMode(nodeId));
+      if (identity !== this.identity())
+        throw new Error('Preference account changed');
+      // An explicit selection in the destination always wins over migration.
+      if (!current) this.setMode(nodeId, mode);
+    }
+    await this.userDB$.value?.engine.client.docFrontend.waitForUpdated();
   }
 
   identity() {

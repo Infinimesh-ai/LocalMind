@@ -41,7 +41,7 @@ export function patchQuickSearchService(framework: FrameworkProvider) {
             framework.createEntity(ExternalLinksQuickSearchSession),
             framework.createEntity(JournalsQuickSearchSession),
           ],
-          result => {
+          async result => {
             if (result === null) {
               resolve(null);
               return;
@@ -95,7 +95,7 @@ export function patchQuickSearchService(framework: FrameworkProvider) {
               const docsService = framework.get(DocsService);
               const mode =
                 result.id === 'creation:create-edgeless' ? 'edgeless' : 'page';
-              const newDoc = docsService.createDoc({
+              const newDoc = await docsService.createDocAsync({
                 primaryMode: mode,
                 title: result.payload.title,
               });

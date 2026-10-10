@@ -40,8 +40,8 @@ export const useNavigationPanelCollectionAddDoc = (
     workspaceService.workspace.docCollection
   );
   const { openConfirmModal } = useConfirmModal();
-  const createAndAddDocument = useCallback(() => {
-    const newDoc = createPage();
+  const createAndAddDocument = useCallback(async () => {
+    const newDoc = await createPage();
     collectionService.addDocToCollection(collectionId, newDoc.id);
     track.$.navigationPanel.collections.createDoc();
     track.$.navigationPanel.collections.addDocToCollection({

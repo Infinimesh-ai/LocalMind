@@ -2,11 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { mock } from 'node:test';
 
 import test from 'ava';
-import { applyUpdate, Doc as YDoc } from 'yjs';
+import { applyUpdate, Doc as YDoc, encodeStateAsUpdate } from 'yjs';
 
 import { createModule } from '../../../__tests__/create-module';
 import { Mockers } from '../../../__tests__/mocks';
+import { Mutex } from '../../../base';
 import { Models } from '../../../models';
+import { FeatureModule } from '../../features';
+import { parseDocToMarkdownFromDocSnapshot } from '../../utils/blocksuite';
 import {
   DocReader,
   DocStorageModule,
@@ -15,7 +18,7 @@ import {
 import { DatabaseDocReader } from '../reader';
 
 const module = await createModule({
-  imports: [DocStorageModule],
+  imports: [DocStorageModule, FeatureModule],
 });
 const docReader = module.get(DocReader);
 const adapter = module.get(PgWorkspaceDocStorageAdapter);
@@ -138,6 +141,44 @@ test('should return doc diff', async t => {
   t.truthy(diff3!.state);
   applyUpdate(doc2, diff3!.missing);
   t.is(doc2.getText('content').toString(), 'hello world!@');
+});
+
+test('concurrent readers bypass an active writer lock without compacting updates', async t => {
+  const workspace = await module.create(Mockers.Workspace, { owner: user });
+  const docId = randomUUID();
+  const doc = new YDoc();
+  doc.getText('content').insert(0, 'consistent read');
+  await models.doc.createUpdates([
+    {
+      spaceId: workspace.id,
+      docId,
+      blob: Buffer.from(encodeStateAsUpdate(doc)),
+      timestamp: Date.now(),
+      editorId: user.id,
+    },
+  ]);
+  doc.destroy();
+  const updateCount = (await models.doc.findUpdates(workspace.id, docId))
+    .length;
+  const read = mock.method(models.doc, 'readAuthoritative');
+  await using lock = await module
+    .get(Mutex)
+    .acquire(`doc:update:${workspace.id}:${docId}`);
+  t.truthy(lock);
+  const results = await Promise.all(
+    Array.from({ length: 12 }, () => docReader.getDocDiff(workspace.id, docId))
+  );
+  t.is(results.length, 12);
+  for (const result of results) {
+    t.truthy(result);
+    const replica = new YDoc();
+    applyUpdate(replica, result!.missing);
+    t.is(replica.getText('content').toString(), 'consistent read');
+    replica.destroy();
+  }
+  t.true(read.mock.calls.every(call => call.arguments[2] === false));
+  t.is((await models.doc.findUpdates(workspace.id, docId)).length, updateCount);
+  t.is(await models.doc.get(workspace.id, docId), null);
 });
 
 test('should get doc content', async t => {
@@ -277,6 +318,17 @@ test('should return doc markdown success', async t => {
     workspace.id,
     docSnapshot.id,
     false
+  );
+  const legacy = await adapter.getDoc(workspace.id, docSnapshot.id);
+  t.truthy(legacy);
+  t.deepEqual(
+    result,
+    parseDocToMarkdownFromDocSnapshot(
+      workspace.id,
+      docSnapshot.id,
+      legacy!.bin,
+      false
+    )
   );
   t.snapshot(result);
 });

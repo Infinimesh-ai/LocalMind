@@ -2,12 +2,18 @@ import {
   effect,
   fromPromise,
   LiveData,
-  onComplete,
-  onStart,
   Service,
   smartRetry,
 } from '@toeverything/infra';
-import { catchError, EMPTY, exhaustMap, groupBy, mergeMap, tap } from 'rxjs';
+import {
+  bufferTime,
+  catchError,
+  EMPTY,
+  filter,
+  finalize,
+  mergeMap,
+  tap,
+} from 'rxjs';
 
 import type { PublicUserStore } from '../stores/public-user';
 
@@ -74,41 +80,62 @@ export class PublicUserService extends Service {
     this.errors$.next(errors);
   }
 
+  private readonly loadedAt = new Map<string, number>();
   revalidate = effect(
-    groupBy((id: string) => id),
-    mergeMap(id$ =>
-      id$.pipe(
-        exhaustMap(id =>
-          fromPromise(async signal => {
-            const user = await this.store.getPublicUserById(id, signal);
-            if (!user) {
-              return {
-                id,
-                removed: true,
-              };
-            }
-            return {
-              id,
-              name: user.name,
-              avatar: user.avatarUrl,
-              avatarUrl: user.avatarUrl,
-            };
-          }).pipe(
-            smartRetry(),
-            catchError(error => {
-              console.error(error);
-              this.setError(id, error);
-              return EMPTY;
-            }),
-            tap(user => {
-              this.setPublicUser(id, user);
-              this.setError(id, null); // clear error
-            }),
-            onStart(() => this.setLoading(id, true)),
-            onComplete(() => this.setLoading(id, false))
-          )
-        )
-      )
+    bufferTime<string>(10),
+    filter((ids: string[]) => ids.length > 0),
+    mergeMap(ids => {
+      const pending = [...new Set(ids)].filter(
+        id =>
+          !this.isLoadings$.value.get(id) &&
+          Date.now() - (this.loadedAt.get(id) ?? 0) > 60000
+      );
+      const batches: string[][] = [];
+      for (let offset = 0; offset < pending.length; offset += 100) {
+        const batch = pending.slice(offset, offset + 100);
+        batch.forEach(id => {
+          this.setLoading(id, true);
+          this.setError(id, null);
+        });
+        batches.push(batch);
+      }
+      return batches;
+    }),
+    mergeMap(
+      ids =>
+        fromPromise(async signal => {
+          const users = await this.store.getPublicUsersByIds(ids, signal);
+          return ids.map(id => {
+            const user = users.find(user => user.id === id);
+            return user
+              ? {
+                  id,
+                  name: user.name,
+                  avatar: user.avatarUrl,
+                  avatarUrl: user.avatarUrl,
+                }
+              : { id, removed: true as const };
+          });
+        }).pipe(
+          smartRetry(),
+          tap(users =>
+            users.forEach(user => {
+              this.setPublicUser(user.id, user);
+              this.loadedAt.set(user.id, Date.now());
+            })
+          ),
+          catchError(error => {
+            ids.forEach(id => this.setError(id, error));
+            return EMPTY;
+          }),
+          finalize(() => ids.forEach(id => this.setLoading(id, false)))
+        ),
+      3
     )
   );
+
+  override dispose() {
+    this.revalidate.unsubscribe();
+    super.dispose();
+  }
 }

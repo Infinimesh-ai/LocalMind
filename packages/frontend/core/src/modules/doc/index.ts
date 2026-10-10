@@ -8,7 +8,9 @@ export { DocsService } from './services/docs';
 
 import type { Framework } from '@toeverything/infra';
 
+import { WorkspaceServerService } from '../cloud/services/workspace-server';
 import { WorkspaceDBService } from '../db/services/db';
+import { WorkspacePageTreeService } from '../organize/services/page-tree';
 import { WorkspaceScope } from '../workspace/scopes/workspace';
 import { WorkspaceService } from '../workspace/services/workspace';
 import { WorkspaceLifecycleService } from '../workspace-resources/lifecycle';
@@ -31,9 +33,15 @@ export function configureDocModule(framework: Framework) {
       DocsStore,
       DocPropertiesStore,
       [DocCreateMiddleware],
+      WorkspacePageTreeService,
+      WorkspaceService,
     ])
     .store(DocPropertiesStore, [WorkspaceService, WorkspaceDBService])
-    .store(DocsStore, [WorkspaceService, DocPropertiesStore])
+    .store(DocsStore, [
+      WorkspaceService,
+      DocPropertiesStore,
+      WorkspaceServerService,
+    ])
     .entity(DocRecord, [
       DocsStore,
       DocPropertiesStore,

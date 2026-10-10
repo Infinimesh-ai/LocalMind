@@ -5,6 +5,7 @@ import { OfficeCommentsPanel } from '@affine/core/components/office/comments';
 import { createOfficeResourceAdapter } from '@affine/core/components/office/resource-adapter';
 import { useOfficeResourceSession } from '@affine/core/components/office/resource-session';
 import { OfficeResourceSurface } from '@affine/core/components/office/resource-surface';
+import { PageTreeBreadcrumbs } from '@affine/core/components/page-tree/children';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import { NbstoreService } from '@affine/core/modules/storage';
 import {
@@ -108,6 +109,7 @@ function WorkspaceOffice({
     <>
       <ViewTitle title={artifact?.title ?? 'LocalMind Office'} />
       <ViewIcon icon="doc" />
+      <PageTreeBreadcrumbs kind="office" resourceId={artifactId} />
       <OfficeResourceSurface
         adapter={adapter}
         session={session}

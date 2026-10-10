@@ -7,10 +7,13 @@ import {
 } from '@blocksuite/affine-model';
 import { replaceIdMiddleware } from '@blocksuite/affine-shared/adapters';
 import { DocModeProvider } from '@blocksuite/affine-shared/services';
-import { getBlockProps } from '@blocksuite/affine-shared/utils';
-import type { EditorHost } from '@blocksuite/std';
+import {
+  createEditorDoc,
+  getBlockProps,
+} from '@blocksuite/affine-shared/utils';
+import type { BlockStdScope, EditorHost } from '@blocksuite/std';
 import { GfxBlockElementModel, type GfxModel } from '@blocksuite/std/gfx';
-import { type Store, Text } from '@blocksuite/store';
+import { Text } from '@blocksuite/store';
 
 import {
   getElementProps,
@@ -18,12 +21,12 @@ import {
   sortEdgelessElements,
 } from '../../../edgeless/utils/clone-utils.js';
 
-export function createLinkedDocFromNote(
-  doc: Store,
+export async function createLinkedDocFromNote(
+  std: BlockStdScope,
   note: NoteBlockModel,
   docTitle?: string
 ) {
-  const _doc = doc.workspace.createDoc();
+  const doc = std.store;
   const transformer = doc.getTransformer([
     replaceIdMiddleware(doc.workspace.idGenerator),
   ]);
@@ -33,29 +36,24 @@ export function createLinkedDocFromNote(
     return;
   }
   blockSnapshot.props.displayMode = NoteDisplayMode.DocAndEdgeless;
-  const linkedDoc = _doc.getStore({ id: doc.id });
-  linkedDoc.load(() => {
-    const rootId = linkedDoc.addBlock('affine:page', {
-      title: new Text(docTitle),
-    });
-    linkedDoc.addBlock('affine:surface', {}, rootId);
-    transformer
-      .snapshotToBlock(blockSnapshot, linkedDoc, rootId)
-      .catch(console.error);
+  const linkedDoc = await createEditorDoc(std);
+  const rootId = linkedDoc.addBlock('affine:page', {
+    title: new Text(docTitle),
   });
+  linkedDoc.addBlock('affine:surface', {}, rootId);
+  await std.clipboard.pasteBlockSnapshot(blockSnapshot, linkedDoc, rootId);
 
   return linkedDoc;
 }
 
-export function createLinkedDocFromEdgelessElements(
+export async function createLinkedDocFromEdgelessElements(
   host: EditorHost,
   elements: GfxModel[],
   docTitle?: string
 ) {
-  const _doc = host.store.workspace.createDoc();
   const transformer = host.store.getTransformer();
-  const linkedDoc = _doc.getStore();
-  linkedDoc.load(() => {
+  const linkedDoc = await createEditorDoc(host.std);
+  {
     const rootId = linkedDoc.addBlock('affine:page', {
       title: new Text(docTitle),
     });
@@ -65,16 +63,18 @@ export function createLinkedDocFromEdgelessElements(
 
     const sortedElements = sortEdgelessElements(elements);
     const ids = new Map<string, string>();
-    sortedElements.forEach(model => {
+    for (const model of sortedElements) {
       let newId = model.id;
       if (model instanceof GfxBlockElementModel) {
         const blockProps = getBlockProps(model);
         if (isNoteBlock(model)) {
           const blockSnapshot = transformer.blockToSnapshot(model);
           if (blockSnapshot) {
-            transformer
-              .snapshotToBlock(blockSnapshot, linkedDoc, rootId)
-              .catch(console.error);
+            await host.std.clipboard.pasteBlockSnapshot(
+              blockSnapshot,
+              linkedDoc,
+              rootId
+            );
           }
         } else {
           if (isFrameBlock(model)) {
@@ -88,8 +88,8 @@ export function createLinkedDocFromEdgelessElements(
         newId = surface.addElement(props);
       }
       ids.set(model.id, newId);
-    });
-  });
+    }
+  }
 
   host.std.get(DocModeProvider).setPrimaryMode('edgeless', linkedDoc.id);
   return linkedDoc;

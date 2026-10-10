@@ -1,7 +1,8 @@
 import type { Framework } from '@toeverything/infra';
 
+import { DocsService } from '../doc';
 import { ExplorerIconService } from '../explorer-icon/services/explorer-icon';
-import { OrganizeService } from '../organize';
+import { OrganizeService, WorkspacePageTreeService } from '../organize';
 import { TagService } from '../tag';
 import { WorkspaceScope, WorkspaceService } from '../workspace';
 import { ImportService } from './services/service';
@@ -26,5 +27,7 @@ export function configureImportModule(framework: Framework) {
       OrganizeService,
       ExplorerIconService,
       TagService,
+      DocsService,
+      WorkspacePageTreeService,
     ]);
 }

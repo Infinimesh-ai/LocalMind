@@ -58,6 +58,9 @@ export const createDocExplorerContext = (
     selectedDocIds$: new LiveData<string[]>([]),
     prevCheckAnchorId$: new LiveData<string | null>(null),
     displayPreference$: displayPreference$,
+    resourceProperties$: displayPreference$.selector(
+      preference => preference.resourceProperties
+    ),
     showDragHandle$: displayPreference$.selector(
       displayPreference => displayPreference.showDragHandle
     ),

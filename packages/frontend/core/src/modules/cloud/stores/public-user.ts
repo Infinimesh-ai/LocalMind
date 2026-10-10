@@ -1,4 +1,7 @@
-import { getPublicUserByIdQuery } from '@affine/graphql';
+import {
+  getPublicUserByIdQuery,
+  getPublicUsersByIdsQuery,
+} from '@affine/graphql';
 import { Store } from '@toeverything/infra';
 
 import type { GraphQLService } from '../services/graphql';
@@ -6,6 +9,16 @@ import type { GraphQLService } from '../services/graphql';
 export class PublicUserStore extends Store {
   constructor(private readonly gqlService: GraphQLService) {
     super();
+  }
+
+  async getPublicUsersByIds(ids: string[], signal?: AbortSignal) {
+    return (
+      await this.gqlService.gql({
+        query: getPublicUsersByIdsQuery,
+        variables: { ids },
+        context: { signal },
+      })
+    ).publicUsersByIds;
   }
 
   async getPublicUserById(id: string, signal?: AbortSignal) {

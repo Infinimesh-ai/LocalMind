@@ -1,3 +1,4 @@
+import { PageTreeLifecycleDialog } from '@affine/core/components/page-tree/lifecycle-dialog';
 import {
   type DialogComponentProps,
   type GLOBAL_DIALOG_SCHEMA,
@@ -40,6 +41,7 @@ const GLOBAL_DIALOGS = {
 };
 
 const WORKSPACE_DIALOGS = {
+  'page-tree-lifecycle': PageTreeLifecycleDialog,
   'doc-info': DocInfoDialog,
   'collection-editor': CollectionEditorDialog,
   'tag-selector': TagSelectorDialog,

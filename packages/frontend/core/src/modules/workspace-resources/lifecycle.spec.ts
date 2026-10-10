@@ -7,7 +7,10 @@ import { WorkspaceLifecycleService } from './lifecycle';
 const services: WorkspaceLifecycleService[] = [];
 afterEach(() => services.splice(0).forEach(service => service.dispose()));
 
-function setup(flavour = 'affine-cloud') {
+function setup(
+  flavour = 'affine-cloud',
+  tree = { enabled$: new LiveData(false) }
+) {
   const account$ = new LiveData<unknown>({ id: 'actor' });
   const gql = vi.fn();
   const requestPull = vi.fn().mockResolvedValue(undefined);
@@ -26,7 +29,8 @@ function setup(flavour = 'affine-cloud') {
           },
         } as never,
         { server, server$: new LiveData(server) } as never,
-        { invalidate } as never
+        { invalidate } as never,
+        tree as never
       )
   );
   const service = framework.provider().get(WorkspaceLifecycleService);
@@ -141,4 +145,14 @@ test('local workspaces keep their offline lifecycle path', async () => {
   expect(local).toHaveBeenCalledOnce();
   expect(gql).not.toHaveBeenCalled();
   expect(requestPull).not.toHaveBeenCalled();
+});
+
+test('cancelling a subtree confirmation reports no success or lifecycle change', async () => {
+  const { service } = setup('affine-cloud', {
+    enabled$: new LiveData(true),
+    locate: async () => ({ parent: { nodeId: 'node' } }),
+    confirmLifecycle: async () => false,
+  } as never);
+  expect(await service.change('doc', 'resource', 'trash')).toBe(false);
+  expect(service.changes$.value).toBe(0);
 });

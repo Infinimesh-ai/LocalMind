@@ -70,6 +70,7 @@ export function configureWorkspaceModule(framework: Framework) {
     .service(WorkspaceTransformService, [
       WorkspaceFactoryService,
       WorkspaceDestroyService,
+      WorkspaceRepositoryService,
     ])
     .service(WorkspaceRepositoryService, [
       WorkspaceFlavoursService,

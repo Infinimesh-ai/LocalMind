@@ -18,6 +18,12 @@ export type ToolCapabilitySnapshot = {
 };
 
 const WORKSPACE_WRITE_TOOLS = new Set([
+  'workspace_page_tree_create',
+  'workspace_container_convert',
+  'workspace_page_tree_resource_rename',
+  'workspace_page_tree_file_create',
+  'workspace_page_tree_move',
+  'workspace_page_tree_lifecycle',
   'workspace_doc_create',
   'workspace_file_create',
   'workspace_file_update',

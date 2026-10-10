@@ -5,6 +5,7 @@ import {
   Modal,
   useConfirmModal,
 } from '@affine/component';
+import { Menu, MenuItem, MenuTrigger } from '@affine/component/ui/menu';
 import {
   createDocExplorerContext,
   DocExplorerContext,
@@ -16,9 +17,13 @@ import {
   QuickRestore,
 } from '@affine/core/components/explorer/docs-view/quick-actions';
 import { GraphQLService } from '@affine/core/modules/cloud';
+import type { FilterParams } from '@affine/core/modules/collection-rules';
 import { DocsService } from '@affine/core/modules/doc';
+import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
 import { DocsSearchService } from '@affine/core/modules/docs-search';
+import { WorkspacePageTreeService } from '@affine/core/modules/organize';
 import { GuardService } from '@affine/core/modules/permissions';
+import { TagService } from '@affine/core/modules/tag';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import type { NativeResource } from '@affine/core/modules/workspace-resources';
@@ -28,11 +33,23 @@ import { useWorkspaceResources } from '@affine/core/modules/workspace-resources/
 import { UserFriendlyError } from '@affine/error';
 import {
   changeWorkspaceNativeResourceMutation,
+  resourceDate,
+  workspaceDocumentTypes,
+  workspaceResourceIdentity,
   type WorkspaceTrashedFoldersQuery,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import { PageIcon } from '@blocksuite/icons/rc';
 import {
+  AllDocsIcon,
+  AttachmentIcon,
+  ExportToPdfIcon,
+  FileIcon,
+  FilterIcon,
+  PageIcon,
+  TextIcon,
+} from '@blocksuite/icons/rc';
+import {
+  LiveData,
   useLiveData,
   useService,
   useServiceOptional,
@@ -47,23 +64,46 @@ import {
   useState,
 } from 'react';
 
+import { PlainTextDocGroupHeader } from '../explorer/docs-view/group-header';
+import { resourceSortFields } from '../explorer/resource-preferences';
 import { WorkspaceCreateMenu } from './create-menu';
 import { LifecycleActions } from './lifecycle-actions';
 import { dragNativeResource, NativeResourceDropTarget } from './resource-drag';
 import * as styles from './resource-explorer.css';
+import {
+  groupWorkspaceResources,
+  matchesResourceTags,
+  type ResourceDisplayRecord,
+} from './resource-groups';
+import { ResourceActor, ResourceMetadata } from './resource-metadata';
+import {
+  MixedDocRow,
+  NativeTags,
+  ResourceRowShell,
+  ResourceTypeIcon,
+} from './resource-rows';
 import { WorkspaceNativeActions } from './workspace-actions';
+
+const EMPTY_FILTERS: FilterParams[] = [];
+const resourceTypes = [
+  { value: 'all', Icon: AllDocsIcon },
+  { value: 'doc', Icon: PageIcon },
+  { value: 'office', Icon: FileIcon },
+  { value: 'pdf', Icon: ExportToPdfIcon },
+  { value: 'text', Icon: TextIcon },
+  { value: 'other', Icon: AttachmentIcon },
+] as const;
+type ResourceType = (typeof resourceTypes)[number]['value'];
 
 export const nativeKey = (
   item: Pick<NativeResource, 'id' | 'kind' | 'workspaceId'>
 ) => `native:${item.workspaceId}:${item.kind}:${item.id}`;
-export const nativeCategory = (
-  item: Pick<NativeResource, 'kind' | 'fileName'>
-) =>
-  /\.pdf$/i.test(item.fileName)
+export const nativeCategory = (item: Pick<NativeResource, 'documentType'>) =>
+  item.documentType === 'pdf'
     ? 'pdf'
-    : item.kind === 'office'
+    : ['docx', 'xlsx', 'pptx'].includes(item.documentType)
       ? 'office'
-      : /\.(txt|md|csv|json)$/i.test(item.fileName)
+      : ['txt', 'markdown', 'csv', 'json'].includes(item.documentType)
         ? 'text'
         : 'other';
 function dateKey(value: string) {
@@ -71,7 +111,7 @@ function dateKey(value: string) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function NativeRow({
+export function NativeRow({
   resource,
   trash,
 }: {
@@ -81,9 +121,62 @@ function NativeRow({
   const context = useContext(DocExplorerContext);
   const selected = useLiveData(context.selectedDocIds$);
   const view = useLiveData(context.view$);
+  const preference = useLiveData(context.displayPreference$);
   const workbench = useService(WorkbenchService).workbench;
   const t = useI18n();
   const id = nativeKey(resource);
+  if (!trash && preference.resourceProperties)
+    return (
+      <div
+        style={{ height: '100%' }}
+        draggable={resource.canMove === true}
+        onDragStart={event =>
+          dragNativeResource(event, {
+            workspaceId: resource.workspaceId,
+            resourceId: resource.id,
+            kind: resource.kind,
+          })
+        }
+      >
+        <ResourceRowShell
+          id={id}
+          title={resource.fileName}
+          icon={<ResourceTypeIcon type={resource.documentType} />}
+          onOpen={() =>
+            resource.kind === 'office'
+              ? workbench.openOffice(resource.id)
+              : workbench.openNativeFile(resource.id)
+          }
+          actions={
+            preference.showMoreOperation ? (
+              <WorkspaceNativeActions
+                compact
+                workspaceId={resource.workspaceId}
+                resourceId={resource.id}
+                kind={resource.kind}
+                title={resource.fileName}
+                trashed={false}
+                capabilities={resource}
+                onChanged={() => {}}
+              />
+            ) : null
+          }
+        >
+          <ResourceMetadata
+            properties={preference.resourceProperties}
+            tags={resource.tags}
+            tagEditor={<NativeTags resource={resource} />}
+            createdAt={resourceDate(resource.createdAt)}
+            createdBy={resource.createdBy}
+            updatedAt={resourceDate(resource.lastUpdatedAt)}
+            updatedBy={resource.lastUpdatedBy}
+            updateActor={resource.lastUpdateActor}
+            documentType={resource.documentType}
+            mimeType={resource.mimeType}
+          />
+        </ResourceRowShell>
+      </div>
+    );
   return (
     <div
       className={view === 'list' ? styles.row : styles.card}
@@ -224,14 +317,19 @@ function TrashedDocRow({ id }: { id: string }) {
 
 export function WorkspaceResourceExplorer({
   trash = false,
+  filters = EMPTY_FILTERS,
 }: {
   trash?: boolean;
+  filters?: FilterParams[];
 }) {
   const source = useContext(DocExplorerContext);
   const docGroups = useLiveData(source.groups$);
   const preference = useLiveData(source.displayPreference$);
   const docs = useService(DocsService).list;
+  const displayMeta = useService(DocDisplayMetaService);
+  const resourceDisplay = !!preference.resourceProperties;
   const docsSearch = useService(DocsSearchService);
+  const docsAvailable = useLiveData(docs.isAvailable$);
   const [matchingDocs, setMatchingDocs] = useState(new Set<string>());
   const [droppedFiles, setDroppedFiles] = useState<File[]>();
   const guard = useService(GuardService);
@@ -240,13 +338,61 @@ export function WorkspaceResourceExplorer({
   const workspaceId = workspace.id;
   const removeLocalDoc = (id: string) => workspace.docCollection.removeDoc(id);
   const lifecycle = useService(WorkspaceLifecycleService);
+  const pageTree = useService(WorkspacePageTreeService);
   const catalog = useWorkspaceResources(trash);
   const t = useI18n();
+  const untitled = t['Untitled']();
   const [context] = useState(() => createDocExplorerContext(preference));
   const selected = useLiveData(context.selectedDocIds$);
   const visibleGroups = useLiveData(context.groups$);
   const [search, setSearch] = useState('');
-  const [type, setType] = useState('all');
+  const [type, setType] = useState<
+    ResourceType | (typeof workspaceDocumentTypes)[number]
+  >('all');
+  const [tagFilter, setTagFilter] = useState<string>('');
+  const tags = useLiveData(useService(TagService).tagList.tagMetas$);
+  const docMetadata = useLiveData(
+    useMemo(
+      () =>
+        LiveData.computed(get =>
+          resourceDisplay
+            ? get(docs.docs$).map(doc => ({
+                id: doc.id,
+                meta: get(doc.meta$),
+                title: get(displayMeta.title$(doc.id)),
+                createdBy: get(doc.createdBy$),
+                event: get(doc.displayUpdate$),
+                mode: get(doc.primaryMode$),
+              }))
+            : []
+        ),
+      [docs, displayMeta, resourceDisplay]
+    )
+  );
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(800);
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setAvailableWidth(entry.contentRect.width)
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const visiblePropertyCount = Object.values(
+    preference.resourceProperties ?? {}
+  ).filter(Boolean).length;
+  const columns = Math.max(1, Math.floor((availableWidth - 72) / 156));
+  const itemHeight =
+    preference.view === 'list'
+      ? 56 +
+        Math.ceil(visiblePropertyCount / columns) * 54 +
+        (preference.showDocPreview ? 40 : 0)
+      : 64 + visiblePropertyCount * 54 + (preference.showDocPreview ? 40 : 0);
+  useEffect(() => {
+    if (resourceDisplay) catalog.service.invalidate();
+  }, [tags, catalog.service, resourceDisplay]);
   const [folders, setFolders] = useState<
     WorkspaceTrashedFoldersQuery['workspaceTrashedFolders']
   >([]);
@@ -290,10 +436,8 @@ export function WorkspaceResourceExplorer({
   const nativeItems = useMemo(
     () =>
       queryItems
-        ? queryItems.filter(item =>
-            catalog.items.some(
-              current => nativeKey(current) === nativeKey(item)
-            )
+        ? catalog.items.filter(item =>
+            queryItems.some(match => nativeKey(match) === nativeKey(item))
           )
         : catalog.items,
     [queryItems, catalog.items]
@@ -353,6 +497,85 @@ export function WorkspaceResourceExplorer({
   }, [catalog.items, catalog.service, search, trash]);
   useEffect(() => {
     const query = search.toLocaleLowerCase();
+    if (!trash && preference.resourceProperties) {
+      if (
+        !docsAvailable ||
+        !catalog.ready ||
+        catalog.error ||
+        queryError ||
+        queryLoading
+      ) {
+        context.groups$.next([]);
+        return;
+      }
+      const allowedDocs = new Set(docGroups.flatMap(group => group.items));
+      const nativeIds = new Set(catalog.items.map(item => item.id));
+      const knownTags = new Set(tags.map(tag => tag.id));
+      const rows: ResourceDisplayRecord[] = [];
+      for (const doc of docMetadata) {
+        if (!allowedDocs.has(doc.id) || nativeIds.has(doc.id)) continue;
+        const title = doc.title || untitled;
+        const documentType = doc.mode === 'edgeless' ? 'edgeless' : 'page';
+        const tagIds = (doc.meta.tags ?? []).filter(id => knownTags.has(id));
+        if (
+          (type !== 'all' && type !== documentType) ||
+          (tagFilter && !tagIds.includes(tagFilter)) ||
+          !matchesResourceTags(tagIds, filters) ||
+          (query &&
+            !title.toLocaleLowerCase().includes(query) &&
+            !matchingDocs.has(doc.id))
+        )
+          continue;
+        rows.push({
+          id: doc.id,
+          identity: workspaceResourceIdentity(workspaceId, 'doc', doc.id),
+          title,
+          documentType,
+          createdBy: doc.createdBy ?? null,
+          createdAt: resourceDate(doc.meta.createDate),
+          updatedAt: doc.event?.at ?? resourceDate(doc.meta.updatedDate),
+          tagIds,
+        });
+      }
+      for (const item of nativeItems) {
+        const tagIds = item.tags
+          .map(tag => tag.id)
+          .filter(id => knownTags.has(id));
+        if (
+          (type !== 'all' && type !== item.documentType) ||
+          (tagFilter && !tagIds.includes(tagFilter)) ||
+          !matchesResourceTags(tagIds, filters) ||
+          (query && queryItems === null)
+        )
+          continue;
+        rows.push({
+          id: nativeKey(item),
+          identity: workspaceResourceIdentity(workspaceId, item.kind, item.id),
+          title: item.fileName,
+          documentType: item.documentType,
+          createdBy: item.createdBy,
+          createdAt: resourceDate(item.createdAt),
+          updatedAt: resourceDate(item.lastUpdatedAt),
+          tagIds,
+        });
+      }
+      const order = resourceSortFields.find(
+        key => key === preference.orderBy?.key
+      );
+      if (!order) {
+        context.groups$.next([]);
+        return;
+      }
+      context.groups$.next(
+        groupWorkspaceResources(
+          rows,
+          order,
+          preference.orderBy?.desc ?? true,
+          preference.groupBy?.key
+        )
+      );
+      return;
+    }
     const nativeIds = new Set(catalog.items.map(item => item.id));
     const groups = new Map<string, string[]>();
     for (const group of docGroups)
@@ -440,6 +663,18 @@ export function WorkspaceResourceExplorer({
     byKey,
     folderMap,
     matchingDocs,
+    docMetadata,
+    docsAvailable,
+    tags,
+    tagFilter,
+    filters,
+    trash,
+    catalog.ready,
+    catalog.error,
+    queryError,
+    queryLoading,
+    workspaceId,
+    untitled,
   ]);
   useEffect(() => {
     let current = true;
@@ -497,6 +732,15 @@ export function WorkspaceResourceExplorer({
                     ? native.canRestore
                     : native.canDeletePermanently;
               if (!allowed || !graphql) throw new Error('Unavailable');
+              if (pageTree.enabled$.value) {
+                const location = await pageTree.locate(native.kind, native.id);
+                if (!location.parent) throw new Error('Unavailable');
+                await pageTree.execute({
+                  action,
+                  nodeId: location.parent.nodeId,
+                });
+                return;
+              }
               const requestId = `${action}:${id}`;
               const request = requests.current.get(requestId) ?? {
                 key: nanoid(),
@@ -640,11 +884,13 @@ export function WorkspaceResourceExplorer({
         <NativeRow resource={item} trash={trash} />
       ) : trash ? (
         <TrashedDocRow id={id} />
+      ) : preference.resourceProperties ? (
+        <MixedDocRow id={id} />
       ) : (
         <DocListItem docId={id} groupId={groupId} />
       );
     },
-    [byKey, trash, folderMap, selected, context]
+    [byKey, trash, folderMap, selected, context, preference.resourceProperties]
   );
   return (
     <DocExplorerContext.Provider value={context}>
@@ -669,6 +915,7 @@ export function WorkspaceResourceExplorer({
         </Modal>
         <div
           className={styles.root}
+          ref={containerRef}
           onDragOver={event => {
             if (!trash && event.dataTransfer.types.includes('Files')) {
               event.preventDefault();
@@ -698,18 +945,83 @@ export function WorkspaceResourceExplorer({
               placeholder={t['com.affine.localmind.native-files.search']()}
               aria-label={t['com.affine.localmind.native-files.search']()}
             />
-            <select
-              className={styles.select}
-              value={type}
-              aria-label={t['com.affine.localmind.resources.type']()}
-              onChange={event => setType(event.target.value)}
-            >
-              {['all', 'doc', 'office', 'pdf', 'text', 'other'].map(value => (
-                <option key={value} value={value}>
-                  {t[`com.affine.localmind.resources.type.${value}`]()}
-                </option>
+            <Menu
+              contentOptions={{
+                className: styles.typeMenu,
+                align: 'start',
+                collisionPadding: 16,
+                'aria-label': t['com.affine.localmind.resources.type'](),
+              }}
+              items={(preference.resourceProperties && !trash
+                ? [
+                    { value: 'all' as const, Icon: AllDocsIcon },
+                    ...workspaceDocumentTypes.map(value => ({
+                      value,
+                      Icon: () => <ResourceTypeIcon type={value} />,
+                    })),
+                  ]
+                : resourceTypes
+              ).map(({ value, Icon }) => (
+                <MenuItem
+                  key={value}
+                  className={styles.typeMenuItem}
+                  prefixIcon={<Icon />}
+                  selected={type === value}
+                  role="menuitemradio"
+                  aria-checked={type === value}
+                  onSelect={() => setType(value)}
+                >
+                  {value === 'all' || trash
+                    ? t[`com.affine.localmind.resources.type.${value}`]()
+                    : t[
+                        `com.affine.localmind.resource-display.type.${value}`
+                      ]()}
+                </MenuItem>
               ))}
-            </select>
+            >
+              <MenuTrigger
+                type="button"
+                className={styles.typeFilter}
+                prefix={<FilterIcon />}
+                aria-label={`${t['com.affine.localmind.resources.type']()}: ${type === 'all' || trash ? t[`com.affine.localmind.resources.type.${type}`]() : t[`com.affine.localmind.resource-display.type.${type}`]()}`}
+              >
+                {type === 'all' || trash
+                  ? t[`com.affine.localmind.resources.type.${type}`]()
+                  : t[`com.affine.localmind.resource-display.type.${type}`]()}
+              </MenuTrigger>
+            </Menu>
+            {!trash && preference.resourceProperties && (
+              <Menu
+                items={
+                  <>
+                    <MenuItem
+                      role="menuitemradio"
+                      aria-checked={!tagFilter}
+                      selected={!tagFilter}
+                      onSelect={() => setTagFilter('')}
+                    >
+                      {t['com.affine.localmind.resource-display.allTags']()}
+                    </MenuItem>
+                    {tags.map(tag => (
+                      <MenuItem
+                        key={tag.id}
+                        role="menuitemradio"
+                        selected={tagFilter === tag.id}
+                        aria-checked={tagFilter === tag.id}
+                        onSelect={() => setTagFilter(tag.id)}
+                      >
+                        {tag.name}
+                      </MenuItem>
+                    ))}
+                  </>
+                }
+              >
+                <Button>
+                  {tags.find(tag => tag.id === tagFilter)?.name ??
+                    t['com.affine.localmind.resource-display.allTags']()}
+                </Button>
+              </Menu>
+            )}
             {(catalog.loading || queryLoading) && (
               <span role="status">{t['Loading']()}</span>
             )}
@@ -737,7 +1049,10 @@ export function WorkspaceResourceExplorer({
           <div className={styles.results}>
             {!visibleGroups.some(group => group.items.length) ? (
               <div className={styles.toolbar} role="status">
-                {catalog.loading || queryLoading || !catalog.ready
+                {catalog.loading ||
+                queryLoading ||
+                !catalog.ready ||
+                (!!preference.resourceProperties && !docsAvailable)
                   ? t['Loading']()
                   : catalog.error || queryError || folderError
                     ? ''
@@ -746,6 +1061,40 @@ export function WorkspaceResourceExplorer({
             ) : (
               <DocsExplorer
                 renderItem={renderItem}
+                resourceItemHeight={
+                  !trash && preference.resourceProperties
+                    ? itemHeight
+                    : undefined
+                }
+                renderGroupHeader={
+                  !trash && preference.resourceProperties
+                    ? (key, count) => (
+                        <PlainTextDocGroupHeader groupId={key} docCount={count}>
+                          {preference.groupBy?.key === 'createdBy' ? (
+                            key ? (
+                              <ResourceActor id={key} />
+                            ) : (
+                              t[
+                                'com.affine.localmind.resource-display.unknownCreator'
+                              ]()
+                            )
+                          ) : preference.groupBy?.key === 'tags' ? (
+                            (tags.find(tag => tag.id === key)?.name ??
+                            t['com.affine.localmind.resource-display.noTags']())
+                          ) : preference.groupBy?.key === 'documentType' ? (
+                            t[
+                              `com.affine.localmind.resource-display.type.${key}`
+                            ]()
+                          ) : (
+                            key ||
+                            t[
+                              'com.affine.localmind.resource-display.unknownDate'
+                            ]()
+                          )}
+                        </PlainTextDocGroupHeader>
+                      )
+                    : undefined
+                }
                 toolbar={
                   selected.length > 0 ? (
                     <div className={styles.toolbar}>

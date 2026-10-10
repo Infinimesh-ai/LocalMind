@@ -31,13 +31,14 @@ export class ImportClipperService extends Service {
         metadata: workspaceMetadata,
       });
     await workspace.engine.doc.waitForDocReady(workspace.id); // wait for root doc ready
+    const docsService = workspace.scope.get(DocsService);
     const docId = await MarkdownTransformer.importMarkdownToDoc({
       collection: workspace.docCollection,
+      docCRUD: docsService.importDocCRUD(),
       schema: getAFFiNEWorkspaceSchema(),
       markdown: clipperInput.contentMarkdown,
       extensions: getStoreManager().config.init().value.get('store'),
     });
-    const docsService = workspace.scope.get(DocsService);
     if (docId) {
       // only support page mode for now
       await docsService.changeDocTitle(docId, clipperInput.title);

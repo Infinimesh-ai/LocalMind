@@ -168,7 +168,7 @@ const MoveToTrash = ({ docId }: DocOperationProps) => {
         variant: 'error',
       },
       onConfirm: async () => {
-        await doc.moveToTrash();
+        if ((await doc.moveToTrash()) === false) return;
       },
     });
   }, [doc, openConfirmModal, t]);

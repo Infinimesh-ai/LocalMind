@@ -74,6 +74,8 @@ export class WorkspaceDirectoryGrantModel extends BaseModel {
 
   @Transactional()
   async withMutationLock<T>(workspaceId: string, operation: () => Promise<T>) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
     await this.lock(workspaceId);
     return await operation();
   }

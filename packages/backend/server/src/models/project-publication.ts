@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  WORKSPACE_PAGE_TREE_CONTRACT,
+  WORKSPACE_PAGE_TREE_V1_CONTRACT,
+} from '@affine/graphql';
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma, type ProjectPublication } from '@prisma/client';
@@ -16,6 +20,28 @@ import { type ProjectActor, projectResourceHash } from './project-resource';
 export const PROJECT_PUBLICATION_WORKFLOW = 'agent_runtime_project_publication';
 export const publicationTargetSchema = z
   .object({
+    pageTree: z
+      .discriminatedUnion('contractVersion', [
+        z
+          .object({
+            contractVersion: z.literal(WORKSPACE_PAGE_TREE_CONTRACT),
+            parentNodeId: z.string().min(1).max(512).nullable(),
+            parentKind: z.enum(['root', 'folder', 'doc']),
+            revision: z.number().int().nonnegative(),
+            authorizationRevision: z.string().length(64),
+          })
+          .strict(),
+        // Historical v3 targets remain readable. The execution service rejects them on v2.
+        z
+          .object({
+            contractVersion: z.literal(WORKSPACE_PAGE_TREE_V1_CONTRACT),
+            parentNodeId: z.string().min(1).max(512).nullable(),
+            revision: z.number().int().nonnegative(),
+            authorizationRevision: z.string().length(64),
+          })
+          .strict(),
+      ])
+      .optional(),
     targetKind: z.enum(['legacy', 'workspace_file']).optional(),
     workspaceId: z.string().min(1).max(256),
     folderId: z.string().min(1).max(256).nullable(),

@@ -1,5 +1,6 @@
 import { MenuItem, SafeArea, toast, usePromptModal } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { NavigationPanelTreeRoot } from '@affine/core/desktop/components/navigation-panel';
 import { CollectionService } from '@affine/core/modules/collection';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
@@ -367,11 +368,11 @@ const useFolderNewDoc = (folderId: string, onCreated?: () => void) => {
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
-  return useCallback(async () => {
+  return useAsyncCallback(async () => {
     try {
       const folder = organizeService.folderTree.folderNode$(folderId).value;
       if (!folder) return;
-      const doc = createPage();
+      const doc = await createPage();
       await folder.createLink('doc', doc.id, folder.indexAt('before'));
       track.$.navigationPanel.folders.createDoc();
       track.$.navigationPanel.organize.createOrganizeItem({
@@ -413,7 +414,7 @@ const FolderRow = ({
               <MenuItem
                 prefixIcon={<PageIcon />}
                 onClick={() => {
-                  handleNewDoc().catch(console.error);
+                  handleNewDoc();
                 }}
               >
                 {t['com.affine.rootAppSidebar.organize.folder.new-doc']()}
@@ -471,7 +472,7 @@ const FolderNewDocAction = ({ row }: { row: MobileNavigationRow }) => {
       <AddItemPlaceholder
         label={t['com.affine.rootAppSidebar.organize.folder.new-doc']()}
         onClick={(...args) => {
-          handleCreate(...args).catch(console.error);
+          handleCreate(...args);
         }}
         data-testid="new-folder-in-folder-button"
       />
@@ -613,8 +614,8 @@ const FavoritesAction = () => {
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
-  const handleCreate = useCallback(() => {
-    const doc = createPage();
+  const handleCreate = useAsyncCallback(async () => {
+    const doc = await createPage();
     favoriteService.favoriteList.add(
       'doc',
       doc.id,
@@ -635,12 +636,11 @@ const OrganizeAction = () => {
   const organizeService = useService(OrganizeService);
   const [open, setOpen] = useState(false);
   const root = organizeService.folderTree.rootFolder;
-  const handleCreate = useCallback(
+  const handleCreate = useAsyncCallback(
     async (name: string) => {
       try {
-        const id = await root.createFolder(name, root.indexAt('before'));
+        await root.createFolder(name, root.indexAt('before'));
         track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
-        return id;
       } catch (error) {
         toast(
           error instanceof Error ? error.message : 'Directory operation failed'
@@ -661,9 +661,7 @@ const OrganizeAction = () => {
       <FolderRenameDialog
         open={open}
         onOpenChange={setOpen}
-        onConfirm={(...args) => {
-          handleCreate(...args).catch(console.error);
-        }}
+        onConfirm={handleCreate}
         descRenderer={FolderCreateTip}
       />
     </>

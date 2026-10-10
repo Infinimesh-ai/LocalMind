@@ -1,3 +1,5 @@
+import * as Y from 'yjs';
+
 import {
   parsePageDocFromBinary,
   parseWorkspaceDocFromBinary,
@@ -5,6 +7,32 @@ import {
   parseYDocToMarkdown,
   readAllDocIdsFromRootDoc,
 } from '../../native';
+
+/** Read-only adapter for the native reader. A subpage entry exposes a reference
+ * to its ID, never ownership or the target content. Canonical bytes stay intact. */
+function referenceSnapshot(snapshot: Uint8Array) {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, snapshot);
+    let changed = false;
+    for (const block of doc.getMap<Y.Map<unknown>>('blocks').values()) {
+      if (
+        !(block instanceof Y.Map) ||
+        block.get('sys:flavour') !== 'localmind:subpage'
+      )
+        continue;
+      const resourceId = block.get('prop:resourceId');
+      if (block.get('prop:kind') !== 'doc' || typeof resourceId !== 'string')
+        continue;
+      block.set('sys:flavour', 'affine:embed-linked-doc');
+      block.set('prop:pageId', resourceId);
+      changed = true;
+    }
+    return changed ? Y.encodeStateAsUpdate(doc) : snapshot;
+  } finally {
+    doc.destroy();
+  }
+}
 
 export interface PageDocContent {
   title: string;
@@ -39,7 +67,7 @@ export function parsePageDoc(
 ): PageDocContent | null {
   return (
     parsePageDocFromBinary(
-      Buffer.from(docSnapshot),
+      Buffer.from(referenceSnapshot(docSnapshot)),
       opts?.maxSummaryLength ?? 150
     ) ?? null
   );
@@ -64,7 +92,10 @@ export async function readAllBlocksFromDocSnapshot(
   docId: string,
   docSnapshot: Uint8Array
 ) {
-  const result = parseYDocFromBinary(Buffer.from(docSnapshot), docId);
+  const result = parseYDocFromBinary(
+    Buffer.from(referenceSnapshot(docSnapshot)),
+    docId
+  );
 
   return {
     ...result,
@@ -87,7 +118,7 @@ export function parseDocToMarkdownFromDocSnapshot(
 ): DocMarkdownContent {
   const docUrlPrefix = workspaceId ? `/workspace/${workspaceId}` : undefined;
   const parsed = parseYDocToMarkdown(
-    Buffer.from(docSnapshot),
+    Buffer.from(referenceSnapshot(docSnapshot)),
     docId,
     aiEditable,
     docUrlPrefix

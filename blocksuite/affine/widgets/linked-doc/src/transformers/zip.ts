@@ -3,7 +3,13 @@ import {
   titleMiddleware,
 } from '@blocksuite/affine-shared/adapters';
 import { sha } from '@blocksuite/global/utils';
-import type { DocSnapshot, Schema, Store, Workspace } from '@blocksuite/store';
+import type {
+  DocCRUD,
+  DocSnapshot,
+  Schema,
+  Store,
+  Workspace,
+} from '@blocksuite/store';
 import { extMimeMap, getAssetName, Transformer } from '@blocksuite/store';
 
 import { download, Unzip, Zip } from './utils.js';
@@ -77,7 +83,8 @@ async function exportDocs(
 async function importDocs(
   collection: Workspace,
   schema: Schema,
-  imported: Blob
+  imported: Blob,
+  docCRUD?: DocCRUD
 ) {
   const unzip = new Unzip();
   await unzip.load(imported);
@@ -108,7 +115,7 @@ async function importDocs(
   const job = new Transformer({
     schema,
     blobCRUD: collection.blobSync,
-    docCRUD: {
+    docCRUD: docCRUD ?? {
       create: (id: string) => collection.createDoc(id).getStore({ id }),
       get: (id: string) => collection.getDoc(id)?.getStore({ id }) ?? null,
       delete: (id: string) => collection.removeDoc(id),
@@ -131,39 +138,41 @@ async function importDocs(
     assetsMap.set(assetsId, file);
   });
 
-  return Promise.all(
-    snapshotsBlobs.map(async blob => {
-      const json = await blob.text();
-      const snapshot = JSON.parse(json) as DocSnapshot;
-      const tasks: Promise<void>[] = [];
+  const importSnapshot = async (blob: Blob) => {
+    const json = await blob.text();
+    const snapshot = JSON.parse(json) as DocSnapshot;
+    const tasks: Promise<void>[] = [];
 
-      job.walk(snapshot, block => {
-        const sourceId = block.props?.sourceId as string | undefined;
+    job.walk(snapshot, block => {
+      const sourceId = block.props?.sourceId as string | undefined;
 
-        if (sourceId && sourceId.startsWith('/')) {
-          const removeSlashId = sourceId.replace(/^\//, '');
+      if (sourceId && sourceId.startsWith('/')) {
+        const removeSlashId = sourceId.replace(/^\//, '');
 
-          if (assetsMap.has(removeSlashId)) {
-            const blob = assetsMap.get(removeSlashId)!;
+        if (assetsMap.has(removeSlashId)) {
+          const blob = assetsMap.get(removeSlashId)!;
 
-            tasks.push(
-              blob
-                .arrayBuffer()
-                .then(buffer => sha(buffer))
-                .then(hash => {
-                  assetsMap.set(hash, blob);
-                  block.props.sourceId = hash;
-                })
-            );
-          }
+          tasks.push(
+            blob
+              .arrayBuffer()
+              .then(buffer => sha(buffer))
+              .then(hash => {
+                assetsMap.set(hash, blob);
+                block.props.sourceId = hash;
+              })
+          );
         }
-      });
+      }
+    });
 
-      await Promise.all(tasks);
+    await Promise.all(tasks);
 
-      return job.snapshotToDoc(snapshot);
-    })
-  );
+    return job.snapshotToDoc(snapshot);
+  };
+  if (!docCRUD) return Promise.all(snapshotsBlobs.map(importSnapshot));
+  const results = [];
+  for (const blob of snapshotsBlobs) results.push(await importSnapshot(blob));
+  return results;
 }
 
 export const ZipTransformer = {

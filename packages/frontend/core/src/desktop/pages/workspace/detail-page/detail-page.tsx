@@ -13,6 +13,10 @@ import { useEnableAI } from '@affine/core/components/hooks/affine/use-enable-ai'
 import { useRegisterBlocksuiteEditorCommands } from '@affine/core/components/hooks/affine/use-register-blocksuite-editor-commands';
 import { useActiveBlocksuiteEditor } from '@affine/core/components/hooks/use-block-suite-editor';
 import { PageDetailEditor } from '@affine/core/components/page-detail-editor';
+import {
+  PageTreeBreadcrumbs,
+  PageTreeChildrenList,
+} from '@affine/core/components/page-tree/children';
 import { WorkspacePropertySidebar } from '@affine/core/components/properties/sidebar';
 import { TrashPageFooter } from '@affine/core/components/pure/trash-page-footer';
 import { TopTip } from '@affine/core/components/top-tip';
@@ -365,6 +369,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
         >
           {/* Add a key to force rerender when page changed, to avoid error boundary persisting. */}
           <AffineErrorBoundary key={doc.id}>
+            <PageTreeBreadcrumbs resourceId={doc.id} />
             <TopTip pageId={doc.id} workspace={workspace} />
             <Scrollable.Root>
               <Scrollable.Viewport
@@ -379,6 +384,9 @@ const DetailPageImpl = memo(function DetailPageImpl() {
                 )}
               >
                 <PageDetailEditor onLoad={onLoad} readonly={readonly} />
+                {mode === 'page' && !isInTrash && (
+                  <PageTreeChildrenList resourceId={doc.id} />
+                )}
               </Scrollable.Viewport>
               <Scrollable.Scrollbar
                 className={clsx({

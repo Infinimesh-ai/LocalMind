@@ -125,6 +125,7 @@ export const workspaceChevron = style({
 });
 
 export const workspaceFiles = style({ paddingLeft: 12, paddingBottom: 8 });
+export const treeRoot = style({ paddingBottom: 24 });
 export const treeMessage = style({
   padding: '10px 8px',
   fontSize: 12,

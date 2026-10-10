@@ -10,11 +10,19 @@ import {
 } from '@affine/component';
 import { useGuard } from '@affine/core/components/guard';
 import { GraphQLService } from '@affine/core/modules/cloud';
-import { OrganizeService } from '@affine/core/modules/organize';
+import {
+  OrganizeService,
+  WorkspacePageTreeService,
+} from '@affine/core/modules/organize';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { WorkspaceResourcesService } from '@affine/core/modules/workspace-resources';
-import { createWorkspaceNativeResourceMutation } from '@affine/graphql';
+import { UserFriendlyError } from '@affine/error';
+import {
+  type CreateWorkspaceNativeResourceInput,
+  createWorkspaceNativeResourceMutation,
+  WORKSPACE_PAGE_TREE_CONTRACT,
+} from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
   EdgelessIcon,
@@ -29,7 +37,7 @@ import {
   useServiceOptional,
 } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { NativeFileCreateDialog, type NativeFileFormat } from './create-dialog';
 import * as styles from './native-files.css';
@@ -40,9 +48,18 @@ type Upload = {
   key: string;
   blobKey?: string;
   status: 'waiting' | 'uploading' | 'done' | 'failed';
+  treeInput?: Pick<
+    CreateWorkspaceNativeResourceInput,
+    | 'parentNodeId'
+    | 'treeContractVersion'
+    | 'expectedTreeRevision'
+    | 'expectedAuthorizationRevision'
+  >;
 };
 export function WorkspaceCreateMenu({
   children,
+  treeTarget: providedTreeTarget,
+  onNativeCreated,
   parentId = null,
   onPage,
   onEdgeless,
@@ -52,6 +69,19 @@ export function WorkspaceCreateMenu({
   uploadOnly = false,
 }: {
   children?: ReactNode;
+  treeTarget?: Pick<
+    CreateWorkspaceNativeResourceInput,
+    | 'parentNodeId'
+    | 'treeContractVersion'
+    | 'expectedTreeRevision'
+    | 'expectedAuthorizationRevision'
+  > & {
+    name: string;
+    canOrganize: boolean;
+    canCreateFolder?: boolean;
+    canCreatePage?: boolean;
+  };
+  onNativeCreated?: () => void;
   parentId?: string | null;
   onPage: () => void | Promise<unknown>;
   onEdgeless: () => void | Promise<unknown>;
@@ -66,12 +96,52 @@ export function WorkspaceCreateMenu({
   const { workbench } = useService(WorkbenchService);
   const resources = useService(WorkspaceResourcesService);
   const tree = useService(OrganizeService).folderTree;
+  const pageTree = useService(WorkspacePageTreeService);
+  const pageTreeEnabled = useLiveData(pageTree.enabled$);
+  const treeRoot = useLiveData(
+    useMemo(() => pageTree.layer$(null), [pageTree])
+  ).page;
+  const treeTarget =
+    providedTreeTarget ??
+    (pageTreeEnabled && treeRoot && parentId === null
+      ? {
+          parentNodeId: null,
+          treeContractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+          expectedTreeRevision: treeRoot.revision,
+          expectedAuthorizationRevision: treeRoot.authorizationRevision,
+          name: workspace.name$.value ?? 'Workspace',
+          canOrganize: treeRoot.canCreateFolder || treeRoot.canCreatePage,
+          canCreateFolder: treeRoot.canCreateFolder,
+          canCreatePage: treeRoot.canCreatePage,
+        }
+      : undefined);
   const parent = useLiveData(parentId ? tree.folderNode$(parentId) : undefined);
   const parentName = useLiveData(parent?.name$);
-  const canOrganize = useLiveData(
+  const legacyCanOrganize = useLiveData(
     parentId ? parent?.canMutate$ : tree.canMutate$
   );
+  const canOrganize = treeTarget ? treeTarget.canOrganize : legacyCanOrganize;
+  const treeInput = treeTarget
+    ? {
+        parentNodeId: treeTarget.parentNodeId,
+        treeContractVersion: treeTarget.treeContractVersion,
+        expectedTreeRevision: treeTarget.expectedTreeRevision,
+        expectedAuthorizationRevision: treeTarget.expectedAuthorizationRevision,
+      }
+    : undefined;
   const canWrite = useGuard('Workspace_Blobs_Write') === true;
+  const canCreate = useGuard('Workspace_CreateDoc') === true;
+  const createPage = async (primaryMode: 'page' | 'edgeless') => {
+    if (!providedTreeTarget && treeTarget) {
+      const result = await pageTree.execute({
+        action: 'create',
+        parentNodeId: treeTarget.parentNodeId ?? null,
+        primaryMode,
+        title: t['Untitled'](),
+      });
+      workbench.openDoc(result.resourceId);
+    } else await (primaryMode === 'page' ? onPage() : onEdgeless());
+  };
   const { openPromptModal } = usePromptModal();
   const [format, setFormat] = useState<NativeFileFormat | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
@@ -101,13 +171,23 @@ export function WorkspaceCreateMenu({
             workspace,
             request.file
           );
+          if (treeInput && !request.treeInput) {
+            await pageTree.load(null);
+            const latest = pageTree.layers$.value.get(pageTree.key(null))?.page;
+            if (!latest) throw new Error('Page tree unavailable');
+            request.treeInput = {
+              ...treeInput,
+              expectedTreeRevision: latest.revision,
+              expectedAuthorizationRevision: latest.authorizationRevision,
+            };
+          }
           const resource = (
             await graphql.gql({
               query: createWorkspaceNativeResourceMutation,
               variables: {
                 input: {
                   workspaceId: workspace.id,
-                  folderId: parentId,
+                  ...(request.treeInput ?? { folderId: parentId }),
                   title: request.file.name,
                   blobKey: request.blobKey,
                   requestKey: request.key,
@@ -116,9 +196,18 @@ export function WorkspaceCreateMenu({
             })
           ).createWorkspaceNativeResource;
           request.status = 'done';
+          onNativeCreated?.();
           resources.invalidate();
           if (requests.length === 1) openResource(resource.id, resource.kind);
-        } catch {
+        } catch (error) {
+          if (
+            [400, 403, 404, 409].includes(
+              UserFriendlyError.fromAny(error).status
+            )
+          ) {
+            request.treeInput = undefined;
+            request.key = nanoid();
+          }
           request.status = 'failed';
         }
         setUploads([...requests]);
@@ -158,6 +247,15 @@ export function WorkspaceCreateMenu({
       confirmText: t['save'](),
       cancelText: t['Cancel'](),
       onConfirm: async name => {
+        if (treeTarget) {
+          const result = await pageTree.execute({
+            action: 'create-folder',
+            parentNodeId: treeTarget.parentNodeId ?? null,
+            title: name,
+          });
+          workbench.openTreeResource({ ...result, kind: 'folder' });
+          return;
+        }
         const node = parentId
           ? tree.folderNode$(parentId).value
           : tree.rootFolder;
@@ -193,19 +291,39 @@ export function WorkspaceCreateMenu({
               <>
                 <div className={styles.hint}>
                   {t['com.affine.localmind.resources.destination']({
-                    name: parentName ?? workspace.name$.value ?? 'Workspace',
+                    name:
+                      treeTarget?.name ??
+                      parentName ??
+                      workspace.name$.value ??
+                      'Workspace',
                   })}
                 </div>
                 <MenuItem
+                  prefixIcon={<FolderIcon />}
+                  disabled={
+                    !canOrganize || (treeTarget && !treeTarget.canCreateFolder)
+                  }
+                  onClick={() => invoke(onFolder ?? createFolder)}
+                >
+                  {t['com.affine.rootAppSidebar.organize.new-folders']()}
+                </MenuItem>
+                <MenuItem
                   prefixIcon={<PageIcon />}
-                  onClick={() => invoke(onPage)}
+                  disabled={
+                    !canOrganize ||
+                    (treeTarget ? !treeTarget.canCreatePage : !canCreate)
+                  }
+                  onClick={() => invoke(() => createPage('page'))}
                 >
                   {t['Page']()}
                 </MenuItem>
                 <MenuItem
                   prefixIcon={<EdgelessIcon />}
-                  disabled={!canOrganize}
-                  onClick={() => invoke(onEdgeless)}
+                  disabled={
+                    !canOrganize ||
+                    (treeTarget ? !treeTarget.canCreatePage : !canCreate)
+                  }
+                  onClick={() => invoke(() => createPage('edgeless'))}
                 >
                   {t['Edgeless']()}
                 </MenuItem>
@@ -250,13 +368,7 @@ export function WorkspaceCreateMenu({
                     </MenuSub>
                   </>
                 )}
-                <MenuItem
-                  prefixIcon={<FolderIcon />}
-                  disabled={!canOrganize}
-                  onClick={() => invoke(onFolder ?? createFolder)}
-                >
-                  {t['com.affine.rootAppSidebar.organize.new-folders']()}
-                </MenuItem>
+
                 {online && (
                   <MenuItem
                     prefixIcon={<UploadIcon />}
@@ -273,6 +385,13 @@ export function WorkspaceCreateMenu({
               <IconButton
                 size="16"
                 tooltip={t['com.affine.localmind.resources.create']()}
+                aria-label={t['com.affine.localmind.resources.destination']({
+                  name:
+                    treeTarget?.name ??
+                    parentName ??
+                    workspace.name$.value ??
+                    'Workspace',
+                })}
               >
                 <PlusIcon />
               </IconButton>
@@ -296,10 +415,12 @@ export function WorkspaceCreateMenu({
         <NativeFileCreateDialog
           owner={{ workspaceId: workspace.id }}
           parentId={parentId}
+          treeTarget={treeInput}
           initialFormat={format}
           onClose={() => setFormat(null)}
           onCreated={(id, kind) => {
             resources.invalidate();
+            onNativeCreated?.();
             openResource(id, kind);
           }}
         />

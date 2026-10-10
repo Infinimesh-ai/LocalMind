@@ -36,7 +36,7 @@ export const AppTabCreate = ({ tab }: AppTabCustomFCProps) => {
           await docsService.duplicateFromTemplate(pageTemplateDocId);
         workbench.openDoc(docId);
       } else {
-        const doc = pageHelper.createPage(undefined, { show: false });
+        const doc = await pageHelper.createPage(undefined, { show: false });
         workbench.openDoc(doc.id);
       }
       track.$.navigationPanel.$.createDoc();

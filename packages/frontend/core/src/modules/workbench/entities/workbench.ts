@@ -250,6 +250,18 @@ export class Workbench extends Entity {
     this.open(`/${docId}/attachments/${blockId}`, options);
   }
 
+  openTreeResource(
+    item: { kind: string; resourceId: string; nodeId: string },
+    options?: WorkbenchOpenOptions
+  ) {
+    if (item.kind === 'folder')
+      this.open(`/folder/${encodeURIComponent(item.nodeId)}`, options);
+    else if (item.kind === 'office') this.openOffice(item.resourceId, options);
+    else if (item.kind === 'file')
+      this.openNativeFile(item.resourceId, options);
+    else this.openDoc(item.resourceId, options);
+  }
+
   openNativeFile(resourceId: string, options?: WorkbenchOpenOptions) {
     this.open(`/files/${encodeURIComponent(resourceId)}`, options);
   }

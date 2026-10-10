@@ -1,6 +1,7 @@
 import type { Framework } from '@toeverything/infra';
 
 import { WorkspaceServerService } from '../cloud';
+import { WorkspacePageTreeService } from '../organize/services/page-tree';
 import { NbstoreService } from '../storage';
 import { WorkspaceScope, WorkspaceService } from '../workspace';
 import { WorkspaceLifecycleService } from './lifecycle';
@@ -16,6 +17,7 @@ export function configureWorkspaceResourcesModule(framework: Framework) {
       WorkspaceService,
       WorkspaceServerService,
       WorkspaceResourcesService,
+      WorkspacePageTreeService,
     ])
     .service(WorkspaceResourcesService, [
       WorkspaceService,

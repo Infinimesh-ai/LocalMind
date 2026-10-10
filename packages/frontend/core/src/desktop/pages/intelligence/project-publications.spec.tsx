@@ -149,6 +149,7 @@ beforeEach(() => {
     runId: null,
     revision: 1,
     kind: 'publish',
+    resourceKind: 'page',
     title: 'Quarterly report',
     status: 'waiting_for_location',
     sourceSequence: 3,

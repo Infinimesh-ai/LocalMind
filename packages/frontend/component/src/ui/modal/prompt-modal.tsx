@@ -1,3 +1,5 @@
+import { UserFriendlyError } from '@affine/error';
+import { useI18n } from '@affine/i18n';
 import { DialogTrigger } from '@radix-ui/react-dialog';
 import clsx from 'clsx';
 import type { PropsWithChildren } from 'react';
@@ -6,6 +8,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -26,6 +29,7 @@ export interface PromptModalProps extends ModalProps {
   cancelText?: React.ReactNode;
 
   label?: React.ReactNode;
+  errorMessage?: React.ReactNode;
   defaultValue?: string;
   required?: boolean;
   cancelButtonOptions?: Omit<ButtonProps, 'children'>;
@@ -50,6 +54,7 @@ export const PromptModal = ({
   onConfirm,
   onCancel,
   label,
+  errorMessage,
   required = true,
   inputOptions,
   defaultValue,
@@ -61,12 +66,10 @@ export const PromptModal = ({
 }: PromptModalProps) => {
   const [value, setValue] = useState(defaultValue ?? '');
   const onConfirmClick = useCallback(() => {
-    Promise.resolve(onConfirm?.(value))
+    Promise.resolve()
+      .then(() => onConfirm?.(value))
       .catch(err => {
         console.error(err);
-      })
-      .finally(() => {
-        setValue('');
       });
   }, [onConfirm, value]);
 
@@ -115,6 +118,7 @@ export const PromptModal = ({
         />
       </div>
       {children ? <div className={styles.content}>{children}</div> : null}
+      {errorMessage ? <p role="alert">{errorMessage}</p> : null}
       <div
         className={clsx(styles.footer, {
           modalFooterWithChildren: !!children,
@@ -164,6 +168,8 @@ const PromptModalContext = createContext<PromptModalContextProps>({
   closePromptModal: () => {},
 });
 export const PromptModalProvider = ({ children }: PropsWithChildren) => {
+  const t = useI18n();
+  const generation = useRef(0);
   const [modalProps, setModalProps] = useState<PromptModalProps>({
     open: false,
   });
@@ -179,11 +185,13 @@ export const PromptModalProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const closePromptModal = useCallback(() => {
+    generation.current++;
     setModalProps({ open: false });
   }, []);
 
   const openPromptModal = useCallback(
     (props?: PromptModalProps, options?: OpenPromptModalOptions) => {
+      const current = ++generation.current;
       const { autoClose = true, onSuccess } = options ?? {};
       if (!props) {
         setModalProps({ open: true });
@@ -192,21 +200,47 @@ export const PromptModalProvider = ({ children }: PropsWithChildren) => {
 
       const { onConfirm: _onConfirm, ...otherProps } = props;
 
-      const onConfirm = (text: string) => {
+      let pending = false;
+      const onConfirm = async (text: string) => {
+        if (pending || current !== generation.current) return;
+        pending = true;
+        setModalProps(prev => ({ ...prev, errorMessage: undefined }));
         setLoading(true);
-        return Promise.resolve(_onConfirm?.(text))
-          .then(() => onSuccess?.())
-          .catch(console.error)
-          .finally(() => setLoading(false))
-          .finally(() => autoClose && closePromptModal());
+        try {
+          await _onConfirm?.(text);
+          if (current !== generation.current) return;
+          onSuccess?.();
+          if (autoClose && current === generation.current) closePromptModal();
+        } catch (error) {
+          if (current !== generation.current) return;
+          const status = UserFriendlyError.fromAny(error).status;
+          const key =
+            status === 409
+              ? 'conflict'
+              : status === 401 || status === 403
+                ? 'permission'
+                : status === 404
+                  ? 'unavailable'
+                  : status === 499 || status === 504
+                    ? 'network'
+                    : 'failed';
+          setModalProps(prev => ({
+            ...prev,
+            errorMessage: t[`com.affine.confirmModal.error.${key}`](),
+          }));
+        } finally {
+          pending = false;
+          if (current === generation.current) setLoading(false);
+        }
       };
       setModalProps({ ...otherProps, onConfirm, open: true });
     },
-    [closePromptModal, setLoading]
+    [closePromptModal, setLoading, t]
   );
 
   const onOpenChange = useCallback(
     (open: boolean) => {
+      if (!open) generation.current++;
       modalProps.onOpenChange?.(open);
       setModalProps(props => ({ ...props, open }));
     },
@@ -225,7 +259,13 @@ export const PromptModalProvider = ({ children }: PropsWithChildren) => {
     <PromptModalContext.Provider value={promptModalContextValue}>
       {children}
       {/* TODO(@catsjuice): multi-instance support(unnecessary for now) */}
-      <PromptModal {...modalProps} onOpenChange={onOpenChange} />
+      {modalProps.open && (
+        <PromptModal
+          key={generation.current}
+          {...modalProps}
+          onOpenChange={onOpenChange}
+        />
+      )}
     </PromptModalContext.Provider>
   );
 };

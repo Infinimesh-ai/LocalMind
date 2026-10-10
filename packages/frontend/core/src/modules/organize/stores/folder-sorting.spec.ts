@@ -23,12 +23,13 @@ function userDB() {
   );
   const docSyncState$ = new LiveData<{ loaded: boolean } | null>(null);
   return {
+    engine: { client: { docFrontend: { waitForUpdated: async () => {} } } },
     folderSortPreference: Object.assign(db.folderSortPreference, {
       docSyncState$,
     }),
   };
 }
-test('personal folder modes isolate accounts and workspaces and survive reopening', () => {
+test('personal folder modes isolate accounts and workspaces and survive reopening', async () => {
   const a = userDB(),
     b = userDB();
   const currentUserDB$ = new LiveData<typeof a | null>(a);
@@ -91,6 +92,19 @@ test('personal folder modes isolate accounts and workspaces and survive reopenin
     const otherWorkspace = create('two');
     otherWorkspace.setMode('folder', 'name-asc');
     expect(mode).toBe('name-desc');
+    first.setMode('$page-tree-root', 'name-desc');
+    const modes = await first.snapshotModes([
+      'folder',
+      '$page-tree-root',
+      'missing',
+    ]);
+    await otherWorkspace.inheritModes(modes);
+    expect(
+      await otherWorkspace.snapshotModes(['folder', '$page-tree-root'])
+    ).toEqual([
+      { nodeId: 'folder', mode: 'name-asc' },
+      { nodeId: '$page-tree-root', mode: 'name-desc' },
+    ]);
     b.folderSortPreference.docSyncState$.next({ loaded: true });
     account$.next({ id: 'b' });
     currentUserDB$.next(b);

@@ -55,7 +55,7 @@ export const TrashButton = () => {
                     toast(t['com.affine.no-permission']());
                     return;
                   }
-                  await docRecord.moveToTrash();
+                  if ((await docRecord.moveToTrash()) === false) return;
                 } catch (error) {
                   console.error(error);
                   const userFriendlyError = UserFriendlyError.fromAny(error);

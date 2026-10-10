@@ -7,6 +7,7 @@ const SIMPLE_PAGE_META_KEYS = [
   'title',
   'createDate',
   'updatedDate',
+  'displayUpdateEvent',
   'trash',
   'trashDate',
   'headerImage',
@@ -72,6 +73,7 @@ function appendPage(
   const copy = new Y.Map<unknown>();
   pages.push([copy]);
   for (const key of SIMPLE_PAGE_META_KEYS) {
+    if (overrides && key === 'displayUpdateEvent') continue;
     const value =
       overrides?.[key as keyof typeof overrides] ?? pageValue(page, key);
     if (value !== undefined) copy.set(key, cloneYValue(value));

@@ -482,6 +482,17 @@ export const NavigationPanelTreeNode = ({
           <div
             data-disabled={disabled}
             onClick={handleCollapsedChange}
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            aria-label={name}
+            aria-expanded={!collapsed}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!disabled) setCollapsed(!collapsed);
+              }
+            }}
             data-testid="navigation-panel-collapsed-button"
             className={styles.collapsedIconContainer}
           >

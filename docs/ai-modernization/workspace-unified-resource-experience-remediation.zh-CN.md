@@ -2,7 +2,13 @@
 
 状态：P0—P6 已实现并完成本轮验证；实际覆盖与产品上限见第 7 节。实施日期：2026-09-28。基线为当前未提交工作区；保留已有 CRUD、关系图、上下文等改动。
 
+后续已确认的页面树目标见[Workspace 原生页面树开发方案](workspace-page-tree-development.zh-CN.md)，当前待开发。该方案切换后覆盖本文独立文件夹、多放置及根层推导的组织语义；本文的资源类型、内容存储和已执行验收仍按原范围解释，不能作为页面树已实现的证据。
+
 承接 [Workspace / Project CRUD 方案](workspace-project-document-crud-remediation.zh-CN.md)与[实施记录](workspace-project-document-crud.execution.zh-CN.md)。已有记录证明资源领域服务和分离入口的本地能力，不证明原生文件已经完整接入主页主列表、侧栏根目录、全局搜索和既有 Trash。本方案补齐这些交互及相关服务缺口；此前的测试数量不能作为本方案通过的证据。
+
+后续扩展：[Workspace 资源显示属性与排序](workspace-resource-display-and-sorting-development.zh-CN.md)
+定义四项组合显示属性、原生标签与更新信息、明确排序方向和偏好迁移；侧栏根目录排序另列建议后续阶段。
+该方案的 P0—P3 源码及隔离验证已完成，包含文件夹行内排序入口，见[独立实施记录](workspace-resource-display-and-sorting.execution.zh-CN.md)；尚未同步实际运行环境。本文历史范围和验收结论保持原义。
 
 ## 1. 产品目标与范围
 

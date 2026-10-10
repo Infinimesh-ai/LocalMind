@@ -1,7 +1,6 @@
 import {
   AnimatedCollectionsIcon,
   AnimatedFolderIcon,
-  Checkbox,
   type DropTargetDropEvent,
   type DropTargetOptions,
   MenuItem,
@@ -57,6 +56,11 @@ import type { GenericNavigationPanelNode } from '../types';
 import { FolderEmpty } from './empty';
 import { NavigationPanelNativeFileNode } from './native-file';
 import { FavoriteFolderOperation } from './operations';
+import {
+  FolderSortButton,
+  FolderSortItems,
+  type FolderSortMode,
+} from './sort-menu';
 
 export const NavigationPanelFolderNode = ({
   nodeId,
@@ -788,7 +792,7 @@ const NavigationPanelFolderNodeFolder = ({
   const handleNewDoc = useCallback(
     async (mode?: 'page' | 'edgeless') => {
       try {
-        const newDoc = createPage(mode);
+        const newDoc = await createPage(mode);
         await node.createLink('doc', newDoc.id, node.indexAt('after'));
         track.$.navigationPanel.folders.createDoc();
         track.$.navigationPanel.organize.createOrganizeItem({
@@ -878,57 +882,52 @@ const NavigationPanelFolderNodeFolder = ({
     [children, node, setCollapsed, workspaceDialogService]
   );
 
+  const changeSort = useCallback(
+    (mode: FolderSortMode) => {
+      try {
+        node.setSortMode(mode);
+      } catch {
+        toast(t['com.affine.rootAppSidebar.organize.folder.sort.conflict']());
+      }
+    },
+    [node, t]
+  );
   const sortOperation = useMemo(
     () => ({
       index: 150,
       view: (
         <MenuSub
           triggerOptions={{ disabled: !sortReady || sorting }}
-          items={
-            <>
-              {(['name-desc', 'name-asc', 'manual'] as const).map(mode => (
-                <MenuItem
-                  key={mode}
-                  prefixIcon={<Checkbox checked={sortMode === mode} />}
-                  onClick={() => {
-                    try {
-                      node.setSortMode(mode);
-                    } catch {
-                      toast(
-                        t[
-                          'com.affine.rootAppSidebar.organize.folder.sort.conflict'
-                        ]()
-                      );
-                    }
-                  }}
-                >
-                  {mode === 'name-desc'
-                    ? t[
-                        'com.affine.rootAppSidebar.organize.folder.sort.name-desc'
-                      ]()
-                    : mode === 'name-asc'
-                      ? t[
-                          'com.affine.rootAppSidebar.organize.folder.sort.name-asc'
-                        ]()
-                      : t[
-                          'com.affine.rootAppSidebar.organize.folder.sort.manual'
-                        ]()}
-                </MenuItem>
-              ))}
-            </>
-          }
+          items={<FolderSortItems mode={sortMode} onChange={changeSort} />}
         >
           {t['com.affine.rootAppSidebar.organize.folder.sort.label']()}
         </MenuSub>
       ),
     }),
-    [node, sortMode, sortReady, sorting, t]
+    [sortReady, sorting, sortMode, changeSort, t]
+  );
+  const inlineSortOperation = useMemo(
+    () => ({
+      index: 1,
+      inline: true,
+      view: (
+        <FolderSortButton
+          name={name}
+          mode={sortMode}
+          expanded={!collapsed}
+          disabled={!sortReady || sorting}
+          onChange={changeSort}
+        />
+      ),
+    }),
+    [name, sortMode, collapsed, sortReady, sorting, changeSort]
   );
 
   const folderOperations = useMemo(() => {
     if (!canMutate)
       return [
         sortOperation,
+        inlineSortOperation,
         {
           index: 200,
           view: node.id ? <FavoriteFolderOperation id={node.id} /> : null,
@@ -936,6 +935,7 @@ const NavigationPanelFolderNodeFolder = ({
       ];
     return [
       sortOperation,
+      inlineSortOperation,
       {
         index: 0,
         inline: true,
@@ -1041,6 +1041,7 @@ const NavigationPanelFolderNodeFolder = ({
   }, [
     canMutate,
     sortOperation,
+    inlineSortOperation,
     canDelete,
     lifecycle.online,
     handleAddToFolder,

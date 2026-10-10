@@ -1,3 +1,4 @@
+import { readResourceUpdateEvent } from '@affine/graphql';
 import type { DocMode } from '@blocksuite/affine/model';
 import type { DocMeta } from '@blocksuite/affine/store';
 import {
@@ -11,13 +12,15 @@ import { nanoid } from 'nanoid';
 import { distinctUntilChanged, map, switchMap } from 'rxjs';
 import { Array as YArray, Map as YMap, transact } from 'yjs';
 
+import type { WorkspaceServerService } from '../../cloud/services/workspace-server';
 import type { WorkspaceService } from '../../workspace';
 import type { DocPropertiesStore } from './doc-properties';
 
 export class DocsStore extends Store {
   constructor(
     private readonly workspaceService: WorkspaceService,
-    private readonly docPropertiesStore: DocPropertiesStore
+    private readonly docPropertiesStore: DocPropertiesStore,
+    private readonly workspaceServerService: WorkspaceServerService
   ) {
     super();
   }
@@ -253,14 +256,54 @@ export class DocsStore extends Store {
       .pipe(map(state => state.synced));
   }
 
+  captureUpdate() {
+    return {
+      at: Date.now(),
+      actorId: this.workspaceServerService.server?.account$.value?.id ?? null,
+    };
+  }
+
+  recordUpdate(
+    id: string,
+    at = Date.now(),
+    actorId = this.captureUpdate().actorId
+  ) {
+    const meta = this.workspaceService.workspace.docCollection.meta.getDocMeta(
+      id
+    ) as (DocMeta & { displayUpdateEvent?: string }) | undefined;
+    if ((readResourceUpdateEvent(meta?.displayUpdateEvent)?.at ?? 0) > at)
+      return;
+    const event = JSON.stringify({
+      at,
+      actor: actorId ? 'user' : 'unknown',
+      by: actorId,
+    });
+    this.workspaceService.workspace.docCollection.meta.setDocMeta(id, {
+      updatedDate: at,
+      displayUpdateEvent: event,
+    } as Partial<DocMeta>);
+    if (actorId)
+      this.docPropertiesStore.updateDocProperties(id, { updatedBy: actorId });
+  }
+
   setDocMeta(id: string, meta: Partial<DocMeta>) {
-    this.workspaceService.workspace.docCollection.meta.setDocMeta(id, meta);
+    const previous =
+      this.workspaceService.workspace.docCollection.meta.getDocMeta(id);
+    const changed =
+      (meta.title !== undefined && previous?.title !== meta.title) ||
+      (meta.tags !== undefined &&
+        JSON.stringify([...(previous?.tags ?? [])].sort()) !==
+          JSON.stringify([...meta.tags].sort()));
+    this.workspaceService.workspace.rootYDoc.transact(() => {
+      this.workspaceService.workspace.docCollection.meta.setDocMeta(id, meta);
+      if (changed) this.recordUpdate(id);
+    });
   }
 
   setDocPrimaryModeSetting(id: string, mode: DocMode) {
-    return this.docPropertiesStore.updateDocProperties(id, {
-      primaryMode: mode,
-    });
+    if (this.getDocPrimaryModeSetting(id) === mode) return;
+    this.docPropertiesStore.updateDocProperties(id, { primaryMode: mode });
+    this.recordUpdate(id);
   }
 
   getDocPrimaryModeSetting(id: string) {

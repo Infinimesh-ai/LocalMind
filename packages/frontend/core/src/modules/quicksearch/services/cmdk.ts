@@ -40,7 +40,7 @@ export class CMDKQuickSearchService extends Service {
           this.framework.createEntity(TagsQuickSearchSession),
           this.framework.createEntity(ProjectsQuickSearchSession),
         ],
-        result => {
+        async result => {
           if (!result) {
             return;
           }
@@ -131,14 +131,14 @@ export class CMDKQuickSearchService extends Service {
 
           if (result.source === 'creation') {
             if (result.id === 'creation:create-page') {
-              const newDoc = this.docsService.createDoc({
+              const newDoc = await this.docsService.createDocAsync({
                 primaryMode: 'page',
                 title: result.payload.title,
               });
 
               this.workbenchService.workbench.openDoc(newDoc.id);
             } else if (result.id === 'creation:create-edgeless') {
-              const newDoc = this.docsService.createDoc({
+              const newDoc = await this.docsService.createDocAsync({
                 primaryMode: 'edgeless',
                 title: result.payload.title,
               });

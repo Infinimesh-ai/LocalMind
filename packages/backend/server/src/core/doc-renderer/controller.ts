@@ -231,10 +231,11 @@ export class DocRendererController {
     <title>${title}</title>
     <meta name="theme-color" content="#fafafa" />
     ${assets.publicPath.startsWith('/') ? '' : `<link rel="preconnect" href="${assets.publicPath}" />`}
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="icon" sizes="192x192" href="/favicon-192.png" />
-    <link rel="shortcut icon" href="/favicon.ico?v=2" />
+    <link rel="manifest" href="/manifest.json?v=3" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=3" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png?v=3" />
     <meta name="emotion-insertion-point" content="" />
     ${!opts ? '<meta name="robots" content="noindex, nofollow" />' : ''}
     <meta

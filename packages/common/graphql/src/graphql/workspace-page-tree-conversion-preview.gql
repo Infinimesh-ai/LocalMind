@@ -1,0 +1,5 @@
+query workspacePageTreeConversionPreview($workspaceId: ID!, $nodeId: ID!) {
+  workspacePageTreeConversionPreview(workspaceId: $workspaceId, nodeId: $nodeId) {
+    nodeId title revision authorizationRevision resourceVersion targetKind
+  }
+}

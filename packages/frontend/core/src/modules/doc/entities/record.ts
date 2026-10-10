@@ -1,3 +1,4 @@
+import { readResourceUpdateEvent } from '@affine/graphql';
 import type { DocMode } from '@blocksuite/affine/model';
 import type { DocMeta } from '@blocksuite/affine/store';
 import { Entity, LiveData } from '@toeverything/infra';
@@ -55,13 +56,18 @@ export class DocRecord extends Entity<{ id: string }> {
   }
 
   updateProperties(properties: Partial<DocProperties>) {
-    this.docPropertiesStore.updateDocProperties(this.id, properties);
+    if (properties.primaryMode !== undefined)
+      this.setPrimaryMode(properties.primaryMode as DocMode);
+    const { primaryMode: _mode, ...rest } = properties;
+    this.docPropertiesStore.updateDocProperties(this.id, rest);
   }
 
   setProperty<Key extends keyof DocProperties>(
     propertyId: Key,
     value: DocProperties[Key]
   ) {
+    if (propertyId === 'primaryMode')
+      return this.setPrimaryMode(value as DocMode);
     this.docPropertiesStore.updateDocProperties(this.id, {
       [propertyId]: value,
     });
@@ -103,6 +109,13 @@ export class DocRecord extends Entity<{ id: string }> {
   trash$ = this.meta$.map(meta => meta.trash ?? false);
 
   createdAt$ = this.meta$.map(meta => meta.createDate);
+
+  displayUpdate$ = this.meta$.map(meta =>
+    readResourceUpdateEvent(
+      (meta as Partial<DocMeta> & { displayUpdateEvent?: string })
+        .displayUpdateEvent
+    )
+  );
 
   updatedAt$ = this.meta$.map(meta => meta.updatedDate);
 

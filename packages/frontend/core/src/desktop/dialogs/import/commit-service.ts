@@ -1,8 +1,13 @@
 import type { IconData } from '@affine/component';
+import { subpageReferenceMiddleware } from '@affine/core/blocksuite/page-tree/references';
 import type { ExplorerIconService } from '@affine/core/modules/explorer-icon/services/explorer-icon';
-import type { OrganizeService } from '@affine/core/modules/organize';
+import type {
+  OrganizeService,
+  WorkspacePageTreeService,
+} from '@affine/core/modules/organize';
 import type { TagService } from '@affine/core/modules/tag';
 import {
+  type DocCRUD,
   type ExtensionType,
   type Schema,
   Transformer,
@@ -24,6 +29,8 @@ type CommitServiceOptions = {
   schema: Schema;
   extensions: ExtensionType[];
   organizeService?: OrganizeService;
+  pageTree?: WorkspacePageTreeService;
+  docCRUD?: DocCRUD;
   explorerIconService?: ExplorerIconService;
   tagService?: TagService;
   logger: Logger;
@@ -48,10 +55,13 @@ export class ImportCommitService {
   private readonly folderIdByPath = new Map<string, string>();
   private readonly linkedDocsByFolder = new Set<string>();
   private readonly pendingFolders: ImportFolder[] = [];
+  private pageTreeEntryId?: string;
 
   constructor(private readonly options: CommitServiceOptions) {}
 
   async commitBatch(batch: ImportBatch): Promise<ImportCommitResult> {
+    if (this.options.pageTree?.enabled$.value === null)
+      await this.options.pageTree.load(null);
     const warnings = [...(batch.warnings ?? [])];
     for (const blob of batch.blobs) {
       const bytes = new Uint8Array(blob.bytes);
@@ -66,14 +76,18 @@ export class ImportCommitService {
     const transformer = new Transformer({
       schema: this.options.schema,
       blobCRUD: this.options.collection.blobSync,
-      docCRUD: {
+      docCRUD: this.options.docCRUD ?? {
         create: (id: string) =>
-          this.options.collection.createDoc(id).getStore({ id }),
+          this.options.collection
+            .createDoc(id)
+            .getStore({ id, extensions: this.options.extensions }),
         get: (id: string) =>
-          this.options.collection.getDoc(id)?.getStore({ id }) ?? null,
+          this.options.collection
+            .getDoc(id)
+            ?.getStore({ id, extensions: this.options.extensions }) ?? null,
         delete: (id: string) => this.options.collection.removeDoc(id),
       },
-      middlewares: [],
+      middlewares: [subpageReferenceMiddleware],
     });
 
     const docIds: string[] = [];
@@ -101,7 +115,10 @@ export class ImportCommitService {
       docIds.push(store.id);
       if (doc.meta && Object.keys(doc.meta).length) {
         try {
-          const { tags: docTags, ...meta } = doc.meta;
+          const { tags: docTags, ...originalMeta } = doc.meta;
+          const meta = this.options.pageTree?.enabled$.value
+            ? { title: originalMeta.title }
+            : originalMeta;
           if (Object.keys(meta).length) {
             this.options.collection.meta.setDocMeta(store.id, meta);
           }
@@ -134,7 +151,7 @@ export class ImportCommitService {
     this.applyNativeIcons(batch.icons);
     return {
       docIds,
-      entryId: batch.entryId,
+      entryId: batch.entryId ?? this.pageTreeEntryId,
       isWorkspaceFile: batch.isWorkspaceFile,
       rootFolderId,
       warnings,
@@ -146,6 +163,10 @@ export class ImportCommitService {
     warnings: ImportCommitResult['warnings'],
     batchDone: boolean
   ): Promise<string | undefined> {
+    if (this.options.pageTree?.enabled$.value) {
+      await this.applyPageTree(folders, warnings, batchDone);
+      return undefined;
+    }
     const { organizeService } = this.options;
     if (folders.length === 0) return undefined;
     if (!organizeService) {
@@ -230,6 +251,67 @@ export class ImportCommitService {
         message: `Folder placement failed: ${errorMessage(error)}`,
       });
       return undefined;
+    }
+  }
+
+  private async applyPageTree(
+    folders: ImportFolder[],
+    warnings: ImportCommitResult['warnings'],
+    batchDone: boolean
+  ) {
+    const tree = this.options.pageTree;
+    if (!tree) return;
+    this.pendingFolders.push(...folders);
+    let progressed = true;
+    while (progressed && this.pendingFolders.length) {
+      progressed = false;
+      for (const folder of this.pendingFolders.splice(0)) {
+        const parentNodeId = folder.parentPath
+          ? this.folderIdByPath.get(folder.parentPath)
+          : null;
+        if (parentNodeId === undefined) {
+          this.pendingFolders.push(folder);
+          continue;
+        }
+        try {
+          let nodeId = this.folderIdByPath.get(folder.path);
+          if (!nodeId) {
+            if (folder.pageId) {
+              const current = await tree.locate('doc', folder.pageId);
+              if (!current.parent) throw new Error('Imported page unavailable');
+              nodeId = current.parent.nodeId;
+              if (current.parent.parentNodeId !== parentNodeId)
+                await tree.execute({ action: 'move', nodeId, parentNodeId });
+              this.pageTreeEntryId ??= folder.pageId;
+            } else {
+              const created = await tree.execute({
+                action: 'create-folder',
+                title: folder.name,
+                parentNodeId,
+              });
+              nodeId = created.nodeId;
+            }
+            this.folderIdByPath.set(folder.path, nodeId);
+          }
+          if (folder.pageId) this.applyIcon(folder.pageId, folder.icon);
+          progressed = true;
+        } catch (error) {
+          warnings.push({
+            code: 'unresolved_folder',
+            sourcePath: folder.path,
+            message: `Page placement failed: ${errorMessage(error)}`,
+          });
+        }
+      }
+    }
+    if (batchDone) {
+      for (const folder of this.pendingFolders.splice(0))
+        warnings.push({
+          code: 'unresolved_folder',
+          sourcePath: folder.path,
+          message:
+            'Parent page was not imported; the resource remains at its confirmed location',
+        });
     }
   }
 

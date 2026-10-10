@@ -2,7 +2,10 @@ import { insertLinkedNode } from '@blocksuite/affine-inline-reference';
 import { CodeBlockModel } from '@blocksuite/affine-model';
 import { getInlineEditorByModel } from '@blocksuite/affine-rich-text';
 import { BRACKET_PAIRS } from '@blocksuite/affine-shared/consts';
-import { createDefaultDoc, matchModels } from '@blocksuite/affine-shared/utils';
+import {
+  createDefaultEditorDoc,
+  matchModels,
+} from '@blocksuite/affine-shared/utils';
 import {
   type BlockStdScope,
   TextSelection,
@@ -145,18 +148,17 @@ function tryConvertToLinkedDoc(std: BlockStdScope, inlineEditor: InlineEditor) {
     inlineRange.index,
     inlineRange.index + inlineRange.length
   );
-  inlineEditor.deleteText({
-    index: inlineRange.index - 1,
-    length: inlineRange.length + 2,
-  });
-  inlineEditor.setInlineRange({ index: inlineRange.index - 1, length: 0 });
-
-  const doc = createDefaultDoc(std.store.workspace, {
-    title: docName,
-  });
-  insertLinkedNode({
-    inlineEditor,
-    docId: doc.id,
-  });
+  void createDefaultEditorDoc(std, { title: docName })
+    .then(doc => {
+      // Do not replace text that changed while identity/ownership was being saved.
+      if (inlineEditor.yText.toString() !== text) return;
+      inlineEditor.deleteText({
+        index: inlineRange.index - 1,
+        length: inlineRange.length + 2,
+      });
+      inlineEditor.setInlineRange({ index: inlineRange.index - 1, length: 0 });
+      insertLinkedNode({ inlineEditor, docId: doc.id });
+    })
+    .catch(console.error);
   return true;
 }

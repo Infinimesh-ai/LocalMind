@@ -2,7 +2,10 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { Prisma, type PrismaClient } from '@prisma/client';
 
-import { hasRetiredToolContract } from './copilot-tool-contract';
+import {
+  hasLegacyPageTreeToolContract,
+  hasRetiredToolContract,
+} from './copilot-tool-contract';
 
 const ACTIVE_STATUSES = [
   'queued',
@@ -19,7 +22,11 @@ const fingerprint = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 /** Run with workers paused. Never changes terminal tasks, checkpoints or original inputs. */
-export async function retireToolContracts(db: PrismaClient, apply = false) {
+export async function retireToolContracts(
+  db: PrismaClient,
+  apply = false,
+  pageTreeWorkspaceId?: string
+) {
   const report = {
     scannedRuns: 0,
     affectedRuns: 0,
@@ -45,7 +52,14 @@ export async function retireToolContracts(db: PrismaClient, apply = false) {
     cursor = candidates.at(-1)?.id;
     for (const candidate of candidates) {
       report.scannedRuns++;
-      if (!hasRetiredToolContract(candidate)) continue;
+      if (
+        !hasRetiredToolContract(candidate) &&
+        !(
+          candidate.workspaceId === pageTreeWorkspaceId &&
+          hasLegacyPageTreeToolContract(candidate)
+        )
+      )
+        continue;
       report.affectedRuns++;
       if (!apply) continue;
       const changed = await db.$transaction(
@@ -62,7 +76,11 @@ export async function retireToolContracts(db: PrismaClient, apply = false) {
           });
           if (
             !ACTIVE_STATUSES.includes(run.status) ||
-            !hasRetiredToolContract(run)
+            (!hasRetiredToolContract(run) &&
+              !(
+                run.workspaceId === pageTreeWorkspaceId &&
+                hasLegacyPageTreeToolContract(run)
+              ))
           )
             return null;
           const now = new Date(

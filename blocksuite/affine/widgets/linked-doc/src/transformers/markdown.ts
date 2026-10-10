@@ -15,6 +15,7 @@ import { Container } from '@blocksuite/global/di';
 import { BlockSuiteError, ErrorCode } from '@blocksuite/global/exceptions';
 import { sha } from '@blocksuite/global/utils';
 import type {
+  DocCRUD,
   DocMeta,
   DocSnapshot,
   ExtensionType,
@@ -343,6 +344,7 @@ type ImportMarkdownToBlockOptions = {
 };
 
 type ImportMarkdownToDocOptions = {
+  docCRUD?: DocCRUD;
   collection: Workspace;
   schema: Schema;
   markdown: string;
@@ -472,6 +474,7 @@ export function createCollectionDocCRUD(collection: Workspace) {
 }
 
 type CreateMarkdownImportJobOptions = {
+  docCRUD?: DocCRUD;
   collection: Workspace;
   schema: Schema;
   preferredTitle?: string;
@@ -486,11 +489,12 @@ export function createMarkdownImportJob({
   schema,
   preferredTitle,
   fullPath,
+  docCRUD,
 }: CreateMarkdownImportJobOptions) {
   return new Transformer({
     schema,
     blobCRUD: collection.blobSync,
-    docCRUD: createCollectionDocCRUD(collection),
+    docCRUD: docCRUD ?? createCollectionDocCRUD(collection),
     middlewares: [
       defaultImageProxyMiddleware,
       fileNameMiddleware(preferredTitle),
@@ -671,6 +675,7 @@ async function importMarkdownToDoc({
   markdown,
   fileName,
   extensions,
+  docCRUD,
 }: ImportMarkdownToDocOptions) {
   const { content, meta } = parseFrontmatter(markdown);
   const preferredTitle = meta.title ?? fileName;
@@ -679,6 +684,7 @@ async function importMarkdownToDoc({
     collection,
     schema,
     preferredTitle,
+    docCRUD,
   });
   const mdAdapter = new MarkdownAdapter(job, provider);
   const page = await mdAdapter.toDoc({
@@ -688,7 +694,11 @@ async function importMarkdownToDoc({
   if (!page) {
     return;
   }
-  applyMetaPatch(collection, page.id, meta);
+  applyMetaPatch(
+    collection,
+    page.id,
+    docCRUD ? { title: meta.title, tags: meta.tags } : meta
+  );
   return page.id;
 }
 

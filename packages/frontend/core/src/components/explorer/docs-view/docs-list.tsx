@@ -27,6 +27,10 @@ import { DocExplorerContext } from '../context';
 import { DocListItem } from './doc-list-item';
 import * as styles from './docs-list.css';
 
+const ResourceGroupContext = createContext<
+  ((key: string, count: number) => ReactNode) | undefined
+>(undefined);
+
 const GroupHeader = memo(function GroupHeader({
   groupId,
   collapsed,
@@ -37,6 +41,7 @@ const GroupHeader = memo(function GroupHeader({
   itemCount: number;
 }) {
   const contextValue = useContext(DocExplorerContext);
+  const renderResourceGroup = useContext(ResourceGroupContext);
   const propertyService = useService(WorkspacePropertyService);
   const allProperties = useLiveData(propertyService.sortedProperties$);
   const groupBy = useLiveData(contextValue.groupBy$);
@@ -80,7 +85,7 @@ const GroupHeader = memo(function GroupHeader({
     return null;
   }
 
-  return header;
+  return renderResourceGroup ? renderResourceGroup(groupId, itemCount) : header;
 });
 
 const ratios = [1.26, 1.304, 1.13, 1.391, 1.521];
@@ -126,8 +131,12 @@ export const DocsExplorer = ({
   onDelete,
   renderItem,
   toolbar,
+  resourceItemHeight,
+  renderGroupHeader,
 }: {
   className?: string;
+  resourceItemHeight?: number;
+  renderGroupHeader?: (key: string, count: number) => ReactNode;
   renderItem?: (id: string, groupId: string) => ReactNode;
   toolbar?: ReactNode;
   disableMultiSelectToolbar?: boolean;
@@ -166,11 +175,11 @@ export const DocsExplorer = ({
         height: groupBy ? 24 : 0,
         className: styles.groupHeader,
         items: group.items.map((docId: string) => {
-          if (view === 'list') {
+          if (view === 'list' || resourceItemHeight !== undefined) {
             return {
               id: docId,
               Component: ItemComponent,
-              height: 42,
+              height: resourceItemHeight ?? 42,
             } satisfies MasonryItem;
           }
           return {
@@ -182,7 +191,7 @@ export const DocsExplorer = ({
       } satisfies MasonryGroup;
     });
     return items;
-  }, [groupBy, groups, view, ItemComponent]);
+  }, [groupBy, groups, view, ItemComponent, resourceItemHeight]);
 
   const handleCloseFloatingToolbar = useCallback(() => {
     contextValue.selectMode$?.next(false);
@@ -225,7 +234,7 @@ export const DocsExplorer = ({
         for (const docId of selectedDocIds) {
           const doc = docsService.list.doc$(docId).value;
           if (!doc) throw new Error('Document unavailable');
-          await doc.moveToTrash();
+          if ((await doc.moveToTrash()) === false) return;
         }
         handleCloseFloatingToolbar();
       },
@@ -276,44 +285,46 @@ export const DocsExplorer = ({
   }
 
   return (
-    <ResourceItemContext.Provider value={renderItem}>
-      <Masonry
-        className={className}
-        items={masonryItems}
-        gapY={BUILD_CONFIG.isMobileEdition ? 12 : view === 'list' ? 12 : 24}
-        gapX={BUILD_CONFIG.isMobileEdition ? 12 : 24}
-        groupsGap={12}
-        groupHeaderGapWithItems={12}
-        columns={view === 'list' ? 1 : undefined}
-        itemWidthMin={masonryItemWidthMin ?? 220}
-        preloadHeight={100}
-        itemWidth={'stretch'}
-        virtualScroll
-        collapsedGroups={collapsedGroups}
-        paddingY={BUILD_CONFIG.isMobileEdition ? 12 : 0}
-        paddingX={BUILD_CONFIG.isMobileEdition ? 16 : responsivePaddingX}
-      />
-      {toolbar !== undefined ? (
-        toolbar
-      ) : !disableMultiSelectToolbar || onRestore ? (
-        <ListFloatingToolbar
-          open={!!selectMode}
-          onDelete={disableMultiDelete ? undefined : handleMultiDelete}
-          onRestore={onRestore ? handleMultiRestore : undefined}
-          onClose={handleCloseFloatingToolbar}
-          content={
-            <Trans
-              i18nKey="com.affine.page.toolbar.selected"
-              count={selectedDocIds.length}
-            >
-              <div style={{ color: cssVarV2.text.secondary }}>
-                {{ count: selectedDocIds.length } as any}
-              </div>
-              selected
-            </Trans>
-          }
+    <ResourceGroupContext.Provider value={renderGroupHeader}>
+      <ResourceItemContext.Provider value={renderItem}>
+        <Masonry
+          className={className}
+          items={masonryItems}
+          gapY={BUILD_CONFIG.isMobileEdition ? 12 : view === 'list' ? 12 : 24}
+          gapX={BUILD_CONFIG.isMobileEdition ? 12 : 24}
+          groupsGap={12}
+          groupHeaderGapWithItems={12}
+          columns={view === 'list' ? 1 : undefined}
+          itemWidthMin={masonryItemWidthMin ?? 220}
+          preloadHeight={100}
+          itemWidth={'stretch'}
+          virtualScroll
+          collapsedGroups={collapsedGroups}
+          paddingY={BUILD_CONFIG.isMobileEdition ? 12 : 0}
+          paddingX={BUILD_CONFIG.isMobileEdition ? 16 : responsivePaddingX}
         />
-      ) : null}
-    </ResourceItemContext.Provider>
+        {toolbar !== undefined ? (
+          toolbar
+        ) : !disableMultiSelectToolbar || onRestore ? (
+          <ListFloatingToolbar
+            open={!!selectMode}
+            onDelete={disableMultiDelete ? undefined : handleMultiDelete}
+            onRestore={onRestore ? handleMultiRestore : undefined}
+            onClose={handleCloseFloatingToolbar}
+            content={
+              <Trans
+                i18nKey="com.affine.page.toolbar.selected"
+                count={selectedDocIds.length}
+              >
+                <div style={{ color: cssVarV2.text.secondary }}>
+                  {{ count: selectedDocIds.length } as any}
+                </div>
+                selected
+              </Trans>
+            }
+          />
+        ) : null}
+      </ResourceItemContext.Provider>
+    </ResourceGroupContext.Provider>
   );
 };

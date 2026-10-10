@@ -15,6 +15,7 @@ import { FrameworkProvider } from '@toeverything/infra';
 import type { TemplateResult } from 'lit';
 import { z } from 'zod';
 
+import { pageTreeViewExtensions } from '../../page-tree/view';
 import { patchForAudioEmbedView } from './audio/audio-view';
 import { buildDocDisplayMetaExtension } from './display-meta';
 import { patchDocModeService } from './doc-mode-service';
@@ -102,6 +103,7 @@ export class AffineEditorViewExtension extends ViewExtensionProvider<AffineEdito
 
     context
       .register([
+        ...pageTreeViewExtensions(framework),
         slashMenuLocaleExtension,
         patchReferenceRenderer(reactToLit, referenceRenderer),
         patchNotificationService(confirmModal),

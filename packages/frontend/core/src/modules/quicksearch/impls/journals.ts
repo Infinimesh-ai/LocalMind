@@ -41,9 +41,9 @@ export class JournalsQuickSearchSession
   query$ = new LiveData('');
 
   items$: LiveData<JournalQuickSearchItem[]> = LiveData.computed(get => {
-    const getDateDocId = (date?: string) => {
+    const getDateDocId = async (date?: string) => {
       if (date) {
-        return this.journalService.ensureJournalByDate(date).id;
+        return (await this.journalService.ensureJournalByDate(date)).id;
       }
       return undefined;
     };

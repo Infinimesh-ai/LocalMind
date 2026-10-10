@@ -29,30 +29,32 @@ export const usePageHelper = (_docCollection: Workspace) => {
     WorkspaceDialogService,
   });
   const workbench = workbenchService.workbench;
-  const docRecordList = docsService.list;
   const appSidebar = appSidebarService.sidebar;
   const settings = useLiveData(editorSettingService.editorSetting.settings$);
   const allDocTitles = useLiveData(
     useMemo(() => LiveData.from(docsService.allDocTitle$(), []), [docsService])
   );
 
-  const createBlankDoc = useCallback(() => {
-    const title = resolveNewDocTitle({
-      autoTitleEnabled: settings.autoTitleNewDocWithCurrentDate,
-      existingTitles: allDocTitles.map(doc => doc.title).filter(Boolean),
-      format: settings.newDocDateTitleFormat,
-    });
+  const createBlankDoc = useCallback(
+    (mode?: DocMode) => {
+      const title = resolveNewDocTitle({
+        autoTitleEnabled: settings.autoTitleNewDocWithCurrentDate,
+        existingTitles: allDocTitles.map(doc => doc.title).filter(Boolean),
+        format: settings.newDocDateTitleFormat,
+      });
 
-    return docsService.createDoc(title ? { title } : undefined);
-  }, [
-    allDocTitles,
-    docsService,
-    settings.autoTitleNewDocWithCurrentDate,
-    settings.newDocDateTitleFormat,
-  ]);
+      return docsService.createDocAsync({ title, primaryMode: mode });
+    },
+    [
+      allDocTitles,
+      docsService,
+      settings.autoTitleNewDocWithCurrentDate,
+      settings.newDocDateTitleFormat,
+    ]
+  );
 
   const createPageAndOpen = useCallback(
-    (
+    async (
       mode?: DocMode,
       options: {
         at?: 'new-tab' | 'tail' | 'active';
@@ -63,11 +65,7 @@ export const usePageHelper = (_docCollection: Workspace) => {
       }
     ) => {
       appSidebar.setHovering(false);
-      const page = createBlankDoc();
-
-      if (mode) {
-        docRecordList.doc$(page.id).value?.setPrimaryMode(mode);
-      }
+      const page = await createBlankDoc(mode);
 
       if (options.show !== false) {
         workbench.openDoc(page.id, {
@@ -77,7 +75,7 @@ export const usePageHelper = (_docCollection: Workspace) => {
       }
       return page;
     },
-    [appSidebar, createBlankDoc, docRecordList, workbench]
+    [appSidebar, createBlankDoc, workbench]
   );
 
   const createEdgelessAndOpen = useCallback(

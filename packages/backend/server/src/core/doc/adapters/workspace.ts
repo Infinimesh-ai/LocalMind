@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import type { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { chunk } from 'lodash-es';
 import { mergeUpdates } from 'yjs';
 
@@ -17,6 +19,8 @@ import { Models } from '../../../models';
 import { DocumentReadLimitExceeded } from '../../../models/doc';
 import { applyUpdatesWithNative } from '../merge-updates';
 import { DocStorageOptions } from '../options';
+import { pageTreeWriteContext } from '../page-tree-context';
+import { validatePageTreeSyncUpdate } from '../page-tree-sync';
 import { ResourceError } from '../resource-types';
 import type { RootDocUpdatePlan } from '../root-doc-registration';
 import {
@@ -52,7 +56,8 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     private readonly mutex: Mutex,
     private readonly event: EventBus,
     protected override readonly options: DocStorageOptions,
-    private readonly queue: JobQueue
+    private readonly queue: JobQueue,
+    private readonly txHost: TransactionHost<TransactionalAdapterPrisma>
   ) {
     super(options);
   }
@@ -89,6 +94,17 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     );
   }
 
+  async observe<T>(operation: () => Promise<T>) {
+    // Join an existing transaction explicitly: nested timeout/isolation options
+    // cannot replace its budget, and writes must keep their own visible state.
+    if (this.txHost.isTransactionActive())
+      return await this.withTransactionalReads(operation);
+    return await this.txHost.withTransaction(
+      { isolationLevel: 'RepeatableRead', timeout: 15000, maxWait: 5000 },
+      () => this.withTransactionalReads(operation)
+    );
+  }
+
   private async readAuthoritative(
     workspaceId: string,
     docId: string,
@@ -118,6 +134,14 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     return await super.getDoc(workspaceId, docId);
   }
 
+  async getDocReadOnly(workspaceId: string, docId: string) {
+    const transaction = workspaceDocTransaction.getStore();
+    if (transaction) return await transaction.read(workspaceId, docId);
+    return await this.observe(() =>
+      this.readAuthoritative(workspaceId, docId, false)
+    );
+  }
+
   async pushDocUpdates(
     workspaceId: string,
     docId: string,
@@ -131,6 +155,28 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     if (!updates.length) {
       return 0;
     }
+
+    const originalBeforeInsert = beforeInsert;
+    beforeInsert = async () => {
+      await this.models.workspacePageTree.lock(workspaceId, async () => {});
+      await originalBeforeInsert?.();
+      if (pageTreeWriteContext.getStore() === workspaceId) return;
+      const state = await this.models.workspacePageTree.state(workspaceId);
+      if (
+        !state ||
+        state.phase === 'preflight' ||
+        state.phase === 'needs_resolution'
+      )
+        return;
+      if (state.phase !== 'switched')
+        throw new ResourceError('temporarily_unavailable');
+      await validatePageTreeSyncUpdate({
+        workspaceId,
+        docId,
+        updates,
+        read: id => this.getDocReadOnly(workspaceId, id),
+      });
+    };
 
     updates = await this.filterValidDocUpdates(workspaceId, docId, updates);
     if (!updates.length) return 0;
@@ -300,19 +346,28 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
       plan.replacementSnapshot,
     ]);
     if (!valid.length) throw new FailedToSaveUpdates();
+    const treeState = await this.models.workspacePageTree.state(workspaceId);
+    if (
+      treeState &&
+      !['preflight', 'needs_resolution'].includes(treeState.phase)
+    )
+      throw new ResourceError('temporarily_unavailable');
 
     let authorizationFailure: { error: unknown } | undefined;
-    const authorize = beforeWrite
-      ? async () => {
-          if (authorizationFailure) throw authorizationFailure.error;
-          try {
-            await beforeWrite();
-          } catch (error) {
-            authorizationFailure = { error };
-            throw error;
-          }
-        }
-      : undefined;
+    const authorize = async () => {
+      if (authorizationFailure) throw authorizationFailure.error;
+      try {
+        await this.models.workspacePageTree.lock(workspaceId, async () => {
+          const state = await this.models.workspacePageTree.state(workspaceId);
+          if (state && !['preflight', 'needs_resolution'].includes(state.phase))
+            throw new ResourceError('temporarily_unavailable');
+          await beforeWrite?.();
+        });
+      } catch (error) {
+        authorizationFailure = { error };
+        throw error;
+      }
+    };
     const timestamp = Math.max(Date.now(), current.timestamp + 1);
     try {
       const success = await this.setDocSnapshot(
@@ -345,7 +400,16 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
   }
 
   async deleteDoc(workspaceId: string, docId: string) {
-    await this.models.doc.delete(workspaceId, docId);
+    await this.models.workspacePageTree.lock(workspaceId, async () => {
+      const state = await this.models.workspacePageTree.state(workspaceId);
+      if (
+        state &&
+        !['preflight', 'needs_resolution'].includes(state.phase) &&
+        pageTreeWriteContext.getStore() !== workspaceId
+      )
+        throw new ResourceError('temporarily_unavailable');
+      await this.models.doc.delete(workspaceId, docId);
+    });
     this.event.emit('doc.snapshot.deleted', { workspaceId, docId });
   }
 

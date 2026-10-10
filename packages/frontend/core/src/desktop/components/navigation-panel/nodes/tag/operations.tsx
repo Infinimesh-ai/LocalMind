@@ -1,5 +1,6 @@
 import { IconButton, MenuItem, MenuSeparator, toast } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
 import { DocsService } from '@affine/core/modules/doc';
 import { FavoriteService } from '@affine/core/modules/favorite';
@@ -46,9 +47,9 @@ export const useNavigationPanelTagNodeOperations = (
     workspaceService.workspace.docCollection
   );
 
-  const handleNewDoc = useCallback(() => {
+  const handleNewDoc = useAsyncCallback(async () => {
     if (tagRecord) {
-      const newDoc = createPage();
+      const newDoc = await createPage();
       tagRecord?.tag(newDoc.id);
       track.$.navigationPanel.tags.createDoc();
       openNodeCollapsed();

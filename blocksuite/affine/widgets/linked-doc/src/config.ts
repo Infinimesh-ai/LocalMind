@@ -13,7 +13,7 @@ import {
 } from '@blocksuite/affine-shared/services';
 import type { AffineInlineEditor } from '@blocksuite/affine-shared/types';
 import {
-  createDefaultDoc,
+  createDefaultEditorDoc,
   isFuzzyMatch,
   type Signal,
 } from '@blocksuite/affine-shared/utils';
@@ -133,10 +133,10 @@ export function createNewDocMenuGroup(
       key: 'create',
       name: `Create "${displayDocName}" doc`,
       icon: NewDocIcon,
-      action: () => {
+      action: async () => {
         abort();
         const docName = query;
-        const newDoc = createDefaultDoc(doc.workspace, {
+        const newDoc = await createDefaultEditorDoc(editorHost.std, {
           title: docName,
         });
         insertLinkedNode({

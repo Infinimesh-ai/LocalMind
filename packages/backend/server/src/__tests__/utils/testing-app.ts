@@ -51,7 +51,8 @@ const OneMB = 1024 * 1024;
 const JsonBodyLimit = 32 * OneMB;
 
 export async function createTestingApp(
-  moduleDef: TestingAppMetadata = {}
+  moduleDef: TestingAppMetadata = {},
+  initializeDatabase = true
 ): Promise<TestingApp> {
   const module = await createTestingModule(moduleDef, false);
   const logger = new AFFiNELogger();
@@ -82,7 +83,7 @@ export async function createTestingApp(
     moduleDef.tapApp(app);
   }
 
-  await module.initTestingDB();
+  if (initializeDatabase) await module.initTestingDB();
   await app.init();
 
   return makeTestingApp(app);

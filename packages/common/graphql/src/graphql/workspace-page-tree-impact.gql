@@ -1,0 +1,10 @@
+query workspacePageTreeImpact($workspaceId: ID!, $nodeId: ID!, $action: String!) {
+  workspacePageTreeImpact(workspaceId: $workspaceId, nodeId: $nodeId, action: $action) {
+    revision
+    authorizationRevision
+    parentNodeId
+    total
+    truncated
+    items { nodeId title documentType }
+  }
+}

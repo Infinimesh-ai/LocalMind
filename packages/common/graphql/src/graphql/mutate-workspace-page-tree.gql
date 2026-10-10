@@ -1,0 +1,12 @@
+mutation mutateWorkspacePageTree($input: WorkspacePageTreeCommandInput!) {
+  mutateWorkspacePageTree(input: $input) {
+    operationId
+    nodeId
+    resourceId
+    parentNodeId
+    revision
+    oldParentNodeId
+    oldSiblingOrder
+    oldBeforeNodeId
+  }
+}

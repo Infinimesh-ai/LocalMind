@@ -118,7 +118,7 @@ const PageOperationCellMenuItem = ({
         variant: 'error',
       },
       onConfirm: async () => {
-        await docRecord.moveToTrash();
+        if ((await docRecord.moveToTrash()) === false) return;
       },
     });
   }, [docRecord, openConfirmModal, t]);
@@ -198,7 +198,7 @@ const PageOperationCellMenuItem = ({
       </MenuItem>
 
       <MenuItem prefixIcon={<DuplicateIcon />} onSelect={onDuplicate}>
-        {t['com.affine.header.option.duplicate']()}
+        {t['com.affine.localmind.page-tree.duplicate']()}
       </MenuItem>
 
       <MoveToTrash
@@ -410,8 +410,8 @@ export const CollectionOperationCell = ({
     );
   }, [favAdapter, collectionId, t]);
 
-  const createAndAddDocument = useCallback(() => {
-    const newDoc = createPage(undefined, { show: false });
+  const createAndAddDocument = useCallback(async () => {
+    const newDoc = await createPage(undefined, { show: false });
     collectionService.addDocToCollection(collectionId, newDoc.id);
   }, [collectionService, collectionId, createPage]);
 

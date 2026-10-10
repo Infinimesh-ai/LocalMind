@@ -142,7 +142,7 @@ export class AtMenuConfigService extends Service {
     }
 
     const createPage = (mode: DocMode) => {
-      const page = this.docsService.createDoc({
+      const page = this.docsService.createDocAsync({
         title: query,
         primaryMode: mode,
       });
@@ -157,9 +157,9 @@ export class AtMenuConfigService extends Service {
         name: I18n.t('com.affine.editor.at-menu.create-page', {
           name: query || I18n.t('Untitled'),
         }),
-        action: () => {
+        action: async () => {
           close();
-          const page = createPage('page');
+          const page = await createPage('page');
           this.insertDoc(inlineEditor, page.id);
           track.doc.editor.atMenu.createDoc({
             mode: 'page',
@@ -172,9 +172,9 @@ export class AtMenuConfigService extends Service {
         name: I18n.t('com.affine.editor.at-menu.create-edgeless', {
           name: query || I18n.t('Untitled'),
         }),
-        action: () => {
+        action: async () => {
           close();
-          const page = createPage('edgeless');
+          const page = await createPage('edgeless');
           this.insertDoc(inlineEditor, page.id);
           track.doc.editor.atMenu.createDoc({
             mode: 'edgeless',
@@ -256,7 +256,7 @@ export class AtMenuConfigService extends Service {
             position: [x, y, width, height || 20],
             onSelect: date => {
               if (date) {
-                onSelectDate(date);
+                onSelectDate(date).catch(console.error);
                 track.doc.editor.atMenu.linkDoc({
                   journal: true,
                   type: 'specific date',
@@ -269,9 +269,9 @@ export class AtMenuConfigService extends Service {
       },
     ];
 
-    const onSelectDate = (date: string) => {
+    const onSelectDate = async (date: string) => {
       close();
-      const doc = this.journalService.ensureJournalByDate(date);
+      const doc = await this.journalService.ensureJournalByDate(date);
       this.insertDoc(inlineEditor, doc.id);
     };
 
@@ -299,7 +299,7 @@ export class AtMenuConfigService extends Service {
             journal: true,
             type: alias,
           });
-          onSelectDate(dateString);
+          onSelectDate(dateString).catch(console.error);
         },
       });
     }

@@ -7,7 +7,7 @@ import {
   ParagraphBlockModel,
 } from '@blocksuite/affine-model';
 import { NotificationProvider } from '@blocksuite/affine-shared/services';
-import { matchModels } from '@blocksuite/affine-shared/utils';
+import { createEditorDoc, matchModels } from '@blocksuite/affine-shared/utils';
 import type { BlockStdScope } from '@blocksuite/std';
 import {
   type BlockModel,
@@ -164,7 +164,7 @@ export async function convertSelectedBlocksToLinkedDoc(
   }
   // if title undefined, use the first heading block content as doc title
   const title = docTitle || getTitleFromSelectedModels(models);
-  const linkedDoc = createLinkedDocFromSlice(std, doc, slice.content, title);
+  const linkedDoc = await createLinkedDocFromSlice(std, slice.content, title);
   // insert linked doc card
   doc.addSiblingBlocks(
     doc.getBlock(firstBlock.id)!.model,
@@ -181,25 +181,18 @@ export async function convertSelectedBlocksToLinkedDoc(
   return linkedDoc;
 }
 
-export function createLinkedDocFromSlice(
+export async function createLinkedDocFromSlice(
   std: BlockStdScope,
-  doc: Store,
   snapshots: BlockSnapshot[],
   docTitle?: string
 ) {
-  const _doc = doc.workspace.createDoc();
-  const linkedDoc = _doc.getStore();
-  linkedDoc.load(() => {
-    const rootId = linkedDoc.addBlock('affine:page', {
-      title: new Text(docTitle),
-    });
-    linkedDoc.addBlock('affine:surface', {}, rootId);
-    const noteId = linkedDoc.addBlock('affine:note', {}, rootId);
-    snapshots.forEach(snapshot => {
-      std.clipboard
-        .pasteBlockSnapshot(snapshot, linkedDoc, noteId)
-        .catch(console.error);
-    });
+  const linkedDoc = await createEditorDoc(std);
+  const rootId = linkedDoc.addBlock('affine:page', {
+    title: new Text(docTitle),
   });
+  linkedDoc.addBlock('affine:surface', {}, rootId);
+  const noteId = linkedDoc.addBlock('affine:note', {}, rootId);
+  for (const snapshot of snapshots)
+    await std.clipboard.pasteBlockSnapshot(snapshot, linkedDoc, noteId);
   return linkedDoc;
 }

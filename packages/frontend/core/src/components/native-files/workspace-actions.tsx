@@ -7,6 +7,8 @@ import {
   Modal,
 } from '@affine/component';
 import { GraphQLService } from '@affine/core/modules/cloud';
+import { WorkspacePageTreeService } from '@affine/core/modules/organize';
+import type { PageTreeItem } from '@affine/core/modules/organize/services/page-tree';
 import { WorkspaceResourcesService } from '@affine/core/modules/workspace-resources';
 import { UserFriendlyError } from '@affine/error';
 import {
@@ -20,6 +22,11 @@ import { useService, useServiceOptional } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 
+import {
+  type PageTreeTarget,
+  WorkspacePageTargetSelect,
+} from '../page-tree/target-select';
+import { MovePageDialog } from '../root-app-sidebar/page-tree';
 import * as styles from './native-files.css';
 import { WorkspaceNativeFolderSelect } from './workspace-folder-select';
 
@@ -58,6 +65,11 @@ export function WorkspaceNativeActions({
   const t = useI18n();
   const graphql = useService(GraphQLService);
   const catalog = useServiceOptional(WorkspaceResourcesService);
+  const pageTree = useServiceOptional(WorkspacePageTreeService);
+  const [treeMove, setTreeMove] = useState<{
+    item: PageTreeItem;
+    action: 'move' | 'restore';
+  } | null>(null);
   const [rights, setRights] = useState(capabilities);
   useEffect(() => {
     if (capabilities) {
@@ -85,6 +97,7 @@ export function WorkspaceNativeActions({
   const [action, setAction] = useState<Action | null>(null);
   const [name, setName] = useState(title);
   const [folder, setFolder] = useState<string | null>(null);
+  const [treeTarget, setTreeTarget] = useState<PageTreeTarget | null>(null);
   const [directoryVersion, setDirectoryVersion] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
@@ -93,6 +106,7 @@ export function WorkspaceNativeActions({
     key: string;
     metadataVersion: number;
     contentVersion: number;
+    pageTreeTarget?: PageTreeTarget;
   } | null>(null);
   const labels = {
     rename: t['com.affine.localmind.native-files.rename'](),
@@ -109,6 +123,23 @@ export function WorkspaceNativeActions({
     setError(false);
     try {
       const input = { workspaceId, resourceId, kind };
+      if (
+        pageTree?.enabled$.value &&
+        ['trash', 'restore', 'delete'].includes(action)
+      ) {
+        const location = await pageTree.locate(kind, resourceId);
+        if (!location.parent) throw new Error('Resource unavailable');
+        if (action === 'restore' && restoreElsewhere) {
+          setTreeMove({ item: location.parent, action: 'restore' });
+          setAction(null);
+          return;
+        }
+        await pageTree.execute({ action, nodeId: location.parent.nodeId });
+        setAction(null);
+        catalog?.invalidate();
+        onChanged();
+        return;
+      }
       if (!request.current) {
         const current = (
           await graphql.gql({
@@ -120,6 +151,9 @@ export function WorkspaceNativeActions({
           key: nanoid(),
           metadataVersion: current.metadataVersion,
           contentVersion: current.contentVersion,
+          ...(action === 'copy' && pageTree?.enabled$.value && treeTarget
+            ? { pageTreeTarget: treeTarget }
+            : {}),
         };
       }
       const frozen = request.current;
@@ -130,7 +164,7 @@ export function WorkspaceNativeActions({
             input: {
               ...input,
               title: name,
-              folderId: folder,
+              ...(frozen.pageTreeTarget ?? { folderId: folder }),
               expectedContentVersion: frozen.contentVersion,
               requestKey: frozen.key,
             },
@@ -159,6 +193,7 @@ export function WorkspaceNativeActions({
       request.current = null;
       setAction(null);
       catalog?.invalidate();
+      if (pageTree?.enabled$.value) await pageTree.load(null);
       onChanged();
     } catch (error) {
       if (
@@ -178,6 +213,16 @@ export function WorkspaceNativeActions({
     setFolder(null);
     setRestoreElsewhere(false);
     setError(false);
+    if (next === 'move' && pageTree?.enabled$.value) {
+      try {
+        const location = await pageTree.locate(kind, resourceId);
+        if (!location.parent) throw new Error('Resource unavailable');
+        setTreeMove({ item: location.parent, action: 'move' });
+      } catch {
+        setError(true);
+      }
+      return;
+    }
     setAction(next);
   };
   const needsFolder =
@@ -224,6 +269,17 @@ export function WorkspaceNativeActions({
           </Button>
         )}
       </Menu>
+      {treeMove && (
+        <MovePageDialog
+          item={treeMove.item}
+          action={treeMove.action}
+          onClose={() => {
+            setTreeMove(null);
+            catalog?.invalidate();
+            onChanged();
+          }}
+        />
+      )}
       <Modal
         open={!!action}
         onOpenChange={open => {
@@ -258,13 +314,26 @@ export function WorkspaceNativeActions({
           {action === 'restore' && !restoreElsewhere && (
             <p>{t['com.affine.localmind.resources.restoreOriginal']()}</p>
           )}
-          {needsFolder && (
-            <WorkspaceNativeFolderSelect
+          {needsFolder &&
+            !(
+              pageTree?.enabled$.value &&
+              ['restore', 'copy'].includes(action ?? '')
+            ) && (
+              <WorkspaceNativeFolderSelect
+                workspaceId={workspaceId}
+                value={folder}
+                disabled={pending || !!request.current}
+                onChange={setFolder}
+                onVersion={setDirectoryVersion}
+              />
+            )}
+          {pageTree?.enabled$.value && action === 'copy' && (
+            <WorkspacePageTargetSelect
               workspaceId={workspaceId}
               value={folder}
               disabled={pending || !!request.current}
               onChange={setFolder}
-              onVersion={setDirectoryVersion}
+              onTarget={setTreeTarget}
             />
           )}
           {action === 'delete' && (
@@ -283,7 +352,12 @@ export function WorkspaceNativeActions({
               variant={action === 'delete' ? 'error' : 'primary'}
               disabled={
                 pending ||
-                (needsFolder && !directoryVersion) ||
+                (needsFolder &&
+                  !directoryVersion &&
+                  !(
+                    pageTree?.enabled$.value &&
+                    (action === 'restore' || (action === 'copy' && treeTarget))
+                  )) ||
                 ((action === 'rename' || action === 'copy') && !name.trim())
               }
               onClick={() => void submit().catch(() => setError(true))}

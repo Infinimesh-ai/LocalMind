@@ -97,3 +97,37 @@ export function hasRetiredToolContract(run: {
   }
   return false;
 }
+
+/** Workspace-scoped cutover only. Historical inputs and completed receipts stay intact. */
+export function hasLegacyPageTreeToolContract(run: {
+  workflow: string;
+  steps: ReadonlyArray<{ outputSummary: unknown }>;
+}) {
+  if (run.workflow !== 'agent_runtime_localmind_tool_agent') return false;
+  return run.steps.some(step => {
+    const request = object(
+      object(step.outputSummary).localMindToolAgentRequest
+    );
+    return (
+      Array.isArray(request.allowedToolNames) &&
+      request.allowedToolNames.some(
+        name =>
+          typeof name === 'string' &&
+          (name.startsWith('workspace_page_tree_') ||
+            name === 'workspace_container_convert' ||
+            name.startsWith('workspace_folder_') ||
+            name.startsWith('workspace_native_folder_') ||
+            [
+              'workspace_doc_create',
+              'workspace_doc_copy',
+              'workspace_doc_trash',
+              'workspace_doc_restore',
+              'workspace_doc_delete_permanently',
+              'workspace_file_create',
+              'workspace_resource_copy',
+              'workspace_resource_update_meta',
+            ].includes(name))
+      )
+    );
+  });
+}

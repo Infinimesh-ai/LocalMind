@@ -20,3 +20,7 @@ mutation restoreWorkspaceNativeVersion($input: RestoreWorkspaceNativeVersionInpu
 mutation copyWorkspaceNativeResource($input: CopyWorkspaceNativeResourceInput!) {
   copyWorkspaceNativeResource(input: $input) { ...WorkspaceNativeResourceFields }
 }
+
+mutation setWorkspaceNativeResourceTags($input: SetWorkspaceNativeResourceTagsInput!) {
+  setWorkspaceNativeResourceTags(input: $input) { ...WorkspaceNativeResourceFields }
+}

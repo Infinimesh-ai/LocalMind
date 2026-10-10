@@ -193,7 +193,7 @@ export class DatabaseDocReader extends DocReader {
   }
 
   async getDoc(workspaceId: string, docId: string): Promise<DocRecord | null> {
-    return await this.workspace.getDoc(workspaceId, docId);
+    return await this.workspace.getDocReadOnly(workspaceId, docId);
   }
 
   async getDocMarkdown(
@@ -201,7 +201,7 @@ export class DatabaseDocReader extends DocReader {
     docId: string,
     aiEditable: boolean
   ): Promise<DocMarkdown | null> {
-    const doc = await this.workspace.getDoc(workspaceId, docId);
+    const doc = await this.workspace.getDocReadOnly(workspaceId, docId);
     if (!doc) {
       return null;
     }
@@ -233,7 +233,7 @@ export class DatabaseDocReader extends DocReader {
     docId: string,
     stateVector?: Uint8Array
   ): Promise<DocDiff | null> {
-    const doc = await this.workspace.getDoc(spaceId, docId);
+    const doc = await this.workspace.getDocReadOnly(spaceId, docId);
     if (!doc) {
       return null;
     }
@@ -248,15 +248,18 @@ export class DatabaseDocReader extends DocReader {
     guid: string,
     fullContent?: boolean
   ): Promise<PageDocContent | null> {
-    const docBinary = await this.workspace.getDocBinNative(workspaceId, guid);
-    if (!docBinary) return null;
-    return this.parseDocContent(docBinary, fullContent ? -1 : 150);
+    const doc = await this.workspace.getDocReadOnly(workspaceId, guid);
+    if (!doc) return null;
+    return this.parseDocContent(doc.bin, fullContent ? -1 : 150);
   }
 
   protected override async getWorkspaceContentWithoutCache(
     workspaceId: string
   ): Promise<WorkspaceDocInfo | null> {
-    const docRecord = await this.workspace.getDoc(workspaceId, workspaceId);
+    const docRecord = await this.workspace.getDocReadOnly(
+      workspaceId,
+      workspaceId
+    );
     if (!docRecord) {
       return null;
     }

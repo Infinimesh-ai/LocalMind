@@ -8,7 +8,10 @@ import {
 import { REFERENCE_NODE } from '@blocksuite/affine-shared/consts';
 import { TelemetryProvider } from '@blocksuite/affine-shared/services';
 import type { AffineTextAttributes } from '@blocksuite/affine-shared/types';
-import { createDefaultDoc, matchModels } from '@blocksuite/affine-shared/utils';
+import {
+  createDefaultEditorDoc,
+  matchModels,
+} from '@blocksuite/affine-shared/utils';
 import type { DetailSlotProps, SingleView } from '@blocksuite/data-view';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import { type EditorHost, ShadowlessElement } from '@blocksuite/std';
@@ -47,12 +50,12 @@ export class NoteRenderer
     return this.model;
   }
 
-  addNote() {
+  async addNote() {
     const collection = this.host?.std.workspace;
     if (!collection) {
       return;
     }
-    const note = createDefaultDoc(collection);
+    const note = await createDefaultEditorDoc(this.host!.std);
     if (note) {
       this.openDoc(note.id);
       const rowContent = this.rowText$.value?.toString();
@@ -105,7 +108,7 @@ export class NoteRenderer
     if (this.allowCreateDoc$.value) {
       return html` <div>
         <div
-          @click="${this.addNote}"
+          @click="${() => void this.addNote().catch(console.error)}"
           style="max-width: var(--affine-editor-width);margin: auto;cursor: pointer;color: var(--affine-text-disable-color)"
         >
           Click to create a linked doc in center peek.

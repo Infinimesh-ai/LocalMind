@@ -1,4 +1,4 @@
-import { MenuSeparator } from '@affine/component';
+import { MenuSeparator, toast } from '@affine/component';
 import {
   handleInlineAskAIAction,
   pageAIGroups,
@@ -82,9 +82,14 @@ const StarterBarNotEmpty = ({ doc }: { doc: Store }) => {
 
   const startWithEdgeless = useCallback(() => {
     const record = docsService.list.doc$(doc.id).value;
-    record?.setPrimaryMode('edgeless');
+    try {
+      record?.setPrimaryMode('edgeless');
+    } catch {
+      toast(t['com.affine.localmind.page-tree.modeBlocked']());
+      return;
+    }
     editorService.editor.setMode('edgeless');
-  }, [doc.id, docsService.list, editorService.editor]);
+  }, [doc.id, docsService.list, editorService.editor, t]);
 
   const onTemplateMenuOpenChange = useCallback((open: boolean) => {
     if (open) track.doc.editor.starterBar.openTemplateListMenu();

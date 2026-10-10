@@ -44,6 +44,11 @@ export type GLOBAL_DIALOG_SCHEMA = {
 };
 
 export type WORKSPACE_DIALOG_SCHEMA = {
+  'page-tree-lifecycle': (props: {
+    nodeId: string;
+    action: 'trash' | 'restore' | 'delete';
+    expectedParentNodeId?: string | null;
+  }) => boolean;
   setting: (props: { activeTab?: SettingTab; scrollAnchor?: string }) => void;
   'doc-info': (props: { docId: string }) => void;
   'doc-selector': (props: {

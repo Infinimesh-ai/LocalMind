@@ -14,6 +14,7 @@ import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hoo
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
 import { DocsService } from '@affine/core/modules/doc';
 import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { WorkspacePageTreeService } from '@affine/core/modules/organize/services/page-tree';
 import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
@@ -29,7 +30,7 @@ import {
   SplitViewIcon,
   UnlinkIcon,
 } from '@blocksuite/icons/rc';
-import { useLiveData, useServices } from '@toeverything/infra';
+import { useLiveData, useService, useServices } from '@toeverything/infra';
 import { useCallback, useMemo, useState } from 'react';
 
 import type { NodeOperation } from '../../tree/types';
@@ -44,6 +45,8 @@ export const useNavigationPanelDocNodeOperations = (
   }
 ): NodeOperation[] => {
   const t = useI18n();
+  const pageTree = useService(WorkspacePageTreeService);
+  const pageTreeEnabled = useLiveData(pageTree.enabled$);
   const {
     workbenchService,
     workspaceService,
@@ -102,7 +105,7 @@ export const useNavigationPanelDocNodeOperations = (
           toast(t['com.affine.no-permission']());
           return;
         }
-        await docRecord.moveToTrash();
+        if ((await docRecord.moveToTrash()) === false) return;
         track.$.navigationPanel.docs.deleteDoc({
           control: 'button',
         });
@@ -134,12 +137,24 @@ export const useNavigationPanelDocNodeOperations = (
   const handleAddLinkedPage = useAsyncCallback(async () => {
     setAddLinkedPageLoading(true);
     try {
+      if (pageTree.enabled$.value === null) await pageTree.load(null);
+      if (pageTree.enabled$.value) {
+        const location = await pageTree.locate('doc', docId);
+        if (!location.parent || location.parent.primaryMode !== 'page')
+          throw new Error('Target must be a page');
+        await docsService.createDocAsync({
+          title: t['Untitled'](),
+          parentNodeId: location.parent.nodeId,
+        });
+        options.openNodeCollapsed();
+        return;
+      }
       const canEdit = await guardService.can('Doc_Update', docId);
       if (!canEdit) {
         toast(t['com.affine.no-permission']());
         return;
       }
-      const newDoc = createPage();
+      const newDoc = await createPage();
       const result = await docsService.addLinkedDoc(docId, newDoc.id);
       if (result !== 'added') {
         toast(
@@ -161,7 +176,7 @@ export const useNavigationPanelDocNodeOperations = (
     } finally {
       setAddLinkedPageLoading(false);
     }
-  }, [createPage, guardService, docId, docsService, options, t]);
+  }, [createPage, guardService, docId, docsService, options, t, pageTree]);
 
   const handleToggleFavoriteDoc = useCallback(() => {
     compatibleFavoriteItemsAdapter.toggle(docId, 'doc');
@@ -177,7 +192,7 @@ export const useNavigationPanelDocNodeOperations = (
 
   return useMemo(
     () => [
-      ...(appSettings.showLinkedDocInSidebar
+      ...(pageTreeEnabled || appSettings.showLinkedDocInSidebar
         ? [
             {
               index: 0,
@@ -218,7 +233,9 @@ export const useNavigationPanelDocNodeOperations = (
                 onClick={handleAddLinkedPage}
                 disabled={!canEdit}
               >
-                {t['com.affine.page-operation.add-linked-page']()}
+                {pageTreeEnabled
+                  ? t['com.affine.localmind.page-tree.newPage']()
+                  : t['com.affine.page-operation.add-linked-page']()}
               </MenuItem>
             )}
           </Guard>
@@ -228,7 +245,11 @@ export const useNavigationPanelDocNodeOperations = (
         index: 99,
         view: (
           <MenuItem prefixIcon={<DuplicateIcon />} onClick={handleDuplicate}>
-            {t['com.affine.header.option.duplicate']()}
+            {t[
+              pageTreeEnabled
+                ? 'com.affine.localmind.page-tree.duplicate'
+                : 'com.affine.header.option.duplicate'
+            ]()}
           </MenuItem>
         ),
       },
@@ -271,7 +292,7 @@ export const useNavigationPanelDocNodeOperations = (
       {
         index: 10000,
         view:
-          options.linkedFromDocId && !options.isInFolder ? (
+          !pageTreeEnabled && options.linkedFromDocId && !options.isInFolder ? (
             <Guard docId={options.linkedFromDocId} permission="Doc_Update">
               {canEdit => (
                 <MenuItem
@@ -300,6 +321,7 @@ export const useNavigationPanelDocNodeOperations = (
       },
     ],
     [
+      pageTreeEnabled,
       addLinkedPageLoading,
       appSettings.showLinkedDocInSidebar,
       docId,

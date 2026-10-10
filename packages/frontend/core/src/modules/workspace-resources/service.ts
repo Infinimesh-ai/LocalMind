@@ -3,6 +3,7 @@ import {
   type ChangeWorkspaceNativeResourceInput,
   changeWorkspaceNativeResourceMutation,
   workspaceDirectoryQuery,
+  workspaceDocumentTypes,
   workspaceNativeResourceQuery,
 } from '@affine/graphql';
 import { LiveData, Service } from '@toeverything/infra';
@@ -24,6 +25,15 @@ export const nativeResourceSchema = z.object({
   byteSize: z.number(),
   contentVersion: z.number(),
   metadataVersion: z.number(),
+  documentType: z.enum(workspaceDocumentTypes),
+  createdBy: z.string().nullable(),
+  lastUpdatedAt: z.string().nullable(),
+  lastUpdatedBy: z.string().nullable(),
+  lastUpdateActor: z.enum(['unknown', 'user', 'system']),
+  tags: z.array(
+    z.object({ id: z.string(), name: z.string(), color: z.string() })
+  ),
+  canEditTags: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
   trashedAt: z.string().nullable(),
@@ -235,8 +245,8 @@ export class WorkspaceResourcesService extends Service {
       for (const item of page.items) items.set(`${item.kind}:${item.id}`, item);
       cursor = page.nextCursor ?? undefined;
       if (
-        cursor &&
-        (cursors.has(cursor) || cursors.size >= 199 || items.size > 10000)
+        items.size > 10000 ||
+        (cursor && (cursors.has(cursor) || cursors.size >= 199))
       )
         throw new Error('Resource listing exceeds its supported limit');
       if (cursor) cursors.add(cursor);

@@ -3,6 +3,7 @@ import type { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import { StoreExtensionManager } from '@blocksuite/affine/ext-loader';
 import { getInternalStoreExtensions } from '@blocksuite/affine/extensions/store';
 
+import { PageTreeStoreExtension } from '../page-tree/model';
 import { FeatureFlagStoreExtension } from '../store-extensions/feature-flag';
 
 interface Configure {
@@ -28,6 +29,7 @@ class StoreProvider {
     this._manager = new StoreExtensionManager([
       ...getInternalStoreExtensions(),
       AIStoreExtension,
+      PageTreeStoreExtension,
       FeatureFlagStoreExtension,
     ]);
   }

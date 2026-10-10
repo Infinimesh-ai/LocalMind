@@ -82,7 +82,7 @@ const CalendarEventRenderer = ({ event }: { event: CalendarEvent }) => {
           continue;
         }
 
-        const newDoc = createPage();
+        const newDoc = await createPage();
         await docsService.changeDocTitle(newDoc.id, eventTitle);
         await docsService.addLinkedDoc(doc.id, newDoc.id);
       }

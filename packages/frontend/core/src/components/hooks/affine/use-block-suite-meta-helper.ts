@@ -20,7 +20,7 @@ export function useBlockSuiteMetaHelper() {
     async (docId: string) => {
       const docRecord = docRecordList.doc$(docId).value;
       if (!docRecord) throw new Error('Document unavailable');
-      await docRecord.moveToTrash();
+      return await docRecord.moveToTrash();
     },
     [docRecordList]
   );
@@ -29,7 +29,7 @@ export function useBlockSuiteMetaHelper() {
     async (docId: string) => {
       const docRecord = docRecordList.doc$(docId).value;
       if (!docRecord) throw new Error('Document unavailable');
-      await docRecord.restoreFromTrash();
+      return await docRecord.restoreFromTrash();
     },
     [docRecordList]
   );

@@ -68,7 +68,7 @@ export interface BlobCRUD {
 }
 
 export interface DocCRUD {
-  create: (id: string) => Store;
+  create: (id: string) => Store | Promise<Store>;
   get: (id: string) => Store | null;
   delete: (id: string) => void;
 }

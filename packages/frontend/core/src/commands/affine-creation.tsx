@@ -32,7 +32,7 @@ export function registerAffineCreationCommands({
       run() {
         track.$.cmdk.creation.createDoc({ mode: 'page' });
 
-        pageHelper.createPage('page' as DocMode);
+        pageHelper.createPage('page' as DocMode).catch(console.error);
       },
     })
   );
@@ -48,7 +48,7 @@ export function registerAffineCreationCommands({
           mode: 'edgeless',
         });
 
-        pageHelper.createEdgeless();
+        pageHelper.createEdgeless().catch(console.error);
       },
     })
   );

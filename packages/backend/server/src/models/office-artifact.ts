@@ -62,6 +62,7 @@ export type AppendOfficeRevisionInput = OfficeOwnerInput & {
   actorId: string;
   origin: OfficeRevisionOrigin;
   expectedParentRevisionId: string;
+  forceRevision?: boolean;
   idempotencyKey: string;
   idempotencyFingerprint: string;
   package: RevisionBlobInput;
@@ -378,6 +379,13 @@ export class OfficeArtifactModel extends BaseModel {
       );
     }
 
+    if (
+      workspaceId &&
+      !input.forceRevision &&
+      parent.packageFingerprint === packageBlob.fingerprint &&
+      parent.stateFingerprint === (state?.fingerprint ?? null)
+    )
+      return { created: false, revision: parent };
     const sequence = artifact.revisionCounter + 1;
     const revision = await this.db.officeRevision.create({
       data: {
@@ -385,6 +393,7 @@ export class OfficeArtifactModel extends BaseModel {
         artifactId,
         sequence,
         origin: input.origin,
+        createdAt: new Date(),
         parentRevisionId: parent.id,
         idempotencyKey,
         idempotencyFingerprint,

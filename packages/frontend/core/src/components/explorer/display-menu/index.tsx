@@ -18,6 +18,7 @@ import { GroupByList, GroupByName } from './group';
 import { OrderByList, OrderByName } from './order';
 import { DisplayProperties } from './properties';
 import { QuickActionsConfig } from './quick-actions';
+import { ResourceDisplayMenu } from './resources';
 import * as styles from './styles.css';
 
 const ExplorerDisplayMenu = ({
@@ -115,10 +116,17 @@ export const ExplorerDisplayMenuButton = ({
   return (
     <Menu
       items={
-        <ExplorerDisplayMenu
-          displayPreference={displayPreference}
-          onDisplayPreferenceChange={onDisplayPreferenceChange}
-        />
+        displayPreference.resourceProperties ? (
+          <ResourceDisplayMenu
+            displayPreference={displayPreference}
+            onDisplayPreferenceChange={onDisplayPreferenceChange}
+          />
+        ) : (
+          <ExplorerDisplayMenu
+            displayPreference={displayPreference}
+            onDisplayPreferenceChange={onDisplayPreferenceChange}
+          />
+        )
       }
       {...menuProps}
     >

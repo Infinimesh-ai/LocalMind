@@ -14,6 +14,7 @@ import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
 import type { NodeOperation } from '@affine/core/desktop/components/navigation-panel';
 import { DocsService } from '@affine/core/modules/doc';
 import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { WorkspacePageTreeService } from '@affine/core/modules/organize/services/page-tree';
 import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
@@ -40,6 +41,7 @@ export const useNavigationPanelDocNodeAddLinkedPage = (
   openNodeCollapsed: () => void
 ) => {
   const t = useI18n();
+  const pageTree = useService(WorkspacePageTreeService);
   const { docsService, guardService, workspaceService } = useServices({
     DocsService,
     GuardService,
@@ -50,12 +52,24 @@ export const useNavigationPanelDocNodeAddLinkedPage = (
   );
   return useAsyncCallback(async () => {
     try {
+      if (pageTree.enabled$.value === null) await pageTree.load(null);
+      if (pageTree.enabled$.value) {
+        const location = await pageTree.locate('doc', docId);
+        if (!location.parent || location.parent.primaryMode !== 'page')
+          throw new Error('Target must be a page');
+        await docsService.createDocAsync({
+          title: t['Untitled'](),
+          parentNodeId: location.parent.nodeId,
+        });
+        openNodeCollapsed();
+        return;
+      }
       const canEdit = await guardService.can('Doc_Update', docId);
       if (!canEdit) {
         toast(t['com.affine.no-permission']());
         return;
       }
-      const newDoc = createPage();
+      const newDoc = await createPage();
       const result = await docsService.addLinkedDoc(docId, newDoc.id);
       if (result !== 'added') {
         toast(
@@ -75,11 +89,21 @@ export const useNavigationPanelDocNodeAddLinkedPage = (
       console.error('[navigation-panel] Failed to add linked doc', error);
       toast(t['com.affine.toastMessage.addLinkedPageFailed']());
     }
-  }, [createPage, docId, docsService, guardService, openNodeCollapsed, t]);
+  }, [
+    createPage,
+    docId,
+    docsService,
+    guardService,
+    openNodeCollapsed,
+    t,
+    pageTree,
+  ]);
 };
 
 export const useNavigationPanelDocNodeOperations = (docId: string) => {
   const t = useI18n();
+  const pageTree = useService(WorkspacePageTreeService);
+  const pageTreeEnabled = useLiveData(pageTree.enabled$);
   const {
     workbenchService,
     docsService,
@@ -127,7 +151,7 @@ export const useNavigationPanelDocNodeOperations = (docId: string) => {
           toast(t['com.affine.no-permission']());
           return;
         }
-        await docRecord.moveToTrash();
+        if ((await docRecord.moveToTrash()) === false) return;
         track.$.navigationPanel.docs.deleteDoc({
           control: 'button',
         });
@@ -171,6 +195,7 @@ export const useNavigationPanelDocNodeOperations = (docId: string) => {
 
   return useMemo(
     () => ({
+      pageTreeEnabled,
       favorite,
       handleDuplicate,
       handleToggleFavoriteDoc,
@@ -180,6 +205,7 @@ export const useNavigationPanelDocNodeOperations = (docId: string) => {
       handleRename,
     }),
     [
+      pageTreeEnabled,
       favorite,
       handleDuplicate,
       handleMoveToTrash,
@@ -203,6 +229,8 @@ export const useNavigationPanelDocNodeOperationsMenu = (
   handleAddLinkedPage: () => void;
 } => {
   const t = useI18n();
+  const pageTree = useService(WorkspacePageTreeService);
+  const pageTreeEnabled = useLiveData(pageTree.enabled$);
   const { handleAddLinkedPage } = options;
   const {
     favorite,
@@ -270,7 +298,9 @@ export const useNavigationPanelDocNodeOperationsMenu = (
                 onClick={handleAddLinkedPage}
                 disabled={!canEdit}
               >
-                {t['com.affine.page-operation.add-linked-page']()}
+                {pageTreeEnabled
+                  ? t['com.affine.localmind.page-tree.newPage']()
+                  : t['com.affine.page-operation.add-linked-page']()}
               </MenuItem>
             )}
           </Guard>
@@ -280,7 +310,11 @@ export const useNavigationPanelDocNodeOperationsMenu = (
         index: 98,
         view: (
           <MenuItem prefixIcon={<DuplicateIcon />} onClick={handleDuplicate}>
-            {t['com.affine.header.option.duplicate']()}
+            {t[
+              pageTreeEnabled
+                ? 'com.affine.localmind.page-tree.duplicate'
+                : 'com.affine.header.option.duplicate'
+            ]()}
           </MenuItem>
         ),
       },
@@ -342,6 +376,7 @@ export const useNavigationPanelDocNodeOperationsMenu = (
     ],
     [
       docId,
+      pageTreeEnabled,
       favorite,
       handleAddLinkedPage,
       handleDuplicate,

@@ -3,6 +3,7 @@ import {
   Field,
   GraphQLISODateTime,
   ID,
+  InputType,
   Int,
   Mutation,
   ObjectType,
@@ -20,6 +21,15 @@ import { WorkspaceNativeResourceAccess } from '../doc';
 import { PermissionAccess } from '../permission';
 import { ProjectPublicationService } from './publication-service';
 
+@InputType()
+class ProjectPublicationPageTreeTargetInput {
+  @Field() contractVersion!: string;
+  @Field() parentKind!: string;
+  @Field(() => ID, { nullable: true }) parentNodeId!: string | null;
+  @Field(() => Int) revision!: number;
+  @Field() authorizationRevision!: string;
+}
+
 @ObjectType()
 class ProjectPublicationType {
   @Field(() => ID) id!: string;
@@ -29,6 +39,7 @@ class ProjectPublicationType {
   @Field(() => Int) revision!: number;
   @Field() kind!: string;
   @Field() title!: string;
+  @Field() resourceKind!: string;
   @Field() status!: string;
   @Field(() => Int) sourceSequence!: number;
   @Field(() => GraphQLISODateTime) createdAt!: Date;
@@ -162,6 +173,7 @@ export class ProjectPublicationResolver {
     return {
       ...record,
       title: resource.title,
+      resourceKind: resource.kind,
       status: expired
         ? 'expired'
         : record.status === 'submitted' && run
@@ -253,7 +265,12 @@ export class ProjectPublicationResolver {
     @Args('targetResourceId', { type: () => String, nullable: true })
     targetResourceId?: string,
     @Args('targetKind', { type: () => String, nullable: true })
-    targetKind?: 'legacy' | 'workspace_file'
+    targetKind?: 'legacy' | 'workspace_file',
+    @Args('pageTree', {
+      type: () => ProjectPublicationPageTreeTargetInput,
+      nullable: true,
+    })
+    pageTree?: ProjectPublicationPageTreeTargetInput
   ) {
     return this.view(
       await this.service.preview({
@@ -265,6 +282,9 @@ export class ProjectPublicationResolver {
         folderId: folderId ?? null,
         targetResourceId,
         targetKind,
+        pageTree: pageTree
+          ? publicationTargetSchema.shape.pageTree.parse(pageTree)
+          : undefined,
       })
     );
   }

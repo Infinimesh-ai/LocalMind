@@ -114,7 +114,6 @@ import { UserCopilotQuotaStore } from './stores/user-copilot-quota';
 import { UserQuotaStore } from './stores/user-quota';
 import { UserSettingsStore } from './stores/user-settings';
 import { DocCreatedByService } from './services/doc-created-by';
-import { DocUpdatedByService } from './services/doc-updated-by';
 import { DocCreatedByUpdatedBySyncService } from './services/doc-created-by-updated-by-sync';
 import { WorkspacePermissionService } from '../permissions';
 import { NbstoreService } from '../storage';
@@ -212,7 +211,6 @@ export function configureCloudModule(framework: Framework) {
     .service(WorkspaceServerService)
     .service(DocCreatedByService, [WorkspaceServerService])
     .scope(DocScope)
-    .service(DocUpdatedByService, [WorkspaceServerService])
     .service(CloudDocMetaService)
     .entity(CloudDocMeta, [CloudDocMetaStore, DocService, GlobalCache])
     .store(CloudDocMetaStore, [WorkspaceServerService]);

@@ -1,0 +1,17 @@
+fragment WorkspacePageTreeNode on WorkspacePageTreeItem {
+  nodeId
+  resourceId
+  kind
+  primaryMode
+  parentNodeId
+  title
+  documentType
+  order
+  trashed
+  isContainer
+  canRename
+  canConvertToPage
+  folder { title metadataVersion createdAt createdBy updatedAt updatedBy }
+  canOrganize
+  defaultSortMode
+}

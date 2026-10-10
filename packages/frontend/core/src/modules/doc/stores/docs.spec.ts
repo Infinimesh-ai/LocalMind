@@ -1,4 +1,4 @@
-import { Framework } from '@toeverything/infra';
+import { Framework, LiveData } from '@toeverything/infra';
 import { BehaviorSubject } from 'rxjs';
 import { describe, expect, test } from 'vitest';
 
@@ -23,6 +23,7 @@ const fixture = () => {
             },
           },
         } as never,
+        {} as never,
         {} as never
       )
   );
@@ -68,4 +69,59 @@ describe('document list availability', () => {
     subscription.unsubscribe();
     store.dispose();
   });
+});
+
+test('display updates capture the actor, ignore late callbacks and exclude lifecycle-only metadata', () => {
+  const meta: Record<string, unknown> = {
+    id: 'doc',
+    title: 'Original',
+    tags: [],
+    createDate: 1,
+  };
+  const properties: Record<string, unknown> = { createdBy: 'creator' };
+  const account = { id: 'editor' };
+  const framework = new Framework();
+  framework.store(
+    DocsStore,
+    () =>
+      new DocsStore(
+        {
+          workspace: {
+            rootYDoc: { transact: (action: () => void) => action() },
+            docCollection: {
+              meta: {
+                getDocMeta: () => meta,
+                setDocMeta: (_id: string, values: Record<string, unknown>) =>
+                  Object.assign(meta, values),
+              },
+            },
+          },
+        } as never,
+        {
+          updateDocProperties: (_id: string, values: Record<string, unknown>) =>
+            Object.assign(properties, values),
+          getDocProperties: () => properties,
+        } as never,
+        { server: { account$: new LiveData(account) } } as never
+      )
+  );
+  const store = framework.provider().get(DocsStore);
+  store.recordUpdate('doc', 20, 'first');
+  store.recordUpdate('doc', 10, 'late');
+  expect(JSON.parse(String(meta.displayUpdateEvent))).toEqual({
+    at: 20,
+    actor: 'user',
+    by: 'first',
+  });
+  store.setDocMeta('doc', { trash: true, trashDate: 30 });
+  store.setDocMeta('doc', { title: 'Original', tags: [] });
+  expect(JSON.parse(String(meta.displayUpdateEvent)).at).toBe(20);
+  store.setDocMeta('doc', { title: 'Renamed' });
+  expect(JSON.parse(String(meta.displayUpdateEvent)).by).toBe('editor');
+  expect(properties.createdBy).toBe('creator');
+  store.setDocPrimaryModeSetting('doc', 'edgeless');
+  const event = meta.displayUpdateEvent;
+  store.setDocPrimaryModeSetting('doc', 'edgeless');
+  expect(meta.displayUpdateEvent).toBe(event);
+  store.dispose();
 });

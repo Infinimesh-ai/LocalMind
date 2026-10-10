@@ -74,7 +74,13 @@ function fixture() {
       () =>
         new FolderSortingStore(
           {
-            workspace: { id: 'workspace', flavour: 'local' },
+            workspace: {
+              id: 'workspace',
+              flavour: 'local',
+              engine: {
+                doc: { docState$: () => new LiveData({ loaded: true }) },
+              },
+            },
           } as unknown as WorkspaceService,
           {
             server$: new LiveData(null),

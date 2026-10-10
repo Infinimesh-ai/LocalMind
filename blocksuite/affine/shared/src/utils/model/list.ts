@@ -4,6 +4,23 @@ import type { BlockModel, Store } from '@blocksuite/store';
 
 import { matchModels } from './checker.js';
 
+const userDeletionInterceptors = new WeakMap<
+  Store,
+  Set<(model: BlockModel) => boolean>
+>();
+/** UI deletion only. Raw content updates and history replay never invoke this. */
+export function interceptUserBlockDeletion(
+  store: Store,
+  intercept: (model: BlockModel) => boolean
+) {
+  const interceptors = userDeletionInterceptors.get(store) ?? new Set();
+  interceptors.add(intercept);
+  userDeletionInterceptors.set(store, interceptors);
+  return () => {
+    interceptors.delete(intercept);
+  };
+}
+
 /** Delete a block and keep the following sibling numbered list continuous. */
 export function deleteBlockWithListOrder(
   doc: Store,
@@ -11,6 +28,8 @@ export function deleteBlockWithListOrder(
   options?: Parameters<Store['deleteBlock']>[1]
 ) {
   if (doc.readonly) return;
+  for (const intercept of userDeletionInterceptors.get(doc) ?? [])
+    if (!intercept(model)) return;
 
   const parent = doc.getParent(model);
   if (!parent) return;
