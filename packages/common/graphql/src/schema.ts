@@ -8678,7 +8678,6 @@ export interface Query {
   externalMcpSettings: ExternalMcpSettingsType;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
-  hello: Scalars['String']['output'];
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   localmindAuditEnvelopes: Array<Scalars['JSONObject']['output']>;
   localmindLogArchiveBatches: Array<Scalars['JSONObject']['output']>;

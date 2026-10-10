@@ -6791,7 +6791,6 @@ type Query {
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
-  hello: String!
   latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
   localmindAuditEnvelopes(limit: Int, projectId: String, workspaceId: String!): [JSONObject!]!
   localmindLogArchiveBatches(limit: Int): [JSONObject!]!
