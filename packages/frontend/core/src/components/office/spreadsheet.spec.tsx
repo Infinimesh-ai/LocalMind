@@ -17,7 +17,9 @@ import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { OfficeEditorDraft } from './edit-draft';
 import { SpreadsheetEditor } from './spreadsheet';
 
-vi.mock('@affine/component', () => ({
+vi.mock('@affine/component', async () => ({
+  isComposingKeyboardEvent: (await import('@affine/component/ui/input'))
+    .isComposingKeyboardEvent,
   Button: ({
     children,
     loading: _loading,
@@ -132,6 +134,46 @@ const state = {
 } as XlsxSemanticState;
 
 describe('SpreadsheetEditor', () => {
+  test('IME confirmation never saves a partially composed cell value', async () => {
+    const gql = vi
+      .fn()
+      .mockRejectedValue(new Error('Isolated preview failure'));
+    render(
+      <SpreadsheetEditor
+        state={state}
+        revision={{ id: 'revision-1', sequence: 1 } as never}
+        artifactId="artifact-1"
+        owner={{ kind: 'project', projectId: 'project-1' }}
+        graphql={{ gql } as never}
+        readOnly={false}
+        onRevision={vi.fn()}
+        onCommentAnchorChange={vi.fn()}
+        onAiSelectionChange={vi.fn()}
+      />
+    );
+    const input = screen.getByLabelText<HTMLInputElement>(
+      'Cell value or formula'
+    );
+    fireEvent.change(input, { target: { value: '完整中文内容' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 });
+    fireEvent.keyDown(input, { key: 'Enter', repeat: true });
+    expect(gql).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(gql).toHaveBeenCalledOnce());
+    expect(gql).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variables: {
+          input: expect.objectContaining({
+            command: expect.objectContaining({
+              input: { type: 'string', value: '完整中文内容' },
+            }),
+          }),
+        },
+      })
+    );
+    expect(input.value).toBe('完整中文内容');
+  });
   test('Project cell drafts can be discarded without a write', async () => {
     const guards = new Set<OfficeEditorDraft>();
     const gql = vi.fn();
@@ -247,6 +289,10 @@ describe('SpreadsheetEditor', () => {
       fireEvent.doubleClick(screen.getByRole('gridcell', { name: /^A1:/ }));
       await waitFor(() => expect(document.activeElement).toBe(formula));
       expect(screen.getByRole('button', { name: '保存单元格' })).toBeDefined();
+      expect(screen.getByText('就绪')).toBeDefined();
+      expect(
+        screen.getByRole('gridcell', { name: 'A1: 空单元格' })
+      ).toBeDefined();
     } finally {
       await act(() => i18n.changeLanguage('en'));
     }

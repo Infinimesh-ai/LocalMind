@@ -84,6 +84,7 @@ export const DocGroupHeader = ({
       />
       <div className={styles.space} />
       <Button
+        data-resource-group-select="true"
         size="custom"
         className={styles.selectAllButton}
         variant="plain"

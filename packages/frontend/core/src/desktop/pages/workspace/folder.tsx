@@ -1,4 +1,3 @@
-import { Button } from '@affine/component';
 import * as styles from '@affine/core/components/native-files/resource-explorer.css';
 import {
   PageTreeBreadcrumbs,
@@ -6,6 +5,7 @@ import {
 } from '@affine/core/components/page-tree/children';
 import { folderBody } from '@affine/core/components/page-tree/children.css';
 import { FolderResourceActions } from '@affine/core/components/page-tree/folder-row';
+import { PageTreeLoadError } from '@affine/core/components/page-tree/load-error';
 import { usePageTreeLayer } from '@affine/core/components/root-app-sidebar/page-tree';
 import { WorkspacePageTreeService } from '@affine/core/modules/organize';
 import {
@@ -54,14 +54,12 @@ export function Component() {
           {item?.kind === 'folder' ? (
             <PageTreeChildrenList parentNodeId={nodeId} />
           ) : layer.error ? (
-            <p role="alert">{t['com.affine.localmind.page-tree.error']()}</p>
+            <PageTreeLoadError
+              {...layer}
+              retry={() => void tree.load(nodeId)}
+            />
           ) : (
             <p role="status">{t['Loading']()}</p>
-          )}
-          {layer.error && (
-            <Button onClick={() => void tree.load(nodeId)}>
-              {t['com.affine.error.retry']()}
-            </Button>
           )}
         </div>
       </ViewBody>

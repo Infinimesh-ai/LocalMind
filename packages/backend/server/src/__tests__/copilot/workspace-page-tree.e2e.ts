@@ -45,6 +45,228 @@ async function fixture() {
 }
 
 test.serial(
+  'cross-parent manual ordering and undo are atomic, authorized and versioned',
+  async t => {
+    const { actor, service } = await fixture();
+    await service.migrate(actor, (await service.preflight(actor)).fingerprint);
+    type WithoutVersion<T> = T extends unknown
+      ? Omit<
+          T,
+          | 'contractVersion'
+          | 'expectedRevision'
+          | 'expectedAuthorizationRevision'
+          | 'requestKey'
+        >
+      : never;
+    const execute = async (
+      command: WithoutVersion<
+        Extract<
+          Parameters<typeof service.execute>[1],
+          { action: 'move' | 'create' }
+        >
+      >
+    ) => {
+      const tree = await service.list(actor, null);
+      return service.execute(actor, {
+        ...command,
+        contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+        expectedRevision: tree.revision,
+        expectedAuthorizationRevision: tree.authorizationRevision,
+        requestKey: crypto.randomUUID(),
+      } as Parameters<typeof service.execute>[1]);
+    };
+    const result = (receipt: Awaited<ReturnType<typeof service.execute>>) =>
+      receipt.result as {
+        nodeId: string;
+        resource: { resourceId: string };
+        oldParentNodeId: string | null;
+        oldBeforeNodeId: string | null;
+        oldTargetSiblingOrder: string[] | null;
+        revision: number;
+      };
+    const source = result(
+      await execute({
+        action: 'create',
+        title: 'Source',
+        primaryMode: 'page',
+        parentNodeId: null,
+      })
+    );
+    const target = result(
+      await execute({
+        action: 'create',
+        title: 'Target',
+        primaryMode: 'page',
+        parentNodeId: null,
+      })
+    );
+    const ids: string[] = [];
+    for (const title of ['B', 'A', 'C'])
+      ids.push(
+        result(
+          await execute({
+            action: 'create',
+            title,
+            primaryMode: 'page',
+            parentNodeId: target.nodeId,
+          })
+        ).nodeId
+      );
+    const { PgWorkspaceDocStorageAdapter } =
+      await import('../../core/doc/adapters/workspace');
+    const storage = app.get(PgWorkspaceDocStorageAdapter);
+    const beforeBodies = await Promise.all(
+      [source, target].map(
+        async node =>
+          (await storage.getDocReadOnly(
+            actor.workspaceId,
+            node.resource.resourceId
+          ))!.bin
+      )
+    );
+    const version = await service.list(actor, null);
+    const command = {
+      action: 'move' as const,
+      nodeId: source.nodeId,
+      parentNodeId: target.nodeId,
+      targetSiblingOrder: [ids[1], ids[0], source.nodeId, ids[2]],
+      contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+      expectedRevision: version.revision,
+      expectedAuthorizationRevision: version.authorizationRevision,
+      requestKey: 'cross-parent-order',
+    };
+    const moved = await service.execute(actor, command);
+    t.is((await service.execute(actor, command)).id, moved.id);
+    t.deepEqual(
+      (await service.list(actor, target.nodeId)).items.map(n => n.title),
+      ['A', 'B', 'Source', 'C']
+    );
+    t.deepEqual(result(moved).oldTargetSiblingOrder, ids);
+    const current = await service.list(actor, null);
+    await t.throwsAsync(
+      service.execute(actor, {
+        ...command,
+        requestKey: 'stale-undo',
+        parentNodeId: null,
+        sourceSiblingOrder: ids,
+        targetSiblingOrder: undefined,
+      })
+    );
+    t.is((await service.list(actor, null)).revision, current.revision);
+    const restored = result(
+      await execute({
+        action: 'move',
+        nodeId: source.nodeId,
+        parentNodeId: result(moved).oldParentNodeId,
+        beforeNodeId: result(moved).oldBeforeNodeId ?? undefined,
+        sourceSiblingOrder: result(moved).oldTargetSiblingOrder!,
+      })
+    );
+    t.is(restored.revision, current.revision + 1);
+    t.deepEqual(
+      (await service.list(actor, null)).items.map(n => n.title),
+      ['Source', 'Target']
+    );
+    t.deepEqual(
+      (await service.list(actor, target.nodeId)).items.map(n => n.title),
+      ['B', 'A', 'C']
+    );
+    t.deepEqual(
+      await Promise.all(
+        [source, target].map(
+          async node =>
+            (await storage.getDocReadOnly(
+              actor.workspaceId,
+              node.resource.resourceId
+            ))!.bin
+        )
+      ),
+      beforeBodies
+    );
+    for (const order of [
+      [source.nodeId],
+      [ids[0], ids[0], source.nodeId, ids[2]],
+    ]) {
+      await t.throwsAsync(
+        execute({
+          action: 'move',
+          nodeId: source.nodeId,
+          parentNodeId: target.nodeId,
+          targetSiblingOrder: order,
+        })
+      );
+      t.is((await service.list(actor, null)).revision, restored.revision);
+      t.deepEqual(
+        (await service.list(actor, target.nodeId)).items.map(n => n.nodeId),
+        ids
+      );
+    }
+    const outsider = await app.createUser();
+    await t.throwsAsync(
+      service.execute(
+        { ...actor, actorId: outsider.id },
+        {
+          ...command,
+          requestKey: 'denied-order',
+          expectedRevision: restored.revision,
+        }
+      )
+    );
+    t.is((await service.list(actor, null)).revision, restored.revision);
+    const { WorkspaceNativeResourceService } =
+      await import('../../core/office/workspace-resource-service');
+    const native = app.get(WorkspaceNativeResourceService);
+    const nativeVersion = await service.list(actor, null);
+    const file = await native.create({
+      ...actor,
+      title: 'Native drag.txt',
+      content: { format: 'txt', text: 'Immutable content' },
+      requestKey: 'drag-native-file',
+      parentNodeId: null,
+      treeContractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+      expectedTreeRevision: nativeVersion.revision,
+      expectedAuthorizationRevision: nativeVersion.authorizationRevision,
+    });
+    const fileNode = (
+      await service.list(actor, null, undefined, 100, {
+        resource: { kind: file.kind, resourceId: file.id },
+      })
+    ).parent!;
+    const beforeFile = await native.get({
+      ...actor,
+      kind: file.kind,
+      resourceId: file.id,
+    });
+    const nativeMoved = result(
+      await execute({
+        action: 'move',
+        nodeId: fileNode.nodeId,
+        parentNodeId: target.nodeId,
+        targetSiblingOrder: [ids[1], fileNode.nodeId, ids[0], ids[2]],
+      })
+    );
+    t.deepEqual(
+      (await service.list(actor, target.nodeId)).items.map(n => n.title),
+      ['A', 'Native drag.txt', 'B', 'C']
+    );
+    await execute({
+      action: 'move',
+      nodeId: fileNode.nodeId,
+      parentNodeId: nativeMoved.oldParentNodeId,
+      sourceSiblingOrder: nativeMoved.oldTargetSiblingOrder!,
+    });
+    t.deepEqual(
+      (await service.list(actor, target.nodeId)).items.map(n => n.nodeId),
+      ids
+    );
+    t.deepEqual(
+      await native.get({ ...actor, kind: file.kind, resourceId: file.id }),
+      beforeFile
+    );
+  }
+);
+
+test.serial(
   'deterministic migration preserves empty/nested folders, native identity, root records and defaults',
   t => {
     const rows: LegacyTreeRow[] = [

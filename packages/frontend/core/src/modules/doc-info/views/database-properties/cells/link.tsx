@@ -1,4 +1,4 @@
-import { PropertyValue } from '@affine/component';
+import { isComposingKeyboardEvent, PropertyValue } from '@affine/component';
 import { AffinePageReference } from '@affine/core/components/affine/reference-link';
 import { ConfigModal } from '@affine/core/components/mobile';
 import { resolveLinkToDoc } from '@affine/core/modules/navigation';
@@ -72,7 +72,10 @@ export const LinkCell = ({
 
   const onKeydown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (isComposingKeyboardEvent(e) || (e.key === 'Enter' && e.repeat))
+        return;
       if (e.key === 'Enter') {
+        e.preventDefault();
         commitChange();
       } else if (e.key === 'Escape') {
         setEditing(false);

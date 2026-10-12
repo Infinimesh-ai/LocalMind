@@ -13,6 +13,7 @@ export const root = style({
 });
 
 export const title = style({
+  flex: 1,
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
@@ -54,4 +55,25 @@ export const actions = style({
   flexShrink: 0,
   maxWidth: '65%',
   overflowX: 'auto',
+});
+
+export const status = style({
+  minWidth: 0,
+  maxWidth: 'min(240px, 45%)',
+  flexShrink: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: cssVarV2('text/secondary'),
+  fontSize: 12,
+  lineHeight: '20px',
+  fontWeight: 400,
+  selectors: {
+    '&[data-attention="true"]': { color: cssVarV2('text/primary') },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: 2,
+      borderRadius: 2,
+    },
+  },
 });

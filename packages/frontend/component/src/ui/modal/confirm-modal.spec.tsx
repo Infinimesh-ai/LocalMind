@@ -11,7 +11,14 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 
 vi.mock('@affine/i18n', () => ({
-  useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
+  useI18n: () =>
+    new Proxy(
+      {},
+      {
+        get: (_, key) => () =>
+          key === 'Cancel' ? '取消' : key === 'Confirm' ? '确认' : String(key),
+      }
+    ),
 }));
 vi.mock('@radix-ui/react-dialog', () => ({
   DialogTrigger: ({ children }: { children: ReactNode }) => children,
@@ -47,9 +54,32 @@ vi.mock('./modal', () => ({
     ) : null,
 }));
 
-import { ConfirmModalProvider, useConfirmModal } from './confirm-modal';
+import {
+  ConfirmModal,
+  ConfirmModalProvider,
+  useConfirmModal,
+} from './confirm-modal';
+import { OverlayModal } from './overlay-modal';
 
 afterEach(cleanup);
+test('overlay confirmation defaults are translated and preserve explicit labels', () => {
+  const view = render(<OverlayModal open />);
+  expect(screen.getByRole('button', { name: '取消' })).toBeDefined();
+  expect(screen.getByRole('button', { name: '确认' })).toBeDefined();
+  view.rerender(<OverlayModal open cancelText="返回" confirmText="继续" />);
+  expect(screen.getByRole('button', { name: '返回' })).toBeDefined();
+  expect(screen.getByRole('button', { name: '继续' })).toBeDefined();
+});
+test('default confirmation labels use i18n and explicit labels remain supported', () => {
+  const view = render(<ConfirmModal open />);
+  expect(screen.getByTestId('confirm-modal-cancel').textContent).toBe('取消');
+  expect(screen.getByTestId('confirm-modal-confirm').textContent).toBe('确认');
+  view.rerender(<ConfirmModal open cancelText="返回" confirmText="确认删除" />);
+  expect(screen.getByTestId('confirm-modal-cancel').textContent).toBe('返回');
+  expect(screen.getByTestId('confirm-modal-confirm').textContent).toBe(
+    '确认删除'
+  );
+});
 function Fixture({
   confirm,
   autoClose = true,

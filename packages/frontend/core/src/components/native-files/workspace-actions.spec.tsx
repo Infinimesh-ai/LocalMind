@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import type * as Infra from '@toeverything/infra';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 const state = vi.hoisted(() => ({ gql: vi.fn(), invalidate: vi.fn() }));
@@ -13,9 +14,13 @@ vi.mock('@affine/core/modules/cloud', () => ({ GraphQLService: class {} }));
 vi.mock('@affine/core/modules/workspace-resources', () => ({
   WorkspaceResourcesService: class {},
 }));
-vi.mock('@toeverything/infra', () => ({
+vi.mock('@toeverything/infra', async importOriginal => ({
+  ...(await importOriginal<typeof Infra>()),
   useService: () => ({ gql: state.gql }),
-  useServiceOptional: () => ({ invalidate: state.invalidate }),
+  useServiceOptional: (service: unknown) =>
+    service === WorkspaceResourcesService
+      ? { invalidate: state.invalidate }
+      : undefined,
 }));
 vi.mock('@affine/i18n', () => ({
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
@@ -46,6 +51,13 @@ vi.mock('@affine/component', () => ({
 vi.mock('./workspace-folder-select', () => ({
   WorkspaceNativeFolderSelect: () => <div>destination-picker</div>,
 }));
+vi.mock('../root-app-sidebar/page-tree', () => ({
+  MovePageDialog: () => null,
+}));
+vi.mock('../page-tree/target-select', () => ({
+  WorkspacePageTargetSelect: () => null,
+}));
+import { WorkspaceResourcesService } from '@affine/core/modules/workspace-resources';
 import {
   changeWorkspaceNativeResourceMutation,
   workspaceNativeResourceQuery,

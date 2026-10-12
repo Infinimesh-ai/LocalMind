@@ -10477,6 +10477,8 @@ export const mutateWorkspacePageTreeMutation = {
     revision
     oldParentNodeId
     oldSiblingOrder
+    oldTargetSiblingOrder
+    oldSourceSiblingOrder
     oldBeforeNodeId
   }
 }`,

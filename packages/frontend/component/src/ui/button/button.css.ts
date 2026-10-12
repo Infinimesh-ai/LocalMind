@@ -2,6 +2,8 @@ import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { createVar, globalStyle, style } from '@vanilla-extract/css';
 
+import { controlTokens } from '../../theme/controls.css';
+
 // Using variables can override externally, without considering the priority of selectors.
 // size vars
 export const hVar = createVar('height');
@@ -37,8 +39,12 @@ export const button = style({
   justifyContent: 'center',
   userSelect: 'none',
   outline: 0,
-  borderRadius: 8,
-  transition: 'all .3s',
+  borderRadius: 7,
+  transition:
+    'background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
   ['WebkitAppRegion' as string]: 'no-drag',
 
   // hover layer
@@ -79,9 +85,10 @@ export const button = style({
 
   selectors: {
     // hover layer
-    '&[data-no-hover]:before, &[data-disabled]:before': {
-      display: 'none',
-    },
+    '&[data-no-hover]:before, &[data-disabled]:before, &[data-loading]:before, &:not([data-variant="custom"]):before':
+      {
+        display: 'none',
+      },
     '&:hover:before': { opacity: 1 },
     '&[data-block]': { display: 'flex' },
 
@@ -114,7 +121,7 @@ export const button = style({
         [paddingVar]: '0px 8px',
         [iconSizeVar]: '24px',
         [paddingVar]: '8px 18px',
-        [fontSizeVar]: '15',
+        [fontSizeVar]: '15px',
         [fontWeightVar]: '600',
         [lineHeightVar]: '24px',
       },
@@ -123,69 +130,85 @@ export const button = style({
     // type
     '&[data-variant="primary"]': {
       vars: {
-        [bgVar]: cssVarV2('button/primary'),
-        [textVar]: cssVarV2('button/pureWhiteText'),
-        [iconColorVar]: cssVarV2('button/pureWhiteText'),
-        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
+        [bgVar]: controlTokens.action,
+        [textVar]: controlTokens.onAction,
+        [iconColorVar]: controlTokens.onAction,
+        [borderColorVar]: 'transparent',
       },
     },
     '&[data-variant="secondary"]': {
       vars: {
-        [bgVar]: cssVarV2('button/secondary'),
-        [textVar]: cssVarV2('text/primary'),
-        [iconColorVar]: cssVarV2('icon/primary'),
-        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
+        [bgVar]: controlTokens.surface,
+        [textVar]: controlTokens.text,
+        [iconColorVar]: controlTokens.text,
+        [borderColorVar]: controlTokens.border,
       },
     },
     '&[data-variant="plain"]': {
       vars: {
         [bgVar]: 'transparent',
-        [textVar]: cssVarV2('text/primary'),
-        [iconColorVar]: cssVarV2('icon/primary'),
+        [textVar]: controlTokens.text,
+        [iconColorVar]: controlTokens.text,
         [borderColorVar]: 'transparent',
         [borderWidthVar]: '0px',
       },
     },
     '&[data-variant="error"]': {
       vars: {
-        [bgVar]: cssVarV2('button/error'),
-        [textVar]: cssVarV2('button/pureWhiteText'),
-        [iconColorVar]: cssVarV2('button/pureWhiteText'),
-        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
+        [bgVar]: controlTokens.dangerSurface,
+        [textVar]: controlTokens.danger,
+        [iconColorVar]: controlTokens.danger,
+        [borderColorVar]: 'transparent',
       },
     },
     '&[data-variant="success"]': {
       vars: {
-        [bgVar]: cssVarV2('button/success'),
-        [textVar]: cssVarV2('button/pureWhiteText'),
-        [iconColorVar]: cssVarV2('button/pureWhiteText'),
-        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
+        [bgVar]: controlTokens.successSurface,
+        [textVar]: controlTokens.success,
+        [iconColorVar]: controlTokens.success,
+        [borderColorVar]: 'transparent',
       },
     },
+
+    '&[data-variant="primary"]:not([data-disabled]):not([data-loading]):not([data-no-hover]):hover':
+      {
+        vars: { [bgVar]: controlTokens.actionHover },
+      },
+    '&[data-variant="secondary"]:not([data-disabled]):not([data-loading]):not([data-no-hover]):hover':
+      {
+        vars: {
+          [bgVar]: controlTokens.surfaceHover,
+          [borderColorVar]: controlTokens.borderHover,
+        },
+      },
+    '&[data-variant="plain"]:not([data-disabled]):not([data-loading]):not([data-no-hover]):hover':
+      {
+        vars: { [bgVar]: controlTokens.surfaceHover },
+      },
+    '&[data-variant="error"]:not([data-disabled]):not([data-loading]):not([data-no-hover]):hover':
+      {
+        vars: { [borderColorVar]: controlTokens.danger },
+      },
+    '&[data-variant="success"]:not([data-disabled]):not([data-loading]):not([data-no-hover]):hover':
+      {
+        vars: { [borderColorVar]: controlTokens.success },
+      },
 
     // disabled
     '&[data-disabled]': {
       opacity: 0.5,
+      cursor: 'not-allowed',
     },
 
     '&:not([data-disabled])': {
       cursor: 'pointer',
     },
+    '&[data-loading]:not([data-disabled])': { cursor: 'progress' },
 
     // default keyboard focus style
-    '&:focus-visible::after': {
-      content: '""',
-      width: '100%',
-      height: '100%',
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      borderRadius: 'inherit',
-      boxShadow: `0 0 0 1px ${cssVarV2('layer/insideBorder/primaryBorder')}`,
-    },
-    '&[data-mobile=true]:focus-visible::after': {
-      content: 'none',
-      display: 'none',
+    '&:focus-visible': {
+      outline: `2px solid ${controlTokens.focus}`,
+      outlineOffset: 2,
     },
   },
 });
@@ -217,22 +240,13 @@ globalStyle(`${icon} > svg`, {
 export const iconButton = style({
   vars: {
     [paddingVar]: '2px',
-    // TODO(@CatsJuice): Replace with theme variables when ready
-    '--shadow':
-      '0px 0px 1px 0px rgba(0, 0, 0, 0.12), 0px 1px 5px 0px rgba(0, 0, 0, 0.12)',
   },
-  borderRadius: 4,
+  borderRadius: 6,
   selectors: {
-    '[data-theme="dark"] &': {
-      vars: {
-        '--shadow':
-          '0px 0px 1px 0px rgba(0, 0, 0, 0.66), 0px 1px 5px 0px rgba(0, 0, 0, 0.72)',
-      },
-    },
     '&[data-icon-variant="plain"]': {
       vars: {
         [bgVar]: 'transparent',
-        [iconColorVar]: cssVarV2('icon/primary'),
+        [iconColorVar]: controlTokens.text,
         [borderColorVar]: 'transparent',
         [borderWidthVar]: '0px',
       },
@@ -240,27 +254,28 @@ export const iconButton = style({
     '&[data-icon-variant="danger"]': {
       vars: {
         [bgVar]: 'transparent',
-        [iconColorVar]: cssVarV2('icon/primary'),
+        [iconColorVar]: controlTokens.text,
         [borderColorVar]: 'transparent',
         [borderWidthVar]: '0px',
       },
     },
-    '&[data-icon-variant="danger"]:hover': {
-      vars: {
-        [bgVar]: cssVar('backgroundErrorColor'),
-        [iconColorVar]: cssVar('errorColor'),
+    '&[data-icon-variant="danger"]:not([data-disabled]):not([data-loading]):not([data-no-hover]):hover':
+      {
+        vars: {
+          [bgVar]: controlTokens.dangerSurface,
+          [iconColorVar]: controlTokens.danger,
+        },
       },
-    },
     // disable hover layer for danger type
     '&[data-icon-variant="danger"]:hover:before': {
       opacity: 0,
     },
     '&[data-icon-variant="solid"]': {
       vars: {
-        [bgVar]: cssVarV2('button/iconButtonSolid'),
-        [iconColorVar]: cssVarV2('icon/primary'),
-        [borderColorVar]: 'transparent',
-        [shadowVar]: 'var(--shadow)',
+        [bgVar]: controlTokens.surface,
+        [iconColorVar]: controlTokens.text,
+        [borderColorVar]: controlTokens.border,
+        [shadowVar]: 'none',
       },
     },
 

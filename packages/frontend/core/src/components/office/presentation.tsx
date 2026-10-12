@@ -758,6 +758,7 @@ export function PresentationEditor({
                 {selectedShape.paragraphs ? (
                   <>
                     <textarea
+                      data-created-resource-focus-target
                       className={styles.textarea}
                       value={text}
                       disabled={readOnly || saving}

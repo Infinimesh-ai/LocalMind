@@ -153,8 +153,7 @@ test('failed probe, secret-bearing endpoints and stale saves preserve the active
   await t.throwsAsync(
     byok.saveProjectConfig({ ...config(1), modelId: 'broken' }, adminId),
     {
-      message:
-        'Project provider test failed. Check the endpoint, model and API key.',
+      message: 'Provider connection failed.',
     }
   );
   await t.throwsAsync(byok.saveProjectConfig(config(), adminId), {
@@ -188,6 +187,40 @@ test('concurrent administrator saves allow one revision and retain both audit ve
   t.is(results.filter(result => result.status === 'fulfilled').length, 1);
   t.is(await db.aiProjectByokAuditEvent.count(), 2);
   t.is((await db.aiProjectByokConfig.findFirstOrThrow()).revision, 2);
+});
+
+test('GraphQL test and save preserve the same safe diagnostic without changing credentials or audit', async t => {
+  const { app, admin, adminId, byok, fetch, db } = t.context;
+  await byok.saveProjectConfig(config(), adminId);
+  const before = await db.aiProjectByokConfig.findFirstOrThrow();
+  fetch.callsFake(async () =>
+    Response.json(
+      {
+        error: {
+          code: 'model_not_found',
+          message: 'private body synthetic-project-secret',
+        },
+      },
+      { status: 404 }
+    )
+  );
+  const input = { ...config(1), apiKey: undefined };
+  await app.login(admin);
+  const probe = await app
+    .POST('/graphql')
+    .send({ query: testProjectByokConfigMutation.query, variables: { input } })
+    .expect(200);
+  const save = await app
+    .POST('/graphql')
+    .send({ query: saveProjectByokConfigMutation.query, variables: { input } })
+    .expect(200);
+  const message = 'Provider model was not found or is not accessible.';
+  t.is(probe.body.data?.testProjectByokConfig.message, message);
+  t.false(probe.body.data?.testProjectByokConfig.ok);
+  t.is(save.body.errors?.[0]?.message, message);
+  t.false(JSON.stringify(save.body).includes('synthetic-project-secret'));
+  t.deepEqual(await db.aiProjectByokConfig.findFirstOrThrow(), before);
+  t.is(await db.aiProjectByokAuditEvent.count(), 1);
 });
 
 test('different projects and session workspaces use the same global credential, ignoring workspace profiles and local leases', async t => {

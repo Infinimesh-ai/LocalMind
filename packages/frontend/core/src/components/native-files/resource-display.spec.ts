@@ -234,6 +234,33 @@ describe('resource display contracts', () => {
       ]).size
     ).toBe(4);
   });
+  test('compact list migration hides old previews once and preserves subsequent choices and card preferences', () => {
+    const saved = {
+      view: 'list' as const,
+      showDocPreview: true,
+      groupBy: { type: 'system' as const, key: 'updatedAt' },
+      resourceProperties: defaultResourceProperties,
+    };
+    const migrated = migrateResourcePreference(
+      saved,
+      definitions,
+      {}
+    ).preference;
+    expect(migrated.showDocPreview).toBe(false);
+    expect(migrated.resourceListLayoutVersion).toBe(1);
+    expect(migrated.groupBy).toEqual(saved.groupBy);
+    expect(
+      migrateResourcePreference(
+        { ...migrated, showDocPreview: true },
+        definitions,
+        {}
+      ).preference.showDocPreview
+    ).toBe(true);
+    expect(
+      migrateResourcePreference({ ...saved, view: 'grid' }, definitions, {})
+        .preference.showDocPreview
+    ).toBe(true);
+  });
   test('offline CRDT merges retain an entire update event regardless of packet order', () => {
     const first = new Y.Doc(),
       second = new Y.Doc();

@@ -1,4 +1,9 @@
-import { IconButton, notify, toast } from '@affine/component';
+import {
+  IconButton,
+  isComposingKeyboardEvent,
+  notify,
+  toast,
+} from '@affine/component';
 import { LitDocEditor, type PageEditor } from '@affine/core/blocksuite/editors';
 import { SnapshotHelper } from '@affine/core/modules/comment/services/snapshot-helper';
 import type { CommentAttachment } from '@affine/core/modules/comment/types';
@@ -526,7 +531,7 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
     // Add keydown handler to commit on Enter key
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
-        if (readonly) return;
+        if (readonly || isComposingKeyboardEvent(e) || e.repeat) return;
 
         // Only handle Enter if focus is within the editor
         const activeElement = document.activeElement;

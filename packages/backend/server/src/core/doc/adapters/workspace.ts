@@ -17,7 +17,7 @@ import {
 import { retryable } from '../../../base/utils/promise';
 import { Models } from '../../../models';
 import { DocumentReadLimitExceeded } from '../../../models/doc';
-import { applyUpdatesWithNative } from '../merge-updates';
+import { applyUpdatesWithYjs } from '../merge-updates';
 import { DocStorageOptions } from '../options';
 import { pageTreeWriteContext } from '../page-tree-context';
 import { validatePageTreeSyncUpdate } from '../page-tree-sync';
@@ -333,7 +333,7 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
         workspaceId,
         workspaceId,
         async pending =>
-          applyUpdatesWithNative(
+          applyUpdatesWithYjs(
             pending,
             'doc.workspace.persist_root_updates',
             this.logger

@@ -54,6 +54,7 @@ import {
 import * as styles from './list.style.css';
 import { ProjectFileRequestNotificationItem } from './project-file-request';
 import { ProjectInvitationNotificationItem } from './project-invitation';
+import { NotificationViewport } from './viewport';
 import { WorkOrderNotificationItem } from './work-order';
 
 export const NotificationList = () => {
@@ -65,6 +66,9 @@ export const NotificationList = () => {
   const notifications = useLiveData(notificationListService.notifications$);
   const mode = useLiveData(notificationListService.mode$);
   const isLoading = useLiveData(notificationListService.isLoading$);
+  const isRefreshing = useLiveData(notificationListService.isRefreshing$);
+  const hasLoaded = useLiveData(notificationListService.hasLoaded$);
+  const isMutating = useLiveData(notificationListService.isMutating$);
   const error = useLiveData(notificationListService.error$);
   const hasMore = useLiveData(notificationListService.hasMore$);
   const showLoadingMore =
@@ -118,14 +122,23 @@ export const NotificationList = () => {
       data-mobile={BUILD_CONFIG.isMobileEdition ? '' : undefined}
     >
       <div className={styles.header}>
-        <span>{t['com.affine.rootAppSidebar.notifications']()}</span>
+        <span
+          className={styles.headerTitle}
+          tabIndex={-1}
+          data-notification-heading
+        >
+          {t['com.affine.rootAppSidebar.notifications']()}
+        </span>
         <div className={styles.headerActions}>
           <RadioGroup
             width={128}
-            itemHeight={24}
+            className={styles.filter}
+            indicatorClassName={styles.filterIndicator}
+            disabled={isMutating}
+            itemHeight={30}
             padding={2}
             gap={2}
-            borderRadius={4}
+            borderRadius={10}
             value={mode}
             onChange={handleModeChange}
             items={[
@@ -143,7 +156,7 @@ export const NotificationList = () => {
         </div>
       </div>
       <Scrollable.Root className={styles.scrollRoot}>
-        <Scrollable.Viewport className={styles.scrollViewport}>
+        <NotificationViewport notifications={notifications} mode={mode}>
           {authStatus === 'unauthenticated' ? (
             <NotificationSignIn onSignIn={handleSignIn} />
           ) : notifications.length > 0 ? (
@@ -153,11 +166,15 @@ export const NotificationList = () => {
                   key={notification.id}
                   className={styles.notificationListItem}
                   data-read={notification.read}
+                  data-notification-id={notification.id}
+                  tabIndex={-1}
                 >
                   <div className={styles.itemContent}>
                     <NotificationItem notification={notification} />
                   </div>
-                  <NotificationItemActions notification={notification} />
+                  {notification.type !== NotificationType.WorkOrder && (
+                    <NotificationItemActions notification={notification} />
+                  )}
                 </li>
               ))}
               {userFriendlyError && (
@@ -169,7 +186,7 @@ export const NotificationList = () => {
                 </li>
               )}
             </ul>
-          ) : isLoading ? (
+          ) : isLoading || (isRefreshing && !hasLoaded) ? (
             <NotificationItemSkeleton />
           ) : userFriendlyError ? (
             <NotificationErrorEmpty
@@ -188,7 +205,7 @@ export const NotificationList = () => {
               ? t['com.affine.notification.loading-more']()
               : null}
           </div>
-        </Scrollable.Viewport>
+        </NotificationViewport>
         <Scrollable.Scrollbar />
       </Scrollable.Root>
     </div>

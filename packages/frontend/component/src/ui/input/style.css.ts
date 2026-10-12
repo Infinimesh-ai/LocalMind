@@ -1,15 +1,25 @@
 import { cssVar } from '@toeverything/theme';
-import { cssVarV2 } from '@toeverything/theme/v2';
-import { style } from '@vanilla-extract/css';
+import { createVar, style } from '@vanilla-extract/css';
+
+import { controlTokens } from '../../theme/controls.css';
+
+const focusColor = createVar();
+
 export const inputWrapper = style({
+  vars: { [focusColor]: controlTokens.focus },
   width: '100%',
   height: 28,
   lineHeight: '22px',
   gap: '10px',
-  color: cssVarV2('text/primary'),
+  color: controlTokens.text,
   border: '1px solid',
-  backgroundColor: cssVarV2('input/background'),
-  borderRadius: 8,
+  borderColor: controlTokens.fieldBorder,
+  backgroundColor: controlTokens.surface,
+  borderRadius: 7,
+  transition: 'border-color 140ms ease-out, background-color 140ms ease-out',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
@@ -30,24 +40,28 @@ export const inputWrapper = style({
     },
     // color
     '&.disabled': {
-      background: cssVarV2('layer/background/hoverOverlay'),
+      background: controlTokens.disabledSurface,
+      cursor: 'not-allowed',
     },
     '&.error': {
-      borderColor: cssVarV2('input/border/error'),
+      borderColor: controlTokens.danger,
+      vars: { [focusColor]: controlTokens.danger },
     },
     '&.success': {
-      borderColor: cssVarV2('input/border/active'),
+      borderColor: controlTokens.success,
+      vars: { [focusColor]: controlTokens.success },
     },
     '&.warning': {
-      borderColor: cssVarV2('input/border/error'),
+      borderColor: controlTokens.warning,
+      vars: { [focusColor]: controlTokens.warning },
     },
-    '&.default': {
-      borderColor: cssVarV2.layer.insideBorder.blackBorder,
+    '&.default:not(.disabled):not(:focus-within):hover': {
+      borderColor: controlTokens.muted,
     },
-    '&.default:is(:focus-within, :focus, :focus-visible)': {
-      borderColor: cssVarV2('button/primary'),
-      outline: 'none',
-      boxShadow: '0px 0px 0px 2px rgba(30, 150, 235, 0.30);',
+    '&:not(.disabled):is(:focus-within, :focus-visible)': {
+      borderColor: focusColor,
+      outline: `2px solid ${focusColor}`,
+      outlineOffset: 2,
     },
   },
 });
@@ -56,7 +70,6 @@ export const mobileInputWrapper = style([
   inputWrapper,
   {
     height: 30,
-    borderRadius: 4,
   },
 ]);
 
@@ -72,15 +85,21 @@ export const input = style({
   outline: 'none',
   border: 'none',
   background: 'transparent',
+  color: 'inherit',
+  caretColor: controlTokens.text,
   selectors: {
     '&::placeholder': {
-      color: cssVarV2('text/placeholder'),
+      color: controlTokens.muted,
+      opacity: 1,
     },
     '&:disabled': {
-      color: cssVarV2('text/disable'),
+      color: controlTokens.muted,
+      WebkitTextFillColor: controlTokens.muted,
+      cursor: 'not-allowed',
     },
     '&:-webkit-autofill': {
-      WebkitBoxShadow: `0 0 0 1000px ${cssVarV2('layer/white')} inset`,
+      WebkitBoxShadow: `0 0 0 1000px ${controlTokens.surface} inset`,
+      WebkitTextFillColor: controlTokens.text,
     },
   },
 });

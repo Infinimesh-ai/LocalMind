@@ -1,4 +1,9 @@
-import { IconButton, observeResize, RowInput } from '@affine/component';
+import {
+  IconButton,
+  isComposingKeyboardEvent,
+  observeResize,
+  RowInput,
+} from '@affine/component';
 import { FindInPageService } from '@affine/core/modules/find-in-page';
 import { useI18n } from '@affine/i18n';
 import {
@@ -163,6 +168,12 @@ export const FindInPagePopup = () => {
 
   const handleKeydown: KeyboardEventHandler = useCallback(
     e => {
+      if (
+        composing ||
+        isComposingKeyboardEvent(e) ||
+        (e.key === 'Enter' && e.repeat)
+      )
+        return;
       if (e.key === 'Enter' || e.key === 'ArrowDown') {
         handleForward();
       }
@@ -170,7 +181,7 @@ export const FindInPagePopup = () => {
         handleBackWard();
       }
     },
-    [handleBackWard, handleForward]
+    [composing, handleBackWard, handleForward]
   );
 
   const handleScroll = useCallback(

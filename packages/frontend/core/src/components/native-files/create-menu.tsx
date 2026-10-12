@@ -10,11 +10,11 @@ import {
 } from '@affine/component';
 import { useGuard } from '@affine/core/components/guard';
 import { GraphQLService } from '@affine/core/modules/cloud';
+import type { CreatedResource } from '@affine/core/modules/navigation-panel/services/created-resource';
 import {
   OrganizeService,
   WorkspacePageTreeService,
 } from '@affine/core/modules/organize';
-import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { WorkspaceResourcesService } from '@affine/core/modules/workspace-resources';
 import { UserFriendlyError } from '@affine/error';
@@ -39,6 +39,7 @@ import {
 import { nanoid } from 'nanoid';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useCreatedResourceNavigation } from '../page-tree/created-resource';
 import { NativeFileCreateDialog, type NativeFileFormat } from './create-dialog';
 import * as styles from './native-files.css';
 import { uploadWorkspaceNativeBlob } from './workspace-upload';
@@ -47,6 +48,7 @@ type Upload = {
   file: File;
   key: string;
   blobKey?: string;
+  resource?: CreatedResource;
   status: 'waiting' | 'uploading' | 'done' | 'failed';
   treeInput?: Pick<
     CreateWorkspaceNativeResourceInput,
@@ -93,7 +95,10 @@ export function WorkspaceCreateMenu({
   const t = useI18n();
   const { workspace } = useService(WorkspaceService);
   const graphql = useServiceOptional(GraphQLService);
-  const { workbench } = useService(WorkbenchService);
+  const beginCreation = useCreatedResourceNavigation();
+  const nativeCompletion = useRef<ReturnType<typeof beginCreation> | null>(
+    null
+  );
   const resources = useService(WorkspaceResourcesService);
   const tree = useService(OrganizeService).folderTree;
   const pageTree = useService(WorkspacePageTreeService);
@@ -133,13 +138,14 @@ export function WorkspaceCreateMenu({
   const canCreate = useGuard('Workspace_CreateDoc') === true;
   const createPage = async (primaryMode: 'page' | 'edgeless') => {
     if (!providedTreeTarget && treeTarget) {
+      const complete = beginCreation();
       const result = await pageTree.execute({
         action: 'create',
         parentNodeId: treeTarget.parentNodeId ?? null,
         primaryMode,
         title: t['Untitled'](),
       });
-      workbench.openDoc(result.resourceId);
+      await complete([{ ...result, kind: 'doc' }]);
     } else await (primaryMode === 'page' ? onPage() : onEdgeless());
   };
   const { openPromptModal } = usePromptModal();
@@ -155,11 +161,11 @@ export function WorkspaceCreateMenu({
         toast(t['com.affine.localmind.project-files.operationFailed']())
       );
   };
-  const openResource = (id: string, kind: string) =>
-    kind === 'office' ? workbench.openOffice(id) : workbench.openNativeFile(id);
   const upload = async (requests: Upload[]) => {
     if (busy.current || !graphql) return;
     busy.current = true;
+    const complete = beginCreation();
+    let created = false;
     setUploads([...requests]);
     try {
       for (const request of requests) {
@@ -196,9 +202,8 @@ export function WorkspaceCreateMenu({
             })
           ).createWorkspaceNativeResource;
           request.status = 'done';
-          onNativeCreated?.();
-          resources.invalidate();
-          if (requests.length === 1) openResource(resource.id, resource.kind);
+          request.resource = { resourceId: resource.id, kind: resource.kind };
+          created = true;
         } catch (error) {
           if (
             [400, 403, 404, 409].includes(
@@ -214,7 +219,21 @@ export function WorkspaceCreateMenu({
       }
     } finally {
       busy.current = false;
-      setUploads([...requests]);
+      setUploads(
+        requests.every(request => request.status === 'done')
+          ? []
+          : [...requests]
+      );
+    }
+    if (created) {
+      onNativeCreated?.();
+      resources.invalidate();
+      await complete(
+        requests.flatMap(request =>
+          request.resource ? [request.resource] : []
+        ),
+        { focusEditor: false, batch: requests.length > 1 }
+      );
     }
   };
   const acceptFiles = (files: File[]) => {
@@ -244,16 +263,17 @@ export function WorkspaceCreateMenu({
       inputOptions: {
         placeholder: t['com.affine.rootAppSidebar.organize.new-folders'](),
       },
-      confirmText: t['save'](),
+      confirmText: t['Save'](),
       cancelText: t['Cancel'](),
       onConfirm: async name => {
         if (treeTarget) {
+          const complete = beginCreation();
           const result = await pageTree.execute({
             action: 'create-folder',
             parentNodeId: treeTarget.parentNodeId ?? null,
             title: name,
           });
-          workbench.openTreeResource({ ...result, kind: 'folder' });
+          await complete([{ ...result, kind: 'folder' }]);
           return;
         }
         const node = parentId
@@ -418,10 +438,15 @@ export function WorkspaceCreateMenu({
           treeTarget={treeInput}
           initialFormat={format}
           onClose={() => setFormat(null)}
+          onStart={() => {
+            nativeCompletion.current = beginCreation();
+          }}
           onCreated={(id, kind) => {
             resources.invalidate();
             onNativeCreated?.();
-            openResource(id, kind);
+            void nativeCompletion
+              .current?.([{ resourceId: id, kind }])
+              .catch(console.error);
           }}
         />
       )}

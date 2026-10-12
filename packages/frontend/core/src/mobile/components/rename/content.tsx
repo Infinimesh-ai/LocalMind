@@ -13,7 +13,7 @@ export const RenameContent = ({
   inputPrefixRenderer: InputPrefixRenderer,
   inputBelowRenderer: InputBelowRenderer,
   descRenderer: DescRenderer,
-  confirmText = 'Done',
+  confirmText,
   onConfirm,
 }: RenameContentProps) => {
   const t = useI18n();
@@ -23,9 +23,19 @@ export const RenameContent = ({
   const { className: confirmButtonClassName, ...restConfirmButtonProps } =
     confirmButtonProps ?? {};
 
-  const handleDone = useCallback(() => {
-    onConfirm?.(value);
-  }, [onConfirm, value]);
+  const handleDone = useCallback(
+    (name = value) => {
+      if (
+        !name.trim() ||
+        inputProps?.disabled ||
+        confirmButtonProps?.disabled ||
+        confirmButtonProps?.loading
+      )
+        return;
+      onConfirm?.(name);
+    },
+    [onConfirm, value, inputProps?.disabled, confirmButtonProps]
+  );
 
   return (
     <div>
@@ -36,6 +46,7 @@ export const RenameContent = ({
           className={clsx(styles.input, inputClassName)}
           value={value}
           onChange={setValue}
+          onEnter={handleDone}
           data-testid="rename-input"
           {...restInputProps}
         />
@@ -52,14 +63,18 @@ export const RenameContent = ({
       <div className={styles.doneWrapper}>
         <Button
           className={clsx(styles.done, confirmButtonClassName)}
-          onClick={handleDone}
-          disabled={!value}
+          onClick={() => handleDone()}
           variant="primary"
           size="extraLarge"
           data-testid="rename-confirm"
           {...restConfirmButtonProps}
+          disabled={
+            !value.trim() ||
+            inputProps?.disabled ||
+            confirmButtonProps?.disabled
+          }
         >
-          {confirmText}
+          {confirmText ?? t['Done']()}
         </Button>
       </div>
     </div>

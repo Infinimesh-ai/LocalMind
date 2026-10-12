@@ -22,6 +22,7 @@ import {
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
+import type { ReactNode, Ref } from 'react';
 import { useCallback, useContext } from 'react';
 
 import { useBlockSuiteMetaHelper } from '../../hooks/affine/use-block-suite-meta-helper';
@@ -185,7 +186,10 @@ const MoveToTrash = ({ docId }: DocOperationProps) => {
   );
 };
 
-export const MoreMenuContent = (props: DocOperationProps) => {
+export const MoreMenuContent = ({
+  additionalItems,
+  ...props
+}: DocOperationProps & { additionalItems?: ReactNode }) => {
   return (
     <>
       <ToggleFavorite {...props} />
@@ -193,6 +197,7 @@ export const MoreMenuContent = (props: DocOperationProps) => {
       <NewTab {...props} />
       {BUILD_CONFIG.isElectron ? <SplitView {...props} /> : null}
       <Duplicate {...props} />
+      {additionalItems}
       <MoveToTrash {...props} />
     </>
   );
@@ -202,11 +207,17 @@ export const MoreMenu = ({
   docId,
   children,
   contentOptions,
+  additionalItems,
   ...menuProps
-}: Omit<MenuProps, 'items'> & { docId: string }) => {
+}: Omit<MenuProps, 'items'> & {
+  docId: string;
+  additionalItems?: ReactNode;
+}) => {
   return (
     <Menu
-      items={<MoreMenuContent docId={docId} />}
+      items={
+        <MoreMenuContent docId={docId} additionalItems={additionalItems} />
+      }
       contentOptions={{
         ...contentOptions,
         onClick: e => {
@@ -225,10 +236,13 @@ export const MoreMenu = ({
 export const MoreMenuButton = ({
   docId,
   iconProps,
+  triggerRef,
   ...menuProps
 }: Omit<MenuProps, 'items' | 'children'> & {
   docId: string;
   iconProps?: IconButtonProps;
+  additionalItems?: ReactNode;
+  triggerRef?: Ref<HTMLButtonElement>;
 }) => {
   const contextValue = useContext(DocExplorerContext);
   const showMoreOperation = useLiveData(contextValue.showMoreOperation$);
@@ -240,6 +254,7 @@ export const MoreMenuButton = ({
   return (
     <MoreMenu docId={docId} {...menuProps}>
       <IconButton
+        ref={triggerRef}
         data-testid="doc-list-operation-button"
         icon={<MoreVerticalIcon />}
         {...iconProps}

@@ -4,6 +4,7 @@ import { NavigationPanelDocNode } from '@affine/core/desktop/components/navigati
 import { NavigationPanelNativeFileNode } from '@affine/core/desktop/components/navigation-panel/nodes/folder/native-file';
 import { AddPageButton } from '@affine/core/modules/app-sidebar/views';
 import { DocsService } from '@affine/core/modules/doc';
+import { CreatedResourceService } from '@affine/core/modules/navigation-panel';
 import {
   OrganizeService,
   WorkspacePageTreeService,
@@ -121,6 +122,10 @@ export function SidebarWorkspaceRow({
   const pageTreeEnabled = useLiveData(pageTree.enabled$);
   const t = useI18n();
   const [expanded, setExpanded] = useState(active);
+  const reveal = useLiveData(useService(CreatedResourceService).reveal$);
+  useEffect(() => {
+    if (active && reveal) setExpanded(true);
+  }, [active, reveal]);
   useEffect(() => setExpanded(active), [active]);
   const name = info?.name ?? UNTITLED_WORKSPACE_NAME;
   const open = active && expanded;

@@ -13,7 +13,10 @@ import {
   NavigationPanelTreeRoot,
 } from '@affine/core/desktop/components/navigation-panel/tree';
 import { DocsService } from '@affine/core/modules/doc/services/docs';
-import { NavigationPanelService } from '@affine/core/modules/navigation-panel';
+import {
+  CreatedResourceService,
+  NavigationPanelService,
+} from '@affine/core/modules/navigation-panel';
 import { WorkspacePageTreeService } from '@affine/core/modules/organize';
 import {
   type FolderSortMode,
@@ -30,19 +33,49 @@ import {
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { LiveData, useLiveData, useService } from '@toeverything/infra';
-import { useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { firstValueFrom } from 'rxjs';
+import { z } from 'zod';
 
 import { WorkspaceCreateMenu } from '../native-files/create-menu';
 import { ResourceTypeIcon } from '../native-files/resource-rows';
+import {
+  useCreatedResourceFocus,
+  useCreatedResourceNavigation,
+} from '../page-tree/created-resource';
+import { PageTreeLoadError } from '../page-tree/load-error';
 import * as styles from './index.css';
+import {
+  type PageTreeDropPlacement,
+  pageTreeDropPlacement,
+  pageTreeReorder,
+  samePageTreeOrder,
+} from './page-tree-drag';
+
+const dragType = 'application/x-localmind-page-tree';
+const dragSchema = z.object({
+  workspaceId: z.string().min(1).max(512),
+  nodeId: z.string().min(1).max(512),
+});
+const PageTreeDragContext = createContext<{
+  source: PageTreeItem | null;
+  setSource: (item: PageTreeItem | null) => void;
+}>({ source: null, setSource: () => {} });
 
 export function usePageTreeLayer(parentId: string | null) {
   const service = useService(WorkspacePageTreeService);
   const layer$ = useMemo(() => service.layer$(parentId), [service, parentId]);
   const layer = useLiveData(layer$);
   useEffect(() => {
-    void service.load(parentId).catch(console.error);
+    return service.observe(parentId);
   }, [service, parentId]);
   return layer;
 }
@@ -75,10 +108,9 @@ export function PageTreeCreateMenu({
 }) {
   const t = useI18n(),
     service = useService(WorkspacePageTreeService);
-  const { workbench } = useService(WorkbenchService);
   const docs = useService(DocsService);
-  const navigation = useService(NavigationPanelService);
-  const saving = useLiveData(service.saving$);
+  const beginCreation = useCreatedResourceNavigation();
+  const saving = useLiveData(service.writeBlocked$);
   const { openPromptModal } = usePromptModal();
   const create = (primaryMode: 'page' | 'edgeless') =>
     openPromptModal({
@@ -87,29 +119,22 @@ export function PageTreeCreateMenu({
           ? t['com.affine.localmind.page-tree.newPage']()
           : t['Edgeless'](),
       inputOptions: { placeholder: t['Untitled']() },
-      confirmText: t['save'](),
+      confirmText: t['Save'](),
       cancelText: t['Cancel'](),
       onConfirm: async title => {
+        const complete = beginCreation();
         const result = await service.execute({
           action: 'create',
           title,
           primaryMode,
           parentNodeId: parentId,
         });
-        expandParent();
-        workbench.openDoc(result.resourceId);
+        await complete([{ ...result, kind: 'doc' }]);
       },
     });
   const rootLayer$ = useMemo(() => service.layer$(null), [service]);
   const root = useLiveData(rootLayer$).page;
   const targetLayer = usePageTreeLayer(parentId);
-  const expandParent = () => {
-    for (const node of [
-      ...(targetLayer.page?.ancestors ?? []),
-      ...(targetLayer.page?.parent ? [targetLayer.page.parent] : []),
-    ])
-      navigation.setCollapsed(['page-tree', node.nodeId], false);
-  };
   if (!root) return null;
   return (
     <WorkspaceCreateMenu
@@ -118,16 +143,16 @@ export function PageTreeCreateMenu({
         openPromptModal({
           title: t['com.affine.rootAppSidebar.organize.new-folders'](),
           inputOptions: { placeholder: t['Untitled'](), maxLength: 512 },
-          confirmText: t['save'](),
+          confirmText: t['Save'](),
           cancelText: t['Cancel'](),
           onConfirm: async title => {
+            const complete = beginCreation();
             const result = await service.execute({
               action: 'create-folder',
               title,
               parentNodeId: parentId,
             });
-            expandParent();
-            workbench.openTreeResource({ ...result, kind: 'folder' });
+            await complete([{ ...result, kind: 'folder' }]);
           },
         })
       }
@@ -152,9 +177,10 @@ export function PageTreeCreateMenu({
             items={
               <TemplateListMenuContentScrollable
                 onSelect={id => {
+                  const complete = beginCreation();
                   void docs
                     .duplicateFromTemplate(id)
-                    .then(id => workbench.openDoc(id))
+                    .then(id => complete([{ resourceId: id, kind: 'doc' }]))
                     .catch(() =>
                       toast(t['com.affine.localmind.page-tree.error']())
                     );
@@ -166,7 +192,7 @@ export function PageTreeCreateMenu({
           </MenuSub>
         ) : undefined
       }
-      onNativeCreated={() => void service.refresh()}
+      onNativeCreated={() => void service.refresh(parentId ?? null)}
     />
   );
 }
@@ -174,7 +200,7 @@ export function PageTreeCreateMenu({
 export function FolderTreeActions({ item }: { item: PageTreeItem }) {
   const service = useService(WorkspacePageTreeService);
   const workbench = useService(WorkbenchService).workbench;
-  const saving = useLiveData(service.saving$);
+  const saving = useLiveData(service.writeBlocked$);
   const t = useI18n();
   const { openPromptModal } = usePromptModal();
   const { openConfirmModal } = useConfirmModal();
@@ -189,7 +215,7 @@ export function FolderTreeActions({ item }: { item: PageTreeItem }) {
             title: t['com.affine.localmind.native-files.rename'](),
             defaultValue: item.title,
             inputOptions: { maxLength: 512 },
-            confirmText: t['save'](),
+            confirmText: t['Save'](),
             cancelText: t['Cancel'](),
             onConfirm: title =>
               service
@@ -255,6 +281,7 @@ export function MovePageDialog({
   const [target, setTarget] = useState<string | null>(null);
   const layer = usePageTreeLayer(target),
     saving = useLiveData(service.saving$);
+  const writeBlocked = useLiveData(service.writeBlocked$);
   const [path, setPath] = useState<{ id: string; title: string }[]>([]);
   const [failed, setFailed] = useState(false);
   return (
@@ -292,9 +319,7 @@ export function MovePageDialog({
         <p role="status">{t['com.affine.localmind.page-tree.loading']()}</p>
       )}
       {layer.error && (
-        <Button onClick={() => void service.load(target)}>
-          {t['com.affine.error.retry']()}
-        </Button>
+        <PageTreeLoadError {...layer} retry={() => void service.load(target)} />
       )}
       <div role="list">
         {layer.page?.items
@@ -333,7 +358,7 @@ export function MovePageDialog({
       <Button
         variant="primary"
         disabled={
-          saving ||
+          writeBlocked ||
           layer.loading ||
           layer.error ||
           target === item.nodeId ||
@@ -363,68 +388,162 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
   const { workspace } = useService(WorkspaceService);
   const { workbench } = useService(WorkbenchService);
   const navigation = useService(NavigationPanelService);
+  const created = useLiveData(useService(CreatedResourceService).reveal$);
+  const createdFocusRef = useCreatedResourceFocus(
+    'folder',
+    item.resourceId,
+    'a'
+  );
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const attachRow = useCallback(
+    (element: HTMLDivElement | null) => {
+      rowRef.current = element;
+      createdFocusRef(element);
+    },
+    [createdFocusRef]
+  );
+  const revealedToken = useRef<number | null>(null);
+  const [highlight, setHighlight] = useState(false);
+  useEffect(() => {
+    if (!created?.nodeIds.includes(item.nodeId)) {
+      setHighlight(false);
+      return;
+    }
+    if (revealedToken.current === created.token) return;
+    revealedToken.current = created.token;
+    setHighlight(true);
+    const frame = requestAnimationFrame(() => {
+      if (created.nodeIds[0] !== item.nodeId) return;
+      const link = rowRef.current?.querySelector<HTMLAnchorElement>('a');
+      link?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+    const timer = setTimeout(() => setHighlight(false), 2400);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [created, item.nodeId, rowRef]);
   const store = useService(FolderSortingStore);
   const path = useMemo(() => ['page-tree', item.nodeId], [item.nodeId]);
   const collapsed = useLiveData(navigation.collapsed$(path));
-  const saving = useLiveData(service.saving$);
+  const saving = useLiveData(service.writeBlocked$);
   const sorting = useSorting(
     item.nodeId,
     item.defaultSortMode === 'name-desc' ? 'name-desc' : 'manual'
   );
   const [moving, setMoving] = useState(false);
-  const [dropHere, setDropHere] = useState(false);
+  const [placement, setPlacement] = useState<PageTreeDropPlacement | null>(
+    null
+  );
+  const drag = useContext(PageTreeDragContext);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const attachContent = useCallback((element: HTMLDivElement | null) => {
+    contentRef.current = element;
+  }, []);
   const container = item.isContainer;
   const open = () => workbench.openTreeResource(item);
   const reorder = async (
-    direction: 'up' | 'down' | 'after',
+    direction: 'up' | 'down' | 'before' | 'after',
     sourceId = item.nodeId
   ) => {
+    if (
+      saving ||
+      (sourceId === item.nodeId && ['before', 'after'].includes(direction))
+    )
+      return;
+    const generation = service.accountGeneration;
     await service.load(item.parentNodeId);
-    while (service.layer$(item.parentNodeId).value.page?.nextCursor)
+    let layer = service.layer$(item.parentNodeId).value;
+    while (layer.page?.nextCursor && !layer.error) {
       await service.load(item.parentNodeId, true);
-    const siblings = sortFolderChildren(
-      (service.layer$(item.parentNodeId).value.page?.items ?? []).map(node => ({
-        ...node,
-        id: node.nodeId,
-      })),
+      layer = service.layer$(item.parentNodeId).value;
+    }
+    if (
+      generation !== service.accountGeneration ||
+      layer.error ||
+      !layer.page ||
+      layer.page.nextCursor
+    )
+      throw new Error('Sibling level unavailable');
+    const page = layer.page;
+    const mode =
       (await firstValueFrom(store.watchMode(service.key(item.parentNodeId)))) ??
-        (service.layer$(item.parentNodeId).value.page?.parent
-          ?.defaultSortMode === 'name-desc'
-          ? 'name-desc'
-          : 'manual'),
+      (page.parent?.defaultSortMode === 'name-desc' ? 'name-desc' : 'manual');
+    const siblings = sortFolderChildren(
+      page.items.map(node => ({ ...node, id: node.nodeId })),
+      mode,
       node => node.title
     );
     const index = siblings.findIndex(node => node.nodeId === item.nodeId);
-    if (
-      index < 0 ||
-      (direction === 'up' && index === 0) ||
-      (direction === 'down' && index === siblings.length - 1)
-    )
-      return;
-    const before =
+    const target =
       direction === 'up'
         ? siblings[index - 1]
-        : siblings[index + (direction === 'down' ? 2 : 1)];
-    const order = siblings
-      .filter(node => node.nodeId !== sourceId)
-      .map(node => node.nodeId);
-    const position = before ? order.indexOf(before.nodeId) : order.length;
-    order.splice(position, 0, sourceId);
-    await service.execute({
-      action: 'move',
-      ...(siblings.some(node => node.nodeId === sourceId)
-        ? { siblingOrder: order }
-        : {}),
-      nodeId: sourceId,
-      parentNodeId: item.parentNodeId,
-      ...(before ? { beforeNodeId: before.nodeId } : {}),
-    });
-    store.setMode(service.key(item.parentNodeId), 'manual');
+        : direction === 'down'
+          ? siblings[index + 1]
+          : item;
+    if (index < 0 || !target) return;
+    const order = pageTreeReorder(
+      siblings.map(node => node.nodeId),
+      sourceId,
+      target.nodeId,
+      direction === 'up' || direction === 'before' ? 'before' : 'after'
+    );
+    if (!order) return;
+    const sameParent = page.items.some(node => node.nodeId === sourceId);
+    if (
+      !sameParent ||
+      !samePageTreeOrder(
+        order,
+        page.items.map(node => node.nodeId)
+      )
+    ) {
+      await service.execute(
+        {
+          action: 'move',
+          nodeId: sourceId,
+          parentNodeId: item.parentNodeId,
+          ...(sameParent
+            ? { siblingOrder: order }
+            : { targetSiblingOrder: order }),
+        },
+        {
+          revision: page.revision,
+          authorizationRevision: page.authorizationRevision,
+        }
+      );
+    }
+    if (generation === service.accountGeneration)
+      store.setMode(service.key(item.parentNodeId), 'manual');
+  };
+  const validPlacement = (y: number) => {
+    if (
+      saving ||
+      !item.canOrganize ||
+      !contentRef.current ||
+      drag.source?.nodeId === item.nodeId
+    )
+      return null;
+    const layer = service.layer$(item.parentNodeId).value.page;
+    if (
+      drag.source &&
+      [
+        ...(layer?.ancestors ?? []),
+        ...(layer?.parent ? [layer.parent] : []),
+      ].some(node => node.nodeId === drag.source?.nodeId)
+    )
+      return null;
+    return pageTreeDropPlacement(
+      y,
+      contentRef.current.getBoundingClientRect(),
+      container
+    );
   };
   const trash = () => void service.confirmLifecycle('trash', item.nodeId);
   return (
     <>
       <div
+        ref={attachRow}
+        data-page-tree-node-id={item.nodeId}
         draggable={item.canOrganize && !saving}
         onKeyDown={event => {
           if (
@@ -441,90 +560,94 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
           );
         }}
         onDragStart={event => {
+          if (saving || !item.canOrganize) {
+            event.preventDefault();
+            return;
+          }
           event.stopPropagation();
+          drag.setSource(item);
           event.dataTransfer.setData(
-            'application/x-localmind-page-tree',
+            dragType,
             JSON.stringify({ workspaceId: workspace.id, nodeId: item.nodeId })
           );
           event.dataTransfer.effectAllowed = 'move';
         }}
+        onDragEnd={() => {
+          drag.setSource(null);
+          setPlacement(null);
+        }}
         onDragOver={event => {
-          if (
-            item.canOrganize &&
-            event.dataTransfer.types.includes(
-              'application/x-localmind-page-tree'
-            )
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-            event.dataTransfer.dropEffect = 'move';
-            setDropHere(true);
-          }
+          if (!event.dataTransfer.types.includes(dragType)) return;
+          event.stopPropagation();
+          const next = validPlacement(event.clientY);
+          setPlacement(next);
+          event.dataTransfer.dropEffect = next ? 'move' : 'none';
+          if (next) event.preventDefault();
         }}
         onDragLeave={event => {
           if (
             !(event.relatedTarget instanceof Node) ||
             !event.currentTarget.contains(event.relatedTarget)
           )
-            setDropHere(false);
+            setPlacement(null);
         }}
         onDrop={event => {
-          setDropHere(false);
-          const value = event.dataTransfer.getData(
-            'application/x-localmind-page-tree'
-          );
+          const value = event.dataTransfer.getData(dragType);
           if (!value) return;
           event.preventDefault();
           event.stopPropagation();
+          const next = validPlacement(event.clientY);
+          setPlacement(null);
+          drag.setSource(null);
           try {
-            const source = JSON.parse(value) as {
-              workspaceId?: string;
-              nodeId?: string;
-            };
-            if (
-              source.workspaceId !== workspace.id ||
-              typeof source.nodeId !== 'string'
-            )
+            if (value.length > 4096) throw new Error('Invalid drag');
+            const source = dragSchema.parse(JSON.parse(value));
+            if (source.workspaceId !== workspace.id)
               throw new Error('Invalid drag');
-            const row =
-              event.currentTarget.querySelector('[data-page-tree-row]') ??
-              event.currentTarget;
-            const rect = row.getBoundingClientRect();
-            const before = event.clientY - rect.top < rect.height / 4;
-            const after = rect.bottom - event.clientY < rect.height / 4;
-            if (after) {
-              void reorder('after', source.nodeId).catch(() =>
+            if (source.nodeId === item.nodeId || !next) return;
+            if (next !== 'inside') {
+              void reorder(next, source.nodeId).catch(() =>
                 toast(t['com.affine.localmind.page-tree.error']())
               );
               return;
             }
-            if (!before && !container) throw new Error('Leaf target');
             void service
               .execute({
                 action: 'move',
                 nodeId: source.nodeId,
-                parentNodeId: before ? item.parentNodeId : item.nodeId,
-                ...(before ? { beforeNodeId: item.nodeId } : {}),
+                parentNodeId: item.nodeId,
               })
-              .then(() => {
-                if (before)
-                  store.setMode(service.key(item.parentNodeId), 'manual');
-                else navigation.setCollapsed(path, false);
-              })
+              .then(() => navigation.setCollapsed(path, false))
               .catch(() => toast(t['com.affine.localmind.page-tree.error']()));
           } catch {
             toast(t['com.affine.localmind.page-tree.error']());
           }
         }}
       >
-        {dropHere && (
-          <span role="status" className={styles.treeMessage}>
-            {t['com.affine.localmind.page-tree.move']()} · {item.title}
-          </span>
-        )}
         <NavigationPanelTreeNode
           aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-          data-page-tree-row
+          rowRef={attachContent}
+          dropInstruction={
+            placement
+              ? {
+                  type:
+                    placement === 'inside'
+                      ? 'make-child'
+                      : placement === 'before'
+                        ? 'reorder-above'
+                        : 'reorder-below',
+                  currentLevel:
+                    (service.layer$(item.parentNodeId).value.page?.ancestors
+                      .length ?? -1) + 1,
+                  indentPerLevel: 20,
+                }
+              : null
+          }
+          active={
+            highlight ||
+            (created?.batch && created.nodeIds.includes(item.nodeId)) ||
+            undefined
+          }
           name={item.title || t['Untitled']()}
           icon={() => (
             <ResourceTypeIcon
@@ -661,18 +784,28 @@ function PageTreeChildren({
     )
       void service.load(parentId, true).catch(console.error);
   }, [layer, sorting.mode, service, parentId]);
-  if (layer.error)
+  if (layer.error && !layer.page)
     return (
-      <div className={styles.treeMessage} role="alert">
-        <Button variant="plain" onClick={() => void service.load(parentId)}>
-          {t['com.affine.error.retry']()}
-        </Button>
+      <div className={styles.treeMessage}>
+        <PageTreeLoadError
+          {...layer}
+          retry={() => void service.load(parentId)}
+        />
       </div>
     );
   if (!layer.page || (sorting.mode !== 'manual' && layer.page.nextCursor))
     return (
-      <div className={styles.treeMessage} role="status">
-        {t['com.affine.localmind.page-tree.loading']()}
+      <div className={styles.treeMessage}>
+        {layer.error ? (
+          <PageTreeLoadError
+            {...layer}
+            retry={() => void service.load(parentId)}
+          />
+        ) : (
+          <span role="status">
+            {t['com.affine.localmind.page-tree.loading']()}
+          </span>
+        )}
       </div>
     );
   const items = sortFolderChildren(
@@ -682,6 +815,14 @@ function PageTreeChildren({
   );
   return (
     <>
+      {layer.error && (
+        <div className={styles.treeMessage}>
+          <PageTreeLoadError
+            {...layer}
+            retry={() => void service.load(parentId)}
+          />
+        </div>
+      )}
       {items.map(item => (
         <PageTreeNode key={item.nodeId} item={item} />
       ))}
@@ -701,12 +842,15 @@ function PageTreeChildren({
 export function PageTreeRootSort({ expanded }: { expanded: boolean }) {
   const t = useI18n(),
     sorting = useSorting(null);
+  const writeBlocked = useLiveData(
+    useService(WorkspacePageTreeService).writeBlocked$
+  );
   return (
     <FolderSortButton
       name={t['com.affine.localmind.page-tree.root']()}
       mode={sorting.mode}
       expanded={expanded}
-      disabled={!sorting.ready}
+      disabled={!sorting.ready || writeBlocked}
       onChange={sorting.setMode}
     />
   );
@@ -716,72 +860,85 @@ export function WorkspacePageTree() {
   const t = useI18n();
   const service = useService(WorkspacePageTreeService),
     { workspace } = useService(WorkspaceService);
-  const sorting = useSorting(null);
   const undo = useLiveData(service.undo$),
-    saving = useLiveData(service.saving$);
+    saving = useLiveData(service.writeBlocked$);
+  const syncing = useLiveData(service.syncing$);
   const [rootDrop, setRootDrop] = useState(false);
+  const [source, setSource] = useState<PageTreeItem | null>(null);
+  const dragContext = useMemo(() => ({ source, setSource }), [source]);
   return (
-    <NavigationPanelTreeRoot>
-      <div
-        role="group"
-        className={styles.treeRoot}
-        aria-label={t['com.affine.localmind.page-tree.root']()}
-        onDragOver={event => {
-          if (
-            !saving &&
-            event.dataTransfer.types.includes(
-              'application/x-localmind-page-tree'
-            )
-          ) {
-            event.preventDefault();
-            setRootDrop(true);
-          }
-        }}
-        onDragLeave={() => setRootDrop(false)}
-        onDrop={event => {
-          event.preventDefault();
-          setRootDrop(false);
-          try {
-            const source = JSON.parse(
-              event.dataTransfer.getData('application/x-localmind-page-tree')
-            ) as { workspaceId?: string; nodeId?: string };
-            if (source.workspaceId !== workspace.id || !source.nodeId)
-              throw new Error('Invalid drag');
-            void service
-              .execute({
-                action: 'move',
-                nodeId: source.nodeId,
-                parentNodeId: null,
-              })
-              .then(() => sorting.setMode('manual'))
-              .catch(() => toast(t['com.affine.localmind.page-tree.error']()));
-          } catch {
-            toast(t['com.affine.localmind.page-tree.error']());
-          }
-        }}
-      >
-        {rootDrop && (
-          <div role="status" className={styles.treeMessage}>
-            {t['com.affine.localmind.page-tree.rootDrop']()}
-          </div>
-        )}
-        {undo && (
-          <Button
-            variant="plain"
-            disabled={saving}
-            onClick={() =>
-              void service
-                .undo()
-                .catch(() =>
-                  toast(t['com.affine.localmind.page-tree.undoConflict']())
-                )
+    <PageTreeDragContext.Provider value={dragContext}>
+      <NavigationPanelTreeRoot>
+        <div
+          role="group"
+          className={styles.treeRoot}
+          aria-label={t['com.affine.localmind.page-tree.root']()}
+          onDragOver={event => {
+            if (
+              !saving &&
+              event.dataTransfer.types.includes(
+                'application/x-localmind-page-tree'
+              )
+            ) {
+              event.preventDefault();
+              setRootDrop(true);
             }
-          >
-            {t['com.affine.localmind.page-tree.undo']()}
-          </Button>
-        )}
-        <PageTreeChildren parentId={null} />
-      </div>
-    </NavigationPanelTreeRoot>
+          }}
+          onDragLeave={() => setRootDrop(false)}
+          onDrop={event => {
+            event.preventDefault();
+            setRootDrop(false);
+            try {
+              if (saving) return;
+              const value = event.dataTransfer.getData(dragType);
+              if (!value || value.length > 4096) return;
+              const dropped = dragSchema.parse(JSON.parse(value));
+              setSource(null);
+              const sourceId = dropped.nodeId;
+              if (dropped.workspaceId !== workspace.id)
+                throw new Error('Invalid drag');
+              void service
+                .execute({
+                  action: 'move',
+                  nodeId: sourceId,
+                  parentNodeId: null,
+                })
+                .catch(() =>
+                  toast(t['com.affine.localmind.page-tree.error']())
+                );
+            } catch {
+              toast(t['com.affine.localmind.page-tree.error']());
+            }
+          }}
+        >
+          {rootDrop && (
+            <div role="status" className={styles.treeMessage}>
+              {t['com.affine.localmind.page-tree.rootDrop']()}
+            </div>
+          )}
+          {syncing && (
+            <div role="status" className={styles.treeMessage}>
+              {t['com.affine.localmind.page-tree.syncing']()}
+            </div>
+          )}
+          {undo && (
+            <Button
+              variant="plain"
+              disabled={saving}
+              onClick={() =>
+                void service
+                  .undo()
+                  .catch(() =>
+                    toast(t['com.affine.localmind.page-tree.undoConflict']())
+                  )
+              }
+            >
+              {t['com.affine.localmind.page-tree.undo']()}
+            </Button>
+          )}
+          <PageTreeChildren parentId={null} />
+        </div>
+      </NavigationPanelTreeRoot>
+    </PageTreeDragContext.Provider>
   );
 }

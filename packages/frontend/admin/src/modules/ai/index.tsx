@@ -3910,10 +3910,11 @@ function PromptRegistryPublishGateResult({
             {i18n['com.affine.admin.issues']()}
           </div>
           <div className="mt-1 break-words font-medium">
-            {verdict.issueCount} total / {verdict.errorCount}{' '}
-            {i18n['com.affine.ui.error']()}{' '}
-            {verdict.errorCount === 1 ? '' : 's'} / {verdict.blockingCount}{' '}
-            {i18n['com.affine.admin.blocking-2']()}{' '}
+            {i18n['com.affine.admin.registry-verdict.issue-summary']({
+              total: String(verdict.issueCount),
+              errors: String(verdict.errorCount),
+              blocking: String(verdict.blockingCount),
+            })}
           </div>
         </div>
         <div>

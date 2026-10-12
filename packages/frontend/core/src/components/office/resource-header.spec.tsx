@@ -20,6 +20,7 @@ describe('OfficeResourceHeader', () => {
         historical={false}
         busy={false}
         returningLatest={false}
+        status={{ text: 'Saved', attention: false }}
         onDownload={onDownload}
         onHistory={onHistory}
         onLatest={vi.fn()}
@@ -29,6 +30,10 @@ describe('OfficeResourceHeader', () => {
 
     expect(screen.getByText('Quarterly plan')).toBeDefined();
     expect(screen.getByText('v3')).toBeDefined();
+    expect(screen.getByRole('status').textContent).toBe('Saved');
+    expect(screen.getByRole('status').parentElement?.textContent).toContain(
+      'Quarterly plan'
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Print' }));
     fireEvent.click(screen.getByRole('button', { name: 'Revision history' }));
     fireEvent.click(

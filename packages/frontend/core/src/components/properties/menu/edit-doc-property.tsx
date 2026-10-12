@@ -57,28 +57,23 @@ export const EditWorkspacePropertyMenuItems = ({
     setName(propertyName);
   }, [propertyName]);
 
-  const onKeyDown: KeyboardEventHandler<HTMLInputElement> = useCallback(
-    e => {
-      if (e.key !== 'Escape') {
-        e.stopPropagation();
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        workspacePropertyService.updatePropertyInfo(propertyId, {
-          name: e.currentTarget.value,
-        });
-      }
+  const onKeyDown: KeyboardEventHandler<HTMLInputElement> = useCallback(e => {
+    if (e.key !== 'Escape') {
+      e.stopPropagation();
+    }
+  }, []);
+  const commitName = useCallback(
+    (value: string) => {
+      workspacePropertyService.updatePropertyInfo(propertyId, { name: value });
+      onPropertyInfoChange?.('name', value);
     },
-    [workspacePropertyService, propertyId]
+    [workspacePropertyService, propertyId, onPropertyInfoChange]
   );
   const handleBlur = useCallback(
     (e: FocusEvent & { currentTarget: HTMLInputElement }) => {
-      workspacePropertyService.updatePropertyInfo(propertyId, {
-        name: e.currentTarget.value,
-      });
-      onPropertyInfoChange?.('name', e.currentTarget.value);
+      commitName(e.currentTarget.value);
     },
-    [workspacePropertyService, propertyId, onPropertyInfoChange]
+    [commitName]
   );
 
   const handleIconChange = useCallback(
@@ -156,6 +151,7 @@ export const EditWorkspacePropertyMenuItems = ({
             onChange={handleNameChange}
             placeholder={t['unnamed']()}
             onKeyDown={onKeyDown}
+            onEnter={commitName}
             size="large"
             style={{ borderRadius: 4, height: 30 }}
           />

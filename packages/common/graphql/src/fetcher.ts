@@ -111,6 +111,30 @@ function filterEmptyValue(vars: any) {
   return newVars;
 }
 
+function retryAfterMs(response: Response) {
+  const header = response.headers.get('Retry-After')?.trim();
+  if (!header) return undefined;
+  const delay = /^\d+(?:\.\d+)?$/.test(header)
+    ? Number(header) * 1000
+    : Date.parse(header) - Date.now();
+  return Number.isFinite(delay) && delay >= 0
+    ? Math.min(300_000, Math.max(1000, Math.ceil(delay)))
+    : undefined;
+}
+
+function throttleError(response: Response, message = 'Too many requests') {
+  return new GraphQLError(message, {
+    extensions: {
+      status: 429,
+      code: 'too_many_requests',
+      type: 'too_many_request',
+      name: 'TOO_MANY_REQUEST',
+      message,
+      retryAfterMs: retryAfterMs(response),
+    },
+  });
+}
+
 export function transformToForm(body: RequestBody) {
   const form = new FormData();
   const gqlBody: {
@@ -215,13 +239,32 @@ export const gqlFetcherFactory = (
       })
     ).then(async res => {
       if (res.headers.get('content-type')?.startsWith('application/json')) {
-        const result = (await res.json()) as ExecutionResult;
+        let result: ExecutionResult;
+        try {
+          result = (await res.json()) as ExecutionResult;
+        } catch (error) {
+          if (res.status === 429) throw throttleError(res);
+          throw error;
+        }
         if (res.status >= 400 || result.errors) {
           if (result.errors && result.errors.length > 0) {
             // throw the first error is enough
             const firstError = result.errors[0];
+            if (
+              res.status === 429 ||
+              firstError.extensions?.status === 429 ||
+              firstError.extensions?.name === 'TOO_MANY_REQUEST'
+            )
+              throw new GraphQLError(firstError.message, {
+                ...firstError,
+                extensions: {
+                  ...firstError.extensions,
+                  ...throttleError(res, firstError.message).extensions,
+                },
+              });
             throw new GraphQLError(firstError.message, firstError);
           } else {
+            if (res.status === 429) throw throttleError(res);
             throw new GraphQLError('Empty GraphQL error body');
           }
         } else if (result.data) {
@@ -229,6 +272,8 @@ export const gqlFetcherFactory = (
           return result.data as any;
         }
       }
+
+      if (res.status === 429) throw throttleError(res);
 
       throw new GraphQLError(
         'GraphQL query responds unexpected result, query ' + options.query.op

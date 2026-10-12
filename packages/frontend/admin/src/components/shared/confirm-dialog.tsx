@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@affine/admin/components/ui/dialog';
+import { useI18n } from '@affine/i18n';
 import type { ReactNode } from 'react';
 
 interface ConfirmDialogProps {
@@ -26,12 +27,13 @@ export const ConfirmDialog = ({
   onOpenChange,
   title,
   description,
-  cancelText = 'Cancel',
-  confirmText = 'Confirm',
+  cancelText,
+  confirmText,
   confirmButtonVariant = 'default',
   onConfirm,
   onClose,
 }: ConfirmDialogProps) => {
+  const i18n = useI18n();
   const handleClose = () => {
     onOpenChange(false);
     onClose?.();
@@ -54,7 +56,7 @@ export const ConfirmDialog = ({
               variant="outline"
               size="sm"
             >
-              <span>{cancelText}</span>
+              <span>{cancelText ?? i18n['Cancel']()}</span>
             </Button>
             <Button
               type="button"
@@ -62,7 +64,7 @@ export const ConfirmDialog = ({
               variant={confirmButtonVariant}
               size="sm"
             >
-              <span>{confirmText}</span>
+              <span>{confirmText ?? i18n['Confirm']()}</span>
             </Button>
           </div>
         </DialogFooter>

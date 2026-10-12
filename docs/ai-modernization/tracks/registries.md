@@ -23,6 +23,14 @@ requires and verifies a concrete model. These draft probes never persist
 configuration or enable Project AI. Admin translates probe failures and
 catalog warnings in the selected display language without rendering upstream
 response bodies.
+Catalog-only success is labeled separately from a successful model request.
+Known DeepSeek endpoint/provider mismatches are rejected before dispatch;
+other failures use HTTP status and an allowlist of upstream error codes to
+distinguish credentials, access, model availability, quota, request format,
+timeouts and service failures. A bare 404 remains explicitly ambiguous.
+Safe probe diagnostics survive the GraphQL error boundary, so verification
+and save failures use the same translated reason and preserve the draft key.
+Saving successfully but failing to refresh settings is reported separately.
 Runtime routing reads the persisted conversation Project and rechecks active
 membership. Missing/disabled configuration cannot fall back to another scope.
 Workspace routes remain available to conversations outside Projects; embedding

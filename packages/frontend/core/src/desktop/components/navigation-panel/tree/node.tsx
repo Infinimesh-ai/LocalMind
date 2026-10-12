@@ -108,6 +108,8 @@ interface WebNavigationPanelTreeNodeProps extends BaseNavigationPanelTreeNodePro
   canDrag?: boolean;
   onDrop?: (data: DropTargetDropEvent<AffineDNDData>) => void;
   dropEffect?: NavigationPanelTreeNodeDropEffect;
+  rowRef?: (element: HTMLDivElement | null) => void;
+  dropInstruction?: DropTargetTreeInstruction | null;
 }
 
 /**
@@ -207,6 +209,8 @@ export const NavigationPanelTreeNode = ({
   explorerIconConfig,
   onDrop,
   dropEffect,
+  rowRef,
+  dropInstruction,
   ...otherProps
 }: WebNavigationPanelTreeNodeProps) => {
   const explorerIconService = useService(ExplorerIconService);
@@ -259,6 +263,7 @@ export const NavigationPanelTreeNode = ({
   );
   const handleCanDrop = useMemo<DropTargetOptions<AffineDNDData>['canDrop']>(
     () => args => {
+      if (dropInstruction !== undefined) return false;
       if (
         args.source.data.nativeResource &&
         args.treeInstruction?.type === 'make-child' &&
@@ -270,7 +275,7 @@ export const NavigationPanelTreeNode = ({
       }
       return (typeof canDrop === 'function' ? canDrop(args) : canDrop) ?? true;
     },
-    [canDrop, reorderable, dndData?.dropTarget.at]
+    [canDrop, reorderable, dndData?.dropTarget.at, dropInstruction]
   );
 
   const {
@@ -325,11 +330,26 @@ export const NavigationPanelTreeNode = ({
     ]
   );
   const isSelfDraggedOver = draggedOverDraggable?.data.__cid === cid;
+  const activeInstruction =
+    dropInstruction === undefined
+      ? treeInstruction
+      : dropInstruction
+        ? { ...dropInstruction, currentLevel: level }
+        : null;
+  const activeDraggedOver =
+    dropInstruction === undefined ? draggedOver : !!dropInstruction;
+  const attachRow = useCallback(
+    (element: HTMLDivElement | null) => {
+      dropTargetRef.current = element;
+      rowRef?.(element);
+    },
+    [dropTargetRef, rowRef]
+  );
 
   useEffect(() => {
     if (
-      draggedOver &&
-      treeInstruction?.type === 'make-child' &&
+      activeDraggedOver &&
+      activeInstruction?.type === 'make-child' &&
       !isSelfDraggedOver
     ) {
       if (!collapsible) return;
@@ -342,10 +362,10 @@ export const NavigationPanelTreeNode = ({
     return;
   }, [
     collapsible,
-    draggedOver,
+    activeDraggedOver,
     isSelfDraggedOver,
     setCollapsed,
-    treeInstruction?.type,
+    activeInstruction?.type,
   ]);
 
   useEffect(() => {
@@ -508,32 +528,38 @@ export const NavigationPanelTreeNode = ({
       </div>
 
       <div className={styles.itemMain}>
-        <div className={styles.itemContent}>{name}</div>
-        {postfix}
+        <div className={styles.itemContent} title={name}>
+          {name}
+        </div>
         <div
           className={styles.postfix}
           onClick={e => {
-            // prevent jump to page
-            e.preventDefault();
+            // Buttons handle their own action; unused slots still open the row.
+            if (e.target !== e.currentTarget) e.preventDefault();
           }}
         >
+          {postfix}
           {inlineOperations.map(({ view, index }) => (
-            <Fragment key={index}>{view}</Fragment>
+            <span className={styles.operation} key={index}>
+              {view}
+            </span>
           ))}
           {menuOperations.length > 0 && (
-            <Menu
-              items={menuOperations.map(({ view, index }) => (
-                <Fragment key={index}>{view}</Fragment>
-              ))}
-            >
-              <IconButton
-                size="16"
-                data-testid="navigation-panel-tree-node-operation-button"
-                style={{ marginLeft: 4 }}
+            <span className={styles.operation}>
+              <Menu
+                items={menuOperations.map(({ view, index }) => (
+                  <Fragment key={index}>{view}</Fragment>
+                ))}
               >
-                <MoreHorizontalIcon />
-              </IconButton>
-            </Menu>
+                <IconButton
+                  size="16"
+                  data-testid="navigation-panel-tree-node-operation-button"
+                  style={{ marginLeft: 4 }}
+                >
+                  <MoreHorizontalIcon />
+                </IconButton>
+              </Menu>
+            </span>
           )}
         </div>
       </div>
@@ -570,7 +596,7 @@ export const NavigationPanelTreeNode = ({
           className={clsx(styles.contentContainer, styles.draggedOverEffect)}
           data-open={!collapsed}
           data-self-dragged-over={isSelfDraggedOver}
-          ref={dropTargetRef}
+          ref={attachRow}
         >
           {to ? (
             <LinkComponent
@@ -587,11 +613,11 @@ export const NavigationPanelTreeNode = ({
           <CustomDragPreview>
             <div className={styles.draggingContainer}>{content}</div>
           </CustomDragPreview>
-          {treeInstruction &&
+          {activeInstruction &&
             // Do not show drop indicator for self dragged over
-            !(treeInstruction.type !== 'reparent' && isSelfDraggedOver) &&
-            treeInstruction.type !== 'instruction-blocked' && (
-              <DropIndicator instruction={treeInstruction} />
+            !(activeInstruction.type !== 'reparent' && isSelfDraggedOver) &&
+            activeInstruction.type !== 'instruction-blocked' && (
+              <DropIndicator instruction={activeInstruction} />
             )}
           {draggedOver &&
             dropEffect &&

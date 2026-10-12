@@ -8,6 +8,7 @@ import {
   type PageTreeResource,
   pageTreeSiblingOrder,
   pageTreeSubtree,
+  reorderPageTreeLevel,
   validatePageTree,
   WORKSPACE_PAGE_TREE_CONTRACT,
   WORKSPACE_PAGE_TREE_V1_CONTRACT,
@@ -29,6 +30,8 @@ type LocalReceipt = {
   oldParentNodeId: string | null;
   oldBeforeNodeId: string | null;
   oldSiblingOrder: string[] | null;
+  oldTargetSiblingOrder: string[] | null;
+  oldSourceSiblingOrder: string[] | null;
 };
 type Creation = {
   id: string;
@@ -579,7 +582,11 @@ export class LocalPageTreeAdapter {
       if (replay) {
         if (replay.fingerprint !== fingerprint)
           throw new Error('Request key changed');
-        return replay.receipt;
+        return {
+          ...replay.receipt,
+          oldTargetSiblingOrder: replay.receipt.oldTargetSiblingOrder ?? null,
+          oldSourceSiblingOrder: replay.receipt.oldSourceSiblingOrder ?? null,
+        };
       }
       if (
         input.contractVersion !== stateKey ||
@@ -592,6 +599,8 @@ export class LocalPageTreeAdapter {
         oldParentNodeId: string | null = null,
         oldBeforeNodeId: string | null = null;
       let oldSiblingOrder: string[] | null = null;
+      let oldTargetSiblingOrder: string[] | null = null;
+      let oldSourceSiblingOrder: string[] | null = null;
       const create: Creation[] = [],
         retired: string[] = [];
       const target = input.parentNodeId ?? null;
@@ -691,7 +700,11 @@ export class LocalPageTreeAdapter {
           throw new Error('Resource moved; review deletion again');
         oldParentNodeId = source.parentNodeId;
         const siblings = nodes
-          .filter(node => node.parentNodeId === source.parentNodeId)
+          .filter(
+            node =>
+              node.parentNodeId === source.parentNodeId &&
+              (input.action !== 'move' || !node.resource.trashed)
+          )
           .sort((a, b) =>
             a.order < b.order
               ? -1
@@ -747,6 +760,15 @@ export class LocalPageTreeAdapter {
             delete source.folder;
           }
         } else if (input.action === 'move') {
+          const crossParent = source.parentNodeId !== target;
+          if (
+            (input.siblingOrder && crossParent) ||
+            (!crossParent &&
+              (input.targetSiblingOrder || input.sourceSiblingOrder)) ||
+            (input.siblingOrder &&
+              (input.targetSiblingOrder || input.sourceSiblingOrder))
+          )
+            throw new Error('Order must match the affected sibling level');
           if (input.siblingOrder) {
             if (source.parentNodeId !== target || source.resource.trashed)
               throw new Error('Manual order requires the active sibling level');
@@ -755,15 +777,44 @@ export class LocalPageTreeAdapter {
               target,
               input.siblingOrder
             );
-            let order: string | null = null;
-            for (const id of input.siblingOrder) {
-              order = generateFractionalIndexingKeyBetween(order, null);
-              const next = order;
-              nodes = nodes.map(node =>
-                node.nodeId === id ? { ...node, order: next } : node
+            nodes = reorderPageTreeLevel(
+              nodes,
+              target,
+              input.siblingOrder,
+              previous => generateFractionalIndexingKeyBetween(previous, null)
+            );
+          } else {
+            const original = nodes;
+            nodes = movePageTreeNode(
+              nodes,
+              nodeId,
+              target,
+              input.targetSiblingOrder
+                ? generateFractionalIndexingKeyBetween(null, null)
+                : nextOrder()
+            );
+            if (input.targetSiblingOrder) {
+              oldTargetSiblingOrder = pageTreeSiblingOrder(original, target);
+              nodes = reorderPageTreeLevel(
+                nodes,
+                target,
+                input.targetSiblingOrder,
+                previous => generateFractionalIndexingKeyBetween(previous, null)
               );
             }
-          } else nodes = movePageTreeNode(nodes, nodeId, target, nextOrder());
+            if (input.sourceSiblingOrder) {
+              oldSourceSiblingOrder = pageTreeSiblingOrder(
+                original,
+                source.parentNodeId
+              );
+              nodes = reorderPageTreeLevel(
+                nodes,
+                source.parentNodeId,
+                input.sourceSiblingOrder,
+                previous => generateFractionalIndexingKeyBetween(previous, null)
+              );
+            }
+          }
         } else {
           const subtree = pageTreeSubtree(nodes, nodeId);
           if (input.action === 'trash') {
@@ -811,6 +862,8 @@ export class LocalPageTreeAdapter {
         oldParentNodeId,
         oldBeforeNodeId,
         oldSiblingOrder,
+        oldTargetSiblingOrder,
+        oldSourceSiblingOrder,
       };
       const pending: Pending = {
         key,

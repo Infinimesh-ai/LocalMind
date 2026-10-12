@@ -76,7 +76,9 @@ const queryState = vi.hoisted(() => ({
   ],
 }));
 
-vi.mock('@affine/component', () => ({
+vi.mock('@affine/component', async () => ({
+  isComposingKeyboardEvent: (await import('@affine/component/ui/input'))
+    .isComposingKeyboardEvent,
   Avatar: ({ name }: { name: string }) => <span>{name}</span>,
   Button: ({
     children,
@@ -243,6 +245,30 @@ describe('Office comments panel', () => {
         },
       })
     );
+  });
+
+  test('IME confirmation does not send a partial Office comment reply', async () => {
+    renderPanel();
+    const input = screen.getByLabelText('Reply to Alice');
+    fireEvent.change(input, { target: { value: '完整中文回复' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 });
+    fireEvent.keyDown(input, { key: 'Enter', repeat: true });
+    expect(gql).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(gql).toHaveBeenCalledOnce());
+    expect(gql).toHaveBeenCalledWith({
+      query: createOfficeCommentReplyMutation,
+      variables: {
+        input: {
+          commentId: 'comment-1',
+          content: {
+            version: 'localmind-office-comment-reply/v1',
+            text: '完整中文回复',
+          },
+        },
+      },
+    });
   });
 
   test('resolves an Office comment without mutating package state', async () => {

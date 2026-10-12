@@ -36,6 +36,34 @@ function createProxy(initValue: (key: string) => any) {
 }
 export function useAFFiNEI18N(): {
     /**
+      * `Configuration was saved, but the settings could not be refreshed. Reload the settings to view the latest configuration.`
+      */
+    ["com.affine.admin.byok-saved-refresh-failed"](): string;
+    /**
+      * `Connection lost. Keep this page open, check your connection and retry.`
+      */
+    ["com.affine.office.error.network"](): string;
+    /**
+      * `You cannot edit this file. Check your editing permission with the resource owner.`
+      */
+    ["com.affine.office.error.permission"](): string;
+    /**
+      * `This file is unavailable. It may have been removed or your access may have changed.`
+      */
+    ["com.affine.office.error.unavailable"](): string;
+    /**
+      * `This file has a newer version. Keep a copy of your unsaved text before reopening it.`
+      */
+    ["com.affine.office.error.conflict"](): string;
+    /**
+      * `Too many requests. Wait a moment and retry.`
+      */
+    ["com.affine.office.error.rate-limit"](): string;
+    /**
+      * `The action could not be completed. Please retry. If it keeps failing, contact your administrator.`
+      */
+    ["com.affine.office.error.failed"](): string;
+    /**
       * `Move or permanently delete child resources before changing the default mode. Wait for the page tree to finish loading.`
       */
     ["com.affine.localmind.page-tree.modeBlocked"](): string;
@@ -19317,11 +19345,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.admin.byok-error-permission"](): string;
     /**
-      * `The API endpoint or model was not found. Check the address, protocol and model ID.`
+      * `The provider returned HTTP 404 without identifying whether the API endpoint or model route was missing. Check the base URL, API protocol and model ID.`
       */
     ["com.affine.admin.byok-error-endpoint"](): string;
     /**
-      * `The provider rate limit was reached. Check your quota or try again later.`
+      * `The provider rate limit was reached. Retry later or check the request limits in the provider console.`
       */
     ["com.affine.admin.byok-error-rate-limit"](): string;
     /**
@@ -19336,6 +19364,48 @@ export function useAFFiNEI18N(): {
       * `Connection failed. Check the API key, endpoint, model, protocol and server network connectivity.`
       */
     ["com.affine.admin.byok-error-generic"](): string;
+    /**
+      * `This DeepSeek address uses the OpenAI API. Select OpenAI as the provider and Chat Completions as the API protocol, then select the model again.`
+      */
+    ["com.affine.admin.byok-error-deepseek-openai"](): string;
+    /**
+      * `This DeepSeek address uses the Anthropic API. Select Anthropic as the provider, or use https://api.deepseek.com with OpenAI and Chat Completions.`
+      */
+    ["com.affine.admin.byok-error-deepseek-anthropic"](): string;
+    /**
+      * `The provider reports that this model is unavailable or not accessible to this key. Check the model ID and model access permissions.`
+      */
+    ["com.affine.admin.byok-error-model"](): string;
+    /**
+      * `The provider reports insufficient account balance or API quota. Check billing and quota in the provider console.`
+      */
+    ["com.affine.admin.byok-error-quota"](): string;
+    /**
+      * `The provider rejected the request format. Check that the provider, API protocol and base URL match its documentation.`
+      */
+    ["com.affine.admin.byok-error-request"](): string;
+    /**
+      * `The provider request timed out. Retry later or check the server connection to the provider.`
+      */
+    ["com.affine.admin.byok-error-timeout"](): string;
+    /**
+      * `The server could not complete the provider request. Check the address, server network and connection policy.`
+      */
+    ["com.affine.admin.byok-error-network"](): string;
+    /**
+      * `Model list loaded. Select a model, then verify and save to test an actual model request.`
+      */
+    ["com.affine.admin.byok-catalog-loaded"](): string;
+    /**
+      * `The selected model returned a valid response. This test does not save configuration or verify tool execution.`
+      */
+    ["com.affine.admin.byok-model-verified"](): string;
+    /**
+      * `Configuration was not saved. {{reason}}`
+      */
+    ["com.affine.admin.byok-save-failed-reason"](options: {
+        readonly reason: string;
+    }): string;
     /**
       * `Available models`
       */
@@ -20896,6 +20966,51 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.v9.actionFailed"](): string;
     /**
+      * `Upload delivery files`
+      */
+    ["com.affine.localmind.workbench.v9.uploadDeliveryFiles"](): string;
+    /**
+      * `Choose replacement files`
+      */
+    ["com.affine.localmind.workbench.v9.replaceDeliveryFiles"](): string;
+    /**
+      * `Supports {{formats}} · Up to {{count}} files · 100 MiB each`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryFileFormats"](options: Readonly<{
+        formats: string;
+        count: string;
+    }>): string;
+    /**
+      * `Select no more than {{count}} files at a time.`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryFileCountError"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Select a non-empty file no larger than 100 MiB.`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryFileSizeError"](): string;
+    /**
+      * `The file could not be accepted. Check its format and contents, and that this work order still accepts uploads.`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryFileInvalid"](): string;
+    /**
+      * `Upload failed. Check your connection and choose the file again.`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryUploadRetry"](): string;
+    /**
+      * `Could not refresh the draft. Reload to check which files were saved before retrying.`
+      */
+    ["com.affine.localmind.workbench.v9.deliveryRefreshFailed"](): string;
+    /**
+      * `Prepare a new version`
+      */
+    ["com.affine.localmind.workbench.v9.prepareNewDelivery"](): string;
+    /**
+      * `Files are saved to a new delivery draft. Confirm and send it back when ready; previous deliveries are kept.`
+      */
+    ["com.affine.localmind.workbench.v9.newDeliveryHint"](): string;
+    /**
       * `Could not upload this delivery`
       */
     ["com.affine.localmind.workbench.v9.uploadFailed"](): string;
@@ -22231,6 +22346,18 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.page-tree.error"](): string;
     /**
+      * `Could not load the page tree. Please try again shortly.`
+      */
+    ["com.affine.localmind.page-tree.load-error"](): string;
+    /**
+      * `Too many page tree requests. Retrying automatically shortly.`
+      */
+    ["com.affine.localmind.page-tree.rate-limited"](): string;
+    /**
+      * `Saved. Syncing the resource tree…`
+      */
+    ["com.affine.localmind.page-tree.syncing"](): string;
+    /**
       * `Destination: {{name}}`
       */
     ["com.affine.localmind.page-tree.destination"](options: {
@@ -22312,6 +22439,146 @@ export function useAFFiNEI18N(): {
       * `This folder is empty`
       */
     ["com.affine.localmind.page-tree.folderEmpty"](): string;
+    /**
+      * `Close`
+      */
+    Close(): string;
+    /**
+      * `Done`
+      */
+    Done(): string;
+    /**
+      * `Send`
+      */
+    Send(): string;
+    /**
+      * `Load more`
+      */
+    ["Load more"](): string;
+    /**
+      * `Download`
+      */
+    Download(): string;
+    /**
+      * `Search tags`
+      */
+    ["Search tags"](): string;
+    /**
+      * `Export to PDF`
+      */
+    ["Export to PDF"](): string;
+    /**
+      * `Export to Snapshot`
+      */
+    ["Export to Snapshot"](): string;
+    /**
+      * `Successfully removed workspace`
+      */
+    ["Successfully removed workspace"](): string;
+    /**
+      * `Failed to remove workspace`
+      */
+    ["Failed to remove workspace"](): string;
+    /**
+      * `Free trial`
+      */
+    ["com.affine.payment.billing-setting.free-trial"](): string;
+    /**
+      * `Skip`
+      */
+    ["com.affine.auth.onboarding.skip"](): string;
+    /**
+      * `Total: {{total}} / Errors: {{errors}} / Blocking: {{blocking}}`
+      */
+    ["com.affine.admin.registry-verdict.issue-summary"](options: Readonly<{
+        total: string;
+        errors: string;
+        blocking: string;
+    }>): string;
+    /**
+      * `Failed to generate license key`
+      */
+    ["com.affine.payment.license-error.title"](): string;
+    /**
+      * `Check other articles`
+      */
+    ["com.affine.onboarding.more-articles"](): string;
+    /**
+      * `Sign-in is only valid for this session`
+      */
+    ["com.affine.auth.session-only.title"](): string;
+    /**
+      * `Encrypted storage is unavailable, so you will need to sign in again after restarting LocalMind.`
+      */
+    ["com.affine.auth.session-only.description"](): string;
+    /**
+      * `A document could not be imported. Other successfully imported resources are retained.`
+      */
+    ["com.affine.import.warning.skipped-document"](): string;
+    /**
+      * `A document was imported, but some metadata could not be restored.`
+      */
+    ["com.affine.import.warning.metadata"](): string;
+    /**
+      * `A resource could not be placed under its original parent. Check its current location.`
+      */
+    ["com.affine.import.warning.placement"](): string;
+    /**
+      * `This Notion export uses CSV. Export it as HTML and try again.`
+      */
+    ["com.affine.import.warning.notion-csv"](): string;
+    /**
+      * `A Bear note bundle could not be imported. Check the source file and try again.`
+      */
+    ["com.affine.import.warning.bear-bundle"](): string;
+    /**
+      * `Some content could not be imported completely. Review the details below.`
+      */
+    ["com.affine.import.warning.generic"](): string;
+    /**
+      * `Technical details`
+      */
+    ["com.affine.import.warning.details"](): string;
+    /**
+      * `Ready`
+      */
+    ["com.affine.office.ready"](): string;
+    /**
+      * `Empty cell`
+      */
+    ["com.affine.office.empty-cell"](): string;
+    /**
+      * `Redo`
+      */
+    ["com.affine.office.continuous-edit.redo"](): string;
+    /**
+      * `This content contains structures that cannot be edited safely yet. Use the original application to edit it.`
+      */
+    ["com.affine.office.continuous-edit.unsupported"](): string;
+    /**
+      * `The document has changed elsewhere. Your unsaved changes are retained. Save a copy of your text before reloading.`
+      */
+    ["com.affine.office.continuous-edit.conflict"](): string;
+    /**
+      * `Multi-select`
+      */
+    ["com.affine.localmind.resources.multiSelect"](): string;
+    /**
+      * `Actions`
+      */
+    ["com.affine.localmind.resources.actions"](): string;
+    /**
+      * `Edit tags`
+      */
+    ["com.affine.localmind.resources.editTags"](): string;
+    /**
+      * `Remove tags`
+      */
+    ["com.affine.localmind.resources.removeTags"](): string;
+    /**
+      * `Some resources could not be updated. Retry the failed resources below.`
+      */
+    ["com.affine.localmind.resources.tagsRetryFailed"](): string;
     /**
       * `An internal error occurred.`
       */

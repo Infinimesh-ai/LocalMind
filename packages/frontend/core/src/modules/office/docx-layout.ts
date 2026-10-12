@@ -81,7 +81,8 @@ function pageCapacity(page: ReturnType<typeof pageGeometry>) {
 
 export function paginateDocxBlocks(
   blocks: readonly DocxBlock[],
-  sections: readonly DocxSection[]
+  sections: readonly DocxSection[],
+  measuredHeights: ReadonlyMap<string, number> = new Map()
 ): OfficeDocxPage[] {
   const geometry = pageGeometry(sections[0]);
   const capacity = pageCapacity(geometry);
@@ -99,7 +100,8 @@ export function paginateDocxBlocks(
   for (const block of blocks) {
     const forceBreak =
       block.type === 'paragraph' && block.properties?.pageBreakBefore === true;
-    const units = blockUnits(block);
+    const measured = measuredHeights.get(block.id);
+    const units = measured ? (measured * 0.75) / 13.8 : blockUnits(block);
     if ((forceBreak || used + units > capacity) && current.length) flush();
     current.push(block);
     used += units;

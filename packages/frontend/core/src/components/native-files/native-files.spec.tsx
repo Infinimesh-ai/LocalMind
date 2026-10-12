@@ -22,6 +22,10 @@ vi.mock('@affine/core/modules/cloud', () => ({
   GraphQLService: class {},
   FetchService: class {},
 }));
+vi.mock('../page-tree/created-resource', () => ({
+  useCreatedResourceFocus: () => undefined,
+}));
+vi.mock('../page-tree/children', () => ({ PageTreeBreadcrumbs: () => null }));
 vi.mock('@affine/core/modules/workspace', () => ({
   WorkspaceService: class {},
 }));
@@ -264,6 +268,7 @@ test('a conflict retains the draft and request; merging uses the newly read vers
       return {
         workspaceNativeResource: {
           title: 'note.txt',
+          mimeType: 'text/plain',
           byteSize: 4,
           contentVersion: 1,
           canEdit: true,
@@ -351,6 +356,7 @@ test('read-only content can be opened but cannot be edited or replaced', async (
       ? {
           workspaceNativeResource: {
             title: 'readonly.txt',
+            mimeType: 'text/plain',
             byteSize: 4,
             contentVersion: 1,
             canEdit: false,
@@ -439,6 +445,7 @@ test('invalid JSON remains editable and corrected content gets a new request wit
       return {
         workspaceNativeResource: {
           title: 'data.json',
+          mimeType: 'application/json',
           byteSize: 2,
           contentVersion: 1,
           canEdit: true,
@@ -503,6 +510,7 @@ test('historical binary versions use the bounded preview and unsupported version
       return {
         workspaceNativeResource: {
           title: 'photo.png',
+          mimeType: 'image/png',
           byteSize: 4,
           contentVersion: 3,
           canEdit: true,

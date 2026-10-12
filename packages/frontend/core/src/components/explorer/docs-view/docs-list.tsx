@@ -17,6 +17,8 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
 
 import { EmptyDocs } from '../../affine/empty';
@@ -107,9 +109,10 @@ export const DocListItemComponent = memo(function DocListItemComponent({
   return <DocListItem docId={itemId} groupId={groupId} />;
 });
 
-const ResourceItemContext = createContext<
-  ((id: string, groupId: string) => ReactNode) | undefined
->(undefined);
+const ResourceItemContext = createContext<{
+  renderItem?: (id: string, groupId: string) => ReactNode;
+  onHeightChange?: (id: string, height: number) => void;
+}>({});
 
 function ResourceListItem({
   itemId,
@@ -118,8 +121,23 @@ function ResourceListItem({
   itemId: string;
   groupId: string;
 }) {
-  const renderItem = useContext(ResourceItemContext);
-  return renderItem?.(itemId, groupId);
+  const { renderItem, onHeightChange } = useContext(ResourceItemContext);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || !onHeightChange) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const height = Math.ceil(entry.contentRect.height);
+      if (height > 0) onHeightChange(itemId, height);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [itemId, onHeightChange]);
+  return onHeightChange ? (
+    <div ref={ref}>{renderItem?.(itemId, groupId)}</div>
+  ) : (
+    renderItem?.(itemId, groupId)
+  );
 }
 
 export const DocsExplorer = ({
@@ -132,10 +150,12 @@ export const DocsExplorer = ({
   renderItem,
   toolbar,
   resourceItemHeight,
+  measureResourceItems = false,
   renderGroupHeader,
 }: {
   className?: string;
   resourceItemHeight?: number;
+  measureResourceItems?: boolean;
   renderGroupHeader?: (key: string, count: number) => ReactNode;
   renderItem?: (id: string, groupId: string) => ReactNode;
   toolbar?: ReactNode;
@@ -165,6 +185,21 @@ export const DocsExplorer = ({
   const collapsedGroups = useLiveData(contextValue.collapsedGroups$);
 
   const { openConfirmModal } = useConfirmModal();
+  const [resourceHeights, setResourceHeights] = useState(
+    () => new Map<string, number>()
+  );
+  const onHeightChange = useCallback((id: string, height: number) => {
+    setResourceHeights(current =>
+      current.get(id) === height ? current : new Map(current).set(id, height)
+    );
+  }, []);
+  const resourceItems = useMemo(
+    () => ({
+      renderItem,
+      onHeightChange: measureResourceItems ? onHeightChange : undefined,
+    }),
+    [renderItem, measureResourceItems, onHeightChange]
+  );
 
   const ItemComponent = renderItem ? ResourceListItem : DocListItemComponent;
   const masonryItems = useMemo(() => {
@@ -172,14 +207,19 @@ export const DocsExplorer = ({
       return {
         id: group.key,
         Component: groupBy ? GroupHeader : undefined,
-        height: groupBy ? 24 : 0,
+        height: groupBy ? (measureResourceItems ? 28 : 24) : 0,
         className: styles.groupHeader,
         items: group.items.map((docId: string) => {
           if (view === 'list' || resourceItemHeight !== undefined) {
             return {
               id: docId,
               Component: ItemComponent,
-              height: resourceItemHeight ?? 42,
+              height:
+                (measureResourceItems
+                  ? resourceHeights.get(docId)
+                  : undefined) ??
+                resourceItemHeight ??
+                42,
             } satisfies MasonryItem;
           }
           return {
@@ -191,7 +231,15 @@ export const DocsExplorer = ({
       } satisfies MasonryGroup;
     });
     return items;
-  }, [groupBy, groups, view, ItemComponent, resourceItemHeight]);
+  }, [
+    groupBy,
+    groups,
+    view,
+    ItemComponent,
+    resourceItemHeight,
+    measureResourceItems,
+    resourceHeights,
+  ]);
 
   const handleCloseFloatingToolbar = useCallback(() => {
     contextValue.selectMode$?.next(false);
@@ -261,6 +309,12 @@ export const DocsExplorer = ({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.defaultPrevented ||
+        (e.target instanceof Element &&
+          e.target.closest('[role="menu"], [role="dialog"]'))
+      )
+        return;
       if (e.key === 'Escape') {
         contextValue.selectMode$?.next(false);
         contextValue.selectedDocIds$.next([]);
@@ -286,14 +340,22 @@ export const DocsExplorer = ({
 
   return (
     <ResourceGroupContext.Provider value={renderGroupHeader}>
-      <ResourceItemContext.Provider value={renderItem}>
+      <ResourceItemContext.Provider value={resourceItems}>
         <Masonry
           className={className}
           items={masonryItems}
-          gapY={BUILD_CONFIG.isMobileEdition ? 12 : view === 'list' ? 12 : 24}
+          gapY={
+            measureResourceItems
+              ? 0
+              : BUILD_CONFIG.isMobileEdition
+                ? 12
+                : view === 'list'
+                  ? 12
+                  : 24
+          }
           gapX={BUILD_CONFIG.isMobileEdition ? 12 : 24}
-          groupsGap={12}
-          groupHeaderGapWithItems={12}
+          groupsGap={measureResourceItems ? 8 : 12}
+          groupHeaderGapWithItems={measureResourceItems ? 0 : 12}
           columns={view === 'list' ? 1 : undefined}
           itemWidthMin={masonryItemWidthMin ?? 220}
           preloadHeight={100}
@@ -301,7 +363,11 @@ export const DocsExplorer = ({
           virtualScroll
           collapsedGroups={collapsedGroups}
           paddingY={BUILD_CONFIG.isMobileEdition ? 12 : 0}
-          paddingX={BUILD_CONFIG.isMobileEdition ? 16 : responsivePaddingX}
+          paddingX={
+            measureResourceItems || BUILD_CONFIG.isMobileEdition
+              ? 16
+              : responsivePaddingX
+          }
         />
         {toolbar !== undefined ? (
           toolbar

@@ -149,7 +149,7 @@ export const OnboardingPage = ({
             size="extraLarge"
             onClick={() => setQuestionIdx(questions.length)}
           >
-            Skip
+            {i18n['com.affine.auth.onboarding.skip']()}
           </Button>
         }
         isMacosDesktop={isMacosDesktop}
@@ -208,7 +208,7 @@ export const OnboardingPage = ({
               size="extraLarge"
               onClick={() => setQuestionIdx(questions.length)}
             >
-              Skip
+              {i18n['com.affine.auth.onboarding.skip']()}
             </Button>
             <Button
               className={styles.button}

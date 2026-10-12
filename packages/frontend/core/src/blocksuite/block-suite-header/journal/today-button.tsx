@@ -1,16 +1,14 @@
 import { Button } from '@affine/component';
+import { useCatchEventCallback } from '@affine/core/components/hooks/use-catch-event-hook';
 import { useJournalRouteHelper } from '@affine/core/components/hooks/use-journal';
 import { useI18n } from '@affine/i18n';
-import { useCallback } from 'react';
 
 export const JournalTodayButton = () => {
   const t = useI18n();
   const journalHelper = useJournalRouteHelper();
 
-  const onToday = useCallback(() => {
-    journalHelper.openToday({
-      replaceHistory: true,
-    });
+  const onToday = useCatchEventCallback(async () => {
+    await journalHelper.openToday({ replaceHistory: true });
   }, [journalHelper]);
 
   return (

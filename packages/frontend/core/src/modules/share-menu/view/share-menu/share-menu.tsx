@@ -165,7 +165,7 @@ export const ShareMenuContent = (props: ShareMenuProps) => {
               display: BUILD_CONFIG.isMobileEdition ? 'none' : undefined,
             }}
           >
-            {t['Export']()}
+            {t['com.affine.ui.export']()}
           </Tabs.Trigger>
           <Tabs.Trigger value={ShareMenuTab.Invite} style={{ display: 'none' }}>
             invite

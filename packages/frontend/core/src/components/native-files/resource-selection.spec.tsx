@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react';
 import type * as Infra from '@toeverything/infra';
@@ -16,6 +17,7 @@ const state = vi.hoisted(() => ({
   service: null as unknown,
   catalog: null as unknown,
   navigate: vi.fn(),
+  confirm: vi.fn(),
 }));
 vi.mock('@affine/core/components/providers/current-server-scope', () => ({
   useCurrentServerService: () => undefined,
@@ -38,6 +40,7 @@ vi.mock('@affine/core/modules/workspace', () => ({
 vi.mock('@affine/core/modules/workspace-resources', () => ({
   WorkspaceLifecycleService: class {},
   WorkspaceResourcesService: class {},
+  WorkspaceResourceTagsService: class {},
 }));
 vi.mock('@affine/core/modules/workspace-resources/use-resources', () => ({
   useWorkspaceResources: () => state.catalog,
@@ -76,11 +79,10 @@ vi.mock('@affine/i18n', () => ({
     ),
 }));
 vi.mock('@affine/component', async () => ({
+  ...(await import('@affine/component/ui/menu')),
   ...(await import('@affine/component/ui/checkbox')),
-  Button: ({ children, disabled, onClick }: ComponentProps<'button'>) => (
-    <button disabled={disabled} onClick={onClick}>
-      {children}
-    </button>
+  Button: ({ children, ...props }: ComponentProps<'button'>) => (
+    <button {...props}>{children}</button>
   ),
   Input: ({
     value,
@@ -92,7 +94,7 @@ vi.mock('@affine/component', async () => ({
     <input {...props} value={value} onChange={e => onChange(e.target.value)} />
   ),
   Modal: () => null,
-  useConfirmModal: () => ({ openConfirmModal: vi.fn() }),
+  useConfirmModal: () => ({ openConfirmModal: state.confirm }),
   ContextMenu: ({ children }: { children: ReactNode }) => children,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   DragHandle: () => null,
@@ -150,6 +152,12 @@ import {
 } from '../explorer/context';
 import { DocListItem } from '../explorer/docs-view/doc-list-item';
 import { WorkspaceResourceExplorer } from './resource-explorer';
+import { ResourceListLayout } from './resource-list-layout';
+import {
+  ResourceInlineTags,
+  ResourceMetadata,
+  ResourceTime,
+} from './resource-metadata';
 
 beforeEach(() => {
   const record$ = new LiveData({
@@ -197,6 +205,7 @@ beforeEach(() => {
     ],
     get: async () => ({ originalPaths: ['Root'] }),
     can: async () => true,
+    change: vi.fn(async () => true),
     // The mock keeps the production observable method name.
     // eslint-disable-next-line rxjs/finnish
     can$: () => new LiveData(false),
@@ -230,6 +239,7 @@ beforeEach(() => {
     service: { online: false, invalidate: vi.fn() },
   };
   state.navigate.mockClear();
+  state.confirm.mockClear();
 });
 afterEach(cleanup);
 function mount(trash = false, mixed = false) {
@@ -264,6 +274,11 @@ function pageCheckbox() {
 test('mixed selection retains earlier files and toggles each item without duplicates or navigation', async () => {
   mount();
   await screen.findByRole('button', { name: 'Image.png' });
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.multiSelect',
+    })
+  );
   fireEvent.click(checkbox('Image.png'));
   expect(await screen.findByText('selected: 1')).toBeTruthy();
   fireEvent.click(pageCheckbox(), { detail: 0 });
@@ -276,17 +291,22 @@ test('mixed selection retains earlier files and toggles each item without duplic
   fireEvent.click(pageCheckbox());
   expect(await screen.findByText('selected: 1')).toBeTruthy();
   fireEvent.click(checkbox('Image.png'));
-  expect(screen.queryByText(/selected:/)).toBeNull();
+  expect(screen.getByText('selected: 0')).toBeTruthy();
 });
 
 test('Trash file, document and folder checkboxes can all be deselected', async () => {
   mount(true);
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.multiSelect',
+    })
+  );
   await screen.findByRole('button', { name: 'Folder' });
   for (const name of ['Image.png', 'Page', 'Folder']) {
     fireEvent.click(checkbox(name));
     expect(await screen.findByText('selected: 1')).toBeTruthy();
     fireEvent.click(checkbox(name));
-    expect(screen.queryByText(/selected:/)).toBeNull();
+    expect(screen.getByText('selected: 0')).toBeTruthy();
   }
 });
 
@@ -332,6 +352,7 @@ test('the mixed renderer applies all four property switches equally to documents
     act(() =>
       context.displayPreference$.next({
         ...context.displayPreference$.value,
+        showDocIcon: false,
         resourceProperties: {
           tags: false,
           created: false,
@@ -348,4 +369,164 @@ test('the mixed renderer applies all four property switches equally to documents
     ).toHaveLength(2);
   }
   expect(state.navigate).not.toHaveBeenCalled();
+});
+
+test('compact rows keep named file buttons and type icons without empty tag or duplicate type text', async () => {
+  mount(false, true);
+  expect(await screen.findByRole('button', { name: 'Image.png' })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Page' })).toBeTruthy();
+  expect(screen.getAllByRole('img')).toHaveLength(2);
+  expect(
+    screen.queryByRole('button', { name: 'com.affine.header.option.add-tag' })
+  ).toBeNull();
+  expect(
+    screen.queryByText('com.affine.localmind.resource-display.noTags')
+  ).toBeNull();
+  expect(
+    screen.queryByLabelText(
+      'com.affine.localmind.resource-display.property.documentType'
+    )
+  ).toBeNull();
+});
+
+test('compact timestamps keep a stable numeric format, full accessible dates, and cross-year context', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 10));
+  try {
+    const current = new Date(2026, 9, 9, 22, 22).getTime();
+    const previous = new Date(2025, 8, 8, 9, 5).getTime();
+    const { container } = render(
+      <>
+        <ResourceTime value={current} compact />
+        <ResourceTime value={previous} compact />
+      </>
+    );
+    const times = container.querySelectorAll('time');
+    expect(times[0].textContent).toBe('10-09 22:22');
+    expect(times[1].textContent).toBe('2025-09-08 09:05');
+    expect(times[0].getAttribute('dateTime')).toBe(
+      new Date(current).toISOString()
+    );
+    expect(times[0].getAttribute('aria-label')).toContain('2026');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('column labels follow enabled metadata and empty tags remain editable beside the title', () => {
+  const context = createDocExplorerContext({
+    view: 'list',
+    resourceProperties: {
+      tags: true,
+      created: true,
+      updated: false,
+      documentType: true,
+    },
+  });
+  const editTags = vi.fn();
+  const { container } = render(
+    <DocExplorerContext.Provider value={context}>
+      <ResourceListLayout enabled>
+        <ResourceInlineTags empty>
+          <button onClick={editTags}>Add tag</button>
+        </ResourceInlineTags>
+        <ResourceMetadata
+          properties={context.displayPreference$.value.resourceProperties!}
+          tags={[]}
+          createdAt={null}
+          updatedAt={null}
+          documentType="xlsx"
+        />
+      </ResourceListLayout>
+    </DocExplorerContext.Provider>
+  );
+  expect(
+    screen.getByText('com.affine.page-properties.property.createdBy')
+  ).toBeTruthy();
+  expect(
+    screen.queryByText('com.affine.page-properties.property.updatedBy')
+  ).toBeNull();
+  expect(container.querySelector('[style*="createdBy"]')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Add tag' }));
+  expect(editTags).toHaveBeenCalledOnce();
+  act(() =>
+    context.displayPreference$.next({
+      ...context.displayPreference$.value,
+      resourceProperties: {
+        tags: false,
+        created: false,
+        updated: true,
+        documentType: false,
+      },
+    })
+  );
+  expect(
+    screen.queryByText('com.affine.page-properties.property.createdBy')
+  ).toBeNull();
+  expect(
+    screen.getByText('com.affine.page-properties.property.updatedBy')
+  ).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Add tag' })).toBeNull();
+});
+
+test('selection is opt-in, title clicks select without opening, and Escape exits selection', async () => {
+  mount(false, true);
+  await screen.findByRole('button', { name: 'Image.png' });
+  expect(screen.queryByRole('checkbox', { name: 'Image.png' })).toBeNull();
+  expect(screen.queryByRole('checkbox', { name: 'Page' })).toBeNull();
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.multiSelect',
+    })
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Image.png' }));
+  expect(await screen.findByText('selected: 1')).toBeTruthy();
+  expect(checkbox('Image.png').checked).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Page' }));
+  expect(await screen.findByText('selected: 2')).toBeTruthy();
+  const toolbar = screen.getByRole('toolbar');
+  expect(
+    within(toolbar).getByRole('button', {
+      name: 'com.affine.localmind.resources.actions',
+    })
+  ).toBeTruthy();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Page' }), {
+    key: 'Escape',
+  });
+  expect(screen.queryByRole('checkbox', { name: 'Page' })).toBeNull();
+  expect(screen.queryByRole('toolbar')).toBeNull();
+  expect(state.navigate).not.toHaveBeenCalled();
+});
+
+test('partial batch failure keeps only failed resources selected and leaves selection mode open', async () => {
+  mount(false, true);
+  await screen.findByRole('button', { name: 'Image.png' });
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.multiSelect',
+    })
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Image.png' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Page' }));
+  await screen.findByText('selected: 2');
+  fireEvent.keyDown(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.actions',
+    }),
+    { key: 'Enter' }
+  );
+  const remove = screen.getByRole('menuitem', {
+    name: 'com.affine.localmind.resources.moveToTrash',
+  });
+  await waitFor(() =>
+    expect(remove.getAttribute('aria-disabled')).not.toBe('true')
+  );
+  fireEvent.click(remove);
+  await act(async () => {
+    await state.confirm.mock.calls[0][0].onConfirm();
+  });
+  expect(await screen.findByText('selected: 1')).toBeTruthy();
+  expect(checkbox('Image.png').checked).toBe(true);
+  expect(checkbox('Page').checked).toBe(false);
+  expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
 });

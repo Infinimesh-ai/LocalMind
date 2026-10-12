@@ -13,8 +13,14 @@ import { DoneIcon, MoreHorizontalIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import { clamp } from 'lodash-es';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type {
+  ComponentProps,
+  KeyboardEvent,
+  ReactElement,
+  ReactNode,
+} from 'react';
 import {
+  cloneElement,
   useCallback,
   useImperativeHandle,
   useMemo,
@@ -43,11 +49,13 @@ export interface TagsEditorProps {
   jumpToTag?: (id: string) => void;
   tagMode: 'inline-tag' | 'db-label';
   style?: React.CSSProperties;
+  standalone?: boolean;
 }
 
 export interface TagsInlineEditorProps extends TagsEditorProps {
   renderSelectedTags?: (tags: TagLike[]) => ReactNode;
   placeholder?: ReactNode;
+  emptyTrigger?: ReactElement<ComponentProps<'button'>>;
   className?: string;
   readonly?: boolean;
   title?: ReactNode; // only used for mobile
@@ -78,6 +86,7 @@ export const TagsEditor = ({
   jumpToTag,
   tagMode,
   style,
+  standalone,
 }: TagsEditorProps) => {
   const t = useI18n();
   const [inputValue, setInputValue] = useState('');
@@ -283,7 +292,7 @@ export const TagsEditor = ({
           />
         </InlineTagList>
 
-        {BUILD_CONFIG.isMobileEdition ? null : (
+        {BUILD_CONFIG.isMobileEdition || standalone ? null : (
           <MenuItem
             className={styles.tagsEditorDoneButton}
             prefixIcon={<DoneIcon />}
@@ -370,6 +379,7 @@ export const TagsEditor = ({
 const MobileInlineEditor = ({
   readonly,
   placeholder,
+  emptyTrigger,
   className,
   title,
   style,
@@ -412,31 +422,45 @@ const MobileInlineEditor = ({
       >
         <TagsEditor {...props} />
       </ConfigModal>
-      <div
-        className={clsx(styles.tagsInlineEditor, className)}
-        data-empty={empty}
-        data-readonly={readonly}
-        role={readonly ? undefined : 'button'}
-        tabIndex={readonly ? undefined : 0}
-        onClick={() => {
-          if (!readonly) setEditing(true);
-        }}
-        onKeyDown={event => {
-          if (!readonly && (event.key === 'Enter' || event.key === ' ')) {
-            event.preventDefault();
-            setEditing(true);
-          }
-        }}
-        style={style}
-      >
-        {empty ? (
-          placeholder
-        ) : renderSelectedTags ? (
-          renderSelectedTags(selectedTags)
-        ) : (
-          <InlineTagList {...props} tags={selectedTags} onRemoved={undefined} />
-        )}
-      </div>
+      {empty && emptyTrigger ? (
+        cloneElement(emptyTrigger, {
+          disabled: readonly,
+          onClick: event => {
+            event.stopPropagation();
+            if (!readonly) setEditing(true);
+          },
+        })
+      ) : (
+        <div
+          className={clsx(styles.tagsInlineEditor, className)}
+          data-empty={empty}
+          data-readonly={readonly}
+          role={readonly ? undefined : 'button'}
+          tabIndex={readonly ? undefined : 0}
+          onClick={() => {
+            if (!readonly) setEditing(true);
+          }}
+          onKeyDown={event => {
+            if (!readonly && (event.key === 'Enter' || event.key === ' ')) {
+              event.preventDefault();
+              setEditing(true);
+            }
+          }}
+          style={style}
+        >
+          {empty ? (
+            placeholder
+          ) : renderSelectedTags ? (
+            renderSelectedTags(selectedTags)
+          ) : (
+            <InlineTagList
+              {...props}
+              tags={selectedTags}
+              onRemoved={undefined}
+            />
+          )}
+        </div>
+      )}
     </>
   );
 };
@@ -444,6 +468,7 @@ const MobileInlineEditor = ({
 const DesktopTagsInlineEditor = ({
   readonly,
   placeholder,
+  emptyTrigger,
   className,
   modalMenu,
   menuClassName,
@@ -478,27 +503,41 @@ const DesktopTagsInlineEditor = ({
       }}
       items={<TagsEditor {...props} />}
     >
-      <div
-        className={clsx(styles.tagsInlineEditor, className)}
-        data-empty={empty}
-        data-readonly={readonly}
-        role={readonly ? undefined : 'button'}
-        tabIndex={readonly ? undefined : 0}
-        style={style}
-      >
-        {empty ? (
-          placeholder
-        ) : renderSelectedTags ? (
-          renderSelectedTags(selectedTags)
-        ) : (
-          <InlineTagList
-            {...props}
-            title=""
-            tags={selectedTags}
-            onRemoved={undefined}
-          />
-        )}
-      </div>
+      {empty && emptyTrigger ? (
+        cloneElement(emptyTrigger, {
+          disabled: readonly,
+          onPointerDown: readonly
+            ? event => event.preventDefault()
+            : emptyTrigger.props.onPointerDown,
+          onKeyDown: readonly
+            ? event => event.preventDefault()
+            : emptyTrigger.props.onKeyDown,
+        })
+      ) : (
+        <div
+          className={clsx(styles.tagsInlineEditor, className)}
+          data-empty={empty}
+          data-readonly={readonly}
+          role={readonly ? undefined : 'button'}
+          tabIndex={readonly ? undefined : 0}
+          onPointerDown={readonly ? event => event.preventDefault() : undefined}
+          onKeyDown={readonly ? event => event.preventDefault() : undefined}
+          style={style}
+        >
+          {empty ? (
+            placeholder
+          ) : renderSelectedTags ? (
+            renderSelectedTags(selectedTags)
+          ) : (
+            <InlineTagList
+              {...props}
+              title=""
+              tags={selectedTags}
+              onRemoved={undefined}
+            />
+          )}
+        </div>
+      )}
     </Menu>
   );
 };
@@ -507,16 +546,10 @@ export const TagsInlineEditor = BUILD_CONFIG.isMobileEdition
   ? MobileInlineEditor
   : DesktopTagsInlineEditor;
 
-export const WorkspaceTagsInlineEditor = ({
-  selectedTags,
-  onDeselectTag,
-  ref,
-  onEditorClose,
-  ...otherProps
-}: Omit<
-  TagsInlineEditorProps,
-  'tags' | 'onCreateTag' | 'onDeleteTag' | 'tagColors' | 'onTagChange'
->) => {
+function useWorkspaceTagSettings(
+  selectedTags: string[],
+  onDeselectTag: (tagId: string) => void
+) {
   const tagService = useService(TagService);
   const tags = useLiveData(tagService.tagList.tagMetas$);
   const openDeleteTagConfirmModal = useDeleteTagConfirmModal();
@@ -561,15 +594,44 @@ export const WorkspaceTagsInlineEditor = ({
     },
     [tagService.tagList]
   );
+  return {
+    tags,
+    tagColors: adaptedTagColors,
+    onCreateTag,
+    onDeleteTag,
+    onTagChange,
+  };
+}
+
+type WorkspaceTagsEditorProps = Omit<
+  TagsEditorProps,
+  'tags' | 'onCreateTag' | 'onDeleteTag' | 'tagColors' | 'onTagChange'
+>;
+
+export function WorkspaceTagsEditor(props: WorkspaceTagsEditorProps) {
+  const settings = useWorkspaceTagSettings(
+    props.selectedTags,
+    props.onDeselectTag
+  );
+  return <TagsEditor {...props} {...settings} standalone />;
+}
+
+export const WorkspaceTagsInlineEditor = ({
+  selectedTags,
+  onDeselectTag,
+  ref,
+  onEditorClose,
+  ...otherProps
+}: Omit<
+  TagsInlineEditorProps,
+  'tags' | 'onCreateTag' | 'onDeleteTag' | 'tagColors' | 'onTagChange'
+>) => {
+  const settings = useWorkspaceTagSettings(selectedTags, onDeselectTag);
   return (
     <TagsInlineEditor
-      tags={tags}
+      {...settings}
       selectedTags={selectedTags}
       onDeselectTag={onDeselectTag}
-      tagColors={adaptedTagColors}
-      onCreateTag={onCreateTag}
-      onDeleteTag={onDeleteTag}
-      onTagChange={onTagChange}
       ref={ref}
       onEditorClose={onEditorClose}
       {...otherProps}

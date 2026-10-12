@@ -248,3 +248,23 @@ export function pageTreeSiblingOrder(
     throw new PageTreeError('version_conflict');
   return siblings.map(node => node.nodeId);
 }
+
+/** Reorder one complete active level; recycled nodes retain their keys. */
+export function reorderPageTreeLevel(
+  nodes: readonly PageTreeNode[],
+  parentNodeId: string | null,
+  order: readonly string[],
+  nextKey: (previous: string | null) => string
+) {
+  pageTreeSiblingOrder(nodes, parentNodeId, order);
+  let previous: string | null = null;
+  const keys = new Map<string, string>();
+  for (const id of order) {
+    previous = nextKey(previous);
+    keys.set(id, previous);
+  }
+  return nodes.map(node => {
+    const key = keys.get(node.nodeId);
+    return key === undefined ? node : { ...node, order: key };
+  });
+}

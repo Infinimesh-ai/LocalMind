@@ -425,7 +425,7 @@ export const AllPage = () => {
                 >
                   {t['Cancel']()}
                 </Button>
-                <Button onClick={handleSaveFilters}>{t['save']()}</Button>
+                <Button onClick={handleSaveFilters}>{t['Save']()}</Button>
               </div>
             )}
           </div>

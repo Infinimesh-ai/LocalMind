@@ -42,11 +42,12 @@ export const itemMain = style({
   width: 0,
   flex: 1,
   position: 'relative',
-  gap: 12,
+  gap: 8,
 });
 export const toggleIcon = style({
   width: 20,
   height: 20,
+  flexShrink: 0,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -66,33 +67,38 @@ export const itemContent = style({
   whiteSpace: 'nowrap',
   alignItems: 'center',
   flex: 1,
+  minWidth: 0,
   color: cssVarV2('text/primary'),
   lineHeight: cssVar('lineHeight'),
 });
 export const postfix = style({
   display: 'flex',
   alignItems: 'center',
-  right: 0,
-  position: 'absolute',
+  justifyContent: 'flex-end',
+  // Reserve the same create/sort/more slots for every row, including leaves.
+  flex: '0 0 64px',
+  minHeight: 20,
+});
+export const operation = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexShrink: 0,
   opacity: 0,
   pointerEvents: 'none',
   selectors: {
     [`${itemRoot}:hover &, ${itemRoot}:focus-within &`]: {
       opacity: 1,
       pointerEvents: 'initial',
-      position: 'initial',
     },
     '&:has([data-folder-sort-visible="true"])': {
       opacity: 1,
       pointerEvents: 'initial',
-      position: 'initial',
     },
   },
   '@media': {
     '(hover: none)': {
       opacity: 1,
       pointerEvents: 'initial',
-      position: 'initial',
     },
   },
 });

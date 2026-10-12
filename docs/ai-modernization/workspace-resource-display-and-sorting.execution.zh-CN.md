@@ -159,3 +159,29 @@ node packages/backend/server/scripts/backfill-workspace-resource-display.ts '<ne
 参考的 active track 为 `tracks/project-native-resources.md`，并保持 Workspace / Project CRUD 与 Office 独立内容存储边界。
 
 未 commit、push、创建 PR 或修改远端。仅关闭本任务创建的四个隔离验证容器；复跑需重新启动容器并准备隔离数据库 fixture。未删除既有卷、服务数据或无关镜像。数据库迁移和回填脚本已提供，但没有对实际业务库执行。
+
+## 2026-10-12：主列表按需多选与统一操作菜单
+
+主资源列表默认隐藏复选框，通过筛选栏的“多选”进入选择模式；标题点击在该模式下切换选择，“完成”与 Esc 清空选择并退出。选择控件与筛选项共用一行，右侧依次显示选中数量、全选、操作菜单与“完成”；整行位于列表滚动容器之外，避免原工具栏在虚拟列表下方被裁剪。全选范围是当前筛选结果，超过既有 100 项上限时明确提示，不静默截断。行尾操作菜单常驻并尊重原“更多操作”显示偏好；多选时收起单行操作。
+
+空标签按钮已从行内移除，已有标签及数量提示继续按原显示偏好展示。页面、白板与原生文件的行操作菜单提供“编辑标签”；批量菜单提供添加、移除标签及既有回收操作。标签显示开关控制展示，不关闭菜单中的授权编辑能力。页面底部索引复用的行组件通过独立的选择模式上下文保持原选择行为；没有增加索引入口或合并其显示偏好。
+
+`WorkspaceResourceTagsService` 统一处理单项和批量标签差量，写入前等待工作区同步、重新检查当前权限与资源状态。页面使用当前元数据合并差量；原生资源读取当前标签和版本，调用既有标签 mutation 与 CAS。单项编辑也提交增删差量，避免把打开编辑器时的旧快照全量覆盖回去。网络结果不确定时保留同一请求键和输入；确定的冲突/拒绝清除请求，后续重试重新读取当前状态。操作会话绑定账号与服务作用域，切换后不能继续该批次。
+
+各资源独立提交，部分失败时成功项退出选择，失败项保留，并在标签编辑器中列出名称。重试只执行失败项，沿用原标签差量；提交期间禁止重复提交和关闭编辑器。关闭编辑器返回操作入口焦点；关闭菜单或标签编辑器的 Esc 不会连带退出底层选择模式。
+
+验证复用了 `localmind_hot_web`（`localmind-affine:dev-base`），未重建镜像、执行同步脚本或修改数据库/GraphQL 协议。i18n 通过 `yarn workspace @affine/i18n build` 生成。聚焦验证命令：
+
+```sh
+docker exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn vitest run --pool=threads --maxWorkers=1 packages/frontend/core/src/components/native-files/resource-selection.spec.tsx packages/frontend/core/src/components/native-files/resource-tags.spec.tsx packages/frontend/core/src/components/native-files/resource-display.spec.ts packages/frontend/core/src/components/native-files/workspace-actions.spec.tsx packages/frontend/core/src/modules/workspace-resources/tags.spec.ts packages/frontend/core/src/modules/workspace-resources/batch.spec.ts'
+```
+
+34 项测试通过，覆盖按需选择、已有显示偏好、底部索引边界、只读拒绝、追加保留原标签、并发差量、账号切换、CAS 冲突、网络不确定重放、部分成功与仅失败项重试。19 个修改文件的聚焦类型检查、oxlint、Prettier 与 `git diff --check` 通过。真实浏览器检查了 1333×902 和 879×902、页面及原生文件的菜单/编辑器、Enter/Space/Tab/Esc 与焦点返回；首次实现时窄视口独立选择工具栏底部为 244px，处于 902px 视口内；后续合并筛选行的验证见下文。浏览器未提交真实资源标签或回收操作，权限拒绝和失败写入通过隔离组件/服务 fixture 验证；未进行真实不同成员联动与深色主题浏览器验收。
+
+完整命令、日志与截图位于 `.codex-artifacts/resource-operations-20261012/`。当前运行环境通过既有源码挂载和热更新显示结果，部署镜像尚未更新；未 commit、push 或创建 PR。
+
+### 同日补充：选择控件合并至筛选行
+
+删除独立选择工具栏的固定行高和内边距，将选中数量、全选、操作和“完成”组成右侧内联控件组；搜索框保留全宽。普通模式同一位置仅显示“多选”，显示偏好、已有标签、选择与批量操作处理均复用现有逻辑。100 项上限提示仍作为独立错误信息展示，不挤占控件组。
+
+复用上述 Linux 热更新容器，现有 `resource-selection.spec.tsx` 的 9 项测试通过。浏览器在 968×902 和 879×902 视口确认筛选按钮与选择控件处于同一行（控件中心均为 176px），菜单完整展开；Enter 进入选择/全选和打开菜单、Tab 焦点顺序、Esc 关闭菜单、完成退出均保持原行为。未提交真实资源写入，未重建镜像或运行同步脚本。截图和聚焦检查记录位于 `.codex-artifacts/resource-operations-toolbar-inline-20261012/`。

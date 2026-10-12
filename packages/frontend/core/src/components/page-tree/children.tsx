@@ -34,7 +34,9 @@ import { ResourceActor } from '../native-files/resource-metadata';
 import { MixedDocRow } from '../native-files/resource-rows';
 import { PageTreeCreateMenu } from '../root-app-sidebar/page-tree';
 import * as styles from './children.css';
+import { useCreatedResourceSelection } from './created-resource';
 import { FolderResourceRow } from './folder-row';
+import { PageTreeLoadError } from './load-error';
 
 function useLocation(kind: string, resourceId: string, parentNodeId?: string) {
   const service = useService(WorkspacePageTreeService);
@@ -50,11 +52,10 @@ function useLocation(kind: string, resourceId: string, parentNodeId?: string) {
   );
   useEffect(() => {
     if (enabled)
-      void (
-        parentNodeId
-          ? service.load(parentNodeId)
-          : service.loadResource(kind, resourceId)
-      ).catch(console.error);
+      return parentNodeId
+        ? service.observe(parentNodeId)
+        : service.observeResource(kind, resourceId);
+    return undefined;
   }, [enabled, service, kind, resourceId, parentNodeId]);
   return { service, enabled, layer };
 }
@@ -77,7 +78,9 @@ export function PageTreeBreadcrumbs({
       className={styles.breadcrumbs}
       aria-label={t['com.affine.localmind.page-tree.location']()}
     >
-      <span>{t['com.affine.localmind.page-tree.root']()}</span>
+      <Button variant="plain" onClick={() => workbench.openAll()}>
+        {t['com.affine.localmind.page-tree.root']()}
+      </Button>
       {layer.page.ancestors.map(node => (
         <Fragment key={node.nodeId}>
           <span aria-hidden> / </span>
@@ -150,6 +153,11 @@ export function PageTreeChildrenList({
     [key, legacyKey, localState, resourceId]
   );
   const preference = useLiveData(context.displayPreference$);
+  useCreatedResourceSelection(
+    context,
+    layer?.page?.parent?.nodeId,
+    workspace.id
+  );
   const docs = useService(DocsService).list;
   const tags = useLiveData(useService(TagService).tagList.tagMetas$);
   const records = useLiveData(
@@ -269,16 +277,15 @@ export function PageTreeChildrenList({
           <PageTreeCreateMenu parentId={parent.nodeId} name={parent.title} />
         )}
       </div>
-      {!layer || layer.loading ? (
+      {!layer || (layer.loading && !layer.page) ? (
         <p role="status">{t['com.affine.localmind.page-tree.loading']()}</p>
       ) : null}
       {layer?.error ? (
-        <Button onClick={() => void load()}>
-          {t['com.affine.error.retry']()}
-        </Button>
+        <PageTreeLoadError {...layer} retry={() => void load()} />
       ) : null}
       <DocExplorerContext.Provider value={context}>
-        {!layer?.page?.nextCursor &&
+        {!!layer?.page &&
+          !layer.page.nextCursor &&
           groups.map(group => (
             <Fragment key={group.key}>
               {preference.groupBy && (
@@ -335,15 +342,18 @@ export function PageTreeChildrenList({
           {t['com.affine.error.retry']()}
         </Button>
       )}
-      {layer?.page && !layer.page.items.length && !layer.loading && (
-        <p>
-          {t[
-            parent?.kind === 'folder'
-              ? 'com.affine.localmind.page-tree.folderEmpty'
-              : 'com.affine.localmind.page-tree.empty'
-          ]()}
-        </p>
-      )}
+      {layer?.page &&
+        !layer.page.items.length &&
+        !layer.loading &&
+        !layer.error && (
+          <p>
+            {t[
+              parent?.kind === 'folder'
+                ? 'com.affine.localmind.page-tree.folderEmpty'
+                : 'com.affine.localmind.page-tree.empty'
+            ]()}
+          </p>
+        )}
       {layer?.page?.nextCursor && (
         <Button disabled={layer.loading} onClick={() => void load(true)}>
           {t['com.affine.quicksearch.load-more']()}

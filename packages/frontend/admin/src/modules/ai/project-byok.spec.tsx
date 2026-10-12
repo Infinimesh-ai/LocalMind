@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import { GraphQLError } from '@affine/error';
 import {
   ByokProvider,
   saveProjectByokConfigMutation,
@@ -265,6 +266,10 @@ test('tests credentials before a model is entered and offers the API model list'
       input: expect.objectContaining({ modelId: '' }),
     })
   );
+  expect(screen.getByRole('status').textContent).toContain('Model list loaded');
+  expect(
+    screen.queryByText(/selected model returned a valid response/i)
+  ).toBeNull();
   await waitFor(() =>
     expect(
       (
@@ -322,4 +327,101 @@ test('Simplified Chinese renders provider failures and catalog warnings in Chine
   fireEvent.click(screen.getByRole('button', { name: '测试连接' }));
   await screen.findByText(/所选模型连接测试通过，但无法加载/);
   expect(screen.queryByText('model_catalog_unavailable')).toBeNull();
+});
+
+test('save and test share specific diagnostics, preserve the draft key and never expose arbitrary errors', async () => {
+  await getOrCreateI18n().changeLanguage('zh-Hans');
+  state.configured = true;
+  const message = 'DeepSeek OpenAI endpoint requires the OpenAI provider.';
+  // Match the GraphQL error envelope consumed by gqlFetcher.
+  state.save.mockRejectedValue(
+    new GraphQLError(message, {
+      extensions: {
+        status: 400,
+        code: 'BAD_REQUEST',
+        type: 'BAD_REQUEST',
+        name: 'BAD_REQUEST',
+        message,
+      },
+    })
+  );
+  state.test.mockResolvedValue({
+    testProjectByokConfig: { ok: true, models: ['deepseek-flash'] },
+  });
+  render(<ProjectByokAdmin />);
+  fireEvent.change(screen.getByLabelText('API 密钥'), {
+    target: { value: 'synthetic-draft-key' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '测试连接' }));
+  await screen.findByText(/已获取模型列表/);
+  fireEvent.click(screen.getByRole('combobox', { name: '可选模型' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'deepseek-flash' })
+  );
+  fireEvent.click(screen.getByRole('button', { name: '验证并保存' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(
+      '配置未保存。此 DeepSeek 地址使用 OpenAI 接口'
+    )
+  );
+  expect((screen.getByLabelText('API 密钥') as HTMLInputElement).value).toBe(
+    'synthetic-draft-key'
+  );
+  expect(state.reload).not.toHaveBeenCalled();
+  state.test.mockResolvedValue({
+    testProjectByokConfig: { ok: false, message },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '测试连接' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toBe(formatByokError(message))
+  );
+  state.save.mockRejectedValue(new Error('upstream secret-key body'));
+  fireEvent.click(screen.getByRole('button', { name: '验证并保存' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain('保存失败')
+  );
+  expect(screen.getByRole('alert').textContent).not.toContain('secret-key');
+});
+
+test('a successful selected-model test reports actual model validation without claiming persistence', async () => {
+  state.configured = true;
+  render(<ProjectByokAdmin />);
+  fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+  await screen.findByText(/selected model returned a valid response/);
+  expect(screen.getByRole('status').textContent).toContain(
+    'does not save configuration'
+  );
+  expect(state.save).not.toHaveBeenCalled();
+});
+
+test('successful saves are not reported as failed when reloading settings fails', async () => {
+  state.configured = true;
+  state.reload.mockRejectedValue(new Error('offline'));
+  render(<ProjectByokAdmin />);
+  fireEvent.click(screen.getByRole('button', { name: 'Verify and save' }));
+  await screen.findByText(
+    /Configuration was saved, but the settings could not be refreshed/
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(state.save).toHaveBeenCalledTimes(1);
+});
+
+test('Chinese diagnostics distinguish model, quota, rate limit, timeout and ambiguous 404', async () => {
+  await getOrCreateI18n().changeLanguage('zh-Hans');
+  expect(
+    formatByokError('Provider model was not found or is not accessible.')
+  ).toContain('模型不存在');
+  expect(formatByokError('Provider account has insufficient quota.')).toContain(
+    '额度不足'
+  );
+  expect(
+    formatByokError('Provider rate limit exceeded while testing the key.')
+  ).toContain('频率限制');
+  expect(formatByokError('Provider request timed out.')).toContain('超时');
+  expect(formatByokError('Provider probe endpoint was not found.')).toContain(
+    '未说明'
+  );
+  expect(formatByokError('Provider service is unavailable.')).toContain(
+    '服务暂时不可用'
+  );
 });

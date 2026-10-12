@@ -1,4 +1,8 @@
-import { Button, IconButton } from '@affine/component';
+import {
+  Button,
+  IconButton,
+  isComposingKeyboardEvent,
+} from '@affine/component';
 import type {
   OfficeCommand,
   OfficeWorkbookSetCellCommand,
@@ -183,7 +187,7 @@ export function SpreadsheetEditor({
   const [sheetName, setSheetName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState('Ready');
+  const [status, setStatus] = useState<string | null>(null);
   const sheet =
     state.sheets.find(candidate => candidate.id === activeSheetId) ??
     state.sheets[0];
@@ -525,13 +529,21 @@ export function SpreadsheetEditor({
           value={draft}
           disabled={readOnly || saving}
           ref={formulaInputRef}
+          data-created-resource-focus-target
           aria-label={i18n['com.affine.office.cell-value-or-formula']()}
           placeholder={i18n[
             'com.affine.office.enter-a-value-or-start-a-formula-with'
           ]()}
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => {
-            if (event.key === 'Enter') save().catch(console.error);
+            if (
+              event.key === 'Enter' &&
+              !isComposingKeyboardEvent(event) &&
+              !event.repeat
+            ) {
+              event.preventDefault();
+              save().catch(console.error);
+            }
           }}
         />
         <Button
@@ -629,7 +641,7 @@ export function SpreadsheetEditor({
                           type="button"
                           role="gridcell"
                           aria-selected={address === activeAddress}
-                          aria-label={`${address}: ${cellDisplay(cell) || 'blank'}`}
+                          aria-label={`${address}: ${cellDisplay(cell) || i18n['com.affine.office.empty-cell']()}`}
                           className={styles.sheetCell}
                           data-active={address === activeAddress}
                           key={address}
@@ -1330,7 +1342,7 @@ export function SpreadsheetEditor({
         {error ? (
           <span className={styles.statusError}>{error}</span>
         ) : (
-          <span>{status}</span>
+          <span>{status ?? i18n['com.affine.office.ready']()}</span>
         )}
       </div>
     </div>

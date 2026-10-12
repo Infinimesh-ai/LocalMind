@@ -208,10 +208,47 @@ export function prepareRootDocRegistration(
     replay.destroy();
   }
 
+  const incremental = prepareRootDocRegistrationWithYjs(
+    rootDocBin,
+    docId,
+    title
+  );
+  if (incremental) return incremental;
+
   const replacementSnapshot = buildCanonicalRootSnapshot(
     rootDocBin,
     docId,
     title
   );
   return { update: replacementSnapshot, replacementSnapshot };
+}
+
+/** Preserve the existing CRDT identities when a native delta cannot register a
+ * page in a valid Yjs root. This can join a resource-tree transaction safely. */
+export function prepareRootDocRegistrationWithYjs(
+  rootDocBin: Uint8Array,
+  docId: string,
+  title: string
+): RootDocUpdatePlan | null {
+  const document = new Y.Doc();
+  try {
+    Y.applyUpdate(document, rootDocBin);
+    const pages = document.getMap('meta').get('pages');
+    if (!(pages instanceof Y.Array)) return null;
+    if (pages.toArray().some(page => pageValue(page, 'id') === docId))
+      return { update: new Uint8Array([0, 0]) };
+    const before = Y.encodeStateVector(document);
+    document.transact(() => {
+      appendPage(pages, undefined, {
+        id: docId,
+        title,
+        createDate: Date.now(),
+      });
+      const spaces = document.getMap('spaces');
+      if (!spaces.has(docId)) spaces.set(docId, new Y.Doc({ guid: docId }));
+    });
+    return { update: Y.encodeStateAsUpdate(document, before) };
+  } finally {
+    document.destroy();
+  }
 }

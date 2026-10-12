@@ -2,6 +2,7 @@ import {
   Avatar,
   Button,
   IconButton,
+  isComposingKeyboardEvent,
   Loading,
   Modal,
   Tooltip,
@@ -580,7 +581,13 @@ export function OfficeCommentsPanel({
                         }))
                       }
                       onKeyDown={event => {
-                        if (event.key !== 'Enter' || !replyDraft.trim()) return;
+                        if (
+                          event.key !== 'Enter' ||
+                          isComposingKeyboardEvent(event) ||
+                          event.repeat ||
+                          !replyDraft.trim()
+                        )
+                          return;
                         event.preventDefault();
                         run(`reply:${comment.id}`, async () => {
                           await graphql.gql({

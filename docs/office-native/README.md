@@ -294,11 +294,15 @@ intent
   -> immutable revision and audit evidence
 ```
 
-The shared `@localmind/office` package owns 47 strict command schemas under
-`localmind-office-command/v1`: 12 Docs commands, 15 Sheets commands, 11 Slides
+The shared `@localmind/office` package owns 48 strict command schemas under
+`localmind-office-command/v1`: 13 Docs commands, 15 Sheets commands, 11 Slides
 commands, and 9 PDF commands. Every command requires an expected revision,
 command id, idempotency key, source, and stable resource-specific target where
 applicable. Unknown fields are rejected instead of being silently dropped.
+The new `office.document.edit` transaction is restricted to `source=user`;
+the existing AI command allowlist and delegated capabilities are unchanged.
+New paragraph IDs follow the numeric bounds in [MS-DOCX paraId](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/a0e7d2e2-2246-44c6-96e8-1cf009823615)
+and carry a markup-compatibility declaration for older readers.
 
 Ephemeral values such as `current_selection` must be resolved by the client or
 planner before persistence. AI cannot directly rewrite OOXML or bypass command
@@ -319,6 +323,34 @@ history and comparison.
 ### Docs (`.docx`)
 
 - Open, inspect, edit, save, reopen, download, print, and export to PDF.
+- Continuous body editing uses stable OOXML paragraph identities and atomic
+  paragraph transactions. Enter splits paragraphs, Backspace/Delete merges
+  adjacent paragraphs, and Shift+Enter inserts a line break within a paragraph.
+  Multiline paste and replacement across adjacent editable paragraphs share
+  the same transaction model. IME composition is committed after compositionend.
+- Formatting preserves the selected text so underline, italic and alignment can
+  be applied consecutively. Caret formatting is inherited by subsequent input.
+  Undo/redo covers local text and formatting edits, including edits already saved;
+  undo after save creates a new immutable revision rather than rewriting history.
+- Clicking trailing blank space inside the page body inserts real empty
+  paragraphs at the measured line pitch. A single click places the caret at the
+  body's left margin; a double click uses the clicked horizontal position as a
+  native first-line indent. Existing empty body paragraphs support the same
+  positioning. Only the destination paragraph is left-aligned and given the
+  indent; existing text retains its formatting.
+  Blank-paper positioning handles mouse-down and cancels native caret placement,
+  so the caret appears directly at its final position without an alignment jump.
+  The click sequence is one undoable edit and survives saving/reopening.
+  Clicking existing text keeps native character positioning. Page margins,
+  tables, content controls, and unsupported structures are excluded from this
+  blank-space insertion behavior.
+- Autosave debounces the first change by 800 ms and spaces subsequent automatic
+  submissions at least 5 seconds apart. It preserves input made during a request,
+  retries an uncertain write with the same idempotency key, and stops automatic
+  writes after failure or revision conflict. Existing navigation guards retain
+  unsaved drafts; drafts and undo history remain in memory, not crash recovery.
+- Paragraph focus uses a visible text caret without a blue bottom border.
+  Browser spelling underlines are opt-in through the spell-check control.
 - Edit text and paragraph formatting, including font family and size, text
   color, bold, italic, underline style/color, paragraph style, alignment,
   spacing, indentation, numbering, outline level, and pagination controls.
@@ -442,8 +474,15 @@ The implementation does not claim macro execution, ActiveX, editable arbitrary
 OLE objects, complete SmartArt, every Excel function, complete PowerPoint
 animation, or Microsoft Office-identical rendering. In particular:
 
-- DOCX pagination is approximate and does not yet use Word-identical font
-  metrics or a complete layout engine.
+- DOCX pagination uses measured block heights with an estimated fallback. It is
+  still approximate: individual long paragraphs/tables are not split into page
+  fragments, and it is not a Word-identical layout engine.
+- Continuous editing only rebuilds paragraph structures fully represented by
+  the semantic model. Paragraphs containing unsupported OOXML, fields, bookmarks,
+  tracked changes, or embedded objects remain readable and keep their original
+  XML. Editing across those boundaries is rejected rather than losing content.
+  Other package parts remain byte-preserved. Structured Office commands retain
+  their existing capabilities and checks.
 - DOCX PDF export uses the `pdf-lib` standard Helvetica font and a simplified
   layout pass. Characters outside the WinAnsi encoding are replaced with `?`.
 - LocalMind comments/replies are a revision-anchored collaboration layer; they

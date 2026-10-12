@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   openOffice: vi.fn(),
   openNativeFile: vi.fn(),
   dragOptions: [] as unknown[],
+  dropOptions: [] as unknown[],
 }));
 
 vi.mock('@affine/component', () => ({
@@ -24,7 +25,13 @@ vi.mock('@affine/component', () => ({
     state.dragOptions.push(options());
     return { CustomDragPreview: () => null };
   },
-  useDropTarget: () => ({}),
+  useDropTarget: (options: () => unknown) => {
+    state.dropOptions.push(options());
+    return { dropTargetRef: { current: null } };
+  },
+  DropIndicator: ({ instruction }: { instruction: { type: string } }) => (
+    <div data-testid="drop-indicator" data-type={instruction.type} />
+  ),
 }));
 vi.mock('@affine/core/components/guard', () => ({ Guard: () => null }));
 vi.mock('@affine/core/modules/app-sidebar', () => ({
@@ -93,6 +100,37 @@ import { NavigationPanelTreeNode as MobileTreeNode } from '@affine/core/mobile/c
 
 import { NavigationPanelNativeFileNode } from '../nodes/folder/native-file';
 import { NavigationPanelTreeNode as DesktopTreeNode } from './node';
+import * as styles from './node.css';
+
+test('native tree drops measure the title row, reuse its indicator and disable the second drop handler', () => {
+  const ref = vi.fn();
+  state.dropOptions.length = 0;
+  render(
+    <DesktopTreeNode
+      name="Parent"
+      collapsed={false}
+      setCollapsed={vi.fn()}
+      rowRef={ref}
+      dropInstruction={{
+        type: 'make-child',
+        currentLevel: 0,
+        indentPerLevel: 20,
+      }}
+    >
+      <span>Child subtree</span>
+    </DesktopTreeNode>
+  );
+  const row = ref.mock.calls.find(
+    ([element]) => element
+  )?.[0] as HTMLDivElement;
+  expect(row.textContent).toContain('Parent');
+  expect(row.textContent).not.toContain('Child subtree');
+  expect(screen.getByTestId('drop-indicator').dataset.type).toBe('make-child');
+  const options = state.dropOptions.at(-1) as {
+    canDrop: (args: unknown) => boolean;
+  };
+  expect(options.canDrop({})).toBe(false);
+});
 
 afterEach(() => {
   cleanup();
@@ -229,4 +267,34 @@ test('native folder rows carry both resource identity and directory node identit
       }),
     })
   );
+});
+
+test('reserved action space opens the row while action buttons do not', () => {
+  const open = vi.fn();
+  const manage = vi.fn();
+  const view = render(
+    <DesktopTreeNode
+      name="Document"
+      collapsed
+      collapsible={false}
+      setCollapsed={vi.fn()}
+      onClick={open}
+      operations={[
+        {
+          index: 0,
+          inline: true,
+          view: <button onClick={manage}>Manage</button>,
+        },
+      ]}
+    />
+  );
+
+  const actionSpace = view.container.querySelector(`.${styles.postfix}`);
+  expect(actionSpace).not.toBeNull();
+  fireEvent.click(actionSpace!);
+  expect(open).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Manage' }));
+  expect(manage).toHaveBeenCalledTimes(1);
+  expect(open).toHaveBeenCalledTimes(1);
 });

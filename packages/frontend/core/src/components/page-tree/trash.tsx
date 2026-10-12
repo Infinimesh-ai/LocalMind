@@ -7,11 +7,12 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { MovePageDialog } from '../root-app-sidebar/page-tree';
 import * as styles from './children.css';
+import { PageTreeLoadError } from './load-error';
 
 export function PageTreeTrash() {
   const service = useService(WorkspacePageTreeService);
   const t = useI18n();
-  const saving = useLiveData(service.saving$);
+  const saving = useLiveData(service.writeBlocked$);
   const layer = useLiveData(
     useMemo(
       () => service.layers$.map(layers => layers.get('$page-tree-trash')),
@@ -20,17 +21,15 @@ export function PageTreeTrash() {
   );
   const [relocate, setRelocate] = useState<PageTreeItem | null>(null);
   useEffect(() => {
-    void service.loadTrash().catch(console.error);
+    return service.observeTrash();
   }, [service]);
   return (
     <div className={styles.section}>
-      {layer?.loading && (
+      {layer?.loading && !layer.page && (
         <p role="status">{t['com.affine.localmind.page-tree.loading']()}</p>
       )}
       {layer?.error && (
-        <Button onClick={() => void service.loadTrash()}>
-          {t['com.affine.error.retry']()}
-        </Button>
+        <PageTreeLoadError {...layer} retry={() => void service.loadTrash()} />
       )}
       {layer?.page?.items.map(item => (
         <div key={item.nodeId} className={styles.header}>

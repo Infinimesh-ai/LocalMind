@@ -20,7 +20,7 @@ import { useI18n } from '@affine/i18n';
 import { MoreVerticalIcon } from '@blocksuite/icons/rc';
 import { useService, useServiceOptional } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
 
 import {
   type PageTreeTarget,
@@ -41,6 +41,8 @@ export function WorkspaceNativeActions({
   beforeChange,
   capabilities,
   compact = false,
+  additionalItems,
+  triggerRef,
 }: {
   workspaceId: string;
   resourceId: string;
@@ -61,6 +63,8 @@ export function WorkspaceNativeActions({
     >
   >;
   compact?: boolean;
+  additionalItems?: ReactNode;
+  triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const t = useI18n();
   const graphql = useService(GraphQLService);
@@ -242,6 +246,7 @@ export function WorkspaceNativeActions({
       <Menu
         items={
           <>
+            {additionalItems}
             {(trashed
               ? (['restore', 'delete'] as const)
               : (['rename', 'move', 'copy', 'trash'] as const)
@@ -257,6 +262,9 @@ export function WorkspaceNativeActions({
       >
         {compact ? (
           <IconButton
+            ref={triggerRef}
+            data-resource-operation="true"
+            aria-label={`${t['com.affine.localmind.resources.actions']()}: ${title}`}
             size="16"
             disabled={!rights}
             tooltip={t['com.affine.localmind.native-files.manage']()}
@@ -264,7 +272,7 @@ export function WorkspaceNativeActions({
             <MoreVerticalIcon />
           </IconButton>
         ) : (
-          <Button disabled={!rights}>
+          <Button ref={triggerRef} disabled={!rights}>
             {t['com.affine.localmind.native-files.manage']()}
           </Button>
         )}

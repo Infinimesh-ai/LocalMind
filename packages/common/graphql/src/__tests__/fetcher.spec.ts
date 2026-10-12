@@ -1,3 +1,4 @@
+import { UserFriendlyError } from '@affine/error';
 import type { Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -103,5 +104,83 @@ describe('GraphQL fetcher', () => {
     await expect(
       gql({ query, variables: void 0 })
     ).rejects.toMatchInlineSnapshot(`[GraphQLError: error]`);
+  });
+
+  it.each([200, 429])(
+    'preserves Retry-After for a GraphQL throttle response with HTTP %s',
+    async status => {
+      fetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: 'Throttled',
+                extensions: { status: 429, name: 'TOO_MANY_REQUEST' },
+              },
+            ],
+          }),
+          {
+            status,
+            headers: { 'content-type': 'application/json', 'Retry-After': '5' },
+          }
+        )
+      );
+      const error = await gql({ query, variables: void 0 }).catch(
+        UserFriendlyError.fromAny
+      );
+      expect(error).toMatchObject({
+        status: 429,
+        name: 'TOO_MANY_REQUEST',
+        retryAfterMs: 5000,
+      });
+    }
+  );
+
+  it.each(['text/plain', 'application/json'])(
+    'recognizes HTTP 429 with an unparseable %s body',
+    async contentType => {
+      fetch.mockResolvedValue(
+        new Response('Throttled', {
+          status: 429,
+          headers: { 'content-type': contentType, 'Retry-After': '2' },
+        })
+      );
+      const error = await gql({ query, variables: void 0 }).catch(
+        UserFriendlyError.fromAny
+      );
+      expect(error).toMatchObject({ status: 429, retryAfterMs: 2000 });
+    }
+  );
+
+  it.each([
+    ['invalid', undefined],
+    ['-1', undefined],
+    ['9999999', 300_000],
+  ])('bounds Retry-After %s', async (header, delay) => {
+    fetch.mockResolvedValue(
+      new Response('', {
+        status: 429,
+        headers: { 'Retry-After': String(header) },
+      })
+    );
+    const error = UserFriendlyError.fromAny(
+      await gql({ query, variables: void 0 }).catch(e => e)
+    );
+    expect(error.retryAfterMs).toBe(delay);
+  });
+
+  it('accepts an HTTP date Retry-After', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    fetch.mockResolvedValue(
+      new Response('', {
+        status: 429,
+        headers: { 'Retry-After': new Date(1_005_000).toUTCString() },
+      })
+    );
+    const error = UserFriendlyError.fromAny(
+      await gql({ query, variables: void 0 }).catch(e => e)
+    );
+    expect(error.retryAfterMs).toBe(5000);
+    vi.restoreAllMocks();
   });
 });

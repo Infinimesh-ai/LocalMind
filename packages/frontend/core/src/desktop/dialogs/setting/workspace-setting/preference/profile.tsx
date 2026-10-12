@@ -10,7 +10,6 @@ import { UNTITLED_WORKSPACE_NAME } from '@affine/env/constant';
 import { useI18n } from '@affine/i18n';
 import { CameraIcon } from '@blocksuite/icons/rc';
 import { LiveData, useLiveData, useService } from '@toeverything/infra';
-import type { KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { map } from 'rxjs';
 
@@ -93,13 +92,13 @@ export const ProfilePanel = () => {
     setInput(value);
   }, []);
 
-  const handleKeyUp = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.code === 'Enter' && name !== input) {
-        handleUpdateWorkspaceName(input);
+  const handleEnter = useCallback(
+    (value: string) => {
+      if (name !== value) {
+        handleUpdateWorkspaceName(value);
       }
     },
-    [handleUpdateWorkspaceName, input, name]
+    [handleUpdateWorkspaceName, name]
   );
 
   const handleClick = useCallback(() => {
@@ -173,7 +172,7 @@ export const ProfilePanel = () => {
             maxLength={64}
             minLength={0}
             onChange={handleSetInput}
-            onKeyUp={handleKeyUp}
+            onEnter={handleEnter}
           />
           {input === name ? null : (
             <Button

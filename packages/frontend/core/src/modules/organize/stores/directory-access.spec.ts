@@ -1,3 +1,4 @@
+import { UserFriendlyError } from '@affine/error';
 import { Framework, LiveData } from '@toeverything/infra';
 import { of, Subject } from 'rxjs';
 import { afterEach, expect, test, vi } from 'vitest';
@@ -83,6 +84,55 @@ test('local workspaces retain local data without a network request', () => {
   const { store, gql } = fixture(vi.fn(), 'local');
   expect(store.state$.value.mode).toBe('local');
   expect(gql).not.toHaveBeenCalled();
+});
+
+test('rate limits pause polling and events until the server retry deadline', async () => {
+  vi.useFakeTimers();
+  const { store, gql, resourceEvents$, policyEvents$ } = fixture();
+  await store.refresh();
+  gql.mockRejectedValueOnce(
+    new UserFriendlyError({
+      status: 429,
+      code: 'too_many_requests',
+      type: 'too_many_request',
+      name: 'TOO_MANY_REQUEST',
+      message: 'Throttled',
+      retryAfterMs: 20_000,
+    })
+  );
+  await store.refresh();
+  expect(store.state$.value.items).toEqual([]);
+  gql.mockClear();
+  resourceEvents$.next({ changed: true });
+  policyEvents$.next({ changed: true, reason: 'revoked' });
+  await vi.advanceTimersByTimeAsync(19_999);
+  expect(gql).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(gql).toHaveBeenCalledTimes(1);
+  expect(store.state$.value.mode).toBe('filtered');
+});
+
+test('an account change cancels the old rate limit recovery', async () => {
+  vi.useFakeTimers();
+  const { store, gql, account$ } = fixture();
+  await store.refresh();
+  gql.mockRejectedValueOnce(
+    new UserFriendlyError({
+      status: 429,
+      code: 'too_many_requests',
+      type: 'too_many_request',
+      name: 'TOO_MANY_REQUEST',
+      message: 'Throttled',
+      retryAfterMs: 5000,
+    })
+  );
+  await store.refresh();
+  account$.next(null);
+  await Promise.resolve();
+  gql.mockClear();
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(gql).not.toHaveBeenCalled();
+  expect(store.state$.value.items).toEqual([]);
 });
 
 test('full-sync directories retain a revision and submit one complete reorder', async () => {

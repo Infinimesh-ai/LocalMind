@@ -8,7 +8,8 @@ import {
   Service,
   smartRetry,
 } from '@toeverything/infra';
-import { EMPTY, exhaustMap, tap } from 'rxjs';
+import { isEqual } from 'lodash-es';
+import { debounceTime, EMPTY, exhaustMap, tap } from 'rxjs';
 
 import type { Notification, NotificationStore } from '../stores/notification';
 import type { NotificationCountService } from './count';
@@ -16,6 +17,8 @@ import type { NotificationCountService } from './count';
 export class NotificationListService extends Service {
   mode$ = new LiveData<'unread' | 'all'>('unread');
   isLoading$ = new LiveData(false);
+  isRefreshing$ = new LiveData(false);
+  hasLoaded$ = new LiveData(false);
   isMutating$ = new LiveData(false);
   notifications$ = new LiveData<Notification[]>([]);
   nextCursor$ = new LiveData<string | undefined>(undefined);
@@ -23,6 +26,10 @@ export class NotificationListService extends Service {
   error$ = new LiveData<any>(null);
 
   readonly PAGE_SIZE = 8;
+  private loadedPages = 0;
+  private generation = 0;
+  private refreshFailed = false;
+  private loadMoreRequested = false;
 
   constructor(
     private readonly store: NotificationStore,
@@ -33,23 +40,38 @@ export class NotificationListService extends Service {
       revision => {
         if (!revision || this.isMutating$.value) return;
         if (
+          this.hasLoaded$.value ||
+          this.isRefreshing$.value ||
           this.notifications$.value.length ||
           !this.hasMore$.value ||
           this.isLoading$.value
         ) {
-          this.reset();
-          this.loadMore();
+          this.refresh();
         }
       }
     );
     this.disposables.push(() => subscription.unsubscribe());
+    this.disposables.push(() => {
+      this.generation++;
+      this.loadMoreRequested = false;
+      this.loadMore.unsubscribe();
+      this.reconcile.unsubscribe();
+    });
   }
 
   readonly loadMore = effect(
     exhaustMap(() => {
-      if (!this.hasMore$.value || this.isMutating$.value) {
+      if (this.isMutating$.value) {
+        this.loadMoreRequested = true;
         return EMPTY;
       }
+      if (!this.hasMore$.value) return EMPTY;
+      if (this.isRefreshing$.value) {
+        this.loadMoreRequested = true;
+        return EMPTY;
+      }
+      if (this.refreshFailed) return EMPTY;
+      const revision = this.notificationCount.revision$.value;
       return fromPromise(signal =>
         this.store.listNotification(
           {
@@ -66,12 +88,16 @@ export class NotificationListService extends Service {
             return;
           }
           const { edges, pageInfo, totalCount } = result;
-          this.notifications$.next([
-            ...this.notifications$.value,
-            ...edges.map(edge => edge.node),
-          ]);
+          this.hasLoaded$.setValue(true);
+          this.loadedPages++;
+          const byId = new Map(this.notifications$.value.map(n => [n.id, n]));
+          edges.forEach(({ node }) => byId.set(node.id, node));
+          this.notifications$.next([...byId.values()]);
 
-          if (this.mode$.value === 'unread') {
+          if (
+            this.mode$.value === 'unread' &&
+            revision === this.notificationCount.revision$.value
+          ) {
             this.notificationCount.setCount(totalCount);
           }
 
@@ -88,7 +114,100 @@ export class NotificationListService extends Service {
     })
   );
 
+  // Re-fetch the loaded window off-screen, then publish it atomically. Keep the
+  // old rows and cursors until every page succeeds, including on network errors.
+  private readonly reconcile = effect(
+    debounceTime(80),
+    exhaustMap(() => {
+      const pages = Math.max(
+        1,
+        this.loadedPages,
+        Math.ceil(this.notifications$.value.length / this.PAGE_SIZE)
+      );
+      const includeRead = this.mode$.value === 'all';
+      const revision = this.notificationCount.revision$.value;
+      return fromPromise(async signal => {
+        const nodes = new Map<string, Notification>();
+        let cursor: string | undefined;
+        let hasMore = false;
+        let totalCount = 0;
+        let fetchedPages = 0;
+        do {
+          const result = await this.store.listNotification(
+            { first: this.PAGE_SIZE, after: cursor },
+            includeRead,
+            signal
+          );
+          if (signal.aborted || !result) return;
+          result.edges.forEach(({ node }) => nodes.set(node.id, node));
+          totalCount = result.totalCount;
+          hasMore = result.pageInfo.hasNextPage;
+          const nextCursor = result.pageInfo.endCursor ?? undefined;
+          // Do not loop on a malformed/non-advancing cursor.
+          if (hasMore && (!nextCursor || nextCursor === cursor)) {
+            throw new Error('Notification pagination did not advance');
+          }
+          cursor = nextCursor;
+          fetchedPages++;
+        } while (hasMore && fetchedPages < pages);
+        return {
+          nodes: [...nodes.values()],
+          cursor,
+          hasMore,
+          totalCount,
+          fetchedPages,
+        };
+      }).pipe(
+        tap(result => {
+          if (!result) return;
+          this.hasLoaded$.setValue(true);
+          if (!isEqual(this.notifications$.value, result.nodes)) {
+            this.notifications$.next(result.nodes);
+          }
+          this.loadedPages = result.fetchedPages;
+          this.nextCursor$.next(result.cursor);
+          this.hasMore$.next(result.hasMore);
+          this.refreshFailed = false;
+          if (
+            !includeRead &&
+            revision === this.notificationCount.revision$.value
+          ) {
+            this.notificationCount.setCount(result.totalCount);
+          }
+        }),
+        catchErrorInto(this.error$, () => {
+          this.refreshFailed = true;
+        }),
+        onComplete(() => {
+          this.isRefreshing$.setValue(false);
+          if (this.loadMoreRequested) {
+            this.loadMoreRequested = false;
+            this.loadMore();
+          }
+        })
+      );
+    })
+  );
+
+  refresh() {
+    if (this.isMutating$.value) return;
+    // Coalesce the mutation receipt, count snapshot and realtime event. Cancel
+    // stale reads immediately so they cannot resurrect an optimistically removed row.
+    this.reconcile.reset();
+    this.loadMore.reset();
+    this.isLoading$.setValue(false);
+    this.isRefreshing$.setValue(true);
+    this.reconcile();
+  }
+
   reset() {
+    this.generation++;
+    this.reconcile.reset();
+    this.loadedPages = 0;
+    this.refreshFailed = false;
+    this.loadMoreRequested = false;
+    this.isRefreshing$.setValue(false);
+    this.hasLoaded$.setValue(false);
     this.notifications$.setValue([]);
     this.hasMore$.setValue(true);
     this.nextCursor$.setValue(undefined);
@@ -99,6 +218,10 @@ export class NotificationListService extends Service {
 
   retry() {
     this.error$.setValue(null);
+    if (this.refreshFailed) {
+      this.refresh();
+      return;
+    }
     this.loadMore.reset();
     this.loadMore();
   }
@@ -190,23 +313,36 @@ export class NotificationListService extends Service {
     if (this.isMutating$.value) return;
     this.isMutating$.setValue(true);
     const previousCount = this.notificationCount.count$.value;
+    const previousNotifications = this.notifications$.value;
+    const generation = this.generation;
     const revision = this.notificationCount.revision$.value;
+    this.reconcile.reset();
+    this.isRefreshing$.setValue(false);
     this.loadMore.reset();
     this.isLoading$.setValue(false);
     optimistic();
     try {
       await request();
     } catch (err) {
-      if (this.notificationCount.revision$.value === revision) {
+      if (this.generation === generation) {
+        this.notifications$.setValue(previousNotifications);
+      }
+      if (
+        this.generation === generation &&
+        this.notificationCount.revision$.value === revision
+      ) {
         this.notificationCount.setCount(previousCount);
       }
       throw err;
     } finally {
-      // Reconcile pagination and notifications received while the mutation ran.
       this.isMutating$.setValue(false);
-      this.reset();
-      this.loadMore();
-      this.notificationCount.revalidate();
+      if (this.generation === generation) {
+        this.refresh();
+        this.notificationCount.revalidate();
+      } else if (this.loadMoreRequested) {
+        this.loadMoreRequested = false;
+        this.loadMore();
+      }
     }
   }
 }

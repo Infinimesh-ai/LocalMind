@@ -5,6 +5,7 @@ import {
   MenuItem,
   MenuLinkItem,
   SidebarContainer,
+  SidebarHeader,
   SidebarScrollableContainer,
 } from '@affine/core/modules/app-sidebar/views';
 import { ExternalMenuLinkItem } from '@affine/core/modules/app-sidebar/views/menu-item/external-menu-link-item';
@@ -265,6 +266,7 @@ export const RootAppSidebar = memo((): ReactElement => {
             />
           </div>
           <UserInfo />
+          <SidebarHeader />
         </div>
         <div
           className={shortcuts}

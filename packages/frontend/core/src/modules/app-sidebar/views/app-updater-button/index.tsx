@@ -83,11 +83,9 @@ function UpdateReady({ updateAvailable, appQuitting }: ButtonContentProps) {
       <div className={styles.installLabelHover}>
         <ResetIcon className={styles.icon} />
         <span className={styles.ellipsisTextOverflow}>
-          {t[
-            appQuitting
-              ? t['com.affine.loading']()
-              : 'com.affine.appUpdater.installUpdate'
-          ]()}
+          {appQuitting
+            ? t['com.affine.loading']()
+            : t['com.affine.appUpdater.installUpdate']()}
         </span>
       </div>
     </div>

@@ -85,6 +85,77 @@ function setup() {
   };
 }
 
+test('cross-parent ordering and undo restore both levels in one durable local operation', async () => {
+  const { adapter, command, journal, pages } = setup();
+  await adapter.list({});
+  const source = await command({
+    action: 'create',
+    title: 'Source',
+    primaryMode: 'page',
+    parentNodeId: null,
+  });
+  const target = await command({
+    action: 'create',
+    title: 'Target',
+    primaryMode: 'page',
+    parentNodeId: null,
+  });
+  const ids: string[] = [];
+  for (const title of ['B', 'A', 'C'])
+    ids.push(
+      (
+        await command({
+          action: 'create',
+          title,
+          primaryMode: 'page',
+          parentNodeId: target.nodeId,
+        })
+      ).nodeId
+    );
+  const bodyEvidence = pages.toJSON();
+  const moved = await command({
+    action: 'move',
+    nodeId: source.nodeId,
+    parentNodeId: target.nodeId,
+    targetSiblingOrder: [ids[1], ids[0], source.nodeId, ids[2]],
+  });
+  expect(
+    (await adapter.list({ parentNodeId: target.nodeId })).items.map(
+      n => n.title
+    )
+  ).toEqual(['A', 'B', 'Source', 'C']);
+  expect(moved.oldTargetSiblingOrder).toEqual(ids);
+  expect(journal.getMap('receipts').get(moved.operationId)).toBeTruthy();
+  const restored = await command({
+    action: 'move',
+    nodeId: source.nodeId,
+    parentNodeId: moved.oldParentNodeId,
+    beforeNodeId: moved.oldBeforeNodeId ?? undefined,
+    sourceSiblingOrder: moved.oldTargetSiblingOrder!,
+  });
+  expect(restored.revision).toBe(moved.revision + 1);
+  expect((await adapter.list({})).items.map(n => n.title)).toEqual([
+    'Source',
+    'Target',
+  ]);
+  expect(
+    (await adapter.list({ parentNodeId: target.nodeId })).items.map(
+      n => n.title
+    )
+  ).toEqual(['B', 'A', 'C']);
+  expect(pages.toJSON()).toEqual(bodyEvidence);
+  const before = await adapter.list({});
+  await expect(
+    command({
+      action: 'move',
+      nodeId: source.nodeId,
+      parentNodeId: target.nodeId,
+      targetSiblingOrder: [source.nodeId],
+    })
+  ).rejects.toThrow();
+  expect((await adapter.list({})).revision).toBe(before.revision);
+});
+
 test('local migration creates real containers, deterministically collapses placements and preserves prior resource evidence', async () => {
   const { create, adapter, row, pages } = setup();
   await create({ id: 'doc', title: 'Original', primaryMode: 'page', at: 13 });

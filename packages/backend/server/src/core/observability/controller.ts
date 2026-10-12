@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { LocalMindLogService } from '../../base/logger';
+import { type LocalMindLogInput, LocalMindLogService } from '../../base/logger';
 import { Admin } from '../common';
 
 @Controller('api/logs')
@@ -17,28 +17,27 @@ export class ObservabilityController {
           Array.isArray((body as { events?: unknown }).events)
         ? (body as { events: unknown[] }).events
         : [];
-    const eventIds: string[] = [];
+    const inputs: LocalMindLogInput[] = [];
     for (const raw of entries.slice(0, 100)) {
       if (!raw || typeof raw !== 'object') continue;
       const item = raw as Record<string, unknown>;
-      eventIds.push(
-        await this.logs.write({
-          eventId: typeof item.eventId === 'string' ? item.eventId : undefined,
-          eventName:
-            typeof item.eventName === 'string' ? item.eventName : 'client.log',
-          severity:
-            typeof item.severity === 'string' &&
-            ['debug', 'info', 'warn', 'error', 'fatal'].includes(item.severity)
-              ? (item.severity as 'debug' | 'info' | 'warn' | 'error' | 'fatal')
-              : 'info',
-          message: typeof item.message === 'string' ? item.message : undefined,
-          metadata: item.metadata,
-          component:
-            typeof item.component === 'string' ? item.component : 'client',
-          service: typeof item.service === 'string' ? item.service : 'client',
-        })
-      );
+      inputs.push({
+        eventId: typeof item.eventId === 'string' ? item.eventId : undefined,
+        eventName:
+          typeof item.eventName === 'string' ? item.eventName : 'client.log',
+        severity:
+          typeof item.severity === 'string' &&
+          ['debug', 'info', 'warn', 'error', 'fatal'].includes(item.severity)
+            ? (item.severity as 'debug' | 'info' | 'warn' | 'error' | 'fatal')
+            : 'info',
+        message: typeof item.message === 'string' ? item.message : undefined,
+        metadata: item.metadata,
+        component:
+          typeof item.component === 'string' ? item.component : 'client',
+        service: typeof item.service === 'string' ? item.service : 'client',
+      });
     }
+    const eventIds = await this.logs.writeBatch(inputs);
     return { accepted: eventIds.length, eventIds };
   }
 

@@ -40,6 +40,7 @@ export function NativeFileCreateDialog({
   initialFormat,
   onClose,
   onCreated,
+  onStart,
 }: {
   owner: { workspaceId: string } | { projectId: string };
   parentId?: string | null;
@@ -53,6 +54,7 @@ export function NativeFileCreateDialog({
   initialFormat?: NativeFileFormat;
   onClose: () => void;
   onCreated: (id: string, kind: 'file' | 'office') => void;
+  onStart?: () => void;
 }) {
   const t = useI18n();
   const graphql = useService(GraphQLService);
@@ -69,6 +71,7 @@ export function NativeFileCreateDialog({
   const submit = async () => {
     if (pendingRef.current || !title.trim()) return;
     pendingRef.current = true;
+    if (!request.current) onStart?.();
     request.current ??= { title: title.trim(), format, requestKey: nanoid() };
     const frozen = request.current;
     setPending(true);

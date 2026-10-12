@@ -24,15 +24,15 @@ import {
 } from '@affine/core/modules/url';
 import { configureDesktopWorkbenchModule } from '@affine/core/modules/workbench';
 import { configureBrowserWorkspaceFlavours } from '@affine/core/modules/workspace-engine';
+import { I18n } from '@affine/i18n';
 import { Framework } from '@toeverything/infra';
 
 function notifySessionOnlySignIn(sessionOnly?: boolean) {
   if (!sessionOnly) return;
 
   notify.warning({
-    title: 'Sign-in is only valid for this session',
-    message:
-      'Encrypted storage is unavailable, so you will need to sign in again after restarting LocalMind.',
+    title: I18n['com.affine.auth.session-only.title'](),
+    message: I18n['com.affine.auth.session-only.description'](),
   });
 }
 

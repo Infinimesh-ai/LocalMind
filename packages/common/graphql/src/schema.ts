@@ -10704,6 +10704,8 @@ export interface WorkspacePageTreeCommandInput {
   requestKey: Scalars['String']['input'];
   resourceId?: InputMaybe<Scalars['ID']['input']>;
   siblingOrder?: InputMaybe<Array<Scalars['ID']['input']>>;
+  sourceSiblingOrder?: InputMaybe<Array<Scalars['ID']['input']>>;
+  targetSiblingOrder?: InputMaybe<Array<Scalars['ID']['input']>>;
   title?: InputMaybe<Scalars['String']['input']>;
   workspaceId: Scalars['ID']['input'];
 }
@@ -10793,6 +10795,8 @@ export interface WorkspacePageTreeReceipt {
   oldBeforeNodeId: Maybe<Scalars['ID']['output']>;
   oldParentNodeId: Maybe<Scalars['ID']['output']>;
   oldSiblingOrder: Maybe<Array<Scalars['ID']['output']>>;
+  oldSourceSiblingOrder: Maybe<Array<Scalars['ID']['output']>>;
+  oldTargetSiblingOrder: Maybe<Array<Scalars['ID']['output']>>;
   operationId: Scalars['ID']['output'];
   parentNodeId: Maybe<Scalars['ID']['output']>;
   resourceId: Scalars['ID']['output'];
@@ -24015,6 +24019,8 @@ export type MutateWorkspacePageTreeMutation = {
     revision: number;
     oldParentNodeId: string | null;
     oldSiblingOrder: Array<string> | null;
+    oldTargetSiblingOrder: Array<string> | null;
+    oldSourceSiblingOrder: Array<string> | null;
     oldBeforeNodeId: string | null;
   };
 };

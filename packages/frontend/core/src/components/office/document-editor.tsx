@@ -1,48 +1,53 @@
 import { Button, IconButton, Modal } from '@affine/component';
 import type { GraphQLService } from '@affine/core/modules/cloud';
 import {
+  captureOfficeSelection,
   collectDocxParagraphs,
-  diffTextReplacement,
   type DocxBlock,
   type DocxParagraph,
   type DocxRunContent,
   docxRunContentText,
   type DocxRunFormat,
   type DocxSemanticState,
-  executeOfficeDocxCommand,
-  fetchOfficeState,
-  isDocxSemanticState,
   type OfficeCommentAnchor,
   type OfficeDocumentFormat,
   type OfficeDocumentFormatParagraphCommand,
-  type OfficeDocumentFormatTextCommand,
   type OfficeDocumentHeaderFooterTextCommand,
   type OfficeDocumentInsertBreakCommand,
   type OfficeDocumentInsertObjectCommand,
   type OfficeDocumentInsertSectionCommand,
   type OfficeDocumentInsertTableCommand,
   type OfficeDocumentPageLayoutCommand,
-  type OfficeDocumentReplaceTextCommand,
   type OfficeDocumentReviewResolveCommand,
   type OfficeDocxCommand,
   officePackagePartUrl,
   type OfficeResourceOwner,
+  type OfficeSelectionBookmark,
   type OfficeTextPosition,
   type OfficeTextRange,
-  paginateDocxBlocks,
-  previewOfficeDocxCommand,
   resolveOfficeTextPosition,
   resolveOfficeTextRange,
+  restoreOfficeSelection,
 } from '@affine/core/modules/office';
+import {
+  formatAt,
+  formatDocxRange,
+  isEditableParagraph,
+  mergeTypingFormat,
+  paragraphGroups,
+} from '@affine/core/modules/office/docx-session';
 import { I18n, useI18n } from '@affine/i18n';
 import {
   BoldIcon,
   ChartPanelIcon,
+  CloseIcon,
   ImageIcon,
   ItalicIcon,
+  RedoIcon,
   ShapeIcon,
   SidebarIcon,
   UnderLineIcon,
+  UndoIcon,
 } from '@blocksuite/icons/rc';
 import type { OfficeSelection } from '@localmind/office';
 import { nanoid } from 'nanoid';
@@ -51,12 +56,14 @@ import {
   type KeyboardEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 
 import * as styles from './document.css';
+import { DocumentNavigation } from './document-navigation';
 import {
   type RegisterOfficeDraft,
   useOfficeDialogDraft,
@@ -68,6 +75,9 @@ import {
   type OfficeRevision,
 } from './shared';
 import * as surfaceStyles from './surface.css';
+import { useDocumentInput } from './use-document-input';
+import { useDocumentLayout } from './use-document-layout';
+import { useDocumentSession } from './use-document-session';
 const FONT_FAMILIES = [
   'Aptos',
   'Arial',
@@ -252,20 +262,50 @@ function Paragraph({
       id={`office-block-${encodeURIComponent(paragraph.id)}`}
       className={styles.paragraph}
       data-office-block-id={paragraph.id}
+      data-office-layout-block={paragraph.id}
       data-office-order={order}
+      data-created-resource-focus-target
       data-outline-level={outlineLevel}
-      contentEditable={!disabled}
+      title={
+        isEditableParagraph(paragraph)
+          ? undefined
+          : i18n['com.affine.office.continuous-edit.unsupported']()
+      }
+      contentEditable={!disabled && isEditableParagraph(paragraph)}
       suppressContentEditableWarning
       aria-label={i18n['com.affine.office.editable-document-paragraph']()}
       onBlur={event =>
         onCommit(paragraph, event.currentTarget.textContent ?? '')
       }
       style={{
+        fontSize:
+          !paragraph.text.length && paragraph.runs[0]?.format?.fontSizePt
+            ? `${paragraph.runs[0].format.fontSizePt}pt`
+            : undefined,
+        marginTop: paragraph.properties?.spacing?.beforePt
+          ? `${paragraph.properties.spacing.beforePt}pt`
+          : undefined,
+        marginBottom:
+          paragraph.properties?.spacing?.afterPt !== undefined
+            ? `${paragraph.properties.spacing.afterPt}pt`
+            : undefined,
+        lineHeight: paragraph.properties?.spacing?.linePt
+          ? `${paragraph.properties.spacing.linePt}pt`
+          : undefined,
+        paddingLeft: paragraph.properties?.indent?.leftPt
+          ? `${paragraph.properties.indent.leftPt}pt`
+          : undefined,
+        paddingRight: paragraph.properties?.indent?.rightPt
+          ? `${paragraph.properties.indent.rightPt}pt`
+          : undefined,
+        textIndent: paragraph.properties?.indent?.firstLinePt
+          ? `${paragraph.properties.indent.firstLinePt}pt`
+          : undefined,
         textAlign: paragraph.properties
           ?.alignment as CSSProperties['textAlign'],
       }}
     >
-      {paragraph.runs.length ? (
+      {paragraph.text.length ? (
         paragraph.runs.map((run, index) => {
           const text = docxRunContentText(run.content);
           const offset = runOffset;
@@ -318,7 +358,7 @@ function Blocks({
     if (block.type === 'paragraph') {
       return (
         <Paragraph
-          key={block.id}
+          key={`${block.id}:${JSON.stringify(block.runs)}:${JSON.stringify(block.properties)}`}
           paragraph={block}
           order={paragraphOrder.get(block.id) ?? 0}
           disabled={editingDisabled}
@@ -329,7 +369,11 @@ function Blocks({
     }
     if (block.type === 'table') {
       return (
-        <table className={styles.table} key={block.id}>
+        <table
+          className={styles.table}
+          key={block.id}
+          data-office-layout-block={block.id}
+        >
           <tbody>
             {block.rows.map((row, rowIndex) => (
               <tr key={`${block.id}:row:${rowIndex}`}>
@@ -358,6 +402,7 @@ function Blocks({
         <section
           className={styles.contentControl}
           key={block.id}
+          data-office-layout-block={block.id}
           data-content-control={block.tag ?? block.title ?? ''}
         >
           <Blocks
@@ -371,7 +416,11 @@ function Blocks({
       );
     }
     return (
-      <div className={styles.unsupportedBlock} key={block.id}>
+      <div
+        className={styles.unsupportedBlock}
+        key={block.id}
+        data-office-layout-block={block.id}
+      >
         {i18n['com.affine.office.unsupported-document-object']()}{' '}
         {block.element}
       </div>
@@ -1422,6 +1471,12 @@ function Toolbar({
   onInsertObject,
   onOpenPageLayout,
   onEditStory,
+  spellCheck,
+  onSpellCheck,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: {
   format: OfficeDocumentFormat;
   selection: OfficeTextRange | null;
@@ -1437,10 +1492,16 @@ function Toolbar({
   onInsertTable: () => void;
   onInsertObject: (type: DocxObject['type']) => void;
   onOpenPageLayout: () => void;
+  spellCheck: boolean;
+  onSpellCheck: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   onEditStory: (kind: 'header' | 'footer') => void;
 }) {
   const i18n = useI18n();
-  const formattingDisabled = !selection || saving;
+  const formattingDisabled = (!selection && !editPosition) || saving;
   return (
     <div
       className={styles.toolbar}
@@ -1465,6 +1526,24 @@ function Toolbar({
         onClick={onToggleNavigation}
       >
         <SidebarIcon />
+      </IconButton>
+      <IconButton
+        size="24"
+        aria-label={i18n['com.affine.keyboardShortcuts.undo']()}
+        disabled={!canUndo || saving}
+        onMouseDown={event => event.preventDefault()}
+        onClick={onUndo}
+      >
+        <UndoIcon />
+      </IconButton>
+      <IconButton
+        size="24"
+        aria-label={i18n['com.affine.office.continuous-edit.redo']()}
+        disabled={!canRedo || saving}
+        onMouseDown={event => event.preventDefault()}
+        onClick={onRedo}
+      >
+        <RedoIcon />
       </IconButton>
       <div className={styles.toolbarDivider} />
       <select
@@ -1678,6 +1757,9 @@ function Toolbar({
       >
         {i18n['com.affine.office.equation']()}{' '}
       </Button>
+      <Button variant="plain" aria-pressed={spellCheck} onClick={onSpellCheck}>
+        {i18n['com.affine.settings.editorSettings.general.spell-check.title']()}
+      </Button>
       <Button variant="plain" disabled={saving} onClick={onOpenPageLayout}>
         {i18n['com.affine.office.page-setup']()}{' '}
       </Button>
@@ -1695,20 +1777,12 @@ function Toolbar({
       >
         {i18n['com.affine.office.footer']()}{' '}
       </Button>
-      <div className={styles.toolbarSpacer} />
-      <span className={styles.selectionStatus}>
-        {saving
-          ? i18n['com.affine.localmind.project-files.saving']()
-          : selection
-            ? i18n['com.affine.office.selection-ready']()
-            : i18n['com.affine.office.select-text-to-format']()}
-      </span>
     </div>
   );
 }
 
 export function DocumentEditor({
-  state,
+  state: remoteState,
   revision,
   artifactId,
   owner,
@@ -1732,10 +1806,12 @@ export function DocumentEditor({
 }) {
   const i18n = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
-  const paragraphDrafts = useRef(
-    new Map<string, { paragraph: DocxParagraph; text: string }>()
-  );
-  const [, setDraftVersion] = useState(0);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const selectionBookmark = useRef<OfficeSelectionBookmark | null>(null);
+  const pendingSelectionRestore = useRef<{
+    bookmark: OfficeSelectionBookmark;
+    revisionId: string | null;
+  } | null>(null);
   const latestRevision = useRef(revision);
   if (revision.sequence >= latestRevision.current.sequence)
     latestRevision.current = revision;
@@ -1744,7 +1820,7 @@ export function DocumentEditor({
     null
   );
   const [navigationOpen, setNavigationOpen] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [commandSaving, setSaving] = useState(false);
   const commandInFlight = useRef(false);
   const [objectDialogType, setObjectDialogType] = useState<
     DocxObject['type'] | null
@@ -1754,19 +1830,60 @@ export function DocumentEditor({
     'header' | 'footer' | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+  const [typingFormat, setTypingFormat] = useState<DocxRunFormat | null>(null);
+  const [spellCheck, setSpellCheck] = useState(false);
+  const showEditError = useCallback(
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : '';
+      setError(
+        message === 'unsupported-edit'
+          ? i18n['com.affine.office.continuous-edit.unsupported']()
+          : message === 'document-conflict'
+            ? i18n['com.affine.office.continuous-edit.conflict']()
+            : officeErrorMessage(error, owner)
+      );
+    },
+    [i18n, owner]
+  );
+  const session = useDocumentSession({
+    remoteState,
+    revision,
+    artifactId,
+    owner,
+    graphql,
+    readOnly,
+    onRevision,
+    onError: showEditError,
+    onSaved: () => setError(null),
+  });
+  const state = session.state;
+  const saving = commandSaving || session.saving;
+  const input = useDocumentInput({
+    rootRef,
+    session,
+    typingFormat,
+    onError: showEditError,
+    bookmarkRef: selectionBookmark,
+  });
   const paragraphs = useMemo(() => collectDocxParagraphs(state.body), [state]);
   const paragraphOrder = useMemo(
     () => new Map(paragraphs.map((paragraph, index) => [paragraph.id, index])),
     [paragraphs]
   );
-  const format = useMemo(
-    () => selectedTextFormat(paragraphs, paragraphOrder, selection),
-    [paragraphOrder, paragraphs, selection]
-  );
-  const pages = useMemo(
-    () => paginateDocxBlocks(state.body, state.sections),
-    [state.body, state.sections]
-  );
+  const format = useMemo(() => {
+    if (selection)
+      return selectedTextFormat(paragraphs, paragraphOrder, selection);
+    const paragraph = paragraphs.find(p => p.id === editPosition?.blockId);
+    const current =
+      typingFormat ??
+      (paragraph ? formatAt(paragraph, editPosition?.offset ?? 0) : {});
+    return {
+      ...current,
+      textColor: current.color,
+      paragraphStyleId: paragraph?.properties?.styleId,
+    } as OfficeDocumentFormat;
+  }, [paragraphs, paragraphOrder, selection, editPosition, typingFormat]);
+  const pages = useDocumentLayout(state, rootRef, session.setRestore);
   const headings = useMemo(
     () =>
       paragraphs.filter(
@@ -1803,33 +1920,69 @@ export function DocumentEditor({
     []
   );
 
+  const flushParagraphDrafts = session.save;
+
   const executeImmediate = useCallback(
     async (command: OfficeDocxCommand) => {
       if (readOnly || saving || commandInFlight.current) return false;
+      const preserveSelection =
+        command.operation === 'office.document.text.format' ||
+        command.operation === 'office.document.paragraph.format';
+      pendingSelectionRestore.current =
+        preserveSelection && selectionBookmark.current
+          ? { bookmark: selectionBookmark.current, revisionId: null }
+          : null;
       commandInFlight.current = true;
       setSaving(true);
       setError(null);
       try {
+        await flushParagraphDrafts();
         const result = await executeAndReloadOfficeCommand<DocxSemanticState>({
           graphql,
           owner,
           kind: 'document',
-          command,
+          command: JSON.parse(
+            JSON.stringify({
+              ...command,
+              expectedRevisionId: session.model.current.revision.id,
+            }),
+            (_key, value: unknown) =>
+              typeof value === 'string'
+                ? (session.model.current.identities.find(
+                    item => item.id === value
+                  )?.blockId ?? value)
+                : value
+          ) as OfficeDocxCommand,
         });
         latestRevision.current = result.revision;
         onRevision(result.revision, result.state);
-        setSelection(null);
-        setEditPosition(null);
+        if (!preserveSelection) {
+          selectionBookmark.current = null;
+          setSelection(null);
+          setEditPosition(null);
+        }
         return true;
       } catch (err) {
         setError(officeErrorMessage(err, owner));
         return false;
       } finally {
+        if (pendingSelectionRestore.current) {
+          pendingSelectionRestore.current.revisionId =
+            latestRevision.current.id;
+        }
         commandInFlight.current = false;
         setSaving(false);
       }
     },
-    [graphql, onRevision, owner, readOnly, saving]
+    [
+      flushParagraphDrafts,
+      graphql,
+      onRevision,
+      owner,
+      readOnly,
+      saving,
+      session.model,
+    ]
   );
 
   const executeImmediateInBackground = useCallback(
@@ -1853,34 +2006,72 @@ export function DocumentEditor({
     };
   }, [artifactId, revision.id]);
 
-  const handleTextFormat = useCallback(
-    (nextFormat: OfficeDocumentFormat) => {
-      if (!selection || Object.keys(nextFormat).length === 0) return;
-      executeImmediateInBackground({
-        ...commandBase(),
-        operation: 'office.document.text.format',
-        target: selection,
-        format: nextFormat,
-      } satisfies OfficeDocumentFormatTextCommand);
-    },
-    [commandBase, executeImmediateInBackground, selection]
-  );
-
-  const handleParagraphAlignment = useCallback(
-    (
-      alignment: OfficeDocumentFormatParagraphCommand['format']['alignment']
-    ) => {
-      if (!editPosition || !alignment) return;
-      const target = selection?.start ?? editPosition;
-      executeImmediateInBackground({
-        ...commandBase(),
-        operation: 'office.document.paragraph.format',
-        target: { type: 'paragraph', blockId: target.blockId },
-        format: { alignment },
-      } satisfies OfficeDocumentFormatParagraphCommand);
-    },
-    [commandBase, editPosition, executeImmediateInBackground, selection]
-  );
+  const handleTextFormat = (nextFormat: OfficeDocumentFormat) => {
+    if (readOnly || commandSaving) return;
+    const bookmark = selectionBookmark.current;
+    try {
+      if (selection)
+        session.commit(
+          formatDocxRange(state, selection, nextFormat),
+          bookmark,
+          bookmark
+        );
+      else if (editPosition) {
+        const currentParagraph = paragraphs.find(
+          p => p.id === editPosition.blockId
+        );
+        if (!currentParagraph) return;
+        if (!isEditableParagraph(currentParagraph))
+          throw new Error('unsupported-edit');
+        if (nextFormat.paragraphStyleId) {
+          const next = structuredClone(state);
+          const p = paragraphGroups(next.body)
+            .flat()
+            .find(p => p.id === editPosition.blockId);
+          if (p?.type === 'paragraph') {
+            p.properties = {
+              ...p.properties,
+              styleId: nextFormat.paragraphStyleId,
+            };
+            session.commit(next, bookmark, bookmark);
+          }
+        }
+        setTypingFormat(
+          mergeTypingFormat(
+            typingFormat ?? formatAt(currentParagraph, editPosition.offset),
+            nextFormat
+          )
+        );
+        if (bookmark && rootRef.current)
+          restoreOfficeSelection(rootRef.current, bookmark);
+      }
+    } catch (error) {
+      showEditError(error);
+    }
+  };
+  const handleParagraphAlignment = (
+    alignment: OfficeDocumentFormatParagraphCommand['format']['alignment']
+  ) => {
+    if (readOnly || !editPosition) return;
+    const next = structuredClone(state);
+    const list = collectDocxParagraphs(next.body);
+    const start = list.findIndex(
+      p => p.id === (selection?.start.blockId ?? editPosition.blockId)
+    );
+    const end = selection
+      ? list.findIndex(p => p.id === selection.end.blockId)
+      : start;
+    if (
+      start < 0 ||
+      list.slice(start, end + 1).some(p => !isEditableParagraph(p))
+    ) {
+      showEditError(new Error('unsupported-edit'));
+      return;
+    }
+    for (const p of list.slice(start, end + 1))
+      p.properties = { ...p.properties, alignment };
+    session.commit(next, selectionBookmark.current, selectionBookmark.current);
+  };
 
   const handleInsertPageBreak = useCallback(() => {
     if (!editPosition) return;
@@ -1981,32 +2172,121 @@ export function DocumentEditor({
   );
 
   const updateSelection = useCallback(() => {
-    if (!rootRef.current) return;
+    if (!rootRef.current || pendingSelectionRestore.current) return;
+    // Native select/color controls may move the browser selection outside the
+    // document. Their commands still apply to the last document selection.
+    if (
+      editorRef.current
+        ?.querySelector('[data-office-document-toolbar]')
+        ?.contains(document.activeElement)
+    )
+      return;
     const browserSelection = window.getSelection();
+    selectionBookmark.current = captureOfficeSelection(
+      rootRef.current,
+      browserSelection
+    );
     const next = resolveOfficeTextRange(rootRef.current, browserSelection);
     const nextPosition =
       next?.start ??
       resolveOfficeTextPosition(rootRef.current, browserSelection);
     if (!next && !nextPosition) {
       setSelection(null);
+      setEditPosition(null);
       onAiSelectionChange(null);
       onCommentAnchorChange(null);
       return;
     }
     setSelection(next);
     setEditPosition(nextPosition);
-    onAiSelectionChange(next ? { kind: 'document', target: next } : null);
+    const published = next
+      ? {
+          ...next,
+          start: {
+            ...next.start,
+            blockId:
+              session.model.current.identities.find(
+                i => i.id === next.start.blockId
+              )?.blockId ?? next.start.blockId,
+          },
+          end: {
+            ...next.end,
+            blockId:
+              session.model.current.identities.find(
+                i => i.id === next.end.blockId
+              )?.blockId ?? next.end.blockId,
+          },
+        }
+      : null;
+    onAiSelectionChange(
+      published && !session.dirty
+        ? { kind: 'document', target: published }
+        : null
+    );
     onCommentAnchorChange(
-      next
+      published && !session.dirty
         ? {
             kind: 'document',
             revisionId: revision.id,
-            start: next.start,
-            end: next.end,
+            start: published.start,
+            end: published.end,
           }
         : null
     );
-  }, [onAiSelectionChange, onCommentAnchorChange, revision.id]);
+  }, [
+    onAiSelectionChange,
+    onCommentAnchorChange,
+    revision.id,
+    session.dirty,
+    session.model,
+  ]);
+
+  useEffect(() => {
+    updateSelection();
+  }, [updateSelection, state]);
+
+  useLayoutEffect(() => {
+    const pending = pendingSelectionRestore.current;
+    if (
+      !pending ||
+      saving ||
+      pending.revisionId !== revision.id ||
+      !rootRef.current
+    )
+      return;
+    restoreOfficeSelection(rootRef.current, pending.bookmark);
+    pendingSelectionRestore.current = null;
+    updateSelection();
+  }, [revision.id, saving, updateSelection]);
+
+  useEffect(() => {
+    const cancelRestore = (event: Event) => {
+      if (
+        event instanceof window.KeyboardEvent &&
+        (event.metaKey || event.ctrlKey) &&
+        ['b', 'i', 'u'].includes(event.key.toLowerCase())
+      )
+        return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        editorRef.current
+          ?.querySelector('[data-office-document-toolbar]')
+          ?.contains(target)
+      )
+        return;
+      // Explicit interaction wins over a late formatting response. DOM removal
+      // during a revision update is not an explicit interaction.
+      pendingSelectionRestore.current = null;
+    };
+    document.addEventListener('pointerdown', cancelRestore, true);
+    document.addEventListener('keydown', cancelRestore, true);
+    document.addEventListener('focusin', cancelRestore, true);
+    return () => {
+      document.removeEventListener('pointerdown', cancelRestore, true);
+      document.removeEventListener('keydown', cancelRestore, true);
+      document.removeEventListener('focusin', cancelRestore, true);
+    };
+  }, []);
 
   useEffect(() => {
     document.addEventListener('selectionchange', updateSelection);
@@ -2014,158 +2294,51 @@ export function DocumentEditor({
       document.removeEventListener('selectionchange', updateSelection);
   }, [updateSelection]);
 
-  const handleParagraphCommit = useCallback(
-    async (paragraph: DocxParagraph, text: string) => {
-      if (readOnly) return;
-      const replacement = diffTextReplacement(paragraph.text, text);
-      if (!replacement) return;
-      if (saving) {
-        setError(
-          i18n[
-            'com.affine.office.wait-for-the-current-save-to-finish-before-editing-another-paragraph'
-          ]()
-        );
-        return;
-      }
-      const id = nanoid();
-      const command = {
-        version: 'localmind-office-command/v1',
-        commandId: id,
-        idempotencyKey: `office-user:${id}`,
-        artifactId,
-        expectedRevisionId: revision.id,
-        source: 'user',
-        operation: 'office.document.text.replace',
-        target: {
-          type: 'text_range',
-          start: { blockId: paragraph.id, offset: replacement.start },
-          end: { blockId: paragraph.id, offset: replacement.end },
-        },
-        text: replacement.text,
-      } satisfies OfficeDocumentReplaceTextCommand;
-      setSaving(true);
-      setError(null);
-      try {
-        await previewOfficeDocxCommand(graphql, owner, command);
-        const result = await executeOfficeDocxCommand(graphql, owner, command);
-        const next = result.executeOfficeDocxCommand.artifact.currentRevision;
-        if (!next.stateUrl)
-          throw new Error(
-            i18n['com.affine.office.saved-revision-has-no-document-state']()
-          );
-        const nextState = await fetchOfficeState(next.stateUrl, 'document');
-        if (!isDocxSemanticState(nextState)) {
-          throw new Error(
-            i18n[
-              'com.affine.office.saved-revision-has-an-invalid-document-state'
-            ]()
-          );
-        }
-        onRevision(next as Revision, nextState);
-      } catch (err) {
-        setError(officeErrorMessage(err, owner));
-      } finally {
-        setSaving(false);
-      }
-    },
-    [
-      artifactId,
-      graphql,
-      onRevision,
-      readOnly,
-      revision.id,
-      saving,
-      owner,
-      i18n,
-    ]
-  );
-
   useOfficeEditorDraft(registerDraft, {
-    get hasUnsavedChanges() {
-      return paragraphDrafts.current.size > 0;
-    },
-    save: async () => {
-      if (readOnly || saving)
-        throw new Error(
-          i18n['com.affine.office.office-editor-is-not-writable']()
-        );
-      for (const [key, draft] of paragraphDrafts.current) {
-        const replacement = diffTextReplacement(
-          draft.paragraph.text,
-          draft.text
-        );
-        if (!replacement) {
-          paragraphDrafts.current.delete(key);
-          continue;
-        }
-        const id = nanoid();
-        const result = await executeAndReloadOfficeCommand<DocxSemanticState>({
-          graphql,
-          owner,
-          kind: 'document',
-          command: {
-            version: 'localmind-office-command/v1',
-            commandId: id,
-            idempotencyKey: `office-user:${id}`,
-            artifactId,
-            expectedRevisionId: latestRevision.current.id,
-            source: 'user',
-            operation: 'office.document.text.replace',
-            target: {
-              type: 'text_range',
-              start: { blockId: key, offset: replacement.start },
-              end: { blockId: key, offset: replacement.end },
-            },
-            text: replacement.text,
-          },
-        });
-        latestRevision.current = result.revision;
-        paragraphDrafts.current.delete(key);
-        onRevision(result.revision, result.state);
-      }
-    },
-    discard: async () => {
-      for (const [id, draft] of paragraphDrafts.current) {
-        const element = rootRef.current?.querySelector<HTMLElement>(
-          `[data-office-block-id="${CSS.escape(id)}"]`
-        );
-        if (element) element.textContent = draft.paragraph.text;
-      }
-      paragraphDrafts.current.clear();
-    },
+    hasUnsavedChanges: session.dirty,
+    save: session.save,
+    discard: session.discard,
   });
 
-  const handleEditorKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey)) return;
-      const key = event.key.toLowerCase();
-      if (key === 'b') {
-        event.preventDefault();
-        handleTextFormat({ bold: !format.bold });
-      }
-      if (key === 'i') {
-        event.preventDefault();
-        handleTextFormat({ italic: !format.italic });
-      }
-      if (key === 'u') {
-        event.preventDefault();
-        handleTextFormat({
-          underline: format.underline ? false : { style: 'single' },
-        });
-      }
-    },
-    [format.bold, format.italic, format.underline, handleTextFormat]
-  );
+  const handleEditorKeyDown = (event: KeyboardEvent) => {
+    if (
+      [
+        'ArrowLeft',
+        'ArrowRight',
+        'ArrowUp',
+        'ArrowDown',
+        'Home',
+        'End',
+      ].includes(event.key)
+    )
+      setTypingFormat(null);
+    if (!(event.metaKey || event.ctrlKey)) return;
+    const key = event.key.toLowerCase();
+    if (key === 'b') {
+      event.preventDefault();
+      handleTextFormat({ bold: !format.bold });
+    }
+    if (key === 'i') {
+      event.preventDefault();
+      handleTextFormat({ italic: !format.italic });
+    }
+    if (key === 'u') {
+      event.preventDefault();
+      handleTextFormat({
+        underline: format.underline ? false : { style: 'single' },
+      });
+    }
+  };
 
   return (
     <>
-      <div className={styles.editorRoot}>
+      <div className={styles.editorRoot} ref={editorRef}>
         <Toolbar
           format={format}
           selection={selection}
           editPosition={editPosition}
           navigationOpen={navigationOpen}
-          saving={saving || readOnly}
+          saving={commandSaving || readOnly}
           onToggleNavigation={() => setNavigationOpen(open => !open)}
           onFormatChange={handleTextFormat}
           onParagraphAlignment={handleParagraphAlignment}
@@ -2174,14 +2347,27 @@ export function DocumentEditor({
           onInsertObject={type => setObjectDialogType(type)}
           onOpenPageLayout={() => setPageLayoutOpen(true)}
           onEditStory={kind => setStoryDialogKind(kind)}
+          spellCheck={spellCheck}
+          onSpellCheck={() => setSpellCheck(value => !value)}
+          onUndo={() => session.history(false, selectionBookmark.current)}
+          onRedo={() => session.history(true, selectionBookmark.current)}
+          canUndo={session.model.current.undo.length > 0}
+          canRedo={session.model.current.redo.length > 0}
         />
-        {error ? <div className={styles.errorBar}>{error}</div> : null}
+        {error ? (
+          <div className={styles.errorBar} role="alert">
+            <span>{error}</span>
+            <IconButton
+              size="16"
+              aria-label={i18n['com.affine.localmind.native-files.close']()}
+              onClick={() => setError(null)}
+            >
+              <CloseIcon />
+            </IconButton>
+          </div>
+        ) : null}
         <div className={styles.workspace} data-navigation-open={navigationOpen}>
-          <aside
-            className={styles.navigation}
-            aria-label={i18n['com.affine.office.document-navigation']()}
-            hidden={!navigationOpen}
-          >
+          <DocumentNavigation open={navigationOpen}>
             <div className={styles.navigationTitle}>
               {i18n['com.affine.cmdk.affine.category.affine.navigation']()}
             </div>
@@ -2278,27 +2464,16 @@ export function DocumentEditor({
             <div className={styles.pageCount}>
               {i18n.t('com.affine.office.page-count', { count: pages.length })}
             </div>
-          </aside>
+          </DocumentNavigation>
           <main
             ref={rootRef}
             className={styles.canvas}
             onKeyDown={handleEditorKeyDown}
-            onInput={event => {
-              if (!registerDraft || readOnly) return;
-              const target =
-                event.target instanceof HTMLElement
-                  ? event.target.closest<HTMLElement>('[data-office-block-id]')
-                  : null;
-              const paragraph = paragraphs.find(
-                item => item.id === target?.dataset.officeBlockId
-              );
-              if (!target || !paragraph) return;
-              const text = target.textContent ?? '';
-              if (text === paragraph.text)
-                paragraphDrafts.current.delete(paragraph.id);
-              else
-                paragraphDrafts.current.set(paragraph.id, { paragraph, text });
-              setDraftVersion(value => value + 1);
+            spellCheck={spellCheck}
+            onMouseDown={input.paperMouseDown}
+            onPointerDown={() => {
+              setTypingFormat(null);
+              session.model.current.lastGroup = '';
             }}
             tabIndex={0}
             aria-label={i18n['com.affine.office.document-pages']()}
@@ -2306,12 +2481,7 @@ export function DocumentEditor({
             {pages.map(page => (
               <article
                 className={styles.page}
-                // Native contenteditable nodes are mutated by the browser. A
-                // successful save advances the immutable revision, so remount
-                // the page instead of reconciling new semantic runs against
-                // that mutated DOM (which can otherwise duplicate inserted
-                // text until the next reload).
-                key={`${revision.id}:${page.index}`}
+                key={page.index}
                 data-page-number={page.index + 1}
                 style={
                   {
@@ -2329,18 +2499,17 @@ export function DocumentEditor({
                     {storyText(defaultHeader)}
                   </div>
                 ) : null}
-                <div className={styles.pageContent}>
+                <div className={styles.pageContent} data-office-page-content>
                   <Blocks
                     blocks={page.blocks}
                     paragraphOrder={paragraphOrder}
-                    editingDisabled={saving || readOnly}
+                    editingDisabled={
+                      readOnly ||
+                      commandSaving ||
+                      session.model.current.conflict
+                    }
                     packageUrl={revision.packageUrl}
-                    onParagraphCommit={(paragraph, text) => {
-                      if (!registerDraft)
-                        void handleParagraphCommit(paragraph, text).catch(
-                          caught => setError(officeErrorMessage(caught, owner))
-                        );
-                    }}
+                    onParagraphCommit={() => {}}
                   />
                 </div>
                 {defaultFooter ? (

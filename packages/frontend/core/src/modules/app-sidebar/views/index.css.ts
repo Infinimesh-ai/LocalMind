@@ -64,18 +64,10 @@ export const navStyle = style({
   display: 'flex',
   flexDirection: 'column',
 });
-export const navHeaderStyle = style({
-  flex: '0 0 auto',
-  height: '52px',
-  padding: '0px 8px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-});
-
 export const navBodyStyle = style({
   flex: '1 1 auto',
-  height: 'calc(100% - 52px)',
+  minHeight: 0,
+  height: '100%',
   display: 'flex',
   flexDirection: 'column',
   rowGap: '4px',

@@ -25,6 +25,7 @@ export type OfficeResourceHeaderProps = {
   historical: boolean;
   busy: boolean;
   returningLatest: boolean;
+  status?: { text: string; attention: boolean };
   actionsStart?: ReactNode;
   actionsEnd?: ReactNode;
   onAI?: () => void;
@@ -45,6 +46,7 @@ export function OfficeResourceHeader({
   historical,
   busy,
   returningLatest,
+  status,
   actionsStart,
   actionsEnd,
   onAI,
@@ -72,6 +74,19 @@ export function OfficeResourceHeader({
         {icon}
         <span>{title}</span>
         <span className={styles.revision}>v{revisionSequence}</span>
+        {status ? (
+          <Tooltip content={status.text}>
+            <span
+              className={styles.status}
+              role="status"
+              aria-atomic="true"
+              data-attention={status.attention}
+              tabIndex={0}
+            >
+              {status.text}
+            </span>
+          </Tooltip>
+        ) : null}
       </div>
       <div className={styles.actions}>
         {actionsStart}

@@ -32,8 +32,8 @@ export const TypeConfirmDialog = ({
   description,
   targetText,
   inputPlaceholder,
-  cancelText = 'Cancel',
-  confirmText = 'Confirm',
+  cancelText,
+  confirmText,
   confirmButtonVariant = 'destructive',
   onConfirm,
   onClose,
@@ -83,7 +83,7 @@ export const TypeConfirmDialog = ({
               size="sm"
               onClick={handleClose}
             >
-              {cancelText}
+              {cancelText ?? i18n['Cancel']()}
             </Button>
             <Button
               type="button"
@@ -92,7 +92,7 @@ export const TypeConfirmDialog = ({
               size="sm"
               variant={confirmButtonVariant}
             >
-              {confirmText}
+              {confirmText ?? i18n['Confirm']()}
             </Button>
           </div>
         </DialogFooter>

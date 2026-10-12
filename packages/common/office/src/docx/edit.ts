@@ -1,5 +1,8 @@
 import {
+  isStableDocxParagraphId,
   type OfficeDocumentContentControlTextCommand,
+  type OfficeDocumentEditCommand,
+  type OfficeDocumentEditParagraph,
   type OfficeDocumentFormatParagraphCommand,
   type OfficeDocumentFormatTextCommand,
   type OfficeDocumentHeaderFooterTextCommand,
@@ -20,6 +23,7 @@ import {
   nextOoxmlRelationshipId,
   relativeOoxmlTarget,
 } from '../ooxml';
+import { isEditableParagraphXml } from './editable';
 import {
   type DocxOpcPackage,
   DocxPackageError,
@@ -2380,6 +2384,8 @@ export function applyDocxCommand(
   input: unknown
 ): DocxCommandResult {
   const command = parseOfficeCommand(input);
+  if (command.operation === 'office.document.edit')
+    return applyParagraphTransaction(pkg, command);
   if (command.operation === 'office.document.object.insert') {
     return applyInsertObject(pkg, command);
   }
@@ -2626,6 +2632,319 @@ export function applyDocxCommand(
       changedParagraphs,
       changedRuns,
       splitRuns,
+    },
+  };
+}
+
+function serializeEditParagraph(
+  paragraph: OfficeDocumentEditParagraph,
+  prefix: string
+): OrderedXmlNode {
+  const prop = (name: string, value: string) =>
+    createElement(prefix, name, { [qualify(prefix, 'val')]: value });
+  const p = createElement(prefix, 'p', {
+    'lm14:paraId': paragraph.id.slice(10),
+  });
+  const pChildren = p[qualify(prefix, 'p')] as OrderedXmlNode[];
+  const properties = paragraph.properties ?? {};
+  const pPr = createElement(prefix, 'pPr');
+  const pc = pPr[qualify(prefix, 'pPr')] as OrderedXmlNode[];
+  if (properties.styleId) pc.push(prop('pStyle', properties.styleId));
+  for (const [key, value] of [
+    ['keepNext', properties.keepNext],
+    ['keepLines', properties.keepLines],
+    ['pageBreakBefore', properties.pageBreakBefore],
+  ] as const)
+    if (value !== undefined) pc.push(prop(key, value ? '1' : '0'));
+  if (properties.numbering) {
+    const n = createElement(prefix, 'numPr');
+    n[qualify(prefix, 'numPr')] = [
+      prop('ilvl', String(properties.numbering.level ?? 0)),
+      prop('numId', properties.numbering.id ?? '0'),
+    ];
+    pc.push(n);
+  }
+  if (properties.spacing)
+    pc.push(
+      createElement(
+        prefix,
+        'spacing',
+        Object.fromEntries(
+          Object.entries(properties.spacing)
+            .map(([k, v]) => [
+              qualify(
+                prefix,
+                k === 'linePt' ? 'line' : k === 'beforePt' ? 'before' : 'after'
+              ),
+              String(Math.round(v * 20)),
+            ])
+            .concat(
+              properties.spacing.linePt
+                ? [[qualify(prefix, 'lineRule'), 'exact']]
+                : []
+            )
+        )
+      )
+    );
+  if (properties.indent)
+    pc.push(
+      createElement(
+        prefix,
+        'ind',
+        Object.fromEntries(
+          Object.entries(properties.indent).map(([k, v]) => [
+            qualify(prefix, k.replace('Pt', '')),
+            String(Math.round(v * 20)),
+          ])
+        )
+      )
+    );
+  if (properties.alignment) pc.push(prop('jc', properties.alignment));
+  if (properties.outlineLevel !== undefined)
+    pc.push(prop('outlineLvl', String(properties.outlineLevel)));
+  if (pc.length) pChildren.push(pPr);
+  for (const run of paragraph.runs) {
+    for (const char of run.text) {
+      const n = char.codePointAt(0) ?? 0;
+      if (
+        (n < 32 && ![9, 10, 13].includes(n)) ||
+        (n >= 0xd800 && n <= 0xdfff) ||
+        n === 0xfffe ||
+        n === 0xffff
+      )
+        throw new DocxPackageError('Invalid XML text in document edit');
+    }
+    const r = createElement(prefix, 'r');
+    const rc = r[qualify(prefix, 'r')] as OrderedXmlNode[];
+    const rPr = createElement(prefix, 'rPr');
+    const f = run.format ?? {};
+    const fc = rPr[qualify(prefix, 'rPr')] as OrderedXmlNode[];
+    const fonts =
+      f.fonts ??
+      (f.fontFamily
+        ? {
+            ascii: f.fontFamily,
+            highAnsi: f.fontFamily,
+            eastAsia: f.fontFamily,
+            complexScript: f.fontFamily,
+          }
+        : undefined);
+    if (fonts)
+      fc.push(
+        createElement(
+          prefix,
+          'rFonts',
+          Object.fromEntries(
+            Object.entries(fonts).map(([k, v]) => [
+              qualify(
+                prefix,
+                k === 'highAnsi' ? 'hAnsi' : k === 'complexScript' ? 'cs' : k
+              ),
+              v,
+            ])
+          )
+        )
+      );
+    for (const [name, value] of [
+      ['b', f.bold],
+      ['i', f.italic],
+      ['strike', f.strike],
+    ] as const)
+      if (value !== undefined) fc.push(prop(name, value ? '1' : '0'));
+    if (f.color || f.themeColor)
+      fc.push(
+        createElement(prefix, 'color', {
+          [qualify(prefix, 'val')]: f.color?.replace('#', '') ?? 'auto',
+          ...(f.themeColor
+            ? { [qualify(prefix, 'themeColor')]: f.themeColor }
+            : {}),
+        })
+      );
+    if (f.fontSizePt) fc.push(prop('sz', String(f.fontSizePt * 2)));
+    if (f.complexScriptFontSizePt)
+      fc.push(prop('szCs', String(f.complexScriptFontSizePt * 2)));
+    if (f.highlight) fc.push(prop('highlight', f.highlight));
+    if (f.underline !== undefined)
+      fc.push(
+        createElement(prefix, 'u', {
+          [qualify(prefix, 'val')]:
+            f.underline === false
+              ? 'none'
+              : f.underline.style === 'dashed'
+                ? 'dash'
+                : f.underline.style,
+          ...(f.underline && f.underline.color
+            ? { [qualify(prefix, 'color')]: f.underline.color.replace('#', '') }
+            : {}),
+        })
+      );
+    if (f.verticalAlign) fc.push(prop('vertAlign', f.verticalAlign));
+    if (f.language) fc.push(prop('lang', f.language));
+    if (fc.length) rc.push(rPr);
+    for (const text of run.text.split(/(\n|\t)/))
+      if (text)
+        rc.push(
+          text === '\n'
+            ? createElement(prefix, 'br')
+            : text === '\t'
+              ? createElement(prefix, 'tab')
+              : createTextNode(prefix, text)
+        );
+    pChildren.push(r);
+  }
+  return p;
+}
+
+function applyParagraphTransaction(
+  pkg: DocxOpcPackage,
+  command: OfficeDocumentEditCommand
+): DocxCommandResult {
+  const before = readDocxSemanticState(pkg);
+  const semantics: DocxParagraph[] = [];
+  collectSemanticParagraphs(before.body, semantics);
+  const xml = parsePreservedXml(
+    pkg.requirePart(pkg.documentPart),
+    pkg.documentPart,
+    pkg.limits.maxXmlPartBytes
+  );
+  const body = requireRootBody(xml);
+  const elements: ElementRef[] = [];
+  collectParagraphElements(body, elements);
+  if (elements.length !== semantics.length)
+    throw new DocxPackageError('Document paragraph mapping changed');
+  const root = findChild(xml, 'document');
+  if (!root) throw new DocxPackageError('Document root is missing');
+  const rootAttrs = { ...attributes(root) };
+  const namespace = 'http://schemas.microsoft.com/office/word/2010/wordml';
+  if (rootAttrs['xmlns:lm14'] && rootAttrs['xmlns:lm14'] !== namespace)
+    throw new DocxPackageError('Document namespace conflict');
+  rootAttrs['xmlns:lm14'] = namespace;
+  const compatibilityNamespace =
+    'http://schemas.openxmlformats.org/markup-compatibility/2006';
+  const ignorableKey = Object.keys(rootAttrs).find(
+    key =>
+      key.endsWith(':Ignorable') &&
+      rootAttrs[`xmlns:${key.split(':')[0]}`] === compatibilityNamespace
+  );
+  if (!ignorableKey) {
+    if (
+      rootAttrs['xmlns:lmmc'] &&
+      rootAttrs['xmlns:lmmc'] !== compatibilityNamespace
+    )
+      throw new DocxPackageError('Document compatibility namespace conflict');
+    rootAttrs['xmlns:lmmc'] = compatibilityNamespace;
+  }
+  const key = ignorableKey ?? 'lmmc:Ignorable';
+  rootAttrs[key] = [
+    ...new Set(
+      (rootAttrs[key] ?? '').split(/\s+/).filter(Boolean).concat('lm14')
+    ),
+  ].join(' ');
+  root[':@'] = rootAttrs;
+  const originalIds = new Set(semantics.map(p => p.id));
+  const identities = new Map<string, string>();
+  for (const entry of command.identities) {
+    if (identities.has(entry.blockId) || !originalIds.has(entry.blockId))
+      throw new DocxPackageError('Invalid paragraph identity');
+    identities.set(entry.blockId, entry.id);
+  }
+  const byId = new Map<string, ElementRef>();
+  for (let index = 0; index < semantics.length; index++) {
+    const old = semantics[index];
+    const id = identities.get(old.id) ?? old.id;
+    if (byId.has(id))
+      throw new DocxPackageError('Duplicate paragraph identity');
+    byId.set(id, elements[index]);
+    if (identities.has(old.id)) {
+      // Existing valid, unique identities cannot be reassigned by the client.
+      if (isStableDocxParagraphId(old.id) && old.id !== id)
+        throw new DocxPackageError('Stable paragraph identity cannot change');
+      const attrs = { ...attributes(elements[index].node) };
+      deleteAttribute(attrs, 'paraId');
+      attrs['lm14:paraId'] = id.slice(10);
+      elements[index].node[':@'] = attrs;
+    }
+  }
+  const touched = new Set<string>();
+  const outputs = new Set<string>();
+  for (const patch of command.patches) {
+    const refs = patch.targets.map(id => {
+      const ref = byId.get(id);
+      if (!ref || touched.has(id) || !isEditableParagraphXml(ref.node))
+        throw new DocxPackageError(
+          'Document edit crosses an unsupported paragraph boundary'
+        );
+      touched.add(id);
+      return ref;
+    });
+    if (
+      refs.some(
+        (ref, index) =>
+          ref.parent !== refs[0].parent || ref.index !== refs[0].index + index
+      )
+    )
+      throw new DocxPackageError(
+        'Document edit requires adjacent paragraphs in one container'
+      );
+    for (const p of patch.paragraphs) {
+      if (outputs.has(p.id))
+        throw new DocxPackageError('Duplicate inserted paragraph');
+      outputs.add(p.id);
+    }
+  }
+  for (const id of outputs)
+    if (byId.has(id) && !touched.has(id))
+      throw new DocxPackageError(
+        'Inserted paragraph identity is already in use'
+      );
+  // Resolve indices from node identity, since earlier patches may shift siblings.
+  for (const patch of command.patches) {
+    const first = byId.get(patch.targets[0]);
+    if (!first) throw new DocxPackageError('Document target is missing');
+    first.parent.splice(
+      first.parent.indexOf(first.node),
+      patch.targets.length,
+      ...patch.paragraphs.map(p =>
+        serializeEditParagraph(p, prefixOf(first.key))
+      )
+    );
+  }
+  for (const id of touched) {
+    const parent = byId.get(id)?.parent;
+    if (
+      parent &&
+      !parent.some(node => localName(elementKey(node) ?? '') === 'p')
+    )
+      throw new DocxPackageError('Document container must retain a paragraph');
+  }
+  const bytes = buildPreservedXml(
+    xml,
+    pkg.documentPart,
+    pkg.limits.maxXmlPartBytes
+  );
+  const packageBytes = pkg.write(new Map([[pkg.documentPart, bytes]]));
+  const state = readDocxSemanticState(
+    openDocxPackage(packageBytes, pkg.limits)
+  );
+  const after: DocxParagraph[] = [];
+  collectSemanticParagraphs(state.body, after);
+  if (!after.length)
+    throw new DocxPackageError('Document must retain a paragraph');
+  for (const patch of command.patches)
+    for (const p of patch.paragraphs) {
+      if (
+        after.find(a => a.id === p.id)?.text !==
+        p.runs.map(r => r.text).join('')
+      )
+        throw new DocxPackageError('Document edit round trip changed text');
+    }
+  return {
+    packageBytes,
+    state,
+    summary: {
+      operation: command.operation,
+      changedParagraphs: touched.size,
+      insertedParagraphs: outputs.size,
     },
   };
 }

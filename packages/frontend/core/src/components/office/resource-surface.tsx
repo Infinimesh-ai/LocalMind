@@ -69,6 +69,25 @@ export function OfficeResourceSurface({
         historical={session.historical || session.conflict}
         busy={session.busy}
         returningLatest={session.busy}
+        status={{
+          text: session.conflict
+            ? t['com.affine.localmind.project-files.conflict']()
+            : session.historical
+              ? t['com.affine.office.historical-revision-read-only']()
+              : session.busy
+                ? t['com.affine.localmind.project-files.saving']()
+                : !capabilities.canEdit
+                  ? (capabilities.readOnlyReason ??
+                    t['com.affine.share-menu.option.link.readonly']())
+                  : t[
+                      session.unsaved
+                        ? 'com.affine.localmind.project-files.unsaved'
+                        : owner.kind === 'project'
+                          ? 'com.affine.localmind.project-files.saved'
+                          : 'com.affine.admin.saved'
+                    ](),
+          attention: session.unsaved || session.conflict || !!session.error,
+        }}
         capabilities={capabilities}
         onLatest={() => void session.run(() => session.selectRevision(null))}
         onDownload={() =>
@@ -142,24 +161,6 @@ export function OfficeResourceSurface({
       </CenterState>
     ) : (
       <>
-        <div className={styles.sessionStatus} role="status">
-          {session.conflict
-            ? t['com.affine.localmind.project-files.conflict']()
-            : session.historical
-              ? t['com.affine.office.historical-revision-read-only']()
-              : session.busy
-                ? t['com.affine.localmind.project-files.saving']()
-                : !capabilities.canEdit
-                  ? (capabilities.readOnlyReason ??
-                    t['com.affine.share-menu.option.link.readonly']())
-                  : t[
-                      session.unsaved
-                        ? 'com.affine.localmind.project-files.unsaved'
-                        : owner.kind === 'project'
-                          ? 'com.affine.localmind.project-files.saved'
-                          : 'com.affine.admin.saved'
-                    ]()}
-        </div>
         {session.error ? (
           <CenterState alert>
             <span>{session.error}</span>

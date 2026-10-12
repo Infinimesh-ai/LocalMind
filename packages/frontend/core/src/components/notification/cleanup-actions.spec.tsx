@@ -9,6 +9,7 @@ import {
   within,
 } from '@testing-library/react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -45,6 +46,7 @@ vi.mock('@affine/component', () => {
     size: _size,
     variant: _variant,
     loading: _loading,
+    suffix: _suffix,
     children,
     ...props
   }: ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -53,6 +55,7 @@ vi.mock('@affine/component', () => {
     size?: number;
     variant?: string;
     loading?: boolean;
+    suffix?: ReactNode;
   }) => (
     <button {...props}>
       {icon}
@@ -60,6 +63,7 @@ vi.mock('@affine/component', () => {
     </button>
   );
   return {
+    Avatar: () => <span />,
     Button,
     IconButton: Button,
     MenuItem: ({
@@ -85,6 +89,7 @@ import {
   NotificationCleanupActions,
   NotificationItemActions,
 } from './cleanup-actions';
+import { WorkOrderNotificationItem } from './work-order';
 
 const key = (name: string) => `com.affine.notification.${name}`;
 beforeEach(() => {
@@ -170,4 +175,83 @@ test('failed clearing reports an error and keeps confirmation available for retr
   );
   await waitFor(() => expect(state.error).toHaveBeenCalledOnce());
   expect(screen.getByRole('dialog')).toBeTruthy();
+});
+
+function Location() {
+  return <output>{useLocation().pathname}</output>;
+}
+
+test('work order renders localized status and navigation does not run when deleting a notice', async () => {
+  render(
+    <MemoryRouter initialEntries={['/inbox']}>
+      <Location />
+      <WorkOrderNotificationItem
+        notification={
+          {
+            id: 'work-order-notice',
+            read: false,
+            type: NotificationType.WorkOrder,
+            body: {
+              workOrderId: 'order',
+              title: 'Review the proposal',
+              status: 'open',
+              viewerRole: 'recipient',
+            },
+          } as Notification
+        }
+      />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText('com.affine.localmind.workbench.v9.workOrderStatusOpen')
+  ).toBeTruthy();
+  expect(screen.queryByText('open')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: key('delete') }));
+  expect(screen.getByText('/inbox')).toBeTruthy();
+  expect(state.service.dismissNotification).toHaveBeenCalledWith(
+    'work-order-notice'
+  );
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.workbench.v9.openWorkOrder',
+    })
+  );
+  expect(screen.getByText('/project/work-orders/order')).toBeTruthy();
+  expect(state.service.readNotification).toHaveBeenCalledWith(
+    'work-order-notice'
+  );
+});
+
+test('unavailable work orders keep cleanup available but cannot be opened', () => {
+  render(
+    <MemoryRouter>
+      <WorkOrderNotificationItem
+        notification={
+          {
+            id: 'gone',
+            read: false,
+            type: NotificationType.WorkOrder,
+            body: {
+              workOrderId: 'order',
+              title: 'No longer available',
+              status: 'unavailable',
+            },
+          } as Notification
+        }
+      />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText('com.affine.localmind.accessNotification.unavailable')
+  ).toBeTruthy();
+  expect(
+    screen
+      .getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.openWorkOrder',
+      })
+      .hasAttribute('disabled')
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: key('delete') }).hasAttribute('disabled')
+  ).toBe(false);
 });

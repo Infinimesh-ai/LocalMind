@@ -435,6 +435,7 @@ export class WorkspaceDirectoryResolver {
   }
 
   @Query(() => WorkspaceDirectoryPageType)
+  @Throttle('default', { bucket: 'workspace-tree-read' })
   async workspaceDirectory(
     @CurrentUser() actor: Actor,
     @Args('workspaceId', { type: () => ID }) workspaceId: string,

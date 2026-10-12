@@ -1,3 +1,4 @@
+import { isComposingKeyboardEvent } from '@affine/component';
 import type {
   AIDraftService,
   AIToolsConfigService,
@@ -723,7 +724,12 @@ export class AIChatInput extends SignalWatcher(
   };
 
   private readonly _handleKeyDown = async (evt: KeyboardEvent) => {
-    if (evt.key === 'Enter' && !evt.shiftKey && !evt.isComposing) {
+    if (
+      evt.key === 'Enter' &&
+      !evt.shiftKey &&
+      !isComposingKeyboardEvent(evt) &&
+      !evt.repeat
+    ) {
       await this._onTextareaSend(evt);
     }
   };

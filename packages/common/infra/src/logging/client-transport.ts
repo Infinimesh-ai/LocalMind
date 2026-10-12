@@ -1,3 +1,4 @@
+import { DebugLogger } from '@affine/debug';
 import { nanoid } from 'nanoid';
 
 export type ClientLogEvent = {
@@ -23,7 +24,7 @@ export function installLocalMindConsoleBridge(
     console[level] = ((...args: unknown[]) => {
       original(...args);
       const target = activeConsoleTransport;
-      if (!target) return;
+      if (!target || DebugLogger.isMirroringToConsole) return;
       const [message, ...metadata] = args;
       void target
         .write({
@@ -72,6 +73,11 @@ function sanitize(value: unknown): unknown {
 export class LocalMindClientLogTransport {
   private readonly queue: ClientLogEvent[];
   private readonly storageKey: string;
+  private flushing?: Promise<void>;
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private retryDelay = 1000;
+  private request?: AbortController;
+  private disposed = false;
   constructor(
     private readonly endpoint: string,
     private readonly maxQueue = 200
@@ -85,9 +91,11 @@ export class LocalMindClientLogTransport {
     } catch {
       this.queue = [];
     }
+    this.scheduleRetry();
   }
 
   async write(event: ClientLogEvent) {
+    if (this.disposed) return event.eventId ?? nanoid();
     const item = {
       ...event,
       eventId: event.eventId ?? nanoid(),
@@ -96,27 +104,90 @@ export class LocalMindClientLogTransport {
     this.queue.push(item);
     while (this.queue.length > this.maxQueue) this.queue.shift();
     this.save();
-    await this.flush();
+    if (!this.retryTimer) await this.flush();
     return item.eventId;
   }
 
-  async flush() {
-    if (!this.queue.length) return;
-    try {
-      const response = await fetch(
-        `${this.endpoint.replace(/\/$/, '')}/api/logs/batch`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ events: this.queue }),
+  flush(): Promise<void> {
+    if (this.flushing) return this.flushing;
+    if (this.disposed || !this.queue.length) return Promise.resolve();
+    clearTimeout(this.retryTimer);
+    this.retryTimer = undefined;
+    // Install the guard before fetch can trigger more console/debug events.
+    this.flushing = Promise.resolve()
+      .then(() => this.drain())
+      .finally(() => {
+        this.flushing = undefined;
+        this.scheduleRetry();
+      });
+    return this.flushing;
+  }
+
+  dispose() {
+    this.disposed = true;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = undefined;
+    this.request?.abort();
+  }
+
+  private async drain() {
+    while (this.queue.length && !this.disposed) {
+      // Match the ingestion limit and never send a live, growing queue.
+      const batch = this.queue.slice(0, 100);
+      const sentIds = new Set(batch.map(event => event.eventId));
+      const request = new AbortController();
+      this.request = request;
+      const timeout = setTimeout(() => request.abort(), 10000);
+      try {
+        const response = await fetch(
+          `${this.endpoint.replace(/\/$/, '')}/api/logs/batch`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ events: batch }),
+            signal: request.signal,
+          }
+        );
+        if (!response.ok) return;
+        const result: unknown = await response.json();
+        if (
+          !result ||
+          typeof result !== 'object' ||
+          !('eventIds' in result) ||
+          !Array.isArray(result.eventIds)
+        )
+          return;
+        const accepted = new Set(
+          result.eventIds.filter(
+            (id): id is string => typeof id === 'string' && sentIds.has(id)
+          )
+        );
+        for (let index = this.queue.length - 1; index >= 0; index--) {
+          const eventId = this.queue[index].eventId;
+          if (eventId && accepted.has(eventId)) this.queue.splice(index, 1);
         }
-      );
-      if (response.ok) this.queue.splice(0, this.queue.length);
-      this.save();
-    } catch {
-      // Keep the bounded queue for retry when connectivity returns.
+        this.save();
+        // A partial receipt must not produce an immediate retry loop.
+        if (accepted.size < sentIds.size) return;
+        this.retryDelay = 1000;
+      } catch {
+        // Keep unacknowledged events for a bounded retry after an outage.
+        return;
+      } finally {
+        clearTimeout(timeout);
+        this.request = undefined;
+      }
     }
+  }
+
+  private scheduleRetry() {
+    if (this.disposed || !this.queue.length || this.retryTimer) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      void this.flush().catch(() => undefined);
+    }, this.retryDelay);
+    this.retryDelay = Math.min(this.retryDelay * 2, 30000);
   }
 
   get pending() {

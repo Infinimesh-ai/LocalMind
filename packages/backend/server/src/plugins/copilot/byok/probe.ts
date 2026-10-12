@@ -1,6 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
-
 import type { safeFetch } from '../../../base';
+import { BadRequest } from '../../../base/error';
 import { resolveByokApiStyle } from '../../../models/copilot-byok-protocol';
 import { ByokProvider } from './types';
 
@@ -8,7 +7,7 @@ const TEST_TIMEOUT_MS = 10_000;
 export const PROVIDER_PROBE_MAX_BYTES = 1024 * 1024;
 
 // Only errors constructed here contain safe, locally defined probe messages.
-export class ProviderProbeError extends BadRequestException {}
+export class ProviderProbeError extends BadRequest {}
 
 type ProbeFetch = typeof safeFetch;
 type ProbeOperation = 'model_catalog' | 'chat';
@@ -37,6 +36,7 @@ export async function runProviderProbe(
   modelId?: string | null,
   apiStyle?: string | null
 ): Promise<ProviderProbeResult> {
+  assertKnownEndpointProtocol(provider, endpoint);
   const request = buildProbeRequest(
     provider,
     apiKey,
@@ -59,9 +59,16 @@ export async function runProviderProbe(
       allowHttp: endpoint?.startsWith('http:') ?? false,
       allowPrivateTargetOrigin: allowPrivateEndpoint,
     }
-  );
+  ).catch((error: unknown) => {
+    // Never forward transport messages: they can contain URLs or credentials.
+    throw new ProviderProbeError(
+      error instanceof Error && error.name === 'TimeoutError'
+        ? 'Provider request timed out.'
+        : 'Provider connection failed.'
+    );
+  });
   if (!response.ok) {
-    throw new ProviderProbeError(providerProbeFailureMessage(response.status));
+    throw new ProviderProbeError(await providerProbeFailureMessage(response));
   }
 
   const payload = await parseProbePayload(response);
@@ -88,6 +95,31 @@ export async function runProviderProbe(
           ? [modelId]
           : [],
   };
+}
+
+function assertKnownEndpointProtocol(
+  provider: ByokProvider,
+  endpoint: string | null
+) {
+  if (!endpoint) return;
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return; // URL validation remains owned by safeFetch.
+  }
+  if (url.hostname !== 'api.deepseek.com') return;
+  const path = url.pathname.replace(/\/+$/, '');
+  if (provider !== ByokProvider.openai && (path === '' || path === '/v1')) {
+    throw new ProviderProbeError(
+      'DeepSeek OpenAI endpoint requires the OpenAI provider.'
+    );
+  }
+  if (provider !== ByokProvider.anthropic && path === '/anthropic') {
+    throw new ProviderProbeError(
+      'DeepSeek Anthropic endpoint requires the Anthropic provider.'
+    );
+  }
 }
 
 function extractModelIds(provider: ByokProvider, payload: unknown): string[] {
@@ -348,16 +380,52 @@ function joinEndpoint(endpoint: string, path: string) {
   return `${endpoint.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
-function providerProbeFailureMessage(status: number) {
+async function providerProbeFailureMessage(response: Response) {
+  const status = response.status;
+  // Read only exact, known error codes. Upstream messages, request bodies and
+  // unknown codes must never cross the credentials UI or audit boundary.
+  if ([400, 402, 403, 404, 422, 429].includes(status)) {
+    const payload: unknown = await response.json().catch(() => null);
+    const error =
+      isRecord(payload) && isRecord(payload.error) ? payload.error : null;
+    const codes = [error?.code, error?.type];
+    if (
+      codes.some(
+        code => code === 'insufficient_quota' || code === 'insufficient_balance'
+      )
+    ) {
+      return 'Provider account has insufficient quota.';
+    }
+    if (
+      [400, 403, 404, 422].includes(status) &&
+      codes.some(
+        code =>
+          code === 'model_not_found' ||
+          code === 'invalid_model' ||
+          code === 'model_not_supported'
+      )
+    ) {
+      return 'Provider model was not found or is not accessible.';
+    }
+  }
   switch (status) {
     case 401:
       return 'Provider rejected the BYOK key.';
     case 403:
       return 'Provider rejected the BYOK key permissions.';
+    case 402:
+      return 'Provider account has insufficient quota.';
+    case 400:
+    case 405:
+    case 422:
+      return 'Provider rejected the request format.';
     case 404:
       return 'Provider probe endpoint was not found.';
     case 429:
       return 'Provider rate limit exceeded while testing the key.';
+    case 408:
+    case 504:
+      return 'Provider request timed out.';
     default:
       return status >= 500
         ? 'Provider service is unavailable.'

@@ -78,14 +78,6 @@ export const toolbarDivider = style({
   background: cssVarV2('layer/insideBorder/border'),
 });
 
-export const toolbarSpacer = style({ flex: 1, minWidth: 8 });
-
-export const selectionStatus = style({
-  flexShrink: 0,
-  color: cssVarV2('text/tertiary'),
-  fontSize: 11,
-});
-
 export const colorControl = style({
   width: 28,
   height: 28,
@@ -133,6 +125,10 @@ globalStyle(`${colorControl}::after`, {
 
 export const errorBar = style({
   minHeight: 34,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
   padding: '8px 12px',
   borderBottom: `0.5px solid ${cssVarV2('status/error')}`,
   background: cssVarV2('layer/background/error'),
@@ -246,22 +242,59 @@ export const dialogActions = style({
 
 export const workspace = style({
   minHeight: 0,
-  display: 'grid',
+  display: 'flex',
   gridRow: 3,
-  gridTemplateColumns: '220px minmax(0, 1fr)',
   overflow: 'hidden',
-  selectors: {
-    '&[data-navigation-open="false"]': {
-      gridTemplateColumns: 'minmax(0, 1fr)',
-    },
-  },
   '@media': {
-    'screen and (max-width: 820px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
     print: { display: 'block', overflow: 'visible' },
   },
 });
 
+export const navigationPanel = style({
+  position: 'relative',
+  flexShrink: 0,
+  maxWidth: '45%',
+  minWidth: 0,
+  minHeight: 0,
+  selectors: { '&[hidden]': { display: 'none' } },
+  '@media': {
+    'screen and (max-width: 820px)': { display: 'none' },
+    print: { display: 'none' },
+  },
+});
+
+export const navigationResizeHandle = style({
+  position: 'absolute',
+  zIndex: 3,
+  top: 0,
+  right: -4,
+  bottom: 0,
+  width: 8,
+  cursor: 'col-resize',
+  touchAction: 'none',
+  selectors: {
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      left: 3,
+      width: 2,
+      background: cssVarV2('button/primary'),
+      opacity: 0,
+    },
+    '&:hover::after, &:focus-visible::after, &[data-dragging="true"]::after': {
+      opacity: 1,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outlineOffset: -2,
+    },
+  },
+});
+
 export const navigation = style({
+  height: '100%',
   minWidth: 0,
   minHeight: 0,
   display: 'flex',
@@ -370,6 +403,7 @@ export const pageCount = style({
 });
 
 export const canvas = style({
+  flex: 1,
   minWidth: 0,
   minHeight: 0,
   overflow: 'auto',
@@ -463,11 +497,8 @@ export const paragraph = style({
   letterSpacing: 0,
   scrollMarginTop: 70,
   outline: 0,
-  selectors: {
-    '&:focus': {
-      boxShadow: '0 1px 0 #8eb8ff',
-    },
-  },
+  caretColor: '#1f2329',
+  cursor: 'text',
 });
 
 export const inlineObject = style({
@@ -590,11 +621,6 @@ globalStyle(`${centerState} span`, {
   lineHeight: '20px',
 });
 
-export const sessionStatus = style({
-  padding: '6px 16px',
-  fontSize: 12,
-  '@media': { print: { display: 'none' } },
-});
 export const draftActions = style({
   display: 'flex',
   gap: 8,

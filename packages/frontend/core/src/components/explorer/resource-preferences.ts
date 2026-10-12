@@ -66,6 +66,15 @@ export function migrateResourcePreference(
       ...defaults,
       ...saved,
       resourceProperties: { ...properties },
+      ...((saved?.view ?? defaults.view) === 'list'
+        ? {
+            resourceListLayoutVersion: 1 as const,
+            showDocPreview:
+              saved?.resourceListLayoutVersion === 1
+                ? (saved.showDocPreview ?? false)
+                : false,
+          }
+        : {}),
       orderBy: validSort
         ? {
             type: 'system',

@@ -121,98 +121,88 @@ export class LocalMindLogService {
   }
 
   async write(input: LocalMindLogInput) {
-    const cls = ClsServiceManager.getClsService();
-    const eventId = input.eventId ?? randomUUID();
-    const record: SpoolRecord = {
-      eventId,
-      occurredAt: new Date().toISOString(),
-      instanceId: this.instanceId,
-      nodeId: this.nodeId,
-      service: input.service ?? 'backend',
-      component: input.component,
-      severity: input.severity ?? 'info',
-      eventName: input.eventName,
-      messageTemplate: this.safeMessage(input.message),
-      requestId: input.requestId ?? cls?.getId(),
-      traceId: input.traceId,
-      spanId: input.spanId,
-      actorType: input.actorType,
-      actorIdHash: hashActor(input.actorId),
-      workspaceId: input.workspaceId,
-      projectId: input.projectId,
-      resourceType: input.resourceType,
-      resourceId: input.resourceId,
-      status: input.status,
-      errorCode: input.errorCode,
-      durationMs: input.durationMs,
-      metadata: redact(input.metadata),
-      redactionVersion: 'v1',
-      retentionClass: input.retentionClass ?? 'runtime',
-    };
-    this.mirror(record);
+    const record = this.buildRecord(input);
     try {
-      await this.persist(record);
-    } catch (error) {
-      // A replay with an existing event_id is already durably accepted.
-      // Treat the database uniqueness response as an idempotent success so
-      // duplicate client batches do not create needless spool records.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return eventId;
-      }
-      const hasCapacity = (await this.spool.bytes()) < this.spool.maxBytes;
-      if (
-        hasCapacity ||
-        record.severity === 'error' ||
-        record.severity === 'fatal'
-      ) {
-        try {
-          await this.spool.append(record);
-          if (record.eventName !== 'log.ingestion.degraded') {
-            await this.spool.append({
-              ...record,
-              eventId: randomUUID(),
-              eventName: 'log.ingestion.degraded',
-              severity: 'warn',
-              status: 'degraded',
-              metadata: {
-                reason: 'postgres_unavailable',
-                failedEventName: record.eventName,
-              },
-            });
-          }
-        } catch (spoolError) {
-          if (
-            !(spoolError instanceof SpoolCapacityError) ||
-            record.severity === 'error' ||
-            record.severity === 'fatal'
-          ) {
-            throw spoolError;
-          }
-          this.mirror({
-            ...record,
-            eventId: randomUUID(),
-            eventName: 'log.spool.capacity_reached',
-            severity: 'warn',
-            metadata: {
-              droppedEventName: record.eventName,
-              reason: 'capacity',
-            },
-          });
+      if (await this.persist(record)) this.mirror(record);
+    } catch {
+      if (await this.spoolRuntime(record)) this.mirror(record);
+    }
+    return record.eventId;
+  }
+
+  async writeBatch(inputs: LocalMindLogInput[]) {
+    const records = new Map<string, SpoolRecord>();
+    for (const input of inputs.slice(0, 100)) {
+      const record = this.buildRecord(input);
+      if (!records.has(record.eventId)) records.set(record.eventId, record);
+    }
+    if (!records.size) return [];
+    let inserted: { eventId: string }[];
+    try {
+      inserted = await this.prisma.$transaction(
+        tx => this.persistRuntimeBatch(tx, [...records.values()]),
+        { maxWait: 5000 }
+      );
+    } catch {
+      // A database outage costs one failed insert per batch, then durable spool.
+      const accepted: string[] = [];
+      for (const record of records.values()) {
+        if (await this.spoolRuntime(record)) {
+          this.mirror(record);
+          accepted.push(record.eventId);
         }
-      } else {
-        this.mirror({
+      }
+      return accepted;
+    }
+    for (const { eventId } of inserted) {
+      const record = records.get(eventId);
+      if (record) this.mirror(record);
+    }
+    return [...records.keys()];
+  }
+
+  private async spoolRuntime(record: SpoolRecord) {
+    const critical = record.severity === 'error' || record.severity === 'fatal';
+    const capacityReached = () => {
+      this.mirror({
+        ...record,
+        eventId: randomUUID(),
+        eventName: 'log.spool.capacity_reached',
+        severity: 'warn',
+        metadata: { droppedEventName: record.eventName, reason: 'capacity' },
+      });
+    };
+    if (!critical && (await this.spool.bytes()) >= this.spool.maxBytes) {
+      capacityReached();
+      return false;
+    }
+    try {
+      await this.spool.append(record);
+    } catch (error) {
+      if (!(error instanceof SpoolCapacityError) || critical) throw error;
+      capacityReached();
+      return false;
+    }
+    if (record.eventName !== 'log.ingestion.degraded') {
+      try {
+        await this.spool.append({
           ...record,
           eventId: randomUUID(),
-          eventName: 'log.spool.capacity_reached',
-          severity: 'error',
-          metadata: { droppedEventName: record.eventName, reason: 'capacity' },
+          eventName: 'log.ingestion.degraded',
+          severity: 'warn',
+          status: 'degraded',
+          metadata: {
+            reason: 'postgres_unavailable',
+            failedEventName: record.eventName,
+          },
         });
+      } catch (error) {
+        if (!(error instanceof SpoolCapacityError)) throw error;
+        // The original event is already durable; a full spool cannot undo it.
+        capacityReached();
       }
     }
-    return eventId;
+    return true;
   }
 
   async writeAudit(input: LocalMindAuditInput) {
@@ -926,9 +916,47 @@ export class LocalMindLogService {
           },
         });
       });
-      return;
+      return true;
     }
-    await this.persistWithClient(this.prisma, record);
+    const inserted = await this.prisma.$transaction(
+      tx => this.persistRuntimeBatch(tx, [record]),
+      { maxWait: 5000 }
+    );
+    return inserted.length > 0;
+  }
+
+  private async persistRuntimeBatch(
+    tx: Prisma.TransactionClient,
+    records: SpoolRecord[]
+  ) {
+    const eventIds = records.map(record => record.eventId);
+    // Time partitions cannot enforce global event_id uniqueness. Lock hashes in
+    // a stable order, then check committed live/archive rows before insertion.
+    await tx.$executeRaw(Prisma.sql`
+      SELECT pg_advisory_xact_lock(lock_id)
+      FROM (
+        SELECT DISTINCT hashtextextended(event_key, 0) AS lock_id
+        FROM unnest(ARRAY[${Prisma.join(eventIds.map(id => `log-ingestion:${id}`))}]::text[]) AS events(event_key)
+        ORDER BY lock_id
+      ) AS locks
+    `);
+    // UNION keeps the result distinct and bounded even if legacy ingestion has already
+    // stored many copies of these events in the partitioned table.
+    const accepted = await tx.$queryRaw<{ eventId: string }[]>(Prisma.sql`
+      SELECT event_id AS "eventId" FROM localmind_log_events
+      WHERE event_id IN (${Prisma.join(eventIds)})
+      UNION
+      SELECT event_id AS "eventId" FROM localmind_log_archives
+      WHERE event_id IN (${Prisma.join(eventIds)})
+    `);
+    const existing = new Set(accepted.map(row => row.eventId));
+    const fresh = records.filter(record => !existing.has(record.eventId));
+    if (!fresh.length) return [];
+    return await tx.localMindLogEvent.createManyAndReturn({
+      data: fresh.map(record => this.eventData(record)),
+      skipDuplicates: true,
+      select: { eventId: true },
+    });
   }
 
   private async persistAuditEnvelopeOnly(record: SpoolRecord) {
@@ -1009,45 +1037,45 @@ export class LocalMindLogService {
       | Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
     record: SpoolRecord
   ) {
-    await client.localMindLogEvent.create({
-      data: {
-        id: randomUUID(),
-        eventId: record.eventId,
-        occurredAt: new Date(String(record.occurredAt)),
-        ingestedAt: new Date(),
-        instanceId: String(record.instanceId),
-        nodeId: String(record.nodeId),
-        service: String(record.service),
-        component: record.component ? String(record.component) : undefined,
-        severity: String(record.severity),
-        eventName: String(record.eventName),
-        messageTemplate: record.messageTemplate
-          ? String(record.messageTemplate)
-          : undefined,
-        requestId: record.requestId ? String(record.requestId) : undefined,
-        traceId: record.traceId ? String(record.traceId) : undefined,
-        spanId: record.spanId ? String(record.spanId) : undefined,
-        actorType: record.actorType ? String(record.actorType) : undefined,
-        actorIdHash: record.actorIdHash
-          ? String(record.actorIdHash)
-          : undefined,
-        workspaceId: record.workspaceId
-          ? String(record.workspaceId)
-          : undefined,
-        projectId: record.projectId ? String(record.projectId) : undefined,
-        resourceType: record.resourceType
-          ? String(record.resourceType)
-          : undefined,
-        resourceId: record.resourceId ? String(record.resourceId) : undefined,
-        status: record.status ? String(record.status) : undefined,
-        errorCode: record.errorCode ? String(record.errorCode) : undefined,
-        durationMs:
-          typeof record.durationMs === 'number' ? record.durationMs : undefined,
-        metadata: record.metadata as object,
-        redactionVersion: 'v1',
-        retentionClass: String(record.retentionClass ?? 'runtime'),
-      },
-    });
+    await client.localMindLogEvent.create({ data: this.eventData(record) });
+  }
+
+  private eventData(
+    record: SpoolRecord
+  ): Prisma.LocalMindLogEventCreateManyInput {
+    return {
+      id: randomUUID(),
+      eventId: record.eventId,
+      occurredAt: new Date(String(record.occurredAt)),
+      ingestedAt: new Date(),
+      instanceId: String(record.instanceId),
+      nodeId: String(record.nodeId),
+      service: String(record.service),
+      component: record.component ? String(record.component) : undefined,
+      severity: String(record.severity),
+      eventName: String(record.eventName),
+      messageTemplate: record.messageTemplate
+        ? String(record.messageTemplate)
+        : undefined,
+      requestId: record.requestId ? String(record.requestId) : undefined,
+      traceId: record.traceId ? String(record.traceId) : undefined,
+      spanId: record.spanId ? String(record.spanId) : undefined,
+      actorType: record.actorType ? String(record.actorType) : undefined,
+      actorIdHash: record.actorIdHash ? String(record.actorIdHash) : undefined,
+      workspaceId: record.workspaceId ? String(record.workspaceId) : undefined,
+      projectId: record.projectId ? String(record.projectId) : undefined,
+      resourceType: record.resourceType
+        ? String(record.resourceType)
+        : undefined,
+      resourceId: record.resourceId ? String(record.resourceId) : undefined,
+      status: record.status ? String(record.status) : undefined,
+      errorCode: record.errorCode ? String(record.errorCode) : undefined,
+      durationMs:
+        typeof record.durationMs === 'number' ? record.durationMs : undefined,
+      metadata: record.metadata as object,
+      redactionVersion: 'v1',
+      retentionClass: String(record.retentionClass ?? 'runtime'),
+    };
   }
 
   private safeMessage(message?: string) {

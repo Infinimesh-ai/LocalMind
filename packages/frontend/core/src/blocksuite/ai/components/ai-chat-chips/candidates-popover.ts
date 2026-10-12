@@ -1,3 +1,4 @@
+import { isComposingKeyboardEvent } from '@affine/component';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { scrollbarStyle } from '@blocksuite/affine/shared/styles';
 import { unsafeCSSVar, unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -110,7 +111,11 @@ export class ChatPanelCandidatesPopover extends SignalWatcher(
   };
 
   private readonly _handleKeyDown = (event: KeyboardEvent) => {
-    if (event.isComposing) return;
+    if (
+      isComposingKeyboardEvent(event) ||
+      (event.key === 'Enter' && event.repeat)
+    )
+      return;
 
     const { key } = event;
     if (key === 'ArrowDown' || key === 'ArrowUp') {

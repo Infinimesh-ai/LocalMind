@@ -1,5 +1,6 @@
 import { IconButton } from '@affine/component';
 import { NotificationCountService } from '@affine/core/modules/notification';
+import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { SidebarIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
@@ -16,6 +17,7 @@ export const SidebarSwitch = ({
   show: boolean;
   className?: string;
 }) => {
+  const t = useI18n();
   const notificationCountService = useService(NotificationCountService);
   const hasNotification = useLiveData(
     notificationCountService.count$.selector(count => count > 0)
@@ -52,6 +54,9 @@ export const SidebarSwitch = ({
   }, [appSidebarService, open]);
 
   const showNotificationDot = hasNotification && !open;
+  const label = open
+    ? t['com.affine.sidebarSwitch.collapse']()
+    : t['com.affine.sidebarSwitch.expand']();
 
   return (
     <div
@@ -63,6 +68,9 @@ export const SidebarSwitch = ({
       data-notification={showNotificationDot}
     >
       <IconButton
+        aria-label={label}
+        aria-expanded={open}
+        tooltip={label}
         className={className}
         size="24"
         style={{

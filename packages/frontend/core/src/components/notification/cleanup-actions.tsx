@@ -14,8 +14,8 @@ import { UserFriendlyError } from '@affine/error';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import {
-  CheckBoxCheckLinearIcon,
   DeleteIcon,
+  MailPanelIcon,
   MoreHorizontalIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
@@ -35,7 +35,10 @@ export const NotificationCleanupActions = () => {
   return (
     <>
       <IconButton
-        icon={<CheckBoxCheckLinearIcon />}
+        variant="custom"
+        icon={<MailPanelIcon />}
+        size={16}
+        className={styles.itemCleanupButton}
         disabled={busy}
         aria-label={t['com.affine.notification.mark-all-read']()}
         tooltip={t['com.affine.notification.mark-all-read']()}
@@ -66,7 +69,10 @@ export const NotificationCleanupActions = () => {
         }
       >
         <IconButton
+          variant="custom"
           icon={<MoreHorizontalIcon />}
+          size={16}
+          className={styles.itemCleanupButton}
           disabled={busy}
           aria-label={t['com.affine.notification.more-actions']()}
           tooltip={t['com.affine.notification.more-actions']()}
@@ -120,9 +126,11 @@ export const NotificationItemActions = ({
     <div className={styles.itemActions}>
       {!notification.read && (
         <IconButton
+          variant="custom"
           size={16}
           className={styles.itemCleanupButton}
-          icon={<CheckBoxCheckLinearIcon />}
+          icon={<MailPanelIcon />}
+          data-notification-action="read"
           disabled={busy}
           aria-label={t['com.affine.notification.mark-read']()}
           tooltip={t['com.affine.notification.mark-read']()}
@@ -133,9 +141,12 @@ export const NotificationItemActions = ({
         />
       )}
       <IconButton
+        variant="custom"
         size={16}
         className={styles.itemCleanupButton}
         icon={<DeleteIcon />}
+        data-danger="true"
+        data-notification-action="delete"
         disabled={busy}
         aria-label={t['com.affine.notification.delete']()}
         tooltip={t['com.affine.notification.delete']()}

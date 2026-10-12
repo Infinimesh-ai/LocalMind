@@ -1,3 +1,4 @@
+import { isEditableParagraphXml } from './editable';
 import { type DocxOpcPackage, DocxPackageError } from './package';
 import {
   relationshipPartName,
@@ -128,6 +129,7 @@ export type DocxParagraphProperties = {
 };
 
 export type DocxParagraph = {
+  editingSupported?: boolean;
   type: 'paragraph';
   id: string;
   sourceId?: string;
@@ -792,6 +794,7 @@ function parseParagraph(
   const id = context.claimBlockId('paragraph', sourceId);
   const paragraph = {
     type: 'paragraph',
+    editingSupported: isEditableParagraphXml(node),
     id,
     sourceId,
     properties: parseParagraphProperties(childNode(nodes, 'pPr')),

@@ -191,7 +191,7 @@ export const AffineIconPicker = ({
           {/* Groups */}
           <div className={pickerStyles.group}>
             <div className={pickerStyles.groupName} data-group-name="Recent">
-              Icons
+              {i18n['com.affine.page-properties.icons']()}
             </div>
             <div className={pickerStyles.groupGrid}>
               {filteredIcons.map(icon => {

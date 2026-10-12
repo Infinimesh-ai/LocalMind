@@ -1,4 +1,10 @@
-import { Button, ConfirmModal, notify, RowInput } from '@affine/component';
+import {
+  Button,
+  ConfirmModal,
+  isComposingKeyboardEvent,
+  notify,
+  RowInput,
+} from '@affine/component';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
   AuthService,
@@ -15,7 +21,7 @@ import { buildShowcaseWorkspace } from '@affine/core/utils/first-app-data';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import { FrameworkScope, useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 
 import * as styles from './index.css';
 import { ServerSelector } from './server-selector';
@@ -41,8 +47,11 @@ export const CreateWorkspaceDialog = ({
   ...props
 }: DialogComponentProps<GLOBAL_DIALOG_SCHEMA['create-workspace']>) => {
   const t = useI18n();
+  const formId = useId();
 
   const [workspaceName, setWorkspaceName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const pendingRef = useRef(false);
   const [inputServerId, setInputServerId] = useState(
     serverId ?? 'affine-cloud'
   );
@@ -75,6 +84,10 @@ export const CreateWorkspaceDialog = ({
         return (
           <FrameworkScope scope={server?.scope}>
             <CustomConfirmButton
+              formId={formId}
+              loading={loading}
+              setLoading={setLoading}
+              pendingRef={pendingRef}
               workspaceName={workspaceName}
               server={server}
               onCreated={res =>
@@ -86,46 +99,65 @@ export const CreateWorkspaceDialog = ({
       }}
       {...props}
     >
-      <FormSection
-        label={t['com.affine.nameWorkspace.subtitle.workspace-name']()}
-        input={
-          <RowInput
-            autoFocus
-            className={styles.input}
-            data-testid="create-workspace-input"
-            placeholder={t['com.affine.nameWorkspace.placeholder']()}
-            maxLength={64}
-            minLength={0}
-            onChange={setWorkspaceName}
-          />
-        }
-      />
-
-      <FormSection
-        label={t['com.affine.nameWorkspace.subtitle.workspace-type']()}
-        input={
-          <ServerSelector
-            className={styles.select}
-            selectedId={inputServerId}
-            onChange={setInputServerId}
-          />
-        }
-      />
+      <>
+        <FormSection
+          label={t['com.affine.nameWorkspace.subtitle.workspace-name']()}
+          input={
+            <RowInput
+              autoFocus
+              disabled={loading}
+              form={formId}
+              className={styles.input}
+              data-testid="create-workspace-input"
+              placeholder={t['com.affine.nameWorkspace.placeholder']()}
+              maxLength={64}
+              minLength={0}
+              onChange={setWorkspaceName}
+              onKeyDown={event => {
+                if (
+                  event.key === 'Enter' &&
+                  (isComposingKeyboardEvent(event) || event.repeat)
+                )
+                  event.preventDefault();
+              }}
+            />
+          }
+        />
+        <FormSection
+          label={t['com.affine.nameWorkspace.subtitle.workspace-type']()}
+          input={
+            <ServerSelector
+              className={styles.select}
+              selectedId={inputServerId}
+              onChange={id => {
+                if (!pendingRef.current) setInputServerId(id);
+              }}
+            />
+          }
+        />
+      </>
     </ConfirmModal>
   );
 };
 
 const CustomConfirmButton = ({
+  formId,
+  loading,
+  setLoading,
+  pendingRef,
   workspaceName,
   server,
   onCreated,
 }: {
+  formId: string;
+  loading: boolean;
+  setLoading: (value: boolean) => void;
+  pendingRef: React.RefObject<boolean>;
   workspaceName: string;
   server?: Server | null;
   onCreated: (res: Awaited<ReturnType<typeof buildShowcaseWorkspace>>) => void;
 }) => {
   const t = useI18n();
-  const [loading, setLoading] = useState(false);
 
   const session = useService(AuthService).session;
   const loginStatus = useLiveData(session.status$);
@@ -137,7 +169,8 @@ const CustomConfirmButton = ({
   }, [globalDialogService, server?.baseUrl]);
 
   const handleConfirm = useAsyncCallback(async () => {
-    if (loading) return;
+    if (pendingRef.current || !workspaceName.trim()) return;
+    pendingRef.current = true;
     setLoading(true);
     track.$.$.$.createWorkspace({
       flavour: !server ? 'local' : 'affine-cloud',
@@ -159,9 +192,18 @@ const CustomConfirmButton = ({
         message: t['com.affine.ui.please-try-again-later'](),
       });
     } finally {
+      pendingRef.current = false;
       setLoading(false);
     }
-  }, [loading, onCreated, server, workspaceName, workspacesService, t]);
+  }, [
+    onCreated,
+    server,
+    workspaceName,
+    workspacesService,
+    t,
+    pendingRef,
+    setLoading,
+  ]);
 
   const handleCheckSessionAndConfirm = useCallback(() => {
     if (server && loginStatus !== 'authenticated') {
@@ -171,14 +213,25 @@ const CustomConfirmButton = ({
   }, [handleConfirm, loginStatus, openSignInModal, server]);
 
   return (
-    <Button
-      disabled={!workspaceName}
-      data-testid="create-workspace-create-button"
-      variant="primary"
-      onClick={handleCheckSessionAndConfirm}
-      loading={loading}
-    >
-      {t['com.affine.nameWorkspace.button.create']()}
-    </Button>
+    <>
+      <form
+        id={formId}
+        onSubmit={event => {
+          event.preventDefault();
+          event.stopPropagation();
+          handleCheckSessionAndConfirm();
+        }}
+      />
+      <Button
+        type="submit"
+        form={formId}
+        disabled={!workspaceName.trim()}
+        data-testid="create-workspace-create-button"
+        variant="primary"
+        loading={loading}
+      >
+        {t['com.affine.nameWorkspace.button.create']()}
+      </Button>
+    </>
   );
 };

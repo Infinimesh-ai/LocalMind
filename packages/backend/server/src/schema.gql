@@ -8346,6 +8346,8 @@ input WorkspacePageTreeCommandInput {
   requestKey: String!
   resourceId: ID
   siblingOrder: [ID!]
+  sourceSiblingOrder: [ID!]
+  targetSiblingOrder: [ID!]
   title: String
   workspaceId: ID!
 }
@@ -8428,6 +8430,8 @@ type WorkspacePageTreeReceipt {
   oldBeforeNodeId: ID
   oldParentNodeId: ID
   oldSiblingOrder: [ID!]
+  oldSourceSiblingOrder: [ID!]
+  oldTargetSiblingOrder: [ID!]
   operationId: ID!
   parentNodeId: ID
   resourceId: ID!

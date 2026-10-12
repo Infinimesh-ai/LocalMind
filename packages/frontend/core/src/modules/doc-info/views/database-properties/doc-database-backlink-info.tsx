@@ -136,7 +136,7 @@ const DatabaseBacklinkRow = ({
             <span className={styles.databaseName}>
               {row.databaseName || t['unnamed']()}
             </span>
-            {t['properties']()}
+            {t['com.affine.propertySidebar.property-list.section']()}
           </span>
         }
         defaultCollapsed={!defaultOpen}

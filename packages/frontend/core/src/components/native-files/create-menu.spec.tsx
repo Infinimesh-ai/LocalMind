@@ -21,7 +21,14 @@ vi.mock('@toeverything/infra', async importOriginal => ({
   useServiceOptional: (key: unknown) => state.services.get(key),
 }));
 vi.mock('@affine/core/modules/cloud', () => ({ GraphQLService: class {} }));
-vi.mock('@affine/core/modules/organize', () => ({ OrganizeService: class {} }));
+vi.mock('@affine/core/modules/organize', () => ({
+  OrganizeService: class {},
+  WorkspacePageTreeService: class {},
+}));
+vi.mock('../page-tree/created-resource', () => ({
+  useCreatedResourceNavigation: () => () =>
+    vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('@affine/core/modules/workbench', () => ({
   WorkbenchService: class {},
 }));
@@ -83,7 +90,10 @@ vi.mock('./create-dialog', () => ({
 vi.mock('./workspace-upload', () => ({ uploadWorkspaceNativeBlob: vi.fn() }));
 
 import { GraphQLService } from '@affine/core/modules/cloud';
-import { OrganizeService } from '@affine/core/modules/organize';
+import {
+  OrganizeService,
+  WorkspacePageTreeService,
+} from '@affine/core/modules/organize';
 import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
@@ -127,6 +137,11 @@ function setupMenu(parentId: string | null = 'folder-1', canOrganize = true) {
   state.services.set(GraphQLService, { gql: vi.fn() });
   state.services.set(WorkbenchService, { workbench: {} });
   state.services.set(WorkspaceResourcesService, { invalidate: vi.fn() });
+  state.services.set(WorkspacePageTreeService, {
+    enabled$: new LiveData(false),
+    // eslint-disable-next-line rxjs/finnish -- Match the page tree read interface.
+    layer$: () => new LiveData({}),
+  });
   state.services.set(OrganizeService, {
     folderTree: {
       canMutate$: new LiveData(canOrganize),

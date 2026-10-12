@@ -9,6 +9,7 @@ import {
   previewOfficeCommand,
 } from '@affine/core/modules/office';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
+import { UserFriendlyError } from '@affine/error';
 import type {
   OfficeArtifactQuery,
   ProjectOfficeArtifactQuery,
@@ -180,17 +181,21 @@ export async function executeAndReloadOfficeCommand<
   kind: OfficeArtifactKindValue;
   command: OfficeCommand;
 }) {
-  const preview = await previewOfficeCommand(
-    input.graphql,
-    input.owner,
-    input.command
-  );
+  // Interactive paragraph transactions are validated atomically by execute.
+  // A separate preview doubles autosave traffic and rejects a valid replay if
+  // the first attempt committed but its response was lost.
+  const continuousEdit = input.command.operation === 'office.document.edit';
+  const preview = continuousEdit
+    ? null
+    : await previewOfficeCommand(input.graphql, input.owner, input.command);
   const execution = await executeOfficeCommand(
     input.graphql,
     input.owner,
     input.command
   );
-  const revision = execution.executeOfficeCommand.artifact.currentRevision;
+  const revision = continuousEdit
+    ? execution.executeOfficeCommand.revision
+    : execution.executeOfficeCommand.artifact.currentRevision;
   if (!revision.stateUrl) {
     throw new Error(
       I18n['com.affine.office.saved-revision-has-no-editable-office-state']()
@@ -200,7 +205,7 @@ export async function executeAndReloadOfficeCommand<
   return {
     revision: revision as OfficeRevision,
     state: state as TState,
-    preview: preview.previewOfficeCommand,
+    preview: preview?.previewOfficeCommand,
     summary: execution.executeOfficeCommand.summary as Record<string, unknown>,
   };
 }
@@ -210,10 +215,21 @@ export function officeErrorMessage(
   owner?: OfficeResourceOwner
 ) {
   if (owner?.kind === 'project') return projectErrorMessage(error);
-  const message = error instanceof Error ? error.message : String(error);
-  return /revision conflict|stale/i.test(message)
-    ? I18n[
-        'com.affine.office.this-office-file-changed-in-another-session-reload-the-latest-revision-and-retry'
-      ]()
-    : message;
+  const normalized = UserFriendlyError.fromAny(error);
+  if (normalized.isNetworkError())
+    return I18n['com.affine.office.error.network']();
+  if (normalized.status === 401 || normalized.status === 403)
+    return I18n['com.affine.office.error.permission']();
+  if (normalized.status === 404)
+    return I18n['com.affine.office.error.unavailable']();
+  if (
+    normalized.status === 409 ||
+    /revision conflict|stale/i.test(normalized.message)
+  )
+    return I18n['com.affine.office.error.conflict']();
+  if (normalized.status === 429)
+    return I18n['com.affine.office.error.rate-limit']();
+  // Transport and engine errors can contain internal paths or request details.
+  // Keep them in diagnostics, never render their raw message in the editor.
+  return I18n['com.affine.office.error.failed']();
 }

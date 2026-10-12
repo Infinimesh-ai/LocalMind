@@ -6,6 +6,7 @@ import { createOfficeResourceAdapter } from '@affine/core/components/office/reso
 import { useOfficeResourceSession } from '@affine/core/components/office/resource-session';
 import { OfficeResourceSurface } from '@affine/core/components/office/resource-surface';
 import { PageTreeBreadcrumbs } from '@affine/core/components/page-tree/children';
+import { useCreatedResourceFocus } from '@affine/core/components/page-tree/created-resource';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import { NbstoreService } from '@affine/core/modules/storage';
 import {
@@ -54,6 +55,7 @@ function WorkspaceOffice({
   refreshing?: boolean;
 }) {
   const graphql = useService(GraphQLService);
+  const createdFocusRef = useCreatedResourceFocus('office', artifactId);
   const t = useI18n();
   const canEdit = !unavailable && nativeResource.canEdit === true;
   const realtime = useService(NbstoreService).realtime;
@@ -154,6 +156,7 @@ function WorkspaceOffice({
                 {unavailableNotice}
                 <div
                   hidden={unavailable}
+                  ref={createdFocusRef}
                   style={{ display: unavailable ? 'none' : 'contents' }}
                 >
                   {body}
@@ -166,6 +169,7 @@ function WorkspaceOffice({
                   {unavailableNotice}
                   <div
                     hidden={unavailable}
+                    ref={createdFocusRef}
                     style={{ display: unavailable ? 'none' : 'contents' }}
                   >
                     {body}

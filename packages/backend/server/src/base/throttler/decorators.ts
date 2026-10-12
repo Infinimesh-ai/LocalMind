@@ -8,6 +8,7 @@ import { ThrottlerType } from './config';
 
 export type Throttlers = 'default' | 'strict' | 'authenticated';
 export const THROTTLER_PROTECTED = 'affine_throttler:protected';
+export const THROTTLER_BUCKET = 'affine_throttler:bucket';
 
 /**
  * Choose what throttler to use
@@ -28,15 +29,20 @@ export const THROTTLER_PROTECTED = 'affine_throttler:protected';
  * // and the call count will be calculated separately
  * \@Throttle('default', { limit: 10, ttl: 10_000 })
  *
+ * // An explicit bucket stays separate even when its limits match the defaults.
+ * \@Throttle('default', { bucket: 'workspace-tree-read' })
+ *
  */
 export function Throttle(
   type: ThrottlerType | 'authenticated' = 'default',
-  override: { limit?: number; ttl?: number } = {}
+  override: { limit?: number; ttl?: number; bucket?: string } = {}
 ): MethodDecorator & ClassDecorator {
+  const { bucket, ...options } = override;
   return applyDecorators(
     SetMetadata(THROTTLER_PROTECTED, type),
+    SetMetadata(THROTTLER_BUCKET, bucket ?? null),
     RawThrottle({
-      [type]: override,
+      [type]: options,
     })
   );
 }

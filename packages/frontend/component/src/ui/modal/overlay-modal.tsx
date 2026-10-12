@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { DialogTrigger } from '@radix-ui/react-dialog';
 import { cssVar } from '@toeverything/theme';
 import { memo, useCallback } from 'react';
@@ -49,11 +50,13 @@ export const OverlayModal = memo(function OverlayModal({
   withoutCancelButton,
   contentOptions = defaultContentOptions,
   overlayOptions = defaultOverlayOptions,
-  // FIXME: we need i18n
-  cancelText = 'Cancel',
-  confirmText = 'Confirm',
+  cancelText,
+  confirmText,
   width = 400,
 }: OverlayModalProps) {
+  const t = useI18n();
+  const confirmLabel = confirmText ?? t['Confirm']();
+  const cancelLabel = cancelText ?? t['Cancel']();
   const handleConfirm = useCallback(() => {
     onOpenChange?.(false);
     onConfirm?.();
@@ -74,7 +77,7 @@ export const OverlayModal = memo(function OverlayModal({
       <div className={styles.footer}>
         {!withoutCancelButton ? (
           <DialogTrigger asChild>
-            <Button {...cancelButtonOptions}>{cancelText}</Button>
+            <Button {...cancelButtonOptions}>{cancelLabel}</Button>
           </DialogTrigger>
         ) : null}
 
@@ -83,19 +86,19 @@ export const OverlayModal = memo(function OverlayModal({
             //FIXME: we need a more standardized way to implement this link with other click events
             <a href={to} target="_blank" rel="noreferrer">
               <Button onClick={handleConfirm} {...confirmButtonOptions}>
-                {confirmText}
+                {confirmLabel}
               </Button>
             </a>
           ) : (
             <Link to={to}>
               <Button onClick={handleConfirm} {...confirmButtonOptions}>
-                {confirmText}
+                {confirmLabel}
               </Button>
             </Link>
           )
         ) : (
           <Button onClick={handleConfirm} {...confirmButtonOptions}>
-            {confirmText}
+            {confirmLabel}
           </Button>
         )}
       </div>

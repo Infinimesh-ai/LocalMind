@@ -18,6 +18,18 @@ const paragraph = (
 });
 
 describe('paginateDocxBlocks', () => {
+  test('uses measured paragraph height when fonts or wrapping make estimates inaccurate', () => {
+    const pages = paginateDocxBlocks(
+      [paragraph('p1', 'Short text with large font'), paragraph('p2', 'Next')],
+      [],
+      new Map([
+        ['p1', 900],
+        ['p2', 60],
+      ])
+    );
+    expect(pages).toHaveLength(2);
+    expect(pages[1].blocks[0].id).toBe('p2');
+  });
   test('keeps short content on one page', () => {
     const pages = paginateDocxBlocks(
       [paragraph('p1', 'Alpha'), paragraph('p2', 'Beta')],

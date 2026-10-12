@@ -1,4 +1,4 @@
-import { Avatar, notify } from '@affine/component';
+import { Avatar, isComposingKeyboardEvent, notify } from '@affine/component';
 import { I18n, useI18n } from '@affine/i18n';
 import {
   type ExistedUserInfo,
@@ -286,6 +286,8 @@ export const MultiMemberSelect: React.FC<MemberManagerOptions> = props => {
       input.focus();
       const handleKeyDown = (e: KeyboardEvent) => {
         e.stopPropagation();
+        if (isComposingKeyboardEvent(e) || (e.key === 'Enter' && e.repeat))
+          return;
 
         if (e.key === 'ArrowDown') {
           e.preventDefault();

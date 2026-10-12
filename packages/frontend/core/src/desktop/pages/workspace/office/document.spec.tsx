@@ -51,6 +51,12 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
   },
 }));
 vi.mock('@affine/core/modules/cloud', () => ({ GraphQLService: class {} }));
+vi.mock('@affine/core/components/page-tree/created-resource', () => ({
+  useCreatedResourceFocus: () => undefined,
+}));
+vi.mock('@affine/core/components/page-tree/children', () => ({
+  PageTreeBreadcrumbs: () => null,
+}));
 vi.mock('@affine/core/modules/storage', () => ({ NbstoreService: class {} }));
 vi.mock('@affine/core/modules/workspace', () => ({
   WorkspaceService: class {},

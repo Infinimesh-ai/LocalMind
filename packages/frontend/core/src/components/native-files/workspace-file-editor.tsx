@@ -17,6 +17,7 @@ import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 
 import { PageTreeBreadcrumbs } from '../page-tree/children';
+import { useCreatedResourceFocus } from '../page-tree/created-resource';
 import { nativeFileError } from './file-error';
 import * as styles from './native-files.css';
 import { uploadWorkspaceNativeBlob } from './workspace-upload';
@@ -39,6 +40,7 @@ export function WorkspaceNativeFileEditor({
   unavailable?: boolean;
 }) {
   const t = useI18n();
+  const createdFocusRef = useCreatedResourceFocus('file', resourceId);
   const graphql = useService(GraphQLService);
   const fetcher = useService(FetchService);
   const { workspace } = useService(WorkspaceService);
@@ -439,7 +441,7 @@ export function WorkspaceNativeFileEditor({
     else onClose();
   };
   const content = (
-    <div className={styles.form}>
+    <div className={styles.form} ref={createdFocusRef}>
       <PageTreeBreadcrumbs kind="file" resourceId={resourceId} />
       {loading && <span role="status">{t['Loading']()}</span>}
       {error && <p role="alert">{t[error.messageKey]()}</p>}
@@ -450,6 +452,7 @@ export function WorkspaceNativeFileEditor({
       )}
       {editable ? (
         <textarea
+          data-created-resource-focus-target
           aria-label={currentTitle}
           className={styles.editor}
           value={text}

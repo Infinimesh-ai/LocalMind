@@ -12,6 +12,7 @@ import {
 import { Switch } from '@affine/admin/components/ui/switch';
 import { useMutation } from '@affine/admin/use-mutation';
 import { useQuery } from '@affine/admin/use-query';
+import { UserFriendlyError } from '@affine/error';
 import {
   adminProjectByokSettingsQuery,
   type ByokProvider,
@@ -104,16 +105,20 @@ function ProjectByokForm({
       setFeedback({
         ok: result.ok,
         message: result.ok
-          ? i18n['com.affine.admin.byok-connection-verified']()
+          ? input.modelId
+            ? i18n['com.affine.admin.byok-model-verified']()
+            : i18n['com.affine.admin.byok-catalog-loaded']()
           : formatByokError(result.message),
       });
-    } catch {
+    } catch (error) {
       setFeedback({
         ok: false,
-        message:
+        message: formatByokError(
+          UserFriendlyError.fromAny(error).message,
           i18n[
             'com.affine.admin.test-failed-check-the-configuration-or-reload-the-latest-settings'
-          ](),
+          ]()
+        ),
       });
     }
   };
@@ -124,18 +129,29 @@ function ProjectByokForm({
     setFeedback(null);
     try {
       await save({ input });
-      setApiKey('');
-      toast.success(i18n['com.affine.admin.global-project-byok-saved']());
-      await onSaved();
-    } catch {
+    } catch (error) {
+      const reason = formatByokError(
+        UserFriendlyError.fromAny(error).message,
+        ''
+      );
       setFeedback({
         ok: false,
-        message:
-          i18n[
-            'com.affine.admin.save-failed-check-the-endpoint-model-and-key-or-reload-if-another-administrator-changed-the-settings'
-          ](),
+        message: reason
+          ? i18n['com.affine.admin.byok-save-failed-reason']({ reason })
+          : i18n[
+              'com.affine.admin.save-failed-check-the-endpoint-model-and-key-or-reload-if-another-administrator-changed-the-settings'
+            ](),
       });
+      return;
     }
+    setApiKey('');
+    toast.success(i18n['com.affine.admin.global-project-byok-saved']());
+    await onSaved().catch(() => {
+      setFeedback({
+        ok: true,
+        message: i18n['com.affine.admin.byok-saved-refresh-failed'](),
+      });
+    });
   };
 
   const handleEnabled = async (enabled: boolean) => {

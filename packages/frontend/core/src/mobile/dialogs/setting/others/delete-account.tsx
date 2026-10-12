@@ -155,7 +155,7 @@ const DeleteAccountModal = ({
       title={t['com.affine.setting.account.delete.confirm-title']()}
       description={
         <Trans
-          i18nKey="com.affine.setting.account.delete.confirm-description-2"
+          i18nKey="com.affine.setting.account.delete.confirm-delete-description-2"
           components={{
             1: <strong />,
           }}

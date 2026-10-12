@@ -130,3 +130,130 @@ git diff --check
 | B40  | 通过：权威只读 10 项，同步 26 项；0.25／0.26 网络发现不占写锁、广播前重查撤权。                                                                                                                 |
 
 用户体验后已授权本地集成。此记录不构成上线或生产迁移验收。
+
+## 2026-10-09：本地子页面创建、回车与中文文案回归
+
+当前主工作树的本地环境复现了“新建子页面”失败。销售区根文档可由 Yjs 读取，
+但 native 注册增量在 Yjs 回放后没有新增页面，旧兼容分支因此生成整份替换快照。
+双容器事务拒绝这种替换，最终返回 `failed_to_save_updates`。本轮在有效 Yjs 页面
+数组上增加原位增量登记，保留原有 CRDT 身份、未知元数据及事务内禁止整份替换
+的保护；非事务根文档压缩也使用 Yjs，避免再次依赖不兼容的 native 编解码。
+没有修改 schema、迁移、正文或 OfficeRevision。原始 native 根文档读取兼容问题
+仍存在；本轮证明的是创建登记兼容路径，不代表 Rust 解析器已修复。
+
+共享 PromptModal 现在将输入框回车接到与按钮相同的确认操作，保留失败后的输入
+及保存中的防重复提交；中文输入法候选确认、长按回车和空白必填名称不触发保存。
+2026-09-28 的原生文件创建回车修复仍在，此次缺失位于新增的页面树弹窗入口。
+修正 5 处 `save` 为既有 `Save` 翻译键，复用属性、导出的既有键，并补齐关闭、
+完成、发送、下载、加载更多、搜索标签、导出及工作区移除提示等 11 个缺失源键
+的英文和简／繁中文词条。共享弹窗的默认取消／确认也改用翻译。新增静态检查
+覆盖 core、component、admin 中的 `t['literal']`，不涵盖动态键及任意硬编码文案。
+
+验证使用 `localmind-affine:dev-base`，没有重建镜像。后端在独立 PostgreSQL 内存盘
+和 Redis 上应用 409 个迁移，2 项根文档增量测试及 26 项页面树 E2E 通过；前端
+5 项弹窗测试和 1 项翻译键测试通过。最初隔离测试继承了运行环境的 script flavor，
+导致模块缺失；清除此变量、使用测试 MockJobQueue 后 28 项后端测试全部通过。
+修改文件的定向类型检查、oxlint、Prettier 及 `git diff --check` 通过。
+
+浏览器在原文件夹 `Infinimesh` 中按回车创建用户原先输入的 `2026-09`，进入真实
+编辑器并显示保存／同步完成；刷新后页面仍在。只读数据库检查确认页面 ID
+`6a983e15-01a4-4b63-b195-afaa778dd388` 仅登记一次，创建回执仅一份，父节点仍为
+`Dwl-vAi54oqU5R4szOVHQ`，树版本从 1 更新为 2。截图、检查脚本和日志位于本地
+`.codex-artifacts/page-tree-create-fix-20261009/`。这不是完整 B01—B40 重验或生产验收。
+
+```sh
+docker --context colima exec localmind_create_regression node /workspace/.codex-artifacts/page-tree-create-fix-20261009/run-backend-checks.cjs migrate
+docker --context colima exec localmind_create_regression node /workspace/.codex-artifacts/page-tree-create-fix-20261009/run-backend-checks.cjs test
+docker --context colima exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn vitest run --maxWorkers=1 packages/frontend/component/src/ui/modal/prompt-modal.spec.tsx packages/frontend/i18n/src/static-keys.spec.ts'
+docker --context colima exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn workspace @affine/i18n build'
+```
+
+本轮仅停止并移除三个新建的隔离验证容器，保留运行中的本地服务、既有容器及
+持久化 volume。收尾磁盘可用约 1.4 GiB；没有借此执行镜像重建或无关数据清理。
+
+## 2026-10-11：页面树请求放大与限流恢复修复
+
+本地浏览器日志曾在 60 秒内记录 154 次 GraphQL 请求，其中页面树读取 99 次、
+树修改 11 次、目录读取 12 次。默认限流按登录会话共享，写后刷新又遍历所有展开
+分支，叠加轮询后触发 `too_many_requests`。
+
+本轮在保留当前工作树既有改动的基础上完成以下修复：
+
+- `workspacePageTree` 与 `workspaceDirectory` 使用显式 `workspace-tree-read`
+  限流桶，仍采用默认的每分钟 120 次配置；写入、审批及其他接口保留原额度。
+  命名桶不依赖限额数值是否不同，管理员调整默认值后仍保持隔离。
+- 写后刷新根据回执更新根节点、原／目标父级和路径受影响的可见后代；原生文件
+  创建也只刷新根和目标。无效参数拒绝不再刷新全树。回收视图继续随生命周期操作
+  更新，折叠分支的失效缓存在重新打开时读取。
+- 已解析的资源身份与节点身份共享缓存；账号切换仍清除缓存并取消旧读取。
+  迟到的旧快照不能覆盖新快照，树版本变化后的分页从首批重新获取，保持版本和
+  权限快照检查，不拼接过期游标。
+- GraphQL 客户端保留有界的 `Retry-After`，兼容 HTTP 200 的 GraphQL 限流错误及
+  HTTP 429。并发失败只建立一轮冷却，目录通知和轮询也遵守冷却。权限读取失败
+  仍清空权限状态，不保留过期授权。
+- 写入已成功但根节点尚未校验时显示“已保存，正在同步资源树”，暂时禁止后续
+  结构写入；成功回执与原有不确定结果幂等键规则保留。读取失败不再同时显示空目录。
+
+Linux 容器验证复用 `localmind_hot_web` 的 `localmind-affine:dev-base`，没有重建
+镜像、修改 schema／迁移或业务资源数据。85 项前端及共享层测试、3 项后端限流
+测试通过；16 个相关源／测试文件的定向类型检查、oxlint、Prettier 和
+`git diff --check` 通过。8 个展开分支中连续创建 10 次的写后读取由研究实验的
+90 次降至 20 次；转换后代身份、迟到响应、原生创建范围、回收、账号切换及旧
+版本写入阻断均有回归覆盖。
+
+```sh
+docker exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn vitest run --maxWorkers=1 packages/frontend/core/src/modules/organize/services/page-tree.spec.ts packages/frontend/core/src/modules/organize/services/page-tree-local.spec.ts packages/frontend/core/src/modules/organize/stores/directory-access.spec.ts packages/frontend/core/src/modules/navigation-panel/services/created-resource.spec.ts packages/common/graphql/src/__tests__/fetcher.spec.ts packages/common/error/src/__tests__/index.spec.ts packages/frontend/i18n/src/static-keys.spec.ts'
+docker exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn workspace @affine/server ava --serial src/__tests__/nestjs/throttler-bucket.spec.ts'
+docker exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn vitest run --pool=threads --maxWorkers=1 packages/frontend/core/src/modules/organize/services/page-tree.spec.ts'
+docker exec -w /workspace localmind_hot_web yarn tsc -b packages/common/error packages/common/graphql
+docker exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn workspace @affine/i18n build'
+docker exec -w /workspace localmind_hot_web node .codex-artifacts/page-tree-throttle-fix-20261011/typecheck.mjs packages/frontend/core
+docker exec -w /workspace localmind_hot_web node .codex-artifacts/page-tree-throttle-fix-20261011/typecheck.mjs packages/backend/server
+docker exec -w /workspace localmind_hot_web node .codex-artifacts/page-tree-throttle-fix-20261011/typecheck.mjs packages/common/error
+docker exec -w /workspace localmind_hot_web node .codex-artifacts/page-tree-throttle-fix-20261011/typecheck.mjs packages/common/graphql
+```
+
+本地开发容器直接挂载当前源码，后端 nodemon 和前端热更新已加载改动，无需复制
+到部署容器。浏览器刷新后连续切换“2 → 22 → 2222”，目录及路径正常，原限流
+提示消失；截图位于 `.codex-artifacts/page-tree-throttle-fix-20261011/browser-after.jpg`。
+验证没有向业务库批量创建测试资源，没有进行生产规模多用户／大目录压力测试，
+也不构成完整 B01—B40 重验或业务环境部署验收。
+
+## 2026-10-12：侧栏拖放落点、完整排序与跨父级撤销
+
+本轮按实际代码评审修复侧栏拖放，不新增 Page 顶部入口、正文索引块或第二套列表刷新机制。现有 `PageTreeChildrenList`、底部索引、侧栏与直属列表的独立显示偏好继续使用原实现；本轮没有修改它们。
+
+### 实现
+
+- 树行提供标题单行引用；原生拖放的提示与提交共用 `before / after / inside` 判断。排除展开子树、加载和错误区域的高度，复用已有 `DropIndicator` 与悬停展开，避免两套落点处理同时提交。
+- 前后拖放、菜单上移／下移和 Alt+方向键共用排序算法：先移除源节点，再确定目标前后的位置。完整同级顺序不变时不提交；名称排序切换到手动排序时一次保存全部同级顺序，避免其他项跳位及自身插入锚点。
+- 原有 `siblingOrder` 仍用于同级重排；跨父级增加 `targetSiblingOrder`，逆向移动增加 `sourceSiblingOrder`。在线组织事务与本地持久化日志均校验移动后的完整活动层级、资源身份及重复项。在线入口继续逐资源检查实时 ACL、目录组织权、子树授权变化、树与权限版本及幂等请求键。
+- 操作回执仅为被重排的层级保存 `oldTargetSiblingOrder / oldSourceSiblingOrder`。撤销沿用原来的版本门禁，在一次移动事务中恢复父级和被改动的层级顺序；历史回执缺少新字段时按 null 解释，不改写历史证据。未被重排的源层级仍用原插入锚点恢复，不额外暴露完整源目录。
+- 去掉依据旧缓存跳过“移入容器”的优化。重复同级重排在完整顺序上判断；容器移动由权威服务执行。没有改变正文引用、内容更新时间、OfficeRevision 或 WorkspaceFile Blob。
+
+### 验证
+
+复用固定 `localmind-affine:dev-base` 镜像及热开发容器；新建本轮验证容器 `localmind_page_tree_drag_validation`，使用已有隔离 PostgreSQL／Redis 服务和专用数据库 `page_tree_drag_20261012_7b81`。409 个现有迁移全部应用到该新库；没有新增数据库迁移或修改业务库 schema。GraphQL schema 由开发后端生成，共享 operation/types 使用 `gql-gen` 生成，未手写生成产物。
+
+- 78 项前端／共享层测试通过：行落点、名称正逆序、相邻重复拖放、跨父级完整顺序、本地持久回执、逆向移动、版本冲突、缓存刷新以及桌面／移动端树行回归。
+- 3 项在线领域测试通过：跨父级移动与两层撤销、原生 TXT 的移动／撤销及内容证据保持、重复请求回执、部分／重复顺序拒绝、无权 actor 拒绝、并发版本与撤销门禁、既有完整同级排序。
+- 前端 9 文件、后端 3 文件的聚焦 TypeScript 检查及共享 GraphQL declaration build 通过；定向 oxlint、Prettier 和 `git diff --check` 通过。
+- 浏览器创建临时目录和三个空白 Page：B、A 同级，C 属于 B。实际验证展开 Page 中央移入、跨父级移动和撤销；名称正序下把 C 拖到 A 后面，结果为 A、C、B，一次撤销恢复 B、A 及 C→B。操作回执的树版本为 31→32，两层恢复发生于同一版本提交。B 的现有底部索引随移动清空，撤销后恢复 C。
+- 4 项浏览器临时资源已整体回收，回执版本 33；没有永久删除。用户已有资源的归属和正文未改动，临时收起的两个原分支及原文件夹视图已恢复。
+
+主要命令（下述连接仅对应本轮专用合成测试库）：
+
+```sh
+DRAG_TEST_DB='postgresql://affine:page-tree-isolated@localmind_page_tree_pg:5432/page_tree_drag_20261012_7b81'
+docker exec -e DATABASE_URL="$DRAG_TEST_DB" -w /workspace localmind_page_tree_drag_validation yarn workspace @affine/server prisma migrate deploy
+docker exec -e DATABASE_URL="$DRAG_TEST_DB" -e REDIS_SERVER_HOST=localmind_resource_tree_test_redis -e NODE_OPTIONS='--import=/workspace/tools/cli/register.js --max-old-space-size=4096' -w /workspace localmind_page_tree_drag_validation yarn workspace @affine/server test --timeout=3m src/__tests__/copilot/workspace-page-tree.e2e.ts --match='*cross-parent manual*' --match='*manual*order*' --match='*concurrent opposite moves*'
+docker exec -w /workspace localmind_hot_web yarn workspace @affine/graphql exec gql-gen --errors-only
+docker exec -w /workspace localmind_hot_web yarn tsc -b packages/common/graphql
+docker exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn vitest run --pool=threads --maxWorkers=1 packages/frontend/core/src/components/root-app-sidebar/page-tree-drag.spec.ts packages/frontend/core/src/modules/organize/services/page-tree-local.spec.ts packages/frontend/core/src/modules/organize/services/page-tree.spec.ts packages/frontend/core/src/desktop/components/navigation-panel/tree/node.spec.tsx packages/common/graphql/src/workspace-page-tree.spec.ts'
+docker exec -w /workspace localmind_hot_web yarn node .codex-artifacts/page-tree-drag-fix-20261012/typecheck.mjs packages/frontend/core
+docker exec -w /workspace localmind_hot_web yarn node .codex-artifacts/page-tree-drag-fix-20261012/typecheck.mjs packages/backend/server
+```
+
+证据位于 `.codex-artifacts/page-tree-drag-fix-20261012/`，包括测试／类型／格式日志、浏览器移动及撤销截图、DOM 层级和持久操作回执。开发后端热重载曾内存不足，重启现有 `localmind_hot_backend` 后恢复；未改变其配置。浏览器验证期间原有读取限流仍造成短时缓存显示延迟，自动恢复后完成核对，本轮没有扩大限流策略。未验证真实触屏拖动；移动端既有树行测试通过。
+
+没有重建镜像或删除 volume。验证后的 Docker 状态约为 Images 31.1 GB、Local Volumes 23.94 GB、Build Cache 4.514 GB。本轮没有 commit、push、PR 或远端发布。

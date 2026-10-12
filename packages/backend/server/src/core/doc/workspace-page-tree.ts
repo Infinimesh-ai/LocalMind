@@ -12,6 +12,7 @@ import {
   pageTreeResourceKey,
   pageTreeSiblingOrder,
   pageTreeSubtree,
+  reorderPageTreeLevel,
   validatePageTree,
   WORKSPACE_PAGE_TREE_CONTRACT,
   WORKSPACE_PAGE_TREE_V1_CONTRACT,
@@ -71,6 +72,8 @@ export type PageTreeCommand = {
       parentNodeId: string | null;
       beforeNodeId?: string;
       siblingOrder?: string[];
+      targetSiblingOrder?: string[];
+      sourceSiblingOrder?: string[];
       insertAfterBlockId?: string;
     }
   | {
@@ -1435,6 +1438,8 @@ export class WorkspacePageTreeService {
             let oldParentNodeId: string | null = null;
             let oldBeforeNodeId: string | null = null;
             let oldSiblingOrder: string[] | null = null;
+            let oldTargetSiblingOrder: string[] | null = null;
+            let oldSourceSiblingOrder: string[] | null = null;
             if (command.action === 'create-native') {
               if (!createNative)
                 throw new BadRequest('Native creation adapter required');
@@ -1598,7 +1603,11 @@ export class WorkspacePageTreeService {
                 );
               oldParentNodeId = source.parentNodeId;
               const oldSiblings = nodes
-                .filter(node => node.parentNodeId === source.parentNodeId)
+                .filter(
+                  node =>
+                    node.parentNodeId === source.parentNodeId &&
+                    (command.action !== 'move' || !node.resource.trashed)
+                )
                 .sort((a, b) =>
                   a.order < b.order
                     ? -1
@@ -1698,11 +1707,25 @@ export class WorkspacePageTreeService {
                 }
               } else if (command.action === 'move') {
                 await assertLocation(command.parentNodeId);
+                const crossParent =
+                  source.parentNodeId !== command.parentNodeId;
+                if (
+                  (command.siblingOrder && crossParent) ||
+                  (!crossParent &&
+                    (command.targetSiblingOrder ||
+                      command.sourceSiblingOrder)) ||
+                  (command.siblingOrder &&
+                    (command.targetSiblingOrder || command.sourceSiblingOrder))
+                )
+                  throw new BadRequest(
+                    'Order must match the affected sibling level'
+                  );
                 const siblings = nodes
                   .filter(
                     node =>
                       node.nodeId !== nodeId &&
-                      node.parentNodeId === command.parentNodeId
+                      node.parentNodeId === command.parentNodeId &&
+                      !node.resource.trashed
                   )
                   .sort((a, b) =>
                     a.order < b.order
@@ -1711,45 +1734,40 @@ export class WorkspacePageTreeService {
                         ? 1
                         : a.nodeId.localeCompare(b.nodeId)
                   );
-                const offset = command.beforeNodeId
-                  ? siblings.findIndex(
-                      node => node.nodeId === command.beforeNodeId
-                    )
-                  : siblings.length;
+                const targetOrder =
+                  command.siblingOrder ?? command.targetSiblingOrder;
+                const offset =
+                  !targetOrder && command.beforeNodeId
+                    ? siblings.findIndex(
+                        node => node.nodeId === command.beforeNodeId
+                      )
+                    : siblings.length;
                 if (offset < 0)
                   throw new BadRequest('Reorder target unavailable');
-                const order = generateKeyBetween(
-                  siblings[offset - 1]?.order ?? null,
-                  siblings[offset]?.order ?? null
-                );
                 nodes = movePageTreeNode(
                   nodes,
                   nodeId,
                   command.parentNodeId,
-                  order
-                );
-                if (command.siblingOrder) {
-                  if (
-                    source.parentNodeId !== command.parentNodeId ||
-                    source.resource.trashed ||
-                    command.siblingOrder.length > 10000
+                  generateKeyBetween(
+                    siblings[offset - 1]?.order ?? null,
+                    siblings[offset]?.order ?? null
                   )
-                    throw new BadRequest(
-                      'Manual order requires the complete active sibling level'
-                    );
-                  oldSiblingOrder = pageTreeSiblingOrder(
-                    graph.nodes,
-                    source.parentNodeId,
-                    command.siblingOrder
-                  );
-                  let order: string | null = null;
-                  for (const siblingId of command.siblingOrder) {
-                    const sibling = byId.get(siblingId);
+                );
+                const reorder = async (
+                  parentId: string | null,
+                  order: string[]
+                ) => {
+                  if (order.length > 10000)
+                    throw new BadRequest('Sibling order is too large');
+                  pageTreeSiblingOrder(nodes, parentId, order);
+                  const current = validatePageTree(nodes);
+                  for (const siblingId of order) {
+                    const sibling = current.get(siblingId);
                     if (!sibling) throw new BadRequest('Resource unavailable');
                     if (!(await this.readable(input, sibling)))
                       throw new NotFound('Resource unavailable');
                     const path = [
-                      ...pageTreeAncestors(byId, siblingId),
+                      ...pageTreeAncestors(current, siblingId),
                       sibling,
                     ]
                       .filter(node => isPageTreeContainer(node.resource))
@@ -1767,15 +1785,42 @@ export class WorkspacePageTreeService {
                         .assert('Doc.Update');
                     else if (sibling.resource.kind !== 'folder')
                       await acl.assert('Workspace.Blobs.Write');
-                    order = generateKeyBetween(order, null);
-                    const nextOrder = order;
-                    nodes = nodes.map(node =>
-                      node.nodeId === siblingId
-                        ? { ...node, order: nextOrder }
-                        : node
-                    );
                     affectedNodeIds.push(siblingId);
                   }
+                  nodes = reorderPageTreeLevel(
+                    nodes,
+                    parentId,
+                    order,
+                    previous => generateKeyBetween(previous, null)
+                  );
+                };
+                if (command.siblingOrder) {
+                  oldSiblingOrder = pageTreeSiblingOrder(
+                    graph.nodes,
+                    source.parentNodeId,
+                    command.siblingOrder
+                  );
+                  await reorder(command.parentNodeId, command.siblingOrder);
+                }
+                if (command.targetSiblingOrder) {
+                  oldTargetSiblingOrder = pageTreeSiblingOrder(
+                    graph.nodes,
+                    command.parentNodeId
+                  );
+                  await reorder(
+                    command.parentNodeId,
+                    command.targetSiblingOrder
+                  );
+                }
+                if (command.sourceSiblingOrder) {
+                  oldSourceSiblingOrder = pageTreeSiblingOrder(
+                    graph.nodes,
+                    source.parentNodeId
+                  );
+                  await reorder(
+                    source.parentNodeId,
+                    command.sourceSiblingOrder
+                  );
                 }
                 const nextGraph = validatePageTree(nodes);
                 const principals = [
@@ -2076,6 +2121,8 @@ export class WorkspacePageTreeService {
                 oldParentNodeId,
                 oldBeforeNodeId,
                 oldSiblingOrder,
+                oldTargetSiblingOrder,
+                oldSourceSiblingOrder,
                 action: command.action,
                 parentNodeId: node.parentNodeId,
                 revision,

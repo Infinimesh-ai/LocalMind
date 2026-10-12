@@ -21,6 +21,7 @@ const logger = new DebugLogger('telemetry-service');
 export class TelemetryService extends Service {
   private readonly disposableFns: (() => void)[] = [];
   private clientLogTransport?: LocalMindClientLogTransport;
+  private clientLogEndpoint?: string;
 
   private readonly currentAccount$ =
     this.globalContextService.globalContext.serverId.$.selector(id =>
@@ -42,6 +43,7 @@ export class TelemetryService extends Service {
       .map(([account, selfHosted]) => ({
         account,
         selfHosted,
+        serverId: this.globalContextService.globalContext.serverId.get(),
       }))
       .distinctUntilChanged(shallowEqual);
 
@@ -56,14 +58,19 @@ export class TelemetryService extends Service {
     let prevAccount: AuthAccountInfo | null = null;
     let prevSelfHosted: boolean | undefined = undefined;
     const unsubscribe = this.currentAccount$.subscribe(
-      ({ account, selfHosted }) => {
-        const serverId = this.globalContextService.globalContext.serverId.get();
-        if (selfHosted && serverId) {
-          const server = this.serversService.server$(serverId).value;
-          if (server?.baseUrl && !this.clientLogTransport) {
-            this.clientLogTransport = new LocalMindClientLogTransport(
-              server.baseUrl
-            );
+      ({ account, selfHosted, serverId }) => {
+        const endpoint =
+          selfHosted && serverId
+            ? this.serversService.server$(serverId).value?.baseUrl
+            : undefined;
+        if (endpoint !== this.clientLogEndpoint) {
+          DebugLogger.setSink(undefined);
+          installLocalMindConsoleBridge(null);
+          this.clientLogTransport?.dispose();
+          this.clientLogTransport = undefined;
+          this.clientLogEndpoint = endpoint;
+          if (endpoint) {
+            this.clientLogTransport = new LocalMindClientLogTransport(endpoint);
             installLocalMindConsoleBridge(this.clientLogTransport);
             DebugLogger.setSink(event => {
               void this.clientLogTransport
@@ -76,10 +83,6 @@ export class TelemetryService extends Service {
                 .catch(() => undefined);
             });
           }
-        } else if (!selfHosted) {
-          DebugLogger.setSink(undefined);
-          installLocalMindConsoleBridge(null);
-          this.clientLogTransport = undefined;
         }
         const channel =
           BUILD_CONFIG.appBuildType === 'beta' ||
@@ -126,6 +129,9 @@ export class TelemetryService extends Service {
     );
     this.disposableFns.push(() => {
       unsubscribe.unsubscribe();
+      DebugLogger.setSink(undefined);
+      installLocalMindConsoleBridge(null);
+      this.clientLogTransport?.dispose();
     });
   }
 

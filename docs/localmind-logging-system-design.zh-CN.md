@@ -189,7 +189,7 @@ auditEventId    业务审计事件
 2. Web、Electron、Android、iOS 和后端通过同一实例的受保护日志接口自动写入该实例。客户端不要求用户手动上传日志；Electron 可以保留本地文件作为短期离线 spool，但最终必须自动补写到实例。
 3. 实例管理员可以查看实例内全部运行日志和业务审计。Workspace/Project 管理员仍只能按资源授权范围查看业务审计；管理身份不改变业务操作的原始授权结果。
 4. API key、Token、Cookie、Authorization、密码、OAuth 凭据、MCP 凭据、完整 Prompt、文档正文、附件和模型原始请求/响应均禁止写入日志。脱敏器必须在所有 transport 之前执行，并对嵌套对象、错误对象、请求头和异常堆栈统一处理。
-5. PostgreSQL 暂时不可用时，普通运行日志写入本地持久化 spool；spool 恢复后由 worker 批量幂等补写。每个事件必须有稳定 `event_id`，数据库唯一约束和补写状态机共同防止重复。高风险业务审计按业务契约 fail-closed，并返回可操作错误。
+5. PostgreSQL 暂时不可用时，普通运行日志写入本地持久化 spool；spool 恢复后由 worker 批量幂等补写。每个事件必须有稳定 `event_id`。时间分区的运行日志按事件 ID 获取有序事务锁，并通过现有索引检查在线及归档记录，防止并发写入和重放重复；审计信封继续由唯一约束保护。高风险业务审计按业务契约 fail-closed，并返回可操作错误。
 6. 默认保留策略随 LocalMind 提供，实例管理员可在 `/admin/observability/settings` 修改；配置变更、清理、归档、导出、冻结和解冻都写入审计。策略必须限制最小/最大值，避免误配置造成无限增长或立即删除。
 7. 自托管默认禁止日志、审计、Trace、客户端日志和 Support Bundle 日志证据外发。业务调用只有明确允许的文档、Provider、MCP 或企业连接器请求可以按各自授权外发；任何外发都不得携带日志字段或凭据。
 8. 本次实施采用一次性替换。完成后必须扫描仓库中的 `new Logger`、`console.*`、`@affine/debug`、Electron logger、错误边界和第三方 exporter，输出已接入清单与明确保留的例外；例外也必须遵守脱敏和外发策略。

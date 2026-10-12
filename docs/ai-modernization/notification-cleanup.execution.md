@@ -82,3 +82,50 @@ build cache 2.913 GB；未执行 prune 或删除 volume。
 
 保留全部既有源码改动，未提交或推送。构建仍提示既有静态资源体积和 Browserslist
 数据过旧警告；本轮未改动依赖或全局构建配置。
+
+## 2026-10-11：v10 通知控件与无闪动刷新
+
+本轮按用户确认，将 v10 Circuit 的控件风格用于通知弹层，范围仅限通知。
+沿用本记录的通知清理契约，视觉参考为
+`project-workbench-v10-desktop-design-implementation.zh-CN.md`；不改变工单、权限、
+删除语义或其他页面的全局控件。
+
+- 已读、删除操作改为底部横排，使用 34px 浅灰圆角控件、细边框、轻阴影；触屏
+  命中区域为 44px。删除悬停采用语义红，提供键盘焦点与说明。
+- 工单通知标题最多两行，摘要与本地化状态合并，打开工单使用紧凑次级入口。
+  不可访问的工单禁止打开，但仍可清理通知。
+- 替代旧的“操作后 reset 再加载”：局部乐观更新，后台按原已加载页数重新请求，
+  全部成功后一次性替换数据和分页游标；失败保留内容，提供重试。
+- 合并密集到达的刷新信号，取消过期请求，防止旧结果恢复已删除项。失败操作立即
+  恢复本地条目；计数恢复检查实时版本，筛选切换检查请求代次。
+- 背景刷新不显示整列表骨架屏、不卸载未变化行；面板保持高度，保留可见行的滚动
+  位置。移除聚焦条目后转移至邻近条目，最后一条移除后聚焦通知标题。
+
+代码集中在 `components/notification/{list,list.style.css,cleanup-actions,work-order,viewport}`
+和 `modules/notification/services/list.ts`（均位于 `packages/frontend/core/src/`）。
+
+复用 Linux 容器 `localmind_hot_web`（固定镜像 `localmind-affine:dev-base`），命令前缀
+为 `docker exec -w /workspace localmind_hot_web`。36 项聚焦测试通过：
+
+```sh
+yarn vitest run \
+  packages/frontend/core/src/modules/notification/services/list.spec.ts \
+  packages/frontend/core/src/modules/notification/services/count.spec.ts \
+  packages/frontend/core/src/modules/notification/stores/notification.spec.ts \
+  packages/frontend/core/src/components/notification/cleanup-actions.spec.tsx \
+  packages/frontend/core/src/components/notification/viewport.spec.tsx
+```
+
+覆盖多页保留与游标续接、重复信号合并、乐观更新及刷新双重失败、过期响应隔离、
+筛选切换、键盘焦点、可见行位置和工单导航。修改文件通过 oxlint、ESLint、Prettier
+及 diff 检查。ESLint 默认堆内存不足，增加 `NODE_OPTIONS=--max-old-space-size=6144`
+后通过。前端全量类型检查仍被既有 BlockSuite 导出、页面树、导入和工单文件输入等
+错误阻挡；本轮通知文件没有类型错误。
+
+运行页面通过已有源码挂载与热更新生效，未执行同步脚本、重建镜像或提交推送。
+浏览器保留用户通知数据；已读、删除、失败路径通过隔离测试验证。真实通知列表加载
+11 条后，跨后台刷新仍保持 `scrollTop=590` 和 480px 面板高度。主题使用真实组件
+DOM/CSS 和现有主题 token 在独立预览中检查，不改变用户主题设置。
+真实页面检查 390×844、745×894、1325×894：窄屏面板宽 358px、左右各留 16px，
+桌面面板宽 384px；操作区与长标题不溢出。验证后恢复浏览器原视口。
+截图与日志保存于 `.codex-artifacts/notification-v10-20261011/`。

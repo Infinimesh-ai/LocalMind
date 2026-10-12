@@ -1,25 +1,12 @@
-import { Button, useDraggable } from '@affine/component';
-import {
-  GraphQLService,
-  WorkspaceServerService,
-} from '@affine/core/modules/cloud';
+import { MenuItem, Tooltip, useDraggable } from '@affine/component';
 import { DocsService } from '@affine/core/modules/doc';
 import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
 import { GuardService } from '@affine/core/modules/permissions';
 import { TagService } from '@affine/core/modules/tag';
 import { WorkbenchService } from '@affine/core/modules/workbench';
-import { WorkspaceService } from '@affine/core/modules/workspace';
-import {
-  type NativeResource,
-  WorkspaceResourcesService,
-} from '@affine/core/modules/workspace-resources';
+import { type NativeResource } from '@affine/core/modules/workspace-resources';
 import type { AffineDNDData } from '@affine/core/types/dnd';
-import { UserFriendlyError } from '@affine/error';
-import {
-  resourceDate,
-  setWorkspaceNativeResourceTagsMutation,
-  type WorkspaceDocumentType,
-} from '@affine/graphql';
+import { resourceDate, type WorkspaceDocumentType } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
   AttachmentIcon,
@@ -32,11 +19,11 @@ import {
   PageIcon,
   PlayPanelIcon,
   TableIcon,
+  TagsIcon,
   TextIcon,
   ViewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { nanoid } from 'nanoid';
 import { useContext, useEffect, useRef, useState } from 'react';
 
 import { DocExplorerContext } from '../explorer/context';
@@ -44,9 +31,15 @@ import { MoreMenuButton } from '../explorer/docs-view/more-menu';
 import { quickActions } from '../explorer/quick-actions.constants';
 import { defaultResourceProperties } from '../explorer/resource-preferences';
 import { PagePreview } from '../page-list/page-content-preview';
-import { WorkspaceTagsInlineEditor } from '../tags';
-import { ResourceMetadata, ResourceTags } from './resource-metadata';
+import {
+  ResourceInlineTags,
+  ResourceMetadata,
+  ResourceTags,
+} from './resource-metadata';
+import * as metadataStyles from './resource-metadata.css';
 import { ResourceRowShell } from './resource-row-shell';
+import { ResourceSelectionModeContext } from './resource-selection-context';
+import { ResourceTagDialog } from './resource-tag-dialog';
 
 const icons = {
   folder: FolderIcon,
@@ -67,116 +60,26 @@ const icons = {
 };
 export function ResourceTypeIcon({ type }: { type: WorkspaceDocumentType }) {
   const Icon = icons[type];
-  return <Icon />;
+  const t = useI18n();
+  const label = t[`com.affine.localmind.resource-display.type.${type}`]();
+  return (
+    <Tooltip content={label}>
+      <span className={metadataStyles.typeIcon} role="img" aria-label={label}>
+        <Icon />
+      </span>
+    </Tooltip>
+  );
 }
 
 export { ResourceRowShell } from './resource-row-shell';
 export function NativeTags({ resource }: { resource: NativeResource }) {
-  const graphql = useService(GraphQLService);
-  const { workspace } = useService(WorkspaceService);
-  const { server } = useService(WorkspaceServerService);
-  const service = useService(WorkspaceResourcesService);
-  const tags = useLiveData(useService(TagService).tagList.tagMetas$);
-  const t = useI18n();
-  const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const request = useRef<
-    | { tagIds: string[]; requestKey: string; expectedVersion: number }
-    | undefined
-  >(undefined);
-  const busy = useRef(false);
-  const scope = useRef<string | undefined>(undefined);
-  const active = useRef(true);
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-    };
-  }, []);
-  const selected = resource.tags
-    .map(tag => tag.id)
-    .filter(id => tags.some(tag => tag.id === id));
-  const save = async (ids?: string[]) => {
-    if (busy.current) return;
-    busy.current = true;
-    setPending(true);
-    setFailed(false);
-    if (ids) {
-      scope.current = server?.account$.value?.id;
-      request.current = {
-        tagIds: ids,
-        requestKey: nanoid(),
-        expectedVersion: resource.metadataVersion,
-      };
-    }
-    try {
-      if (!request.current) return;
-      await workspace.engine.doc.waitForSynced(workspace.id);
-      if (!active.current || scope.current !== server?.account$.value?.id) {
-        request.current = undefined;
-        return;
-      }
-      await graphql.gql({
-        query: setWorkspaceNativeResourceTagsMutation,
-        variables: {
-          input: {
-            ...request.current,
-            workspaceId: resource.workspaceId,
-            kind: resource.kind,
-            resourceId: resource.id,
-          },
-        },
-      });
-      request.current = undefined;
-      if (!active.current || scope.current !== server?.account$.value?.id)
-        return;
-      await service.refresh();
-    } catch (error) {
-      if (
-        [400, 403, 404, 409].includes(UserFriendlyError.fromAny(error).status)
-      ) {
-        request.current = undefined;
-        service.invalidate(true);
-      }
-      setFailed(true);
-    } finally {
-      busy.current = false;
-      setPending(false);
-    }
-  };
-  if (!resource.canEditTags)
-    return (
-      <ResourceTags tags={tags.filter(tag => selected.includes(tag.id))} />
-    );
+  const compact = useLiveData(useContext(DocExplorerContext).view$) === 'list';
   return (
-    <div aria-busy={pending}>
-      <WorkspaceTagsInlineEditor
-        tagMode="inline-tag"
-        renderSelectedTags={tags => <ResourceTags tags={tags} />}
-        selectedTags={selected}
-        readonly={pending || failed}
-        placeholder={t['com.affine.localmind.resource-display.noTags']()}
-        onSelectTag={id => void save([...selected, id])}
-        onDeselectTag={id => void save(selected.filter(value => value !== id))}
-      />
-      {failed && (
-        <span role="alert">
-          {t['com.affine.localmind.project-files.operationFailed']()}{' '}
-          <Button
-            size="default"
-            onClick={() => {
-              if (request.current) save().catch(() => setFailed(true));
-              else {
-                setFailed(false);
-                service.invalidate();
-              }
-            }}
-          >
-            {t['com.affine.error.retry']()}
-          </Button>
-        </span>
-      )}
-    </div>
+    <ResourceTags
+      tags={resource.tags}
+      hideEmpty={compact}
+      limit={compact ? 1 : 2}
+    />
   );
 }
 
@@ -190,18 +93,25 @@ export function MixedDocRow({ id }: { id: string }) {
     useContext(DocExplorerContext).displayPreference$
   );
   const workbench = useService(WorkbenchService).workbench;
+  const contextSelectMode = !!useLiveData(
+    useContext(DocExplorerContext).selectMode$
+  );
+  const explicitSelection = useContext(ResourceSelectionModeContext);
+  const selectMode = explicitSelection && contextSelectMode;
   const tags = useLiveData(useService(TagService).tagList.tagMetas$);
   const guard = useService(GuardService);
   const [canEdit, setCanEdit] = useState(false);
+  const [editingTags, setEditingTags] = useState(false);
+  const operationRef = useRef<HTMLButtonElement>(null);
   const t = useI18n();
   const display = useService(DocDisplayMetaService);
   const title = useLiveData(display.title$(id));
   const { dragRef, CustomDragPreview } = useDraggable<AffineDNDData>(
     () => ({
-      canDrag: !!preference.showDragHandle,
+      canDrag: !selectMode && !!preference.showDragHandle,
       data: { entity: { type: 'doc', id }, from: { at: 'all-docs:list' } },
     }),
-    [id, preference.showDragHandle]
+    [id, preference.showDragHandle, selectMode]
   );
   useEffect(() => {
     const sub = guard
@@ -213,21 +123,11 @@ export function MixedDocRow({ id }: { id: string }) {
   const tagIds = (meta?.tags ?? []).filter(id =>
     tags.some(tag => tag.id === id)
   );
-  const tagEditor = !canEdit ? (
-    <ResourceTags tags={tags.filter(tag => tagIds.includes(tag.id))} />
-  ) : (
-    <WorkspaceTagsInlineEditor
-      renderSelectedTags={tags => <ResourceTags tags={tags} />}
-      selectedTags={tagIds}
-      readonly={!canEdit}
-      tagMode="inline-tag"
-      placeholder={t['com.affine.localmind.resource-display.noTags']()}
-      onSelectTag={tagId =>
-        doc.setMeta({ tags: [...new Set([...tagIds, tagId])] })
-      }
-      onDeselectTag={tagId =>
-        doc.setMeta({ tags: tagIds.filter(id => id !== tagId) })
-      }
+  const tagEditor = (
+    <ResourceTags
+      tags={tags.filter(tag => tagIds.includes(tag.id))}
+      hideEmpty={preference.view === 'list'}
+      limit={preference.view === 'list' ? 1 : 2}
     />
   );
   return (
@@ -245,6 +145,11 @@ export function MixedDocRow({ id }: { id: string }) {
         }
         onOpen={() => workbench.openDoc(id)}
         preview={<PagePreview pageId={id} />}
+        tags={
+          <ResourceInlineTags empty={!tagIds.length}>
+            {tagEditor}
+          </ResourceInlineTags>
+        }
         actions={
           <>
             {quickActions
@@ -252,7 +157,23 @@ export function MixedDocRow({ id }: { id: string }) {
               .map(({ key, Component }) => (
                 <Component key={key} doc={doc} />
               ))}
-            <MoreMenuButton docId={id} />
+            <MoreMenuButton
+              triggerRef={operationRef}
+              docId={id}
+              iconProps={{
+                'data-resource-operation': 'true',
+                'aria-label': `${t['com.affine.localmind.resources.actions']()}: ${title}`,
+              }}
+              additionalItems={
+                <MenuItem
+                  prefixIcon={<TagsIcon />}
+                  disabled={!canEdit}
+                  onSelect={() => setEditingTags(true)}
+                >
+                  {t['com.affine.localmind.resources.editTags']()}
+                </MenuItem>
+              }
+            />
           </>
         }
       >
@@ -270,6 +191,14 @@ export function MixedDocRow({ id }: { id: string }) {
           documentType={mode === 'edgeless' ? 'edgeless' : 'page'}
         />
       </ResourceRowShell>
+      {editingTags && (
+        <ResourceTagDialog
+          returnFocus={operationRef}
+          mode="edit"
+          targets={[{ key: id, id, kind: 'doc', title }]}
+          onClose={() => setEditingTags(false)}
+        />
+      )}
       <CustomDragPreview>{title}</CustomDragPreview>
     </div>
   );

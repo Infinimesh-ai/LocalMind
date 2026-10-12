@@ -1,3 +1,4 @@
+import { isComposingKeyboardEvent } from '@affine/component';
 import type { TagMeta } from '@affine/core/components/page-list';
 import type { CollectionMeta } from '@affine/core/modules/collection';
 import { I18nController } from '@affine/core/modules/i18n/lit-controller';
@@ -553,7 +554,11 @@ export class ChatPanelAddPopover extends SignalWatcher(
   };
 
   private readonly _handleKeyDown = (event: KeyboardEvent) => {
-    if (event.isComposing) return;
+    if (
+      isComposingKeyboardEvent(event) ||
+      (event.key === 'Enter' && event.repeat)
+    )
+      return;
 
     const { key } = event;
 

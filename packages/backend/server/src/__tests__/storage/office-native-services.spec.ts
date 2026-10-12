@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 
+import { createNativeFile } from '@localmind/office';
 import {
   createMinimalPdfFixture,
   createMinimalPptxFixture,
@@ -106,10 +107,42 @@ async function nativeCases() {
       },
       secret: 'PRIVATE_PDF_COMMENT',
     },
+    {
+      format: 'docx' as const,
+      bytes: createNativeFile({
+        format: 'docx',
+        paragraphs: [{ text: 'Original' }],
+      }).bytes,
+      kind: OfficeArtifactKind.document,
+      fileName: 'draft.docx',
+      command: {
+        version: 'localmind-office-command/v1',
+        commandId: 'docx-edit',
+        idempotencyKey: 'docx-edit',
+        artifactId: 'artifact-docx',
+        expectedRevisionId: 'revision-docx',
+        source: 'user',
+        operation: 'office.document.edit',
+        identities: [{ blockId: 'paragraph:1', id: 'paragraph:00000001' }],
+        patches: [
+          {
+            targets: ['paragraph:00000001'],
+            paragraphs: [
+              {
+                id: 'paragraph:00000001',
+                runs: [{ text: 'PRIVATE_DOCX_TEXT' }],
+              },
+              { id: 'paragraph:00000002', runs: [{ text: 'Second' }] },
+            ],
+          },
+        ],
+      },
+      secret: 'PRIVATE_DOCX_TEXT',
+    },
   ];
 }
 
-test('imports XLSX, PPTX, and PDF through the native format registry', async t => {
+test('imports all four formats through the native format registry', async t => {
   for (const item of await nativeCases()) {
     const policy = OFFICE_FORMATS[item.format];
     const createOrReuseImported = Sinon.stub().callsFake(async input => ({
@@ -243,7 +276,7 @@ test('rejects MIME mismatch and denied import permissions before persistence', a
   t.false((deniedModels.blob.get as Sinon.SinonStub).called);
 });
 
-test('previews and executes XLSX, PPTX, and PDF commands with immutable evidence', async t => {
+test('previews and executes all four formats with immutable evidence', async t => {
   for (const item of await nativeCases()) {
     const policy = OFFICE_FORMATS[item.format];
     const appendRevision = Sinon.stub().callsFake(async input => ({

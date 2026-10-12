@@ -1,3 +1,4 @@
+import { UserFriendlyError } from '@affine/error';
 import {
   mutateWorkspaceDirectoryMutation,
   reorderWorkspaceDirectoryMutation,
@@ -36,6 +37,9 @@ export class DirectoryAccessStore extends Store {
   private refreshRequested = false;
   private stopped = false;
   private controller?: AbortController;
+  private rateLimitedUntil = 0;
+  private rateLimitCount = 0;
+  private retryTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly workspaceService: WorkspaceService,
@@ -51,6 +55,9 @@ export class DirectoryAccessStore extends Store {
       .pipe(switchMap(server => server?.account$ ?? of(null)))
       .subscribe(account => {
         this.identityGeneration++;
+        this.rateLimitedUntil = 0;
+        this.rateLimitCount = 0;
+        clearTimeout(this.retryTimer);
         this.accessSubscription?.unsubscribe();
         this.refresh(true).catch(console.error);
         if (account && this.nbstoreService) {
@@ -89,6 +96,7 @@ export class DirectoryAccessStore extends Store {
         this.identityGeneration++;
         this.accessSubscription?.unsubscribe();
         this.controller?.abort();
+        clearTimeout(this.retryTimer);
       }
     );
   }
@@ -96,6 +104,21 @@ export class DirectoryAccessStore extends Store {
   async refresh(clear = false) {
     if (this.workspaceService.workspace.flavour === 'local' || this.stopped)
       return;
+    if (Date.now() < this.rateLimitedUntil) {
+      if (clear) {
+        this.generation++;
+        this.controller?.abort();
+        this.activeRefresh = undefined;
+        this.refreshing = false;
+        this.refreshRequested = false;
+        this.state$.next({
+          mode: 'error',
+          items: [],
+          error: 'Directory loading is rate limited',
+        });
+      }
+      return;
+    }
     if (this.activeRefresh && !clear) {
       // Ordinary notifications must not starve a slow request. Catch up once
       // after it completes, even when many notifications arrived meanwhile.
@@ -127,6 +150,7 @@ export class DirectoryAccessStore extends Store {
     } while (
       this.refreshRequested &&
       generation === this.generation &&
+      Date.now() >= this.rateLimitedUntil &&
       !this.stopped
     );
   }
@@ -158,6 +182,7 @@ export class DirectoryAccessStore extends Store {
         )
           throw new Error('Directory permissions changed while loading; retry');
         if (page.fullSyncAllowed) {
+          this.rateLimitCount = 0;
           this.state$.next({
             mode: 'full',
             items: [],
@@ -184,8 +209,23 @@ export class DirectoryAccessStore extends Store {
         revision: firstPage?.revision,
         rootRights: firstPage?.rootRights,
       });
+      this.rateLimitCount = 0;
     } catch (error) {
       if (generation !== this.generation) return;
+      const friendly = UserFriendlyError.fromAny(error);
+      if (friendly.status === 429 || friendly.is('TOO_MANY_REQUEST')) {
+        const delay =
+          friendly.retryAfterMs ??
+          Math.min(300_000, 60_000 * 2 ** this.rateLimitCount++);
+        this.rateLimitedUntil = Date.now() + delay;
+        this.refreshRequested = false;
+        clearTimeout(this.retryTimer);
+        const identity = this.identityGeneration;
+        this.retryTimer = setTimeout(() => {
+          if (identity === this.identityGeneration && !this.stopped)
+            void this.refresh().catch(console.error);
+        }, delay);
+      }
       this.state$.next({
         mode: 'error',
         items: [],

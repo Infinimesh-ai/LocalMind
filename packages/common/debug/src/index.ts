@@ -40,6 +40,12 @@ if (typeof window !== 'undefined') {
 }
 
 export class DebugLogger {
+  private static consoleDepth = 0;
+
+  static get isMirroringToConsole() {
+    return DebugLogger.consoleDepth > 0;
+  }
+
   private static sink?: (event: {
     namespace: string;
     level: LogLevel;
@@ -88,14 +94,22 @@ export class DebugLogger {
   }
 
   log(level: LogLevel, message: string, ...args: any[]) {
-    DebugLogger.sink?.({
-      namespace: this._debug.namespace,
-      level,
-      message,
-      args,
-    });
+    const sink = DebugLogger.sink;
+    // Disabled debug output should not become an always-on network stream.
+    if (level !== 'debug' || this.enabled)
+      sink?.({
+        namespace: this._debug.namespace,
+        level,
+        message,
+        args,
+      });
     this._debug.log = console[level].bind(console);
-    this._debug(`[${level.toUpperCase()}] ${message}`, ...args);
+    if (sink) DebugLogger.consoleDepth++;
+    try {
+      this._debug(`[${level.toUpperCase()}] ${message}`, ...args);
+    } finally {
+      if (sink) DebugLogger.consoleDepth--;
+    }
   }
 
   namespace(extra: string) {

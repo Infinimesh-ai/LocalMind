@@ -1,5 +1,5 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 export const root = style({
   display: 'flex',
   flexDirection: 'column',
@@ -13,8 +13,42 @@ export const toolbar = style({
   gap: 12,
   padding: '8px 24px',
   color: cssVarV2('text/primary'),
+  flexShrink: 0,
 });
-export const results = style({ flex: 1, minHeight: 0, position: 'relative' });
+export const selectionToolbar = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  marginInlineStart: 'auto',
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
+});
+export const tagDialog = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+  minWidth: 0,
+});
+export const tagDialogActions = style({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 8,
+});
+globalStyle(
+  `${root}[data-select-mode="false"] [data-testid="doc-list-item-select"]`,
+  { display: 'none' }
+);
+globalStyle(
+  `${root}[data-select-mode="false"] [data-resource-group-select="true"]`,
+  { display: 'none' }
+);
+export const results = style({
+  flex: 1,
+  minHeight: 0,
+  position: 'relative',
+  containerName: 'resource-results',
+  containerType: 'inline-size',
+});
 export const name = style({
   flex: 1,
   minWidth: 0,

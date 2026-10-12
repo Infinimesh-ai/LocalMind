@@ -2,6 +2,11 @@ import type { OfficeTextPosition, OfficeTextRange } from './types';
 
 const PARAGRAPH_SELECTOR = '[data-office-block-id]';
 
+export type OfficeSelectionBookmark = {
+  anchor: OfficeTextPosition;
+  focus: OfficeTextPosition;
+};
+
 function elementOf(node: Node | null): Element | null {
   if (!node) return null;
   return node.nodeType === Node.ELEMENT_NODE
@@ -87,4 +92,71 @@ export function resolveOfficeTextRange(
     start: { blockId: start.blockId, offset: start.offset },
     end: { blockId: end.blockId, offset: end.offset },
   };
+}
+
+// DOM ranges point at nodes that are replaced when an immutable revision loads.
+// Keep both endpoints in document coordinates, including the selection direction.
+export function captureOfficeSelection(
+  root: HTMLElement,
+  selection: Selection | null
+): OfficeSelectionBookmark | null {
+  if (!selection?.rangeCount || !selection.anchorNode || !selection.focusNode) {
+    return null;
+  }
+  const anchor = resolvePosition(
+    root,
+    selection.anchorNode,
+    selection.anchorOffset
+  );
+  const focus = resolvePosition(
+    root,
+    selection.focusNode,
+    selection.focusOffset
+  );
+  if (!anchor || !focus) return null;
+  return {
+    anchor: { blockId: anchor.blockId, offset: anchor.offset },
+    focus: { blockId: focus.blockId, offset: focus.offset },
+  };
+}
+
+function resolveDomPosition(root: HTMLElement, position: OfficeTextPosition) {
+  const paragraph = root.querySelector<HTMLElement>(
+    `[data-office-block-id="${CSS.escape(position.blockId)}"]`
+  );
+  if (
+    !paragraph ||
+    !Number.isSafeInteger(position.offset) ||
+    position.offset < 0
+  )
+    return null;
+  const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+  let remaining = position.offset;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const length = node.textContent?.length ?? 0;
+    if (remaining <= length) return { node, offset: remaining, paragraph };
+    remaining -= length;
+  }
+  // Empty paragraphs contain a <br> rather than a text node.
+  return remaining === 0
+    ? { node: paragraph, offset: paragraph.childNodes.length, paragraph }
+    : null;
+}
+
+export function restoreOfficeSelection(
+  root: HTMLElement,
+  bookmark: OfficeSelectionBookmark
+): boolean {
+  const anchor = resolveDomPosition(root, bookmark.anchor);
+  const focus = resolveDomPosition(root, bookmark.focus);
+  const selection = window.getSelection();
+  if (!anchor || !focus || !selection) return false;
+  anchor.paragraph.focus({ preventScroll: true });
+  selection.setBaseAndExtent(
+    anchor.node,
+    anchor.offset,
+    focus.node,
+    focus.offset
+  );
+  return true;
 }

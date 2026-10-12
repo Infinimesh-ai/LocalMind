@@ -312,7 +312,9 @@ export class AffineAIPanelWidget extends WidgetComponent {
         get cancelText() {
           return I18n['com.affine.localmind.aiContext.cancel']();
         },
-        confirmText: 'Stop',
+        get confirmText() {
+          return I18n['com.affine.ui.stop-generating']();
+        },
         abort: this._abortController.signal,
       })
       .finally(() => (this._discardModalAbort = null));
@@ -338,7 +340,9 @@ export class AffineAIPanelWidget extends WidgetComponent {
         get cancelText() {
           return I18n['com.affine.localmind.aiContext.cancel']();
         },
-        confirmText: 'Discard',
+        get confirmText() {
+          return I18n['com.affine.ui.discard-the-ai-result']();
+        },
         abort: this._abortController.signal,
       })
       .finally(() => (this._discardModalAbort = null));

@@ -204,10 +204,12 @@ export class WorkspaceNativeResourceModel extends BaseModel {
         'Move the native resource to trash before permanently deleting it'
       );
     const renamed = input.title !== undefined && input.title !== current.title;
+    const compareTagIds = (left: string, right: string) =>
+      left === right ? 0 : left < right ? -1 : 1;
     const tagsChanged =
       input.tagIds !== undefined &&
-      JSON.stringify([...input.tagIds].sort()) !==
-        JSON.stringify([...current.tagIds].sort());
+      JSON.stringify([...input.tagIds].sort(compareTagIds)) !==
+        JSON.stringify([...current.tagIds].sort(compareTagIds));
     if (
       (input.title !== undefined || input.tagIds !== undefined) &&
       !renamed &&

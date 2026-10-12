@@ -105,6 +105,8 @@ class WorkspacePageTreeCommandInput {
   @Field(() => ID, { nullable: true }) parentNodeId?: string | null;
   @Field(() => ID, { nullable: true }) beforeNodeId?: string;
   @Field(() => [ID], { nullable: true }) siblingOrder?: string[];
+  @Field(() => [ID], { nullable: true }) targetSiblingOrder?: string[];
+  @Field(() => [ID], { nullable: true }) sourceSiblingOrder?: string[];
   @Field(() => ID, { nullable: true }) expectedParentNodeId?: string | null;
   @Field(() => String, { nullable: true }) title?: string;
   @Field(() => String, { nullable: true }) primaryMode?: string;
@@ -121,6 +123,12 @@ class WorkspacePageTreeReceipt {
   @Field(() => ID, { nullable: true }) oldParentNodeId!: string | null;
   @Field(() => ID, { nullable: true }) oldBeforeNodeId!: string | null;
   @Field(() => [ID], { nullable: true }) oldSiblingOrder!: string[] | null;
+  @Field(() => [ID], { nullable: true }) oldTargetSiblingOrder!:
+    | string[]
+    | null;
+  @Field(() => [ID], { nullable: true }) oldSourceSiblingOrder!:
+    | string[]
+    | null;
 }
 @InputType()
 class WorkspaceLocalPageTreePosition {
@@ -193,6 +201,8 @@ const commandSchema = z.discriminatedUnion('action', [
     parentNodeId: id.nullable(),
     beforeNodeId: id.optional(),
     siblingOrder: z.array(id).min(1).max(10000).optional(),
+    targetSiblingOrder: z.array(id).min(1).max(10000).optional(),
+    sourceSiblingOrder: z.array(id).max(10000).optional(),
     insertAfterBlockId: id.optional(),
   }),
   base.extend({
@@ -214,6 +224,8 @@ const receiptSchema = z.object({
   oldParentNodeId: id.nullable(),
   oldBeforeNodeId: id.nullable(),
   oldSiblingOrder: z.array(id).nullable().optional(),
+  oldTargetSiblingOrder: z.array(id).nullable().optional(),
+  oldSourceSiblingOrder: z.array(id).nullable().optional(),
 });
 
 @Throttle()
@@ -296,6 +308,7 @@ export class WorkspacePageTreeResolver {
     return result?.phase === 'switched';
   }
   @Query(() => WorkspacePageTreePage)
+  @Throttle('default', { bucket: 'workspace-tree-read' })
   async workspacePageTree(
     @CurrentUser() actor: Actor,
     @Args('workspaceId', { type: () => ID }) workspaceId: string,
@@ -394,6 +407,8 @@ export class WorkspacePageTreeResolver {
       oldParentNodeId: receipt.oldParentNodeId,
       oldBeforeNodeId: receipt.oldBeforeNodeId,
       oldSiblingOrder: receipt.oldSiblingOrder ?? null,
+      oldTargetSiblingOrder: receipt.oldTargetSiblingOrder ?? null,
+      oldSourceSiblingOrder: receipt.oldSourceSiblingOrder ?? null,
     };
   }
 }

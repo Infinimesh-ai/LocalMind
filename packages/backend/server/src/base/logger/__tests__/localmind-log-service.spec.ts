@@ -1,10 +1,12 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { mock } from 'node:test';
 
 import { Prisma } from '@prisma/client';
 import test from 'ava';
 
+import { ObservabilityController } from '../../../core/observability/controller';
 import {
   createLocalMindLogArchiveEnvelope,
   LOCALMIND_LOG_ARCHIVE_SCHEMA,
@@ -15,6 +17,26 @@ import {
 import { LocalMindLogService } from '../localmind-log-service';
 import { redact } from '../redactor';
 import { LocalMindLogSpool } from '../spool';
+
+function runtimePrisma(
+  events: {
+    createManyAndReturn: (
+      args: Prisma.LocalMindLogEventCreateManyAndReturnArgs
+    ) => Promise<{ eventId: string }[]>;
+  },
+  accepted: () => string[] = () => []
+) {
+  const tx = {
+    $executeRaw: async () => 0,
+    $queryRaw: async () => accepted().map(eventId => ({ eventId })),
+    localMindLogEvent: { ...events, findMany: async () => [] },
+    localMindLogArchive: { findMany: async () => [] },
+  };
+  return {
+    $transaction: async (operation: (client: typeof tx) => Promise<unknown>) =>
+      operation(tx),
+  };
+}
 
 test('log queries treat nullable GraphQL filters as absent', async t => {
   const prisma = {
@@ -178,21 +200,143 @@ test('audit writes log and immutable envelope in one transaction', async t => {
   );
 });
 
-test('regular log replay treats event_id uniqueness as idempotent success', async t => {
-  const prisma = {
-    localMindLogEvent: {
-      create: async () => {
-        throw new Prisma.PrismaClientKnownRequestError('duplicate', {
-          code: 'P2002',
-          clientVersion: 'test',
-        });
+test('regular log replay checks durable events before insertion or mirroring', async t => {
+  const prisma = runtimePrisma(
+    {
+      createManyAndReturn: async () => {
+        t.fail('A durable replay must not be inserted');
+        return [];
       },
     },
-  };
+    () => ['replayed-event']
+  );
+  const stdout = mock.method(process.stdout, 'write', () => true);
+  t.teardown(() => stdout.mock.restore());
   const service = new LocalMindLogService(prisma as any);
   t.is(
     await service.write({ eventId: 'replayed-event', eventName: 'client.log' }),
     'replayed-event'
+  );
+  t.is(stdout.mock.callCount(), 0);
+});
+
+test('client ingestion uses a single bounded insert and mirrors only new events', async t => {
+  const persisted = new Set<string>(['existing']);
+  let inserts = 0;
+  const prisma = runtimePrisma(
+    {
+      createManyAndReturn: async (
+        args: Prisma.LocalMindLogEventCreateManyAndReturnArgs
+      ) => {
+        inserts++;
+        t.true(args.skipDuplicates);
+        const data = Array.isArray(args.data) ? args.data : [args.data];
+        t.true(data.length <= 100);
+        t.false(JSON.stringify(data).includes('private-key'));
+        return data
+          .filter(record => !persisted.has(record.eventId))
+          .map(record => {
+            persisted.add(record.eventId);
+            return { eventId: record.eventId };
+          });
+      },
+    },
+    () => [...persisted]
+  );
+  const service = new LocalMindLogService(
+    prisma as unknown as ConstructorParameters<typeof LocalMindLogService>[0]
+  );
+  const stdout = mock.method(process.stdout, 'write', () => true);
+  t.teardown(() => stdout.mock.restore());
+  const controller = new ObservabilityController(service);
+  const events = Array.from({ length: 200 }, (_, index) => ({
+    eventId: index === 0 ? 'existing' : `event-${index}`,
+    eventName: 'client.log',
+    metadata: { apiKey: 'private-key' },
+  }));
+  const receipt = await controller.ingest({ events });
+  t.is(receipt.accepted, 100);
+  t.is(inserts, 1);
+  t.is(stdout.mock.callCount(), 99);
+  t.deepEqual(await controller.ingest({ events }), receipt);
+  t.is(inserts, 1);
+  t.is(stdout.mock.callCount(), 99);
+});
+
+test('batch receipts acknowledge durable spool records during a database outage', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'localmind-batch-spool-'));
+  t.teardown(() => rm(directory, { recursive: true, force: true }));
+  const previous = process.env.LOCALMIND_LOG_SPOOL_DIR;
+  process.env.LOCALMIND_LOG_SPOOL_DIR = directory;
+  let inserts = 0;
+  const service = new LocalMindLogService(
+    runtimePrisma({
+      createManyAndReturn: async () => {
+        inserts++;
+        throw new Error('database unavailable');
+      },
+    }) as unknown as ConstructorParameters<typeof LocalMindLogService>[0]
+  );
+  if (previous === undefined) delete process.env.LOCALMIND_LOG_SPOOL_DIR;
+  else process.env.LOCALMIND_LOG_SPOOL_DIR = previous;
+  t.deepEqual(
+    await service.writeBatch([
+      { eventId: 'spooled-1', eventName: 'client.log' },
+      {
+        eventId: 'spooled-2',
+        eventName: 'client.log',
+        metadata: { token: 'private-key' },
+      },
+    ]),
+    ['spooled-1', 'spooled-2']
+  );
+  t.is(inserts, 1);
+  const spool = new LocalMindLogSpool(directory);
+  const records = await Promise.all(
+    (await spool.list()).map(file => spool.read(file))
+  );
+  t.deepEqual(
+    records
+      .filter(record => record.eventName === 'client.log')
+      .map(record => record.eventId)
+      .sort(),
+    ['spooled-1', 'spooled-2']
+  );
+  t.false(JSON.stringify(records).includes('private-key'));
+});
+
+test('a full spool cannot acknowledge dropped client events', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'localmind-batch-full-'));
+  t.teardown(() => rm(directory, { recursive: true, force: true }));
+  const previousDirectory = process.env.LOCALMIND_LOG_SPOOL_DIR;
+  const previousCapacity = process.env.LOCALMIND_LOG_SPOOL_MAX_BYTES;
+  process.env.LOCALMIND_LOG_SPOOL_DIR = directory;
+  process.env.LOCALMIND_LOG_SPOOL_MAX_BYTES = '1';
+  const service = new LocalMindLogService(
+    runtimePrisma({
+      createManyAndReturn: async () => {
+        throw new Error('database unavailable');
+      },
+    }) as unknown as ConstructorParameters<typeof LocalMindLogService>[0]
+  );
+  if (previousDirectory === undefined)
+    delete process.env.LOCALMIND_LOG_SPOOL_DIR;
+  else process.env.LOCALMIND_LOG_SPOOL_DIR = previousDirectory;
+  if (previousCapacity === undefined)
+    delete process.env.LOCALMIND_LOG_SPOOL_MAX_BYTES;
+  else process.env.LOCALMIND_LOG_SPOOL_MAX_BYTES = previousCapacity;
+  t.deepEqual(
+    await service.writeBatch([
+      { eventId: 'unaccepted', eventName: 'client.log' },
+    ]),
+    []
+  );
+  await t.throwsAsync(
+    () =>
+      service.writeBatch([
+        { eventId: 'critical', eventName: 'client.error', severity: 'error' },
+      ]),
+    { name: 'SpoolCapacityError' }
   );
 });
 

@@ -1,3 +1,4 @@
+import { isComposingKeyboardEvent } from '@affine/component';
 import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import { I18n } from '@affine/i18n';
 import { AIStarIcon } from '@blocksuite/affine/components/icons';
@@ -203,7 +204,12 @@ export class AIPanelInput extends SignalWatcher(WithDisposable(LitElement)) {
   };
 
   private readonly _onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !isComposingKeyboardEvent(e) &&
+      !e.repeat
+    ) {
       this._sendToAI(e);
     }
   };

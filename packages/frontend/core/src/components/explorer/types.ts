@@ -11,6 +11,8 @@ import type { DocListItemView } from './docs-view/doc-list-item';
 export interface ExplorerDisplayPreference {
   /** Explicit opt-in for the mixed Workspace explorer; editor registries stay intact. */
   resourceProperties?: ResourceDisplayProperties;
+  /** Tracks the one-time compact resource list presentation migration. */
+  resourceListLayoutVersion?: 1;
   view?: DocListItemView;
   groupBy?: GroupByParams;
   orderBy?: OrderByParams;

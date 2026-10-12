@@ -106,9 +106,60 @@ globalStyle(`${requirement} legend`, {
 export const fileInput = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: 5,
+  gap: 8,
+  minWidth: 0,
+});
+globalStyle(`${fileInput} input[type="file"]`, { display: 'none' });
+export const uploadButton = style({
+  flexShrink: 0,
+  maxWidth: '100%',
+});
+export const filePicker = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+});
+export const fileList = style({ minWidth: 0, flex: 1 });
+export const fileRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+  padding: '4px 0',
+});
+export const fileIcon = style({
+  width: 20,
+  height: 20,
+  flexShrink: 0,
+  color: cssVarV2('icon/secondary'),
+});
+export const fileDetails = style({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+});
+export const fileName = style({
+  fontSize: 13,
+  lineHeight: '20px',
+  color: cssVarV2('text/primary'),
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  textUnderlineOffset: 3,
+});
+export const fileHint = style({
   color: cssVarV2('text/secondary'),
-  fontSize: 11,
+  fontSize: 12,
+  lineHeight: '18px',
+  overflowWrap: 'anywhere',
+});
+export const fileError = style({
+  color: cssVarV2('status/error'),
+  fontSize: 12,
+  lineHeight: '18px',
+  overflowWrap: 'anywhere',
 });
 export const timeline = style({ margin: 0, padding: '0 0 0 18px' });
 globalStyle(`${timeline} li`, { marginBottom: 8, fontSize: 11 });

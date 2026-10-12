@@ -77,9 +77,8 @@ dependencies = [
 [[package]]
 name = "affine_doc_loader"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1344b7af4cfa7e4c17c676281db8f4244914779a59250fbe71c06b5219b15952"
 dependencies = [
+ "assert-json-diff",
  "nanoid",
  "pulldown-cmark 0.13.1",
  "serde",

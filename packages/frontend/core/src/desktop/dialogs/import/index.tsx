@@ -56,6 +56,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ImportOptionItem } from './import-option-item';
 import { requestPdfPageOcr } from './pdf-ocr';
 import * as style from './styles.css';
+import { ImportWarningMessage } from './warning-message';
 
 const logger = new DebugLogger('import');
 
@@ -800,19 +801,11 @@ const SuccessStatus = ({
       </p>
       {warnings.length ? (
         <div className={style.importWarnings}>
-          {warnings.map((warning, index) => {
-            const message =
-              warning.code === 'pdf-pages-ocr-converted'
-                ? t['com.affine.import.pdf.ocr-pages-converted']({
-                    pages: warning.message,
-                  })
-                : warning.code === 'pdf-pages-ocr-failed'
-                  ? t['com.affine.import.pdf.ocr-pages-failed']({
-                      pages: warning.message,
-                    })
-                  : warning.message;
-            return <div key={`${warning.code}-${index}`}>{message}</div>;
-          })}
+          {warnings.map((warning, index) => (
+            <div key={`${warning.code}-${index}`}>
+              <ImportWarningMessage warning={warning} />
+            </div>
+          ))}
         </div>
       ) : null}
       <div className={style.importModalButtonContainer}>

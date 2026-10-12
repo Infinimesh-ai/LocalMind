@@ -22,13 +22,11 @@ import * as styles from './fallback.css';
 import {
   hoverNavWrapperStyle,
   navBodyStyle,
-  navHeaderStyle,
   navStyle,
   navWrapperStyle,
   resizeHandleShortcutStyle,
   sidebarFloatMaskStyle,
 } from './index.css';
-import { SidebarHeader } from './sidebar-header';
 
 export type History = {
   stack: string[];
@@ -176,9 +174,6 @@ export function AppSidebar({ children }: PropsWithChildren) {
         data-is-electron={BUILD_CONFIG.isElectron}
       >
         <nav className={navStyle} data-testid="app-sidebar">
-          {!BUILD_CONFIG.isElectron && sidebarState !== 'floating' && (
-            <SidebarHeader />
-          )}
           <div className={navBodyStyle} data-testid="sliderBar-inner">
             {children}
           </div>
@@ -301,7 +296,6 @@ export const AppSidebarFallback = (): ReactElement | null => {
       data-open="true"
     >
       <nav className={navStyle}>
-        {!BUILD_CONFIG.isElectron ? <div className={navHeaderStyle} /> : null}
         <div className={navBodyStyle}>
           <div className={styles.fallback}>
             <FallbackHeaderWithWorkspaceNavigator />
@@ -330,7 +324,6 @@ export const ShellAppSidebarFallback = () => {
       data-open="true"
     >
       <nav className={navStyle}>
-        {!BUILD_CONFIG.isElectron ? <div className={navHeaderStyle} /> : null}
         <div className={navBodyStyle}>
           <div className={styles.fallback}>
             <FallbackHeader />

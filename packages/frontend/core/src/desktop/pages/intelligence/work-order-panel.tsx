@@ -19,6 +19,11 @@ import { useService } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 
+import {
+  type WorkOrderFile,
+  WorkOrderFileInput,
+  WorkOrderFileRow,
+} from './work-order-file-input';
 import * as styles from './work-order-panel.css';
 
 export type WorkOrder = NonNullable<
@@ -31,13 +36,6 @@ type WorkOrderPanelProps = {
   onChanged?: () => Promise<unknown> | unknown;
   onDraftStateChange?: (workOrderId: string, blocked: boolean) => void;
   onCollapse?: () => void;
-};
-
-type StagedFile = {
-  id: string;
-  fileName: string;
-  mimeType: string;
-  byteSize: number;
 };
 
 export const updateWorkOrderTextValues = (
@@ -89,6 +87,8 @@ export const persistWorkOrderTextDraft = (
 
 const newRequestKey = (prefix: string) => `${prefix}:${nanoid()}`;
 
+class DeliveryUploadError extends Error {}
+
 export function WorkOrderPanel({
   workOrderId,
   onLoaded,
@@ -107,7 +107,10 @@ export function WorkOrderPanel({
     readWorkOrderTextDraft(workOrderId)
   );
   const lastServerTextValues = useRef<Record<string, string>>({});
-  const [files, setFiles] = useState<Record<string, StagedFile[]>>({});
+  const [files, setFiles] = useState<Record<string, WorkOrderFile[]>>({});
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+  const uploadLock = useRef(false);
+  const [editingDelivery, setEditingDelivery] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -142,7 +145,7 @@ export function WorkOrderPanel({
     setFiles(
       order.stagedBlobs
         .filter(blob => selectedBlobIds.has(blob.id))
-        .reduce<Record<string, StagedFile[]>>((grouped, blob) => {
+        .reduce<Record<string, WorkOrderFile[]>>((grouped, blob) => {
           (grouped[blob.requirementId] ??= []).push({
             id: blob.id,
             fileName: blob.fileName,
@@ -198,13 +201,33 @@ export function WorkOrderPanel({
       setPending(null);
     }
   };
-  const upload = async (requirementId: string, selected: FileList | null) => {
-    if (!selected?.length || !order) return;
+  const upload = async (requirementId: string, selected: File[]) => {
+    if (!selected.length || !order || uploadLock.current || pending) return;
+    const requirement = order.requirements.find(
+      item => item.id === requirementId
+    );
+    if (!requirement) return;
+    const setError = (message: string) =>
+      setUploadErrors(current => ({ ...current, [requirementId]: message }));
+    if (selected.length > requirement.maxCount) {
+      setError(
+        t['com.affine.localmind.workbench.v9.deliveryFileCountError']({
+          count: String(requirement.maxCount),
+        })
+      );
+      return;
+    }
+    if (selected.some(file => !file.size || file.size > 100 * 1024 * 1024)) {
+      setError(t['com.affine.localmind.workbench.v9.deliveryFileSizeError']());
+      return;
+    }
+    uploadLock.current = true;
     onDraftStateChange?.(workOrderId, true);
     setUploading(requirementId);
+    setError('');
     try {
-      const staged: StagedFile[] = [];
-      for (const file of Array.from(selected)) {
+      const staged: WorkOrderFile[] = [];
+      for (const file of selected) {
         const response = await fetch(
           `/api/copilot/work-orders/${encodeURIComponent(order.id)}/files?fileName=${encodeURIComponent(file.name)}&requirementId=${encodeURIComponent(requirementId)}&requestKey=${encodeURIComponent(newRequestKey('upload'))}`,
           {
@@ -216,21 +239,60 @@ export function WorkOrderPanel({
             body: file,
           }
         );
-        if (!response.ok) throw new Error(await response.text());
-        const result = (await response.json()) as StagedFile;
+        if (!response.ok) {
+          const key =
+            response.status === 413
+              ? 'com.affine.localmind.workbench.v9.deliveryFileSizeError'
+              : response.status === 400 ||
+                  response.status === 415 ||
+                  response.status === 422
+                ? 'com.affine.localmind.workbench.v9.deliveryFileInvalid'
+                : response.status === 401 || response.status === 403
+                  ? 'com.affine.localmind.project-error.permission'
+                  : response.status === 404
+                    ? 'com.affine.localmind.project-error.unavailable'
+                    : 'com.affine.localmind.workbench.v9.deliveryUploadRetry';
+          throw new DeliveryUploadError(t[key]());
+        }
+        const result = (await response.json()) as WorkOrderFile;
         staged.push(result);
+        // Each upload is persisted separately; keep successful files visible if a later one fails.
+        setFiles(current => ({
+          ...current,
+          [requirementId]: [...(current[requirementId] ?? []), result].slice(
+            -requirement.maxCount
+          ),
+        }));
       }
-      setFiles(current => ({
-        ...current,
-        [requirementId]: [...(current[requirementId] ?? []), ...staged],
-      }));
-      await refresh();
+      if (requirement.maxCount > 1) {
+        await graphql.gql({
+          query: setWorkOrderDeliveryDraftItemMutation,
+          variables: {
+            workOrderId: order.id,
+            requirementId,
+            expectedDraftVersion:
+              (order.deliveryDraft?.version ?? 0) + staged.length,
+            blobIds: staged.map(file => file.id),
+          },
+        });
+      }
+      setFiles(current => ({ ...current, [requirementId]: staged }));
     } catch (error) {
-      notify.error({
-        title: t['com.affine.localmind.workbench.v9.uploadFailed'](),
-        message: projectErrorMessage(error),
-      });
+      // HTTP errors above contain only local copy; GraphQL/transport errors use the shared safe mapper.
+      setError(
+        error instanceof DeliveryUploadError
+          ? error.message
+          : projectErrorMessage(error)
+      );
     } finally {
+      try {
+        await refresh();
+      } catch {
+        setError(
+          t['com.affine.localmind.workbench.v9.deliveryRefreshFailed']()
+        );
+      }
+      uploadLock.current = false;
       setUploading(null);
     }
   };
@@ -256,6 +318,9 @@ export function WorkOrderPanel({
   const active = !['cancelled', 'refused'].includes(order.status);
   const recipient = order.viewerRole === 'recipient';
   const latestDelivery = order.deliveries[0];
+  const deliveryKey = `${order.id}:${latestDelivery?.id ?? ''}`;
+  const editingDraft =
+    active && (order.status !== 'delivered' || editingDelivery === deliveryKey);
   const checkReasonText = (reason: string) => {
     switch (reason) {
       case 'Required text is missing':
@@ -329,10 +394,36 @@ export function WorkOrderPanel({
                     {requirement.required ? ' *' : ''}
                   </legend>
                   <p>{requirement.instructions}</p>
-                  {recipient && check && !check.ready && check.reason ? (
+                  {recipient &&
+                  editingDraft &&
+                  check &&
+                  !check.ready &&
+                  check.reason &&
+                  (order.status !== 'delivered' ||
+                    requirement.kind === 'text' ||
+                    !!files[requirement.id]?.length) &&
+                  !uploadErrors[requirement.id] ? (
                     <p role="status">{checkReasonText(check.reason)}</p>
                   ) : null}
-                  {recipient && active ? (
+                  {order.status === 'delivered' && !editingDraft
+                    ? latestDelivery?.items
+                        .filter(item => item.requirementId === requirement.id)
+                        .map((item, index) =>
+                          item.blobId ? (
+                            <WorkOrderFileRow
+                              key={item.blobId}
+                              file={{
+                                fileName: item.fileName ?? t['Download'](),
+                                byteSize: item.byteSize ?? 0,
+                              }}
+                              href={`/api/copilot/work-orders/${encodeURIComponent(order.id)}/files/${encodeURIComponent(item.blobId)}`}
+                            />
+                          ) : (
+                            <p key={index}>{item.textValue}</p>
+                          )
+                        )
+                    : null}
+                  {recipient && editingDraft ? (
                     requirement.kind === 'text' ? (
                       <textarea
                         rows={4}
@@ -350,37 +441,33 @@ export function WorkOrderPanel({
                         }}
                       />
                     ) : (
-                      <div className={styles.fileInput}>
-                        <input
-                          type="file"
-                          multiple={requirement.maxCount > 1}
-                          accept={requirement.acceptedMimeTypes.join(',')}
-                          disabled={uploading === requirement.id}
-                          onChange={event =>
-                            void upload(
-                              requirement.id,
-                              event.currentTarget.files
-                            )
-                          }
-                        />
-                        {uploading === requirement.id ? (
-                          <span>
-                            {t['com.affine.localmind.workbench.v9.uploading']()}
-                          </span>
-                        ) : null}
-                        {(files[requirement.id] ?? []).map(file => (
-                          <span key={file.id}>
-                            {file.fileName} · {file.byteSize.toLocaleString()} B
-                          </span>
-                        ))}
-                      </div>
+                      <WorkOrderFileInput
+                        title={requirement.title}
+                        acceptedMimeTypes={requirement.acceptedMimeTypes}
+                        maxCount={requirement.maxCount}
+                        files={files[requirement.id] ?? []}
+                        uploading={uploading === requirement.id}
+                        disabled={!!uploading || !!pending}
+                        error={uploadErrors[requirement.id]}
+                        onSelect={selected =>
+                          void upload(requirement.id, selected)
+                        }
+                      />
                     )
                   ) : null}
                 </fieldset>
               );
             })}
           </div>
-          {recipient && active && changedTextRequirements.length ? (
+          {recipient && active && !editingDraft ? (
+            <Button onClick={() => setEditingDelivery(deliveryKey)}>
+              {t['com.affine.localmind.workbench.v9.prepareNewDelivery']()}
+            </Button>
+          ) : null}
+          {recipient && editingDraft && order.status === 'delivered' ? (
+            <p>{t['com.affine.localmind.workbench.v9.newDeliveryHint']()}</p>
+          ) : null}
+          {recipient && editingDraft && changedTextRequirements.length ? (
             <Button
               variant="primary"
               loading={pending === 'save-draft'}
@@ -407,8 +494,11 @@ export function WorkOrderPanel({
               {t['com.affine.localmind.workbench.v9.saveDeliveryDraft']()}
             </Button>
           ) : null}
-          {recipient && active ? (
-            <Button onClick={() => void query.mutate()} disabled={!!pending}>
+          {recipient && editingDraft ? (
+            <Button
+              onClick={() => void query.mutate()}
+              disabled={!!pending || !!uploading}
+            >
               {t['com.affine.localmind.workbench.v9.recheckDeliveryDraft']()}
             </Button>
           ) : null}

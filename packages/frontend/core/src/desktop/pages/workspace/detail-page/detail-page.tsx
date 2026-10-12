@@ -17,6 +17,7 @@ import {
   PageTreeBreadcrumbs,
   PageTreeChildrenList,
 } from '@affine/core/components/page-tree/children';
+import { focusCreatedResourceWhenReady } from '@affine/core/components/page-tree/created-resource';
 import { WorkspacePropertySidebar } from '@affine/core/components/properties/sidebar';
 import { TrashPageFooter } from '@affine/core/components/pure/trash-page-footer';
 import { TopTip } from '@affine/core/components/top-tip';
@@ -26,6 +27,7 @@ import { EditorService } from '@affine/core/modules/editor';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import { GlobalContextService } from '@affine/core/modules/global-context';
 import { JournalService } from '@affine/core/modules/journal';
+import { CreatedResourceService } from '@affine/core/modules/navigation-panel';
 import { PeekViewService } from '@affine/core/modules/peek-view';
 import { RecentDocsService } from '@affine/core/modules/quicksearch';
 import {
@@ -112,6 +114,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   const workspace = workspaceService.workspace;
   const globalContext = globalContextService.globalContext;
   const doc = docService.doc;
+  const createdResource = useService(CreatedResourceService);
 
   const mode = useLiveData(editor.mode$);
   const activeSidebarTab = useLiveData(view.activeSidebarTab$);
@@ -226,6 +229,24 @@ const DetailPageImpl = memo(function DetailPageImpl() {
     (editorContainer: AffineEditorContainer) => {
       const std = editorContainer.std;
       const disposable = new DisposableGroup();
+      if (createdResource.editorFocus$.value?.resourceId === doc.id) {
+        disposable.add(
+          focusCreatedResourceWhenReady(
+            editorContainer,
+            () => {
+              const block = getLastNoteBlock(editorContainer.page)?.lastChild();
+              const focusBlock = block
+                ? std.view.getBlock(block.id)
+                : undefined;
+              if (!focusBlock?.model.text) return false;
+              if (createdResource.consumeEditorFocus('doc', doc.id))
+                std.command.exec(focusBlockEnd, { focusBlock, force: true });
+              return true;
+            },
+            () => createdResource.consumeEditorFocus('doc', doc.id)
+          )
+        );
+      }
 
       // Check if journal and handle accordingly to set focus on input block.
       if (isJournal) {
@@ -327,7 +348,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
         disposable.dispose();
       };
     },
-    [editor, workbench, peekView, isJournal]
+    [editor, workbench, peekView, isJournal, createdResource, doc.id]
   );
 
   const [hasScrollTop, setHasScrollTop] = useState(false);

@@ -46,9 +46,8 @@ export const ConfirmModal = ({
   children,
   confirmButtonOptions,
   customConfirmButton: CustomConfirmButton,
-  // FIXME: we need i18n
   confirmText,
-  cancelText = 'Cancel',
+  cancelText,
   cancelButtonOptions,
   reverseFooter,
   onConfirm,
@@ -63,6 +62,7 @@ export const ConfirmModal = ({
   rowFooter = false,
   ...props
 }: ConfirmModalProps) => {
+  const t = useI18n();
   const onConfirmClick = useCallback(() => {
     Promise.resolve()
       .then(() => onConfirm?.())
@@ -127,7 +127,7 @@ export const ConfirmModal = ({
                   : 'secondary'
               }
             >
-              {cancelText}
+              {cancelText ?? t['Cancel']()}
             </Button>
           </DialogTrigger>
         ) : null}
@@ -143,7 +143,7 @@ export const ConfirmModal = ({
             autoFocus={autoFocusConfirm}
             {...confirmButtonOptions}
           >
-            {confirmText}
+            {confirmText ?? t['Confirm']()}
           </Button>
         )}
       </div>

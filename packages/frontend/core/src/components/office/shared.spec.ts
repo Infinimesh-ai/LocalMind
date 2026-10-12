@@ -1,4 +1,6 @@
 /** @vitest-environment happy-dom */
+import { UserFriendlyError } from '@affine/error';
+import { getOrCreateI18n } from '@affine/i18n';
 import type { OfficeSelection } from '@localmind/office';
 import { describe, expect, test } from 'vitest';
 
@@ -6,7 +8,50 @@ import {
   isHistoricalOfficeRevision,
   isOfficeSelectionAvailable,
   newestOfficeRevision,
+  officeErrorMessage,
 } from './shared';
+
+describe('Office error messages', () => {
+  test('uses a localized, safe message for internal errors and arbitrary payloads', async () => {
+    const i18n = getOrCreateI18n();
+    await i18n.changeLanguage('zh-Hans');
+    try {
+      for (const error of [
+        new Error('An internal error occurred.'),
+        new Error('DOCX command target offset is outside its paragraph'),
+        new Error('/private/server/path secret-request-data'),
+        { privateData: 'not for the UI' },
+      ]) {
+        expect(officeErrorMessage(error)).toBe(
+          '操作未完成，请重试。若仍然失败，请联系管理员。'
+        );
+      }
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+
+  test.each([
+    [401, 'editing permission'],
+    [403, 'editing permission'],
+    [404, 'unavailable'],
+    [409, 'newer version'],
+    [429, 'Too many requests'],
+  ])(
+    'explains recovery for status %s without showing server details',
+    (status, text) => {
+      const error = new UserFriendlyError({
+        status,
+        name: 'INTERNAL_SERVER_ERROR',
+        code: 'test',
+        type: 'test',
+        message: 'private server details',
+      });
+      expect(officeErrorMessage(error)).toContain(String(text));
+      expect(officeErrorMessage(error)).not.toContain(error.message);
+    }
+  );
+});
 
 describe('isHistoricalOfficeRevision', () => {
   test('uses revision order instead of a temporarily stale current id', () => {

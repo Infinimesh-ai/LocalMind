@@ -56,12 +56,9 @@ const DesktopTagEditMenu = ({
               updateTagName(e.currentTarget.value);
             }}
             onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                updateTagName(e.currentTarget.value);
-              }
               e.stopPropagation();
             }}
+            onEnter={updateTagName}
             placeholder={t['Untitled']()}
           />
           <MenuSeparator />

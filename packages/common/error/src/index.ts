@@ -16,6 +16,7 @@ export interface UserFriendlyErrorResponse {
   message: string;
   data?: any;
   stacktrace?: string;
+  retryAfterMs?: number;
 }
 
 function UnknownError(message: string) {
@@ -55,6 +56,12 @@ export class UserFriendlyError
   override readonly message = this.response.message;
   readonly data = this.response.data;
   readonly stacktrace = this.response.stacktrace;
+  readonly retryAfterMs =
+    typeof this.response.retryAfterMs === 'number' &&
+    Number.isFinite(this.response.retryAfterMs) &&
+    this.response.retryAfterMs >= 0
+      ? Math.min(300_000, Math.max(1000, this.response.retryAfterMs))
+      : undefined;
 
   static fromAny(anything: any) {
     if (anything instanceof UserFriendlyError) {

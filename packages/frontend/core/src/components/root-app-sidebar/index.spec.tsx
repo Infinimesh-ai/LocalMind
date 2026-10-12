@@ -85,6 +85,7 @@ vi.mock('@affine/core/modules/app-sidebar/views', () => ({
     return <Component to={to}>{children}</Component>;
   },
   SidebarContainer: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  SidebarHeader: () => null,
   SidebarScrollableContainer: ({ children }: PropsWithChildren) => (
     <div>{children}</div>
   ),

@@ -19,7 +19,7 @@ import {
 
 export function FolderResourceActions({ item }: { item: PageTreeItem }) {
   const tree = useService(WorkspacePageTreeService);
-  const saving = useLiveData(tree.saving$);
+  const saving = useLiveData(tree.writeBlocked$);
   const t = useI18n();
   const [moving, setMoving] = useState(false);
   return (

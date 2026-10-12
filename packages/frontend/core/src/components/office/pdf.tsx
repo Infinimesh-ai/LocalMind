@@ -1,4 +1,8 @@
-import { Button, IconButton } from '@affine/component';
+import {
+  Button,
+  IconButton,
+  isComposingKeyboardEvent,
+} from '@affine/component';
 import type {
   OfficeCommand,
   PdfFormField,
@@ -765,7 +769,14 @@ export function PdfEditor({
           placeholder={i18n['com.affine.office.search-pdf']()}
           onChange={event => setSearchQuery(event.target.value)}
           onKeyDown={event => {
-            if (event.key === 'Enter') search().catch(console.error);
+            if (
+              event.key === 'Enter' &&
+              !isComposingKeyboardEvent(event) &&
+              !event.repeat
+            ) {
+              event.preventDefault();
+              search().catch(console.error);
+            }
           }}
         />
         <IconButton

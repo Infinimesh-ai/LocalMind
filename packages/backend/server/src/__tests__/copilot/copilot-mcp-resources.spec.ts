@@ -60,6 +60,12 @@ for (const markdown of [
   '正文\n',
   '## 今日完成\n\n- 完成测试\n- 第二项\n',
   'A **bold** and *italic* [link](https://example.com).\n',
+  'Before `3. ` after\n',
+  'Before ` 3.` after\n',
+  'Before `  3.  ` after\n',
+  'Before ``a`b`` after\n',
+  'Before [label ](https://example.com) after\n',
+  'Before [ label](https://example.com) after\n',
 ]) {
   test(`safe Markdown round trip: ${JSON.stringify(markdown).slice(0, 40)}`, t => {
     const bin = createDocWithMarkdown('标题', markdown, 'document');
@@ -68,6 +74,87 @@ for (const markdown of [
     t.notThrows(() => validateResourceMarkdown('标题', markdown, 'document'));
   });
 }
+
+test('a direct update preserves whitespace inside unchanged inline formats', t => {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(
+      doc,
+      createDocWithMarkdown(
+        'Log',
+        'Before `3. ` and [label ](https://example.com) after\n',
+        'doc'
+      )
+    );
+    const read = readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc));
+    t.true(read.contentWritable);
+    const replacement = read.content.text.replace('after', 'updated');
+    Y.applyUpdate(
+      doc,
+      updateResourceMarkdown(
+        Buffer.from(Y.encodeStateAsUpdate(doc)),
+        replacement,
+        'doc',
+        'editor'
+      )
+    );
+    const paragraph = [...doc.getMap<Y.Map<unknown>>('blocks').values()].find(
+      block => block.get('sys:flavour') === 'affine:paragraph'
+    );
+    const delta = paragraph?.get('prop:text');
+    t.true(delta instanceof Y.Text);
+    const runs: Array<{
+      insert: unknown;
+      attributes?: Record<string, unknown>;
+    }> = delta instanceof Y.Text ? delta.toDelta() : [];
+    t.true(
+      runs.some(run => run.insert === '3. ' && run.attributes?.code === true)
+    );
+    t.true(
+      runs.some(
+        run =>
+          run.insert === 'label ' &&
+          run.attributes?.link === 'https://example.com'
+      )
+    );
+    t.true(
+      readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc))
+        .contentWritable
+    );
+  } finally {
+    doc.destroy();
+  }
+});
+
+test('a complete daily log accepts inline code ending with a space', t => {
+  const markdown = DAILY_LOG_MARKDOWN.replace(
+    '- 待更新事项',
+    '- 核对行内代码 `3. ` 后的空格'
+  );
+  const validated = validateResourceMarkdown('日志', markdown, 'doc');
+  t.true(validated.contentWritable);
+  t.true(validated.content.text.includes('`3. `'));
+});
+
+test('editor emphasis that Markdown cannot round trip stays read-only', t => {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, createDocWithMarkdown('Log', 'a b', 'doc'));
+    const paragraph = [...doc.getMap<Y.Map<unknown>>('blocks').values()].find(
+      block => block.get('sys:flavour') === 'affine:paragraph'
+    );
+    const text = paragraph?.get('prop:text');
+    t.true(text instanceof Y.Text);
+    if (!(text instanceof Y.Text)) return;
+    text.format(1, 2, { bold: true });
+    t.false(
+      readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc))
+        .contentWritable
+    );
+  } finally {
+    doc.destroy();
+  }
+});
 
 test('unsupported images and block structures are never writable', t => {
   t.throws(

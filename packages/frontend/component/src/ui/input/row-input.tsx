@@ -11,6 +11,7 @@ import { forwardRef, useCallback, useEffect, useState } from 'react';
 
 import { useAutoFocus, useAutoSelect } from '../../hooks';
 import { useDebounceCallback } from '../../hooks/use-debounce-callback';
+import { isComposingKeyboardEvent } from '../../utils/keyboard-event';
 
 export type RowInputProps = {
   disabled?: boolean;
@@ -87,10 +88,19 @@ export const RowInput = forwardRef<HTMLInputElement, RowInputProps>(
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLInputElement>) => {
         onKeyDown?.(e);
-        if (e.key !== 'Enter' || composing) {
+        if (
+          e.key !== 'Enter' ||
+          composing ||
+          isComposingKeyboardEvent(e) ||
+          e.defaultPrevented ||
+          e.repeat
+        ) {
           return;
         }
-        onEnter?.(e.currentTarget.value);
+        if (onEnter) {
+          e.preventDefault();
+          onEnter(e.currentTarget.value);
+        }
       },
       [onKeyDown, composing, onEnter]
     );

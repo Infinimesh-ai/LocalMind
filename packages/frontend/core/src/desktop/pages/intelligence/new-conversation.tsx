@@ -1,4 +1,9 @@
-import { Menu, MenuItem, notify } from '@affine/component';
+import {
+  isComposingKeyboardEvent,
+  Menu,
+  MenuItem,
+  notify,
+} from '@affine/component';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
 import { renameConversationMutation } from '@affine/graphql';
@@ -196,7 +201,8 @@ export function NewConversation({
                 if (
                   event.key === 'Enter' &&
                   !event.shiftKey &&
-                  !event.nativeEvent.isComposing
+                  !isComposingKeyboardEvent(event) &&
+                  !event.repeat
                 ) {
                   event.preventDefault();
                   start();

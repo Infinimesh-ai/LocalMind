@@ -26,7 +26,9 @@ import type { OfficeEditorDraft } from './edit-draft';
 import { PdfEditor } from './pdf';
 import { openPdf } from './pdf-tools';
 
-vi.mock('@affine/component', () => ({
+vi.mock('@affine/component', async () => ({
+  isComposingKeyboardEvent: (await import('@affine/component/ui/input'))
+    .isComposingKeyboardEvent,
   Button: ({
     children,
     loading: _loading,

@@ -1195,7 +1195,147 @@ export const OfficePdfApplyRedactionCommandSchema = z
   })
   .strict();
 
+// Interactive structured paragraph transactions. They never accept XML or package bytes.
+const DocxEditRunFormatSchema = z
+  .object({
+    fontFamily: boundedString(256).optional(),
+    fonts: z
+      .object({
+        ascii: z.string().max(256).optional(),
+        highAnsi: z.string().max(256).optional(),
+        eastAsia: z.string().max(256).optional(),
+        complexScript: z.string().max(256).optional(),
+      })
+      .strict()
+      .optional(),
+    fontSizePt: z.number().positive().max(1638).optional(),
+    complexScriptFontSizePt: z.number().positive().max(1638).optional(),
+    color: z.string().max(64).optional(),
+    themeColor: z.string().max(64).optional(),
+    bold: z.boolean().optional(),
+    italic: z.boolean().optional(),
+    underline: z
+      .union([
+        z.literal(false),
+        z
+          .object({
+            style: boundedString(64),
+            color: z.string().max(64).optional(),
+          })
+          .strict(),
+      ])
+      .optional(),
+    strike: z.boolean().optional(),
+    highlight: z.string().max(64).optional(),
+    verticalAlign: z.string().max(64).optional(),
+    language: z.string().max(64).optional(),
+  })
+  .strict();
+const DocxEditPropertiesSchema = z
+  .object({
+    styleId: boundedString(256).optional(),
+    alignment: z
+      .enum(['left', 'center', 'right', 'both', 'distribute'])
+      .optional(),
+    outlineLevel: z.number().int().min(0).max(9).optional(),
+    keepNext: z.boolean().optional(),
+    keepLines: z.boolean().optional(),
+    pageBreakBefore: z.boolean().optional(),
+    numbering: z
+      .object({
+        id: z.string().max(64).optional(),
+        level: z.number().int().min(0).max(8).optional(),
+      })
+      .strict()
+      .optional(),
+    spacing: z
+      .object({
+        beforePt: z.number().min(0).max(10000).optional(),
+        afterPt: z.number().min(0).max(10000).optional(),
+        linePt: z.number().positive().max(10000).optional(),
+      })
+      .strict()
+      .optional(),
+    indent: z
+      .object({
+        leftPt: z.number().min(-10000).max(10000).optional(),
+        rightPt: z.number().min(-10000).max(10000).optional(),
+        firstLinePt: z.number().min(-10000).max(10000).optional(),
+        hangingPt: z.number().min(0).max(10000).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+// MS-DOCX 2.6.2.3: paraId must be > 0 and < 0x80000000.
+export function isStableDocxParagraphId(id: string): boolean {
+  return /^paragraph:[0-7][0-9A-F]{7}$/.test(id) && id !== 'paragraph:00000000';
+}
+const DocxParagraphIdSchema = z.string().refine(isStableDocxParagraphId);
+
+export const OfficeDocumentEditParagraphSchema = z
+  .object({
+    id: DocxParagraphIdSchema,
+    properties: DocxEditPropertiesSchema.optional(),
+    runs: z
+      .array(
+        z
+          .object({
+            text: z.string().max(1048576),
+            format: DocxEditRunFormatSchema.optional(),
+          })
+          .strict()
+      )
+      .max(10000),
+  })
+  .strict();
+export const OfficeDocumentEditCommandSchema = z
+  .object({
+    version: z.literal('localmind-office-command/v1'),
+    commandId: boundedString(256),
+    idempotencyKey: boundedString(256),
+    artifactId: boundedString(512),
+    expectedRevisionId: boundedString(512),
+    source: z.literal('user'),
+    operation: z.literal('office.document.edit'),
+    identities: z
+      .array(
+        z
+          .object({
+            blockId: boundedString(512),
+            id: DocxParagraphIdSchema,
+          })
+          .strict()
+      )
+      .max(100000),
+    patches: z
+      .array(
+        z
+          .object({
+            targets: z.array(boundedString(512)).min(1).max(10000),
+            paragraphs: z.array(OfficeDocumentEditParagraphSchema).max(10000),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(1000),
+  })
+  .strict()
+  .refine(
+    value =>
+      new TextEncoder().encode(JSON.stringify(value)).byteLength <=
+      4 * 1024 * 1024,
+    'Document edit exceeds 4 MiB'
+  );
+export type OfficeDocumentEditCommand = z.infer<
+  typeof OfficeDocumentEditCommandSchema
+>;
+export type OfficeDocumentEditParagraph = z.infer<
+  typeof OfficeDocumentEditParagraphSchema
+>;
+
 export const OfficeCommandSchema = z.union([
+  OfficeDocumentEditCommandSchema,
   OfficeDocumentFormatTextCommandSchema,
   OfficeDocumentReplaceTextCommandSchema,
   OfficeDocumentFormatParagraphCommandSchema,
@@ -1388,6 +1528,7 @@ export type OfficePdfApplyRedactionCommand = z.infer<
 >;
 
 export type OfficeCommand =
+  | OfficeDocumentEditCommand
   | OfficeDocumentFormatTextCommand
   | OfficeDocumentReplaceTextCommand
   | OfficeDocumentFormatParagraphCommand

@@ -1470,7 +1470,11 @@ export class ByokService {
     if (error instanceof Error && error.name === 'AbortError') {
       return 'Provider key test timed out.';
     }
-    if (error instanceof BadRequestException && error.message) {
+    if (
+      (error instanceof ProviderProbeError ||
+        error instanceof BadRequestException) &&
+      error.message
+    ) {
       return error.message.slice(0, 300);
     }
     return 'Provider request failed.';

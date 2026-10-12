@@ -46,9 +46,8 @@ export interface PromptModalProps extends ModalProps {
 export const PromptModal = ({
   children,
   confirmButtonOptions,
-  // FIXME: we need i18n
   confirmText,
-  cancelText = 'Cancel',
+  cancelText,
   cancelButtonOptions,
   reverseFooter,
   onConfirm,
@@ -64,14 +63,25 @@ export const PromptModal = ({
   descriptionClassName,
   ...props
 }: PromptModalProps) => {
+  const t = useI18n();
   const [value, setValue] = useState(defaultValue ?? '');
-  const onConfirmClick = useCallback(() => {
-    Promise.resolve()
-      .then(() => onConfirm?.(value))
-      .catch(err => {
-        console.error(err);
-      });
-  }, [onConfirm, value]);
+  const onConfirmClick = useCallback(
+    (text = value) => {
+      if (
+        (required && !text.trim()) ||
+        confirmButtonOptions?.disabled ||
+        confirmButtonOptions?.loading ||
+        inputOptions?.disabled
+      )
+        return;
+      Promise.resolve()
+        .then(() => onConfirm?.(text))
+        .catch(err => {
+          console.error(err);
+        });
+    },
+    [confirmButtonOptions, inputOptions?.disabled, onConfirm, required, value]
+  );
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -113,6 +123,7 @@ export const PromptModal = ({
           autoFocus
           className={styles.input}
           onKeyDown={onKeyDown}
+          onEnter={onConfirmClick}
           data-testid="prompt-modal-input"
           {...inputOptions}
         />
@@ -132,18 +143,22 @@ export const PromptModal = ({
             data-testid="prompt-modal-cancel"
             {...cancelButtonOptions}
           >
-            {cancelText}
+            {cancelText ?? t['Cancel']()}
           </Button>
         </DialogTrigger>
         <Button
           className={styles.action}
-          onClick={onConfirmClick}
-          disabled={required && !value}
+          onClick={() => onConfirmClick()}
           data-testid="prompt-modal-confirm"
           autoFocus={autoFocusConfirm}
           {...confirmButtonOptions}
+          disabled={
+            (required && !value.trim()) ||
+            confirmButtonOptions?.disabled ||
+            inputOptions?.disabled
+          }
         >
-          {confirmText}
+          {confirmText ?? t['Confirm']()}
         </Button>
       </div>
     </Modal>

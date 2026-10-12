@@ -229,7 +229,7 @@ export class SectionEditTool extends WithDisposable(ShadowlessElement) {
                     class="edit-button"
                     @click=${async () => {
                       if (!this.host) return;
-                      SAVE_AS_DOC.handler(this.host, result.content);
+                      await SAVE_AS_DOC.handler(this.host, result.content);
                     }}
                   >
                     ${LinkedPageIcon()}

@@ -18,6 +18,7 @@ import * as styles from './styles.css';
  * only on web
  */
 export const Component = () => {
+  const t = useI18n();
   const [params] = useSearchParams();
   const sessionId = params.get('session_id');
   const selfhostGenerateLicenseService = useService(
@@ -44,7 +45,7 @@ export const Component = () => {
   } else {
     return (
       <AuthPageContainer
-        title={'failed to generate license key'}
+        title={t['com.affine.payment.license-error.title']()}
         subtitle={error?.message}
       ></AuthPageContainer>
     );

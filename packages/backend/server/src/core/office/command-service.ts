@@ -67,6 +67,14 @@ function requireExecutionField(value: string, field: string) {
 
 function commandEvidence(command: OfficeCommand) {
   switch (command.operation) {
+    case 'office.document.edit':
+      return {
+        patches: command.patches.length,
+        paragraphs: command.patches.reduce(
+          (n, p) => n + p.paragraphs.length,
+          0
+        ),
+      };
     case 'office.document.text.format':
       return { target: command.target, format: command.format };
     case 'office.document.text.replace':

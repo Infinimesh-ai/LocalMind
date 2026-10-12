@@ -18,7 +18,11 @@ import { Config } from '../config';
 import { getRequestResponseFromContext } from '../utils/request';
 import { getRequestTrackerId } from '../utils/request-tracker';
 import type { ThrottlerType } from './config';
-import { THROTTLER_PROTECTED, Throttlers } from './decorators';
+import {
+  THROTTLER_BUCKET,
+  THROTTLER_PROTECTED,
+  Throttlers,
+} from './decorators';
 
 @Injectable()
 export class ThrottlerStorage extends ThrottlerStorageService {}
@@ -73,6 +77,11 @@ export class CloudThrottlerGuard extends ThrottlerGuard {
     tracker: string,
     throttler: string
   ) {
+    const bucket = this.reflector.getAllAndOverride<string | null>(
+      THROTTLER_BUCKET,
+      [context.getHandler(), context.getClass()]
+    );
+    if (bucket) return `${tracker};${throttler};bucket:${bucket}`;
     if (tracker.endsWith(';custom')) {
       return `${tracker};${throttler}:${context.getClass().name}.${context.getHandler().name}`;
     }
@@ -115,7 +124,13 @@ export class CloudThrottlerGuard extends ThrottlerGuard {
     let tracker = await this.getTracker(req);
 
     // custom limit or ttl APIs will be treated standalone
-    if (limit !== throttlerOptions.limit || ttl !== throttlerOptions.ttl) {
+    if (
+      !this.reflector.getAllAndOverride(THROTTLER_BUCKET, [
+        context.getHandler(),
+        context.getClass(),
+      ]) &&
+      (limit !== throttlerOptions.limit || ttl !== throttlerOptions.ttl)
+    ) {
       tracker += ';custom';
     }
 
