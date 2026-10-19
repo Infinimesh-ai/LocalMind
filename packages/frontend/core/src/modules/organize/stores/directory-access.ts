@@ -7,7 +7,14 @@ import {
   workspaceDirectoryQuery,
 } from '@affine/graphql';
 import { LiveData, Store } from '@toeverything/infra';
-import { map, merge, of, type Subscription, switchMap } from 'rxjs';
+import {
+  distinctUntilChanged,
+  map,
+  merge,
+  of,
+  type Subscription,
+  switchMap,
+} from 'rxjs';
 
 import type { WorkspaceServerService } from '../../cloud';
 import type { NbstoreService } from '../../storage';
@@ -52,7 +59,17 @@ export class DirectoryAccessStore extends Store {
       return;
     }
     const subscription = workspaceServerService.server$
-      .pipe(switchMap(server => server?.account$ ?? of(null)))
+      .pipe(
+        switchMap(server =>
+          server
+            ? server.account$.pipe(
+                distinctUntilChanged(
+                  (previous, next) => previous?.id === next?.id
+                )
+              )
+            : of(null)
+        )
+      )
       .subscribe(account => {
         this.identityGeneration++;
         this.rateLimitedUntil = 0;
@@ -62,18 +79,31 @@ export class DirectoryAccessStore extends Store {
         this.refresh(true).catch(console.error);
         if (account && this.nbstoreService) {
           const input = { workspaceId: this.workspaceService.workspace.id };
+          const readyTopics = new Set<string>();
           this.accessSubscription = merge(
             this.nbstoreService.realtime
               .subscribe('workspace.nativeResources.changed', input)
-              .pipe(map(() => false)),
+              .pipe(
+                map(event => ({ event, topic: 'resources', clear: false }))
+              ),
             this.nbstoreService.realtime
               .subscribe('workspace.access.changed', input)
-              .pipe(map(() => true)),
+              .pipe(map(event => ({ event, topic: 'access', clear: true }))),
             this.nbstoreService.realtime
               .subscribe('workspace.directory-policy.changed', input)
-              .pipe(map(() => true))
+              .pipe(map(event => ({ event, topic: 'policy', clear: true })))
           ).subscribe({
-            next: clear => {
+            next: ({ event, topic, clear }) => {
+              if ('type' in event && event.type === 'ready') {
+                // All three subscriptions initialize/reconnect together. One
+                // catch-up read closes the subscribe/read gap; each ready signal
+                // must not cancel and restart the same permission query.
+                readyTopics.add(topic);
+                if (readyTopics.size < 3) return;
+                readyTopics.clear();
+                this.refresh(true).catch(console.error);
+                return;
+              }
               this.refresh(clear).catch(console.error);
             },
             error: () => {
@@ -83,7 +113,12 @@ export class DirectoryAccessStore extends Store {
         }
       });
     const timer = setInterval(() => {
-      if (!this.refreshing && !this.saving$.value)
+      if (
+        !this.refreshing &&
+        !this.saving$.value &&
+        (typeof document === 'undefined' ||
+          document.visibilityState === 'visible')
+      )
         this.refresh().catch(console.error);
     }, 15_000);
     this.disposables.push(

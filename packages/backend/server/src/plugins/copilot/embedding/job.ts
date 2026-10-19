@@ -13,8 +13,8 @@ import {
   OnJob,
 } from '../../../base';
 import { DocReader } from '../../../core/doc';
+import { snapshotParser } from '../../../core/doc/snapshot-parser';
 import { WorkspaceBlobStorage } from '../../../core/storage';
-import { readAllDocIdsFromWorkspaceSnapshot } from '../../../core/utils/blocksuite';
 import {
   type Embedding,
   EMBEDDING_DIMENSIONS,
@@ -287,9 +287,7 @@ export class CopilotEmbeddingJob {
         );
         return;
       }
-      const allDocIds = new Set(
-        readAllDocIdsFromWorkspaceSnapshot(rootSnapshot.blob)
-      );
+      const allDocIds = new Set(await snapshotParser.docIds(rootSnapshot.blob));
       this.logger.log(
         `Trigger embedding for ${toBeEmbedDocIds.length} docs in workspace ${workspaceId}`
       );
@@ -361,9 +359,7 @@ export class CopilotEmbeddingJob {
     if (!root) {
       throw new Error(`workspace root ${workspaceId} not found`);
     }
-    const live = readAllDocIdsFromWorkspaceSnapshot(root.bin, true).includes(
-      docId
-    );
+    const live = (await snapshotParser.docIds(root.bin, true)).includes(docId);
     if (live) {
       if (!(await this.doc.getDoc(workspaceId, docId))) {
         throw new Error(`restored document ${workspaceId}/${docId} not found`);
@@ -771,7 +767,7 @@ export class CopilotEmbeddingJob {
       return;
     }
 
-    const docIdsInWorkspace = readAllDocIdsFromWorkspaceSnapshot(snapshot.blob);
+    const docIdsInWorkspace = await snapshotParser.docIds(snapshot.blob);
     const docIdsInWorkspaceSet = new Set(docIdsInWorkspace);
 
     const deletedDocIds = new Set(

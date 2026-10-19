@@ -45,6 +45,7 @@ export const CORS_EXPOSED_HEADERS = [
   'content-length',
   'content-range',
   'x-request-id',
+  'x-project-content-version',
 ];
 
 function normalizeHostname(hostname: string) {

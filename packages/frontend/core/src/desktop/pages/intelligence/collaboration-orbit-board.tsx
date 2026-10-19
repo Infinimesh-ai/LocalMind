@@ -342,9 +342,9 @@ export function CollaborationOrbitBoard({
     >
       <header className={styles.heading}>
         <div>
-          <h2 className={styles.headingTitle}>
+          <h1 className={styles.headingTitle}>
             {t['com.affine.localmind.workbench.orbit.title']()}
-          </h2>
+          </h1>
           <span className={styles.headingMeta}>
             {t['com.affine.localmind.workbench.orbit.summary']({
               people: String(visiblePeopleCount),

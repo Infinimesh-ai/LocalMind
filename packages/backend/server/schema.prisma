@@ -1385,6 +1385,7 @@ model WorkOrder {
   @@index([senderId, sourceSessionId, status, updatedAt(sort: Desc)])
   @@index([recipientId, status, updatedAt(sort: Desc)])
   @@index([relatedWorkOrderId])
+  @@index([sourceProjectIdSnapshot, updatedAt])
   @@map("work_orders")
 }
 
@@ -1904,6 +1905,9 @@ model ProjectSummaryRevision {
 }
 
 model AiContextProject {
+  reports ProjectReport[]
+  reportTemplates ProjectReportTemplate[]
+  reportSchedules ProjectReportSchedule[]
   officeComments OfficeComment[]
 
   id                      String    @id @default(uuid()) @db.VarChar
@@ -2159,6 +2163,11 @@ model ProjectPublicationTarget {
 }
 
 model ProjectBlob {
+  reportReferences ProjectReportBlobReference[]
+  reportRevisions ProjectReportRevision[]
+  reportManifests ProjectReportSourceManifest[]
+  reportExports ProjectReportExport[]
+  reportShareRevisions ProjectReportShareRevision[]
   projectId         String    @map("project_id") @db.VarChar
   key               String    @db.VarChar(256)
   mimeType          String    @map("mime_type") @db.VarChar(256)
@@ -4043,6 +4052,7 @@ model OfficeCommandRequest {
 }
 
 enum NotificationType {
+  ProjectReport
   ProjectFileRequest
   ProjectInvitation
   WorkOrder
@@ -5270,6 +5280,7 @@ model WorkspacePageTreeState {
   plan WorkspacePageTreePlan? @relation(fields: [planId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
   @@map("workspace_page_tree_states")
 }
+
 model WorkspacePageTreePlan {
   id String @id @default(uuid()) @db.VarChar
   workspaceId String @map("workspace_id") @db.VarChar
@@ -5286,6 +5297,7 @@ model WorkspacePageTreePlan {
   typedMappings WorkspacePageTreeTypedMapping[]
 
 }
+
 model WorkspacePageTreeMapping {
   workspaceId String @map("workspace_id") @db.VarChar
   oldFolderId String @map("old_folder_id") @db.VarChar
@@ -5298,6 +5310,7 @@ model WorkspacePageTreeMapping {
   @@unique([workspaceId, documentId])
   @@map("workspace_page_tree_mappings")
 }
+
 model WorkspacePageTreeOperation {
   id String @id @default(uuid()) @db.VarChar
   workspaceId String @map("workspace_id") @db.VarChar
@@ -5334,6 +5347,7 @@ model WorkspacePageTreeTypedMapping {
   @@unique([planId, targetKind, targetId])
   @@map("workspace_page_tree_typed_mappings")
 }
+
 model WorkspacePageTreeConversion {
   id String @id @default(uuid()) @db.VarChar
   workspaceId String @map("workspace_id") @db.VarChar
@@ -5352,4 +5366,584 @@ model WorkspacePageTreeConversion {
   @@unique([operationId])
   @@index([workspaceId, sourceKind, sourceId])
   @@map("workspace_page_tree_conversions")
+}
+
+model ProjectReport {
+  deletion ProjectReportDeletion?
+  blobDeletions ProjectReportBlobDeletion[]
+  blobReferences ProjectReportBlobReference[]
+  id                    String                        @id @default(uuid()) @db.VarChar
+  projectId             String                        @map("project_id") @db.VarChar
+  title                 String                        @db.VarChar(512)
+  createdByActorId      String                        @map("created_by_actor_id") @db.VarChar
+  creatorLabel          String                        @map("creator_label") @db.VarChar(512)
+  responsibility        Json                          @db.JsonB
+  lifecycle             String                        @default("active") @db.VarChar(16)
+  version               Int                           @default(1)
+  revisionCounter       Int                           @default(0) @map("revision_counter")
+  draftRevisionId       String?                       @map("draft_revision_id") @db.VarChar
+  latestFinalRevisionId String?                       @map("latest_final_revision_id") @db.VarChar
+  previousReportId      String?                       @map("previous_report_id") @db.VarChar
+  previousRevisionId    String?                       @map("previous_revision_id") @db.VarChar
+  periodStart           DateTime                      @map("period_start") @db.Timestamptz(3)
+  periodEnd             DateTime                      @map("period_end") @db.Timestamptz(3)
+  timeZone              String                        @map("time_zone") @db.VarChar(128)
+  templateRevisionId    String                        @map("template_revision_id") @db.VarChar
+  selection             Json                          @db.JsonB
+  createdAt             DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime                      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  project               AiContextProject              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  templateRevision      ProjectReportTemplateRevision @relation(fields: [templateRevisionId, projectId], references: [id, projectId], onDelete: Restrict)
+  revisions             ProjectReportRevision[]       @relation("report_revisions")
+  draft                 ProjectReportRevision?        @relation("report_draft", fields: [draftRevisionId, id, projectId], references: [id, reportId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  final                 ProjectReportRevision?        @relation("report_final", fields: [latestFinalRevisionId, id, projectId], references: [id, reportId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  manifests             ProjectReportSourceManifest[]
+  lease                 ProjectReportEditLease?
+  comments              ProjectReportComment[]
+  reviews               ProjectReportReview[]
+  exports               ProjectReportExport[]
+  shares                ProjectReportShare[]
+  requests              ProjectReportRequest[]
+  auditEvents           ProjectReportAuditEvent[]
+
+  @@unique([id, projectId])
+  @@index([projectId, lifecycle, updatedAt, id])
+  @@map("project_reports")
+}
+
+model ProjectReportRevision {
+  occurrences ProjectReportOccurrence[]
+  id               String                       @id @default(uuid()) @db.VarChar
+  reportId         String                       @map("report_id") @db.VarChar
+  projectId        String                       @map("project_id") @db.VarChar
+  sequence         Int
+  kind             String                       @db.VarChar(16)
+  parentRevisionId String?                      @map("parent_revision_id") @db.VarChar
+  contentBlobKey   String                       @map("content_blob_key") @db.VarChar(256)
+  contentHash      String                       @map("content_hash") @db.VarChar(64)
+  sourceManifestId String?                      @map("source_manifest_id") @db.VarChar
+  actorId          String                       @map("actor_id") @db.VarChar
+  reason           String                       @db.VarChar(512)
+  createdAt        DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  report           ProjectReport                @relation("report_revisions", fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: Restrict)
+  contentBlob      ProjectBlob                  @relation(fields: [projectId, contentBlobKey], references: [projectId, key], onDelete: Restrict, onUpdate: Restrict)
+  parent           ProjectReportRevision?       @relation("report_revision_parent", fields: [parentRevisionId, reportId, projectId], references: [id, reportId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  children         ProjectReportRevision[]      @relation("report_revision_parent")
+  manifest         ProjectReportSourceManifest? @relation(fields: [sourceManifestId, reportId, projectId], references: [id, reportId, projectId], onDelete: Restrict, onUpdate: Restrict)
+  currentDrafts    ProjectReport[]              @relation("report_draft")
+  currentFinals    ProjectReport[]              @relation("report_final")
+  exports          ProjectReportExport[]
+  shareRevisions   ProjectReportShareRevision[]
+
+  @@unique([id, reportId, projectId])
+  @@unique([reportId, sequence])
+  @@index([projectId, reportId, kind, sequence])
+  @@map("project_report_revisions")
+}
+
+model ProjectReportSourceManifest {
+  id          String                  @id @default(uuid()) @db.VarChar
+  reportId    String                  @map("report_id") @db.VarChar
+  projectId   String                  @map("project_id") @db.VarChar
+  actorId     String                  @map("actor_id") @db.VarChar
+  runId       String?                 @map("run_id") @db.VarChar
+  blobKey     String                  @map("blob_key") @db.VarChar(256)
+  fingerprint String                  @db.VarChar(64)
+  cutoffAt    DateTime                @map("cutoff_at") @db.Timestamptz(3)
+  coverage    Json                    @db.JsonB
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  report      ProjectReport           @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+  blob        ProjectBlob             @relation(fields: [projectId, blobKey], references: [projectId, key], onDelete: Restrict)
+  revisions   ProjectReportRevision[]
+
+  @@unique([id, reportId, projectId])
+  @@index([runId])
+  @@map("project_report_source_manifests")
+}
+
+model ProjectReportTemplate {
+  blobReferences ProjectReportBlobReference[]
+  id                String                          @id @default(uuid()) @db.VarChar
+  projectId         String                          @map("project_id") @db.VarChar
+  builtinKey        String?                         @map("builtin_key") @db.VarChar(64)
+  name              String                          @db.VarChar(512)
+  status            String                          @default("active") @db.VarChar(16)
+  version           Int                             @default(1)
+  revisionCounter   Int                             @default(0) @map("revision_counter")
+  createdBy         String                          @map("created_by") @db.VarChar
+  currentRevisionId String?                         @map("current_revision_id") @db.VarChar
+  createdAt         DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  project           AiContextProject                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  revisions         ProjectReportTemplateRevision[] @relation("report_template_revisions")
+  current           ProjectReportTemplateRevision?  @relation("report_template_current", fields: [currentRevisionId, id, projectId], references: [id, templateId, projectId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, projectId])
+  @@unique([projectId, builtinKey])
+  @@map("project_report_templates")
+}
+
+model ProjectReportTemplateRevision {
+  requestKey String? @map("request_key") @db.VarChar(256)
+  requestFingerprint String? @map("request_fingerprint") @db.VarChar(64)
+  id               String                  @id @default(uuid()) @db.VarChar
+  templateId       String                  @map("template_id") @db.VarChar
+  projectId        String                  @map("project_id") @db.VarChar
+  sequence         Int
+  content          Json                    @db.JsonB
+  fingerprint      String                  @db.VarChar(64)
+  actorId          String                  @map("actor_id") @db.VarChar
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  template         ProjectReportTemplate   @relation("report_template_revisions", fields: [templateId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: Restrict)
+  currentTemplates ProjectReportTemplate[] @relation("report_template_current")
+  reports          ProjectReport[]
+  schedules        ProjectReportSchedule[]
+
+  @@unique([id, projectId])
+  @@unique([id, templateId, projectId])
+  @@unique([templateId, sequence])
+  @@unique([projectId, actorId, requestKey])
+  @@map("project_report_template_revisions")
+}
+
+model ProjectReportEditLease {
+  reportId   String        @id @map("report_id") @db.VarChar
+  projectId  String        @map("project_id") @db.VarChar
+  leaseId    String        @unique @map("lease_id") @db.VarChar
+  holderId   String        @map("holder_id") @db.VarChar
+  tabId      String        @map("tab_id") @db.VarChar(128)
+  kind       String        @db.VarChar(16)
+  taskId     String?       @map("task_id") @db.VarChar
+  acquiredAt DateTime      @default(now()) @map("acquired_at") @db.Timestamptz(3)
+  expiresAt  DateTime      @map("expires_at") @db.Timestamptz(3)
+  report     ProjectReport @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+
+  @@unique([reportId, projectId])
+  @@index([projectId, expiresAt])
+  @@index([taskId])
+  @@map("project_report_edit_leases")
+}
+
+model ProjectReportComment {
+  id         String        @id @default(uuid()) @db.VarChar
+  reportId   String        @map("report_id") @db.VarChar
+  projectId  String        @map("project_id") @db.VarChar
+  revisionId String        @map("revision_id") @db.VarChar
+  chapterId  String?       @map("chapter_id") @db.VarChar(256)
+  nodeId     String?       @map("node_id") @db.VarChar(256)
+  anchorText String        @map("anchor_text") @db.VarChar(2000)
+  parentId   String?       @map("parent_id") @db.VarChar
+  actorId    String        @map("actor_id") @db.VarChar
+  content    String        @db.Text
+  resolvedAt DateTime?     @map("resolved_at") @db.Timestamptz(3)
+  resolvedBy String?       @map("resolved_by") @db.VarChar
+  version    Int           @default(1)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  report     ProjectReport @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+
+  @@unique([id, reportId, projectId])
+  @@index([reportId, createdAt, id])
+  @@map("project_report_comments")
+}
+
+model ProjectReportReview {
+  id          String        @id @default(uuid()) @db.VarChar
+  reportId    String        @map("report_id") @db.VarChar
+  projectId   String        @map("project_id") @db.VarChar
+  revisionId  String        @map("revision_id") @db.VarChar
+  requestedBy String        @map("requested_by") @db.VarChar
+  reviewerId  String        @map("reviewer_id") @db.VarChar
+  status      String        @default("pending") @db.VarChar(16)
+  note        String        @default("") @db.Text
+  version     Int           @default(1)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt DateTime?     @map("completed_at") @db.Timestamptz(3)
+  report      ProjectReport @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+
+  @@index([reportId, revisionId])
+  @@map("project_report_reviews")
+}
+
+model ProjectReportExport {
+  id            String                @id @default(uuid()) @db.VarChar
+  reportId      String                @map("report_id") @db.VarChar
+  projectId     String                @map("project_id") @db.VarChar
+  revisionId    String                @map("revision_id") @db.VarChar
+  actorId       String                @map("actor_id") @db.VarChar
+  requestKey    String                @map("request_key") @db.VarChar(256)
+  fingerprint   String                @db.VarChar(64)
+  format        String                @db.VarChar(16)
+  audience      Json                  @db.JsonB
+  status        String                @default("queued") @db.VarChar(16)
+  runId         String?               @map("run_id") @db.VarChar
+  blobKey       String?               @map("blob_key") @db.VarChar(256)
+  mimeType      String?               @map("mime_type") @db.VarChar(128)
+  compatibility Json                  @default("[]") @db.JsonB
+  resourceId    String?               @map("resource_id") @db.VarChar
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  report        ProjectReport         @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+  revision      ProjectReportRevision @relation(fields: [revisionId, reportId, projectId], references: [id, reportId, projectId], onDelete: Restrict)
+  blob          ProjectBlob?          @relation(fields: [projectId, blobKey], references: [projectId, key], onDelete: Restrict)
+
+  @@unique([projectId, actorId, requestKey])
+  @@index([runId])
+  @@map("project_report_exports")
+}
+
+model ProjectReportShare {
+  id                String                       @id @default(uuid()) @db.VarChar
+  reportId          String                       @map("report_id") @db.VarChar
+  projectId         String                       @map("project_id") @db.VarChar
+  actorId           String                       @map("actor_id") @db.VarChar
+  status            String                       @default("active") @db.VarChar(16)
+  version           Int                          @default(1)
+  revisionCounter   Int                          @default(0) @map("revision_counter")
+  currentRevisionId String?                      @map("current_revision_id") @db.VarChar
+  revokedAt         DateTime?                    @map("revoked_at") @db.Timestamptz(3)
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  report            ProjectReport                @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+  revisions         ProjectReportShareRevision[] @relation("report_share_revisions")
+  current           ProjectReportShareRevision?  @relation("report_share_current", fields: [currentRevisionId, id, projectId], references: [id, shareId, projectId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, projectId])
+  @@map("project_report_shares")
+}
+
+model ProjectReportShareRevision {
+  tokenCiphertext String @default("") @map("token_ciphertext") @db.Text
+  id                String                @id @default(uuid()) @db.VarChar
+  shareId           String                @map("share_id") @db.VarChar
+  reportId          String                @map("report_id") @db.VarChar
+  projectId         String                @map("project_id") @db.VarChar
+  reportRevisionId  String                @map("report_revision_id") @db.VarChar
+  sequence          Int
+  audience          Json                  @db.JsonB
+  accessMode        String                @map("access_mode") @db.VarChar(16)
+  recipientIds      String[]              @map("recipient_ids") @db.VarChar
+  tokenHash         String                @unique @map("token_hash") @db.VarChar(64)
+  passwordHash      String?               @map("password_hash") @db.VarChar
+  allowDownload     Boolean               @default(false) @map("allow_download")
+  expiresAt         DateTime              @map("expires_at") @db.Timestamptz(3)
+  projectionBlobKey String                @map("projection_blob_key") @db.VarChar(256)
+  actorId           String                @map("actor_id") @db.VarChar
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  share             ProjectReportShare    @relation("report_share_revisions", fields: [shareId, projectId], references: [id, projectId], onDelete: Restrict)
+  revision          ProjectReportRevision @relation(fields: [reportRevisionId, reportId, projectId], references: [id, reportId, projectId], onDelete: Restrict)
+  blob              ProjectBlob           @relation(fields: [projectId, projectionBlobKey], references: [projectId, key], onDelete: Restrict)
+  currentShares     ProjectReportShare[]  @relation("report_share_current")
+
+  @@unique([id, shareId, projectId])
+  @@unique([shareId, sequence])
+  @@map("project_report_share_revisions")
+}
+
+model ProjectReportSchedule {
+  id                 String                          @id @default(uuid()) @db.VarChar
+  projectId          String                          @map("project_id") @db.VarChar
+  actorId            String                          @map("actor_id") @db.VarChar
+  title              String                          @db.VarChar(512)
+  status             String                          @default("active") @db.VarChar(16)
+  version            Int                             @default(1)
+  templateRevisionId String                          @map("template_revision_id") @db.VarChar
+  config             Json                            @db.JsonB
+  authorization      Json                            @db.JsonB
+  nextRunAt          DateTime                        @map("next_run_at") @db.Timestamptz(3)
+  createdAt          DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  project            AiContextProject                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  template           ProjectReportTemplateRevision   @relation(fields: [templateRevisionId, projectId], references: [id, projectId], onDelete: Restrict)
+  occurrences        ProjectReportOccurrence[]
+  revisions          ProjectReportScheduleRevision[]
+
+  @@unique([id, projectId])
+  @@index([status, nextRunAt])
+  @@map("project_report_schedules")
+}
+
+model ProjectReportScheduleRevision {
+  id               String                @id @default(uuid()) @db.VarChar
+  scheduleId       String                @map("schedule_id") @db.VarChar
+  projectId        String                @map("project_id") @db.VarChar
+  version          Int
+  actorId          String                @map("actor_id") @db.VarChar
+  delegatedActorId String                @map("delegated_actor_id") @db.VarChar
+  requestKey       String                @map("request_key") @db.VarChar(256)
+  fingerprint      String                @db.VarChar(64)
+  config           Json                  @db.JsonB
+  authorization    Json                  @db.JsonB
+  status           String                @db.VarChar(16)
+  nextRunAt        DateTime              @map("next_run_at") @db.Timestamptz(3)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  schedule         ProjectReportSchedule @relation(fields: [scheduleId, projectId], references: [id, projectId], onDelete: Restrict)
+
+  @@unique([scheduleId, version])
+  @@unique([projectId, actorId, requestKey])
+  @@map("project_report_schedule_revisions")
+}
+
+model ProjectReportOccurrence {
+  reportRevisionId String? @map("report_revision_id") @db.VarChar
+  reportRevision ProjectReportRevision? @relation(fields:[reportRevisionId,reportId,projectId],references:[id,reportId,projectId],onDelete:Restrict,onUpdate:Restrict)
+  id            String                  @id @default(uuid()) @db.VarChar
+  projectId     String                  @map("project_id") @db.VarChar
+  scheduleId    String                  @map("schedule_id") @db.VarChar
+  version       Int                     @default(1)
+  scheduledAt   DateTime                @default(now()) @map("scheduled_at") @db.Timestamptz(3)
+  updatedAt     DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  failureCode   String?                 @map("failure_code") @db.VarChar(128)
+  nominalTime   String                  @map("nominal_time") @db.VarChar(64)
+  timeZone      String                  @map("time_zone") @db.VarChar(128)
+  configVersion Int                     @map("config_version")
+  snapshot      Json                    @db.JsonB
+  actorId       String                  @map("actor_id") @db.VarChar
+  reportId      String?                 @map("report_id") @db.VarChar
+  runId         String?                 @map("run_id") @db.VarChar
+  status        String                  @default("queued") @db.VarChar(16)
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  schedule      ProjectReportSchedule   @relation(fields: [scheduleId, projectId], references: [id, projectId], onDelete: Restrict)
+  deliveries    ProjectReportDelivery[]
+
+  @@unique([id, projectId])
+  @@unique([scheduleId, nominalTime, timeZone])
+  @@map("project_report_occurrences")
+}
+
+model ProjectReportDelivery {
+  id                String                  @id @default(uuid()) @db.VarChar
+  projectId         String                  @map("project_id") @db.VarChar
+  occurrenceId      String                  @map("occurrence_id") @db.VarChar
+  recipientKey      String                  @map("recipient_key") @db.VarChar(512)
+  channel           String                  @db.VarChar(16)
+  authorizationHash String                  @map("authorization_hash") @db.VarChar(64)
+  status            String                  @default("queued") @db.VarChar(16)
+  version           Int                     @default(1)
+  leaseId           String?                 @map("lease_id") @db.VarChar
+  leaseExpiresAt    DateTime?               @map("lease_expires_at") @db.Timestamptz(3)
+  mailDeliveryId    String?                 @map("mail_delivery_id") @db.VarChar
+  shareId           String?                 @map("share_id") @db.VarChar
+  exportId          String?                 @map("export_id") @db.VarChar
+  resultNote        String?                 @map("result_note") @db.VarChar(2000)
+  updatedAt         DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  providerReceipt   String?                 @map("provider_receipt") @db.VarChar(512)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  occurrence        ProjectReportOccurrence @relation(fields: [occurrenceId, projectId], references: [id, projectId], onDelete: Restrict)
+
+  @@unique([occurrenceId, recipientKey, channel])
+  @@map("project_report_deliveries")
+}
+
+model ProjectReportRequest {
+  id          String        @id @default(uuid()) @db.VarChar
+  projectId   String        @map("project_id") @db.VarChar
+  reportId    String        @map("report_id") @db.VarChar
+  actorId     String        @map("actor_id") @db.VarChar
+  requestKey  String        @map("request_key") @db.VarChar(256)
+  operation   String        @db.VarChar(64)
+  fingerprint String        @db.VarChar(64)
+  result      Json          @db.JsonB
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  report      ProjectReport @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+
+  @@unique([projectId, actorId, requestKey])
+  @@map("project_report_requests")
+}
+
+model ProjectReportAuditEvent {
+  id        String        @id @default(uuid()) @db.VarChar
+  projectId String        @map("project_id") @db.VarChar
+  reportId  String        @map("report_id") @db.VarChar
+  actorId   String        @map("actor_id") @db.VarChar
+  action    String        @db.VarChar(64)
+  evidence  Json          @db.JsonB
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  report    ProjectReport @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict)
+
+  @@index([reportId, createdAt])
+  @@map("project_report_audit_events")
+}
+
+model ProjectReportBlobReference {
+  id String @id @default(uuid()) @db.VarChar
+  projectId String @map("project_id") @db.VarChar
+  blobKey String @map("blob_key") @db.VarChar(256)
+  reportId String? @map("report_id") @db.VarChar
+  templateId String? @map("template_id") @db.VarChar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  blob ProjectBlob @relation(fields:[projectId,blobKey], references:[projectId,key],onDelete:Restrict)
+  report ProjectReport? @relation(fields:[reportId,projectId],references:[id,projectId],onDelete:Restrict)
+  template ProjectReportTemplate? @relation(fields:[templateId,projectId],references:[id,projectId],onDelete:Restrict)
+  @@unique([reportId,blobKey])
+  @@unique([templateId,blobKey])
+  @@map("project_report_blob_references")
+}
+
+model ProjectReportDeletion {
+  reportId String @id @map("report_id") @db.VarChar
+  projectId String @map("project_id") @db.VarChar
+  actorId String @map("actor_id") @db.VarChar
+  requestKey String @map("request_key") @db.VarChar(256)
+  expectedVersion Int @map("expected_version")
+  fingerprint String @db.VarChar(64)
+  status String @default("requested") @db.VarChar(16)
+  eligibleAt DateTime @map("eligible_at") @db.Timestamptz(3)
+  leaseId String? @map("lease_id") @db.VarChar
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  attempts Int @default(0)
+  failureCode String? @map("failure_code") @db.VarChar(128)
+  holdReason String? @map("hold_reason") @db.VarChar(256)
+  heldAt DateTime? @map("held_at") @db.Timestamptz(3)
+  releasedAt DateTime? @map("released_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  report ProjectReport @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([reportId, projectId])
+  @@unique([projectId, actorId, requestKey])
+  @@index([status, eligibleAt])
+  @@map("project_report_deletions")
+}
+
+model ProjectReportBlobDeletion {
+  id String @id @default(uuid()) @db.VarChar
+  reportId String @map("report_id") @db.VarChar
+  projectId String @map("project_id") @db.VarChar
+  blobKey String @map("blob_key") @db.VarChar(256)
+  status String @default("pending") @db.VarChar(16)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  report ProjectReport @relation(fields: [reportId, projectId], references: [id, projectId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([reportId, blobKey])
+  @@index([status, createdAt])
+  @@map("project_report_blob_deletions")
+}
+
+// Report decks: one-shot cross-scope presentations owned by one user.
+model ReportDeck {
+  id                String    @id @default(uuid()) @db.VarChar
+  ownerUserId       String    @map("owner_user_id") @db.VarChar
+  requestKey        String?   @map("request_key") @db.VarChar(128)
+  title             String    @db.VarChar(512)
+  status            String    @default("queued") @db.VarChar(16)
+  mode              String    @db.VarChar(16)
+  templateKey       String?   @map("template_key") @db.VarChar(64)
+  config            Json      @db.JsonB
+  progress          Json      @default("{}") @db.JsonB
+  htmlGzip          Bytes?    @map("html_gzip")
+  htmlBytes         Int?      @map("html_bytes")
+  slideCount        Int?      @map("slide_count")
+  errorCode         String?   @map("error_code") @db.VarChar(64)
+  aiScopeKind       String    @map("ai_scope_kind") @db.VarChar(16)
+  aiScopeId         String    @map("ai_scope_id") @db.VarChar
+  modelId           String?   @map("model_id") @db.VarChar
+  usage             Json?     @db.JsonB
+  runAttempt        Int       @default(0) @map("run_attempt")
+  generationVersion Int       @default(2) @map("generation_version")
+  quality           Json?     @db.JsonB
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(3)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  sources ReportDeckSource[]
+  shares  ReportDeckShare[]
+  runs    ReportDeckRun[]
+
+  @@unique([ownerUserId, requestKey])
+  @@index([ownerUserId, deletedAt, createdAt])
+  @@map("report_decks")
+}
+
+model ReportDeckRun {
+  id             String               @id @default(uuid()) @db.VarChar
+  deckId         String               @map("deck_id") @db.VarChar
+  attempt        Int
+  status         String               @default("running") @db.VarChar(24)
+  leaseOwner     String               @map("lease_owner") @db.VarChar(64)
+  leaseExpiresAt DateTime             @map("lease_expires_at") @db.Timestamptz(3)
+  fence          Int                  @default(1)
+  deadline       DateTime             @db.Timestamptz(3)
+  snapshot       Json                 @db.JsonB
+  calls          Int                  @default(0)
+  formatRetries  Int                  @default(0) @map("format_retries")
+  repairs        Int                  @default(0)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deck           ReportDeck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  steps          ReportDeckStep[]
+  artifacts      ReportDeckArtifact[]
+
+  @@unique([deckId, attempt])
+  @@index([status, leaseExpiresAt])
+  @@map("report_deck_runs")
+}
+
+model ReportDeckStep {
+  id          String        @id @default(uuid()) @db.VarChar
+  runId       String        @map("run_id") @db.VarChar
+  sequence    Int
+  stage       String        @db.VarChar(80)
+  inputHash   String        @map("input_hash") @db.VarChar(64)
+  status      String        @default("running") @db.VarChar(24)
+  inputChars  Int           @map("input_chars")
+  outputChars Int?          @map("output_chars")
+  errorCode   String?       @map("error_code") @db.VarChar(64)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt DateTime?     @map("completed_at") @db.Timestamptz(3)
+  run         ReportDeckRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, sequence])
+  @@map("report_deck_steps")
+}
+
+model ReportDeckArtifact {
+  id         String        @id @default(uuid()) @db.VarChar
+  runId      String        @map("run_id") @db.VarChar
+  key        String        @db.VarChar(160)
+  inputHash  String        @map("input_hash") @db.VarChar(64)
+  hash       String        @db.VarChar(64)
+  mime       String        @db.VarChar(64)
+  payload    Bytes
+  byteLength Int           @map("byte_length")
+  expiresAt  DateTime      @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  run        ReportDeckRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, key])
+  @@index([expiresAt])
+  @@map("report_deck_artifacts")
+}
+
+model ReportDeckSource {
+  id            String  @id @default(uuid()) @db.VarChar
+  deckId        String  @map("deck_id") @db.VarChar
+  position      Int     @default(0)
+  scopeKind     String  @map("scope_kind") @db.VarChar(16)
+  scopeId       String  @map("scope_id") @db.VarChar
+  kind          String  @db.VarChar(16)
+  resourceId    String? @map("resource_id") @db.VarChar
+  titleSnapshot String  @map("title_snapshot") @db.VarChar(512)
+  status        String  @default("pending") @db.VarChar(16)
+  reason        String? @db.VarChar(64)
+  chars         Int?
+
+  deck ReportDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@index([deckId])
+  @@map("report_deck_sources")
+}
+
+model ReportDeckShare {
+  id            String    @id @default(uuid()) @db.VarChar
+  deckId        String    @map("deck_id") @db.VarChar
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(64)
+  tokenCipher   String    @map("token_ciphertext") @db.Text
+  passwordHash  String?   @map("password_hash") @db.VarChar
+  allowDownload Boolean   @default(false) @map("allow_download")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deck ReportDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@index([deckId])
+  @@map("report_deck_shares")
 }

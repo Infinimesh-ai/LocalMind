@@ -47,7 +47,6 @@ class SubpageBlock extends BlockComponent<SubpageBlockModel> {
   `;
   @state() private accessor entryTitle: string | null = null;
   @state() private accessor owned = false;
-  private generation = 0;
   private nodeId: string | null = null;
   private async recycle() {
     const t = getOrCreateI18n();
@@ -93,24 +92,20 @@ class SubpageBlock extends BlockComponent<SubpageBlockModel> {
     this.addEventListener('dragstart', drag);
     this.disposables.add(() => this.removeEventListener('dragstart', drag));
     const service = this.std.get(Framework).get(WorkspacePageTreeService);
-    const reload = () => {
-      const generation = ++this.generation;
-      void service
-        .locate(this.model.props.kind, this.model.props.resourceId)
-        .then(result => {
-          if (!this.isConnected || generation !== this.generation) return;
-          this.entryTitle = result.parent?.title ?? null;
-          this.nodeId = result.parent?.nodeId ?? null;
-          this.owned = result.ancestors.at(-1)?.resourceId === this.store.id;
-        })
-        .catch(() => {
-          if (generation === this.generation) this.entryTitle = null;
-        });
-    };
-    const subscription = service.layers$.subscribe(reload);
+    const { kind, resourceId } = this.model.props;
+    const key = service.resourceKey(kind, resourceId);
+    const subscription = service.layers$
+      .map(layers => layers.get(key))
+      .subscribe(layer => {
+        const result = layer?.page;
+        this.entryTitle = result?.parent?.title ?? null;
+        this.nodeId = result?.parent?.nodeId ?? null;
+        this.owned = result?.ancestors.at(-1)?.resourceId === this.store.id;
+      });
+    const unobserve = service.observeResource(kind, resourceId);
     this.disposables.add(() => {
       subscription.unsubscribe();
-      this.generation++;
+      unobserve();
     });
   }
   override render() {

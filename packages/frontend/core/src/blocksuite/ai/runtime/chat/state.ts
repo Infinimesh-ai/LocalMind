@@ -102,10 +102,14 @@ export type AIChatContextItem =
       state?: string;
       createdAt?: number;
       tooltip?: string;
+      sourceTitle?: string;
+      sequence?: number | null;
+      currentSequence?: number | null;
     }
   | {
       kind: 'file';
       file: File;
+      byteSize?: number | null;
       blobId?: string;
       fileId?: string;
       state?: string;

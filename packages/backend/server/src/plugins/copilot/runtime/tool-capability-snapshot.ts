@@ -92,6 +92,8 @@ export function toolSideEffectType(name: string): ToolSideEffectType {
       'project_office_command_batch_request',
       'project_publication_prepare',
       'project_file_request_create',
+      'project_report_rewrite',
+      'project_report_refresh',
     ].includes(name)
   )
     return 'project_write';

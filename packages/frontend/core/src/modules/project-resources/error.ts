@@ -20,3 +20,9 @@ export function projectErrorMessage(caught: unknown) {
 export function reportProjectError(caught: unknown) {
   notify.error({ title: projectErrorMessage(caught) });
 }
+
+/** Signed out, no longer a member, or the target does not exist. */
+export function isProjectAccessError(caught: unknown) {
+  const { status } = UserFriendlyError.fromAny(caught);
+  return status === 401 || status === 403 || status === 404;
+}

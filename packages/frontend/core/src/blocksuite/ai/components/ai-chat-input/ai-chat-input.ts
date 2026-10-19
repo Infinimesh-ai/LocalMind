@@ -21,7 +21,12 @@ import type { EditorHost } from '@blocksuite/affine/std';
 import { ShadowlessElement } from '@blocksuite/affine/std';
 import type { NotificationService } from '@blocksuite/affine-shared/services';
 import { ArrowUpBigIcon, CloseIcon } from '@blocksuite/icons/lit';
-import { type OfficeAiContext, parseOfficeAiContext } from '@localmind/office';
+import {
+  type OfficeAiContext,
+  parseOfficeAiContext,
+  parseProjectReportAiContext,
+  type ProjectReportAiContext,
+} from '@localmind/office';
 import { css, html, nothing, type PropertyValues } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -343,6 +348,9 @@ export class AIChatInput extends SignalWatcher(
 
   @property({ attribute: false })
   accessor officeContext: OfficeAiContext | undefined;
+
+  @property({ attribute: false })
+  accessor reportContext: ProjectReportAiContext | undefined;
 
   @property({ attribute: false })
   accessor session!: CopilotChatHistoryFragment | null | undefined;
@@ -851,9 +859,11 @@ export class AIChatInput extends SignalWatcher(
     const officeContext = this.officeContext
       ? parseOfficeAiContext(this.officeContext)
       : undefined;
+    const reportContext = this.reportContext
+      ? parseProjectReportAiContext(this.reportContext)
+      : undefined;
     const { markdown, images, snapshot, combinedElementsMarkdown, html } =
       this.chatContextValue;
-    const userInput = (markdown ? `${markdown}\n` : '') + text;
     const imageAttachments = await Promise.all(
       images?.map(image => readBlobAsURL(image))
     );
@@ -870,9 +880,10 @@ export class AIChatInput extends SignalWatcher(
     });
     await this.runtime.dispatch({
       type: 'send',
-      input: userInput,
+      input: text,
       contexts: {
         ...contexts,
+        selectionContext: markdown || undefined,
         selectedSnapshot:
           snapshot && enableSendDetailedObject ? snapshot : undefined,
         selectedMarkdown:
@@ -893,6 +904,7 @@ export class AIChatInput extends SignalWatcher(
       toolsConfig: this.aiToolsConfigService.config.value,
       modelId: this.aiModelService.modelId.value,
       officeContext,
+      ...(reportContext ? { reportContext } : {}),
       promptName: this.activePromptName,
       userInfo: {
         userId: userInfo?.id,

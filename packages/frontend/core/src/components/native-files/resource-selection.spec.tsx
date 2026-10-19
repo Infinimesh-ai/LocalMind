@@ -18,6 +18,12 @@ const state = vi.hoisted(() => ({
   catalog: null as unknown,
   navigate: vi.fn(),
   confirm: vi.fn(),
+  reportDeckAvailable: false,
+  openReportDeck: vi.fn(),
+}));
+vi.mock('../report-deck-entry', () => ({
+  useReportDeckEntryAvailable: () => state.reportDeckAvailable,
+  useOpenReportDeck: () => state.openReportDeck,
 }));
 vi.mock('@affine/core/components/providers/current-server-scope', () => ({
   useCurrentServerService: () => undefined,
@@ -240,6 +246,8 @@ beforeEach(() => {
   };
   state.navigate.mockClear();
   state.confirm.mockClear();
+  state.reportDeckAvailable = false;
+  state.openReportDeck.mockReset();
 });
 afterEach(cleanup);
 function mount(trash = false, mixed = false) {
@@ -529,4 +537,59 @@ test('partial batch failure keeps only failed resources selected and leaves sele
   expect(checkbox('Image.png').checked).toBe(true);
   expect(checkbox('Page').checked).toBe(false);
   expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
+});
+
+test('presents a mixed selection of documents and files as workspace deck sources', async () => {
+  state.reportDeckAvailable = true;
+  mount();
+  await screen.findByRole('button', { name: 'Image.png' });
+  expect(
+    screen.queryByRole('button', {
+      name: 'com.affine.localmind.reportDeck.entry',
+    })
+  ).toBeNull();
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.multiSelect',
+    })
+  );
+  const present = screen.getByRole('button', {
+    name: 'com.affine.localmind.reportDeck.entry',
+  });
+  expect(present.hasAttribute('disabled')).toBe(true);
+  fireEvent.click(checkbox('Image.png'));
+  fireEvent.click(pageCheckbox(), { detail: 0 });
+  expect(await screen.findByText('selected: 2')).toBeTruthy();
+  fireEvent.click(present);
+  expect(state.openReportDeck).toHaveBeenCalledExactlyOnceWith([
+    {
+      scopeKind: 'workspace',
+      scopeId: 'workspace',
+      kind: 'file',
+      resourceId: 'file',
+      title: 'Image.png',
+    },
+    {
+      scopeKind: 'workspace',
+      scopeId: 'workspace',
+      kind: 'doc',
+      resourceId: 'page',
+      title: 'Page',
+    },
+  ]);
+});
+
+test('hides the deck entry in trash', async () => {
+  state.reportDeckAvailable = true;
+  mount(true);
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.multiSelect',
+    })
+  );
+  expect(
+    screen.queryByRole('button', {
+      name: 'com.affine.localmind.reportDeck.entry',
+    })
+  ).toBeNull();
 });

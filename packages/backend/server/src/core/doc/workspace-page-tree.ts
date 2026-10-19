@@ -38,6 +38,7 @@ import {
   type PageTreePlan,
   planWorkspacePageTree,
 } from './page-tree-plan';
+import { snapshotParser } from './snapshot-parser';
 import { WorkspaceOrganizationService } from './workspace-organization';
 import { DocWriter } from './writer';
 
@@ -282,8 +283,10 @@ export class WorkspacePageTreeService {
       await this.models.workspacePageTree.inventory(workspaceId);
     const load = async (id: string) => {
       const stored = await this.storage.getDocReadOnly(workspaceId, id);
-      const doc = new Y.Doc({ guid: id });
-      if (stored) Y.applyUpdate(doc, stored.bin);
+      const doc = await snapshotParser.decode(
+        `${workspaceId}:${id}`,
+        stored?.bin ?? null
+      );
       return {
         doc,
         revision: digest(
@@ -294,11 +297,11 @@ export class WorkspacePageTreeService {
     const root = await load(workspaceId);
     const tree = await load(`db$${workspaceId}$folders`);
     const properties = await load(`db$${workspaceId}$docProperties`);
-    try {
-      const pages = root.doc.getMap('meta').get('pages');
-      if (pages !== undefined && !(pages instanceof Y.Array))
+    {
+      const pages = root.doc.maps.meta?.pages;
+      if (root.doc.pagesKind === 'invalid')
         throw new BadRequest('Invalid Workspace root');
-      const rawPages = (pages instanceof Y.Array ? pages.toJSON() : []) as {
+      const rawPages = (root.doc.pagesKind === 'array' ? pages : []) as {
         id: string;
         title?: string;
         trash?: boolean;
@@ -309,22 +312,20 @@ export class WorkspacePageTreeService {
       const resources: PageTreeResource[] = [];
       const recycleClaims: PageTreePlan['recycleEvidence'] = [];
       const documentTypes = new Map<string, WorkspaceDocumentType>();
-      const legacy = root.doc
-        .getMap('affine:workspace-properties')
-        .get('pageProperties');
+      const legacy = root.doc.legacyPagePropertiesIsMap
+        ? (root.doc.maps['affine:workspace-properties']
+            ?.pageProperties as Record<string, unknown>)
+        : undefined;
       for (const page of rawPages) {
         if (typeof page.id !== 'string' || !page.id)
           throw new BadRequest('Invalid Workspace resource');
         if (nativeIds.has(page.id)) continue;
-        const current = properties.doc.getMap(page.id);
-        const old = legacy instanceof Y.Map ? legacy.get(page.id) : undefined;
-        const oldValue = (old instanceof Y.Map ? old.toJSON() : old) as
+        const current = properties.doc.maps[page.id] ?? {};
+        const oldValue = legacy?.[page.id] as
           | { system?: { primaryMode?: { value?: string } } }
           | undefined;
         const mode =
-          (current.get('$$DELETED') === true
-            ? undefined
-            : current.get('primaryMode')) ??
+          (current.$$DELETED === true ? undefined : current.primaryMode) ??
           oldValue?.system?.primaryMode?.value;
         const resource: PageTreeResource = {
           kind: 'doc',
@@ -392,8 +393,7 @@ export class WorkspacePageTreeService {
         );
       }
       const rows: LegacyTreeRow[] = [];
-      for (const [id] of tree.doc.share) {
-        const row = tree.doc.getMap(id).toJSON();
+      for (const [id, row] of Object.entries(tree.doc.maps)) {
         if (row.id === id && row.$$DELETED === true && row.type === undefined)
           continue;
         if (
@@ -445,10 +445,6 @@ export class WorkspacePageTreeService {
         sourceRevision,
         authorizationRevision,
       };
-    } finally {
-      root.doc.destroy();
-      tree.doc.destroy();
-      properties.doc.destroy();
     }
   }
 
@@ -614,6 +610,7 @@ export class WorkspacePageTreeService {
           canCreatePage: false,
           revision: 0,
           authorizationRevision: '',
+          snapshotRevision: null,
           items: [],
           nextCursor: null,
           parent: null,
@@ -779,6 +776,15 @@ export class WorkspacePageTreeService {
             .can('Workspace.CreateDoc')),
         revision: state.revision,
         authorizationRevision,
+        // Covers nested titles, native metadata, tree structure and ACLs, not
+        // just explicit tree commands. Clients may reuse layers only while the
+        // complete authoritative read snapshot remains unchanged.
+        snapshotRevision: digest([
+          input,
+          state.revision,
+          state.contractVersion,
+          graph.sourceRevision,
+        ]),
         items: visible.slice(offset, offset + limit),
         parent: parent ? await describe(parent) : null,
         ancestors: await Promise.all(ancestors.map(describe)),

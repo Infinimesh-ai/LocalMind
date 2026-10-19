@@ -1,4 +1,7 @@
-import { OfficeAiContextSchema } from '@localmind/office';
+import {
+  OfficeAiContextSchema,
+  ProjectReportAiContextSchema,
+} from '@localmind/office';
 import { AiPromptRole } from '@prisma/client';
 import { z } from 'zod';
 
@@ -106,6 +109,8 @@ export const COPILOT_CHAT_TOOL_CATEGORIES = [
   'enterprise',
   // workspace-managed outbound SparkClaw MCP connection
   'sparkClaw',
+  // native Project report read and candidate-generation requests
+  'report',
 ] as const;
 
 export const PromptToolsSchema = z.enum(COPILOT_CHAT_TOOL_CATEGORIES).array();
@@ -275,10 +280,22 @@ export type PromptResponseFormat = z.infer<typeof PromptResponseFormatSchema>;
 // ========== options ==========
 
 const CopilotProviderOptionsSchema = z.object({
+  // Internal report worker permit; validated against the live fenced run at routing.
+  reportImageInput: z
+    .object({
+      id: z.string(),
+      deckId: z.string(),
+      attempt: z.number().int(),
+      leaseOwner: z.string(),
+      fence: z.number().int(),
+    })
+    .strict()
+    .optional(),
   signal: z.instanceof(AbortSignal).optional(),
   user: z.string().optional(),
   session: z.string().optional(),
   workspace: z.string().optional(),
+  projectId: z.string().min(1).max(256).optional(),
   byokLeaseId: z.string().optional(),
   billingUnitId: z.string().optional(),
   taskId: z.string().optional(),
@@ -377,6 +394,7 @@ const CopilotProviderOptionsSchema = z.object({
     .optional(),
   legacyWorkspaceFolderDelete: z.boolean().optional(),
   officeContext: OfficeAiContextSchema.optional(),
+  reportContext: ProjectReportAiContextSchema.optional(),
   quotaBackedRoutesAllowed: z.boolean().optional(),
   chatSurface: z.literal('intelligence_workbench').optional(),
   featureKind: z

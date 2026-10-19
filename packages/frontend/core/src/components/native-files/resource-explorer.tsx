@@ -46,8 +46,10 @@ import {
   FileIcon,
   FilterIcon,
   PageIcon,
+  PresentationIcon,
   TextIcon,
 } from '@blocksuite/icons/rc';
+import type { DeckSourceRef } from '@localmind/office/report-deck';
 import {
   LiveData,
   useLiveData,
@@ -67,6 +69,10 @@ import {
 import { PlainTextDocGroupHeader } from '../explorer/docs-view/group-header';
 import { resourceSortFields } from '../explorer/resource-preferences';
 import { useCreatedResourceSelection } from '../page-tree/created-resource';
+import {
+  useOpenReportDeck,
+  useReportDeckEntryAvailable,
+} from '../report-deck-entry';
 import { WorkspaceCreateMenu } from './create-menu';
 import { LifecycleActions } from './lifecycle-actions';
 import { dragNativeResource, NativeResourceDropTarget } from './resource-drag';
@@ -523,6 +529,8 @@ export function WorkspaceResourceExplorer({
   const [failureNames, setFailureNames] = useState<string[]>([]);
   const requests = useRef(new Map<string, { key: string; version: number }>());
   const { openConfirmModal } = useConfirmModal();
+  const reportDeckAvailable = useReportDeckEntryAvailable();
+  const openReportDeck = useOpenReportDeck();
   const nativeItems = useMemo(
     () =>
       queryItems
@@ -963,6 +971,43 @@ export function WorkspaceResourceExplorer({
       }),
     });
   };
+  const presentSelection = () => {
+    const sources = selected.flatMap((key): DeckSourceRef[] => {
+      const folder = folderMap.get(key);
+      if (folder)
+        return [
+          {
+            scopeKind: 'workspace',
+            scopeId: workspaceId,
+            kind: 'folder',
+            resourceId: folder.id,
+            title: folder.title,
+          },
+        ];
+      const native = catalog.items.find(item => nativeKey(item) === key);
+      if (native)
+        return [
+          {
+            scopeKind: 'workspace',
+            scopeId: workspaceId,
+            kind: 'file',
+            resourceId: native.id,
+            title: native.fileName,
+          },
+        ];
+      if (key.startsWith('native:') || key.startsWith('folder:')) return [];
+      return [
+        {
+          scopeKind: 'workspace',
+          scopeId: workspaceId,
+          kind: 'doc',
+          resourceId: key,
+          title: docs.doc$(key).value?.title$.value || untitled,
+        },
+      ];
+    });
+    if (sources.length) openReportDeck(sources);
+  };
   const renderItem = useCallback(
     (id: string, groupId: string) => {
       const folder = folderMap.get(id);
@@ -1306,6 +1351,15 @@ export function WorkspaceResourceExplorer({
                         {t['com.affine.localmind.resources.actions']()}
                       </MenuTrigger>
                     </Menu>
+                    {!trash && reportDeckAvailable && (
+                      <Button
+                        prefix={<PresentationIcon />}
+                        disabled={pending || !selected.length}
+                        onClick={presentSelection}
+                      >
+                        {t['com.affine.localmind.reportDeck.entry']()}
+                      </Button>
+                    )}
                   </>
                 )}
                 <Button

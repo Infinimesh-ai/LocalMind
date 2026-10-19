@@ -1,0 +1,18 @@
+{
+  "name": "localmind-report-web-design",
+  "version": "1.1.0",
+  "upstream": "https://github.com/alchaincyf/huashu-design",
+  "commit": "798c4235ebff03d5c45e3c8affdf5e9d18f9dfa7",
+  "license": "MIT",
+  "sources": {
+    "SKILL.md": "63cbc2ffcfd99f7b8acb6ff92adbbbba4bfaeec84373703d81df6a6fc6055a23",
+    "LICENSE": "6d6a2a9caf2e6d2b76974050427053b2892d8aa4c33fd168ce63a537fcee9d96",
+    "references/modules/web.md": "73733f02f6fa3c19ed56e1949f4f0c5511a09a5f45a98c8298a1222ddc9c3591",
+    "references/typography.md": "4aae63d6bc39a0f67a05398b11bc381b7190f51bb7cd83f1a933f2e7551984cb",
+    "references/design-context.md": "93a7e6be5f6cb29076d3651747d5033701362ddd03283b1ddf11b105757430b6",
+    "references/content-guidelines.md": "d9e1f08740bc6a1327b9bedaafad37b9791a1640a3b13b686b53f4a9483414e2",
+    "references/verification.md": "2481be020d5253efebcc6dd1a3bea80db25c1d03ce92d5a0347124c7407b366c",
+    "references/critique-guide.md": "3636ed8422bb88a11bc3e1db00b252b707f20cf83f6ec900077abb020ff7a8ce"
+  },
+  "adaptedPromptHash": "ba86e69d29d37aa7fcd3369299d9ab8390b2ff1486507fdd3a56e89a1af58701"
+}

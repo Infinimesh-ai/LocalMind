@@ -241,6 +241,80 @@ test('polling refreshes only visible layers, with a bounded and fair batch', asy
   expect(gql.mock.calls.length).toBeLessThanOrEqual(12);
 });
 
+test('unchanged authoritative snapshots poll only root and reuse reopened branches', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal('document', { visibilityState: 'visible' });
+  const { service, gql } = await setup();
+  gql.mockResolvedValue({
+    workspacePageTree: { ...page(), snapshotRevision: 'snapshot-a' },
+  });
+  await service.load(null);
+  const close = service.observe('closed');
+  await service.load('closed');
+  close();
+  for (let i = 0; i < 8; i++) {
+    service.observe(`open-${i}`);
+    await service.load(`open-${i}`);
+  }
+  gql.mockClear();
+  await vi.advanceTimersByTimeAsync(180_000);
+  expect(gql).toHaveBeenCalledTimes(6);
+  expect(
+    gql.mock.calls.every(([call]) => call.variables.parentNodeId === null)
+  ).toBe(true);
+  const reopen = service.observe('closed');
+  expect(gql).toHaveBeenCalledTimes(6);
+  reopen();
+});
+
+test('nested metadata and ACL snapshot changes refresh children without a tree command', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal('document', { visibilityState: 'visible' });
+  const { service, gql } = await setup();
+  gql.mockResolvedValue({
+    workspacePageTree: { ...page(), snapshotRevision: 'snapshot-a' },
+  });
+  await service.load(null);
+  service.observe('folder');
+  await service.load('folder');
+  gql.mockClear();
+  // A title or authorization change need not increment the tree command revision.
+  gql.mockResolvedValue({
+    workspacePageTree: { ...page(), snapshotRevision: 'snapshot-b' },
+  });
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(gql.mock.calls.map(([call]) => call.variables.parentNodeId)).toEqual([
+    null,
+    'folder',
+  ]);
+  expect(service.layers$.value.get('folder')?.page?.snapshotRevision).toBe(
+    'snapshot-b'
+  );
+  gql.mockClear();
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(gql).toHaveBeenCalledTimes(1);
+  expect(gql.mock.calls[0][0].variables.parentNodeId).toBeNull();
+});
+
+test('a failed root snapshot check cannot suppress child revalidation', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal('document', { visibilityState: 'visible' });
+  const { service, gql } = await setup();
+  gql.mockResolvedValue({
+    workspacePageTree: { ...page(), snapshotRevision: 'snapshot-a' },
+  });
+  await service.load(null);
+  service.observe('folder');
+  await service.load('folder');
+  gql.mockClear();
+  gql.mockRejectedValueOnce(failure(503));
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(gql.mock.calls.map(([call]) => call.variables.parentNodeId)).toEqual([
+    null,
+    'folder',
+  ]);
+});
+
 test('rate limiting preserves loaded content and pauses every layer before automatic recovery', async () => {
   vi.useFakeTimers();
   vi.stubGlobal('document', { visibilityState: 'visible' });
@@ -774,4 +848,19 @@ test('native creation refreshes only its destination and root', async () => {
     null,
     'destination',
   ]);
+});
+
+test('same-account profile updates preserve tree cache and in-flight reads', async () => {
+  const { service, gql, account$ } = await setup();
+  const pending = Promise.withResolvers<unknown>();
+  gql.mockReturnValueOnce(pending.promise);
+  const loading = service.load('folder');
+  const signal = gql.mock.calls.at(-1)![0].context.signal;
+  gql.mockClear();
+  account$.next({ id: 'actor', label: 'Updated profile' });
+  expect(signal.aborted).toBe(false);
+  expect(gql).not.toHaveBeenCalled();
+  pending.resolve({ workspacePageTree: page() });
+  await loading;
+  expect(service.layers$.value.get('folder')?.page).toEqual(page());
 });

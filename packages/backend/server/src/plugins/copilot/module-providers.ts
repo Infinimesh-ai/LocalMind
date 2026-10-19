@@ -1,3 +1,5 @@
+import { ProjectReportSourceService } from '../../core/project-report/source-service';
+import { ReportDeckSourceService } from '../../core/report-deck/sources';
 import { CopilotAccessPolicy } from './access';
 import { CopilotAgentRuntimeDocUpdateAdapter } from './agent-runtime-doc-update-adapter';
 import { CopilotAgentRuntimeLocalMindToolAgentAdapter } from './agent-runtime-localmind-tool-agent-adapter';
@@ -76,6 +78,7 @@ import {
   ProjectOfficeAgentCommandAdapter,
   ProjectOfficeAgentCommandService,
 } from './project-office-agent-command';
+import { ProjectReportToolHost } from './project-report-tool-host';
 import { PromptService } from './prompt';
 import { CopilotProviderHealthWorker } from './provider-health-worker';
 import {
@@ -86,6 +89,13 @@ import {
   CopilotProviders,
 } from './providers';
 import { CopilotRepairExecutionWorker } from './repair-execution-worker';
+import { ReportDeckAiService } from './report-deck-ai';
+import { ReportDeckGenerationService } from './report-deck-generation';
+import { ProjectReportExportAdapter } from './report-export-adapter';
+import { ProjectReportGenerationService } from './report-generation-service';
+import { ProjectReportScheduleAdapter } from './report-schedule-adapter';
+import { ReportWebGenerationService } from './report-web-design/generation';
+import { ReportWebRenderer } from './report-web-design/renderer';
 import { CopilotResolver, UserCopilotResolver } from './resolver';
 import { ActionRuntimeBridge } from './runtime/action-runtime-bridge';
 import { CapabilityRuntime } from './runtime/capability-runtime';
@@ -266,6 +276,16 @@ export const COPILOT_KERNEL_PROVIDERS = [
 ];
 
 export const COPILOT_FEATURE_PROVIDERS = [
+  ProjectReportSourceService,
+  ProjectReportGenerationService,
+  ProjectReportScheduleAdapter,
+  ProjectReportExportAdapter,
+  ProjectReportToolHost,
+  ReportDeckSourceService,
+  ReportDeckAiService,
+  ReportDeckGenerationService,
+  ReportWebGenerationService,
+  ReportWebRenderer,
   TurnOrchestrator,
   ...COPILOT_CONTEXT_PROVIDERS,
   ...COPILOT_TRANSCRIPT_PROVIDERS,

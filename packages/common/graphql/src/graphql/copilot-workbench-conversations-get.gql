@@ -2,10 +2,12 @@ query copilotWorkbenchConversationsGet(
   $column: String
   $first: Int = 30
   $after: String
+  $projectId: ID
+  $scopeType: String
 ) {
   currentUser {
     copilot {
-      myConversationCards(column: $column, first: $first, after: $after) {
+      myConversationCards(column: $column, first: $first, after: $after, projectId: $projectId, scopeType: $scopeType) {
         items {
           sessionId
           scopeType

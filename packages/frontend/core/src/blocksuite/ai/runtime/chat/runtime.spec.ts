@@ -720,6 +720,40 @@ describe('AIChatRuntime', () => {
     runtime.dispose();
   });
 
+  test('shows only the question before and after history reload with selection context', async () => {
+    const request = createRequest();
+    const runtime = createRuntime(request);
+    const input = '为什么我按tab';
+    const contexts = { selectionContext: '沙箱是操作系统的权限限制。' };
+    await runtime.dispatch({ type: 'initialize' });
+    const send = runtime.dispatch({ type: 'send', input, contexts });
+
+    expect(runtime.getSnapshot().messages[0].content).toBe(input);
+    await send;
+    expect(request.executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.objectContaining({ input, contexts })
+    );
+
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: session({
+        messages: [
+          {
+            id: 'user-1',
+            role: 'user',
+            content: input,
+            attachments: null,
+            streamObjects: null,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+    expect(runtime.getSnapshot().messages[0].content).toBe(input);
+    runtime.dispose();
+  });
+
   test('send creates a new session with the provided prompt scope', async () => {
     const request = createRequest();
     const runtime = createRuntime(request);
@@ -1771,7 +1805,8 @@ describe('AIChatRuntime', () => {
     });
     const runtime = createRuntime(request);
     await runtime.dispatch({ type: 'initialize' });
-    await runtime.dispatch({ type: 'send', input: 'hello' });
+    const contexts = { selectionContext: 'Selected document text' };
+    await runtime.dispatch({ type: 'send', input: 'hello', contexts });
 
     expect(runtime.getSnapshot().activeSessionId).toBeNull();
     expect(runtime.getSnapshot().status).toBe('error');
@@ -1780,6 +1815,10 @@ describe('AIChatRuntime', () => {
 
     expect(runtime.getSnapshot().activeSessionId).toBe('session-2');
     expect(runtime.getSnapshot().status).toBe('success');
+    expect(request.executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.objectContaining({ input: 'hello', contexts })
+    );
     expect(runtime.getSnapshot().messages).toEqual([
       expect.objectContaining({ role: 'user', content: 'hello' }),
       expect.objectContaining({ role: 'assistant', content: 'retry' }),

@@ -18,6 +18,7 @@ import {
   copilotProjectContextDashboardGetQuery,
   copilotProjectContextSettingsUpdateMutation,
   copilotProjectMemoryConflictResolveMutation,
+  undoCopilotProjectContextMemoryEventMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useService } from '@toeverything/infra';
@@ -28,6 +29,13 @@ import {
   ProjectCollaborationContent,
   type ProjectCollaborationContentProps,
 } from './project-collaboration';
+import { ProjectPublications } from './project-publications';
+import * as styles from './project-shell-settings.css';
+import {
+  memoryEventLabel,
+  memoryKindLabel,
+  memoryStatusLabel,
+} from './workbench-labels';
 
 export const ProjectShellSettings = ({
   open,
@@ -76,6 +84,32 @@ export const ProjectShellSettings = ({
     [copilot?.contextMemories, currentUser?.id, memberFilter, projectId]
   );
   const conflicts = copilot?.projectMemoryConflicts ?? [];
+  const events = copilot?.projectContextMemoryEvents ?? [];
+  const undoContribution = (eventId: string) => {
+    if (!projectId || pending) return;
+    confirm.openConfirmModal({
+      title: t['com.affine.localmind.workbench.fusion.undoContribution'](),
+      description:
+        t['com.affine.localmind.workbench.fusion.undoContributionConfirm'](),
+      confirmText:
+        t['com.affine.localmind.workbench.fusion.undoContribution'](),
+      cancelText: t['Cancel'](),
+      onConfirm: async () => {
+        setPending(true);
+        try {
+          await graphql.gql({
+            query: undoCopilotProjectContextMemoryEventMutation,
+            variables: { projectId, eventId },
+          });
+          await dashboard.mutate();
+        } catch (error) {
+          reportProjectError(error);
+        } finally {
+          setPending(false);
+        }
+      },
+    });
+  };
 
   const updateAutomaticMemory = async (checked: boolean) => {
     if (!projectId || !settings || pending) return;
@@ -213,6 +247,9 @@ export const ProjectShellSettings = ({
             style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
           >
             <strong>{t['com.affine.localmind.project-memory.title']()}</strong>
+            <span className={styles.settingsHint}>
+              {t['com.affine.localmind.workbench.v9.projectMemoryHelp']()}
+            </span>
             {dashboard.isLoading ? (
               <Loading size={20} />
             ) : dashboard.error ? (
@@ -269,7 +306,7 @@ export const ProjectShellSettings = ({
                 {settings ? (
                   <small>
                     {t['com.affine.localmind.project-memory.version']({
-                      revision: String(settings.projectMemoryRevision ?? 0),
+                      revision: String(settings.projectMemoryRevision ?? '—'),
                     })}
                   </small>
                 ) : null}
@@ -293,21 +330,24 @@ export const ProjectShellSettings = ({
                           {t[
                             'com.affine.localmind.project-memory.contributors'
                           ]({
-                            count: String(memory.contributorCount ?? 0),
+                            count: String(memory.contributorCount ?? '—'),
                             names:
                               (memory.contributorUserIds ?? [])
                                 .map(
                                   userId =>
                                     members.find(
                                       member => member.userId === userId
-                                    )?.name ?? userId
+                                    )?.name ??
+                                    t[
+                                      'com.affine.localmind.workbench.v9.unavailable'
+                                    ]()
                                 )
                                 .join(', ') || '—',
                           })}
                           {' · '}
-                          {memory.kind}
+                          {memoryKindLabel(memory.kind, t)}
                           {' · '}
-                          {memory.status}
+                          {memoryStatusLabel(memory.status, t)}
                           {memory.pendingConflictCount
                             ? ` · ${t[
                                 'com.affine.localmind.project-memory.conflicts'
@@ -335,6 +375,46 @@ export const ProjectShellSettings = ({
                     </small>
                   )}
                 </div>
+                {events.length ? (
+                  <details>
+                    <summary>
+                      {t[
+                        'com.affine.localmind.workbench.fusion.contributionHistory'
+                      ]()}
+                    </summary>
+                    <p>
+                      {t[
+                        'com.affine.localmind.workbench.fusion.recentContributions'
+                      ]()}
+                    </p>
+                    <ul className={styles.contributionList}>
+                      {events.map(event => (
+                        <li key={event.id} className={styles.contributionItem}>
+                          <span>
+                            {memoryEventLabel(
+                              event.operation,
+                              !!event.undoneAt,
+                              t
+                            )}
+                          </span>
+                          <time dateTime={event.createdAt}>
+                            {new Date(event.createdAt).toLocaleString()}
+                          </time>
+                          {event.canUndo ? (
+                            <Button
+                              disabled={pending}
+                              onClick={() => undoContribution(event.id)}
+                            >
+                              {t[
+                                'com.affine.localmind.workbench.fusion.undoContribution'
+                              ]()}
+                            </Button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
                 {project?.canManage && conflicts.length ? (
                   <section
                     aria-label={t[
@@ -402,6 +482,21 @@ export const ProjectShellSettings = ({
                 ) : null}
               </>
             )}
+          </section>
+        ) : null}
+        {projectId ? (
+          <section
+            aria-label={t[
+              'com.affine.localmind.workbench.fusion.projectPublicationHistory'
+            ]()}
+            className={styles.settingsSection}
+          >
+            <strong>
+              {t[
+                'com.affine.localmind.workbench.fusion.projectPublicationHistory'
+              ]()}
+            </strong>
+            <ProjectPublications key={projectId} projectId={projectId} />
           </section>
         ) : null}
       </div>

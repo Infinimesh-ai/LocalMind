@@ -220,11 +220,15 @@ export class ProjectResourceModel extends BaseModel {
   }
 
   @Transactional()
-  async assertMember(input: ProjectActor, treeWrite = false) {
+  async assertMember(
+    input: ProjectActor,
+    treeWrite = false,
+    allowArchivedRead = false
+  ) {
     // The locks also serialize revocation/archive with the enclosing write.
     const projects = await this.db.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT id FROM ai_context_projects
-      WHERE id = ${input.projectId} AND status = 'active'
+      WHERE id = ${input.projectId} AND (status = 'active' OR (${allowArchivedRead && !treeWrite} AND status = 'archived'))
       ${treeWrite ? Prisma.sql`FOR UPDATE` : Prisma.sql`FOR SHARE`}
     `);
     if (!projects.length) throw new AccessDenied('Project is unavailable');
@@ -493,8 +497,10 @@ export class ProjectResourceModel extends BaseModel {
   }
 
   @Transactional()
-  async getBlob(input: ProjectActor & { key: string }) {
-    await this.assertMember(input);
+  async getBlob(
+    input: ProjectActor & { key: string; allowArchivedRead?: boolean }
+  ) {
+    await this.assertMember(input, false, input.allowArchivedRead);
     const blob = await this.db.projectBlob.findUnique({
       where: { projectId_key: { projectId: input.projectId, key: input.key } },
     });

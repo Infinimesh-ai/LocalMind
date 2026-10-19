@@ -77,7 +77,7 @@ function createMigrationContext({
       allModels
         .filter(item => item.flavour === flavour && !deleted.has(item))
         .map(item => ({ model: item })),
-    transact: (callback: () => void) => callback(),
+    transact: vi.fn((callback: () => void) => callback()),
     updateBlock,
     deleteBlock: vi.fn((target: TestModel) => deleted.add(target)),
   };
@@ -113,6 +113,7 @@ function createMigrationContext({
 
   return {
     blobSet,
+    blockSuiteDoc,
     deleted,
     disposePriorityLoad,
     docsService,
@@ -144,6 +145,59 @@ afterEach(() => {
 });
 
 describe('migrateLegacyShowcaseWorkspace', () => {
+  test('an already migrated showcase remains write-free across repeated sync completions', async () => {
+    const context = createMigrationContext({
+      models: [textModel('affine:paragraph', 'Visit AFFiNE ')],
+    });
+    const { migrateLegacyShowcaseWorkspace } =
+      await import('../showcase-migration');
+    const migrate = () =>
+      migrateLegacyShowcaseWorkspace(
+        context.workspace as never,
+        context.docsService as never
+      );
+    expect(await migrate()).toBe(true);
+    context.updateBlock.mockClear();
+    context.blockSuiteDoc.transact.mockClear();
+    for (let i = 0; i < 10; i++) expect(await migrate()).toBe(false);
+    expect(context.updateBlock).not.toHaveBeenCalled();
+    expect(context.blockSuiteDoc.transact).not.toHaveBeenCalled();
+  });
+
+  test('a current label with a legacy link is repaired once and concurrent callers share the migration', async () => {
+    const context = createMigrationContext({
+      models: [
+        textModel('affine:paragraph', [
+          {
+            insert: 'Visit LocalMind',
+            attributes: { link: 'https://github.com/toeverything/AFFiNE' },
+          },
+        ]),
+      ],
+    });
+    const { migrateLegacyShowcaseWorkspace } =
+      await import('../showcase-migration');
+    const first = migrateLegacyShowcaseWorkspace(
+      context.workspace as never,
+      context.docsService as never
+    );
+    expect(
+      migrateLegacyShowcaseWorkspace(
+        context.workspace as never,
+        context.docsService as never
+      )
+    ).toBe(first);
+    expect(await first).toBe(true);
+    expect(context.updateBlock).toHaveBeenCalledOnce();
+    expect(
+      await migrateLegacyShowcaseWorkspace(
+        context.workspace as never,
+        context.docsService as never
+      )
+    ).toBe(false);
+    expect(context.updateBlock).toHaveBeenCalledOnce();
+  });
+
   test('migrates exact legacy showcase content and removes upstream promos', async () => {
     const models = [
       textModel('affine:paragraph', 'Welcome to AFFiNE! '),

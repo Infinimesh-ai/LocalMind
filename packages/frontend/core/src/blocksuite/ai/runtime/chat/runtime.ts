@@ -96,6 +96,10 @@ function normalizePromptScope(promptName?: string) {
 
 export class AIChatRuntime {
   private readonly listeners = new Set<() => void>();
+  private readonly sendOptions = new WeakMap<
+    AIChatMessage,
+    AIChatSendOptions
+  >();
   private requestSeq = 0;
   private historyRequestSeq = 0;
   private contextRequestSeq = 0;
@@ -488,6 +492,11 @@ export class AIChatRuntime {
   private async send(options: AIChatSendOptions, retryExisting = false) {
     const content = options.input || this.snapshot.composer.text;
     if (!content.trim() || !this.snapshot.uiPolicy.canSend) return;
+    const userMessage = this.createMessage('user', content, {
+      attachments: options.attachmentPreviews,
+      ...options.userInfo,
+    });
+    this.sendOptions.set(userMessage, options);
     const seq = ++this.requestSeq;
     this.streamAbortController?.abort();
     this.streamAbortController = new AbortController();
@@ -498,10 +507,7 @@ export class AIChatRuntime {
         ? this.resetLastAssistantMessage(this.snapshot.messages)
         : [
             ...this.snapshot.messages,
-            this.createMessage('user', content, {
-              attachments: options.attachmentPreviews,
-              ...options.userInfo,
-            }),
+            userMessage,
             this.createMessage('assistant', ''),
           ],
     });
@@ -539,6 +545,9 @@ export class AIChatRuntime {
         toolsConfig: options.toolsConfig ?? this.snapshot.composer.toolsConfig,
         modelId: options.modelId ?? this.snapshot.composer.modelId,
         officeContext: options.officeContext,
+        ...(options.reportContext
+          ? { reportContext: options.reportContext }
+          : {}),
         isRootSession: options.isRootSession,
         where: options.where,
         control: options.control,
@@ -579,7 +588,13 @@ export class AIChatRuntime {
     if (!this.snapshot.activeSessionId) {
       const lastUserMessage = this.getLastUserMessage();
       if (lastUserMessage) {
-        await this.send({ input: lastUserMessage.content }, true);
+        await this.send(
+          {
+            ...this.sendOptions.get(lastUserMessage),
+            input: lastUserMessage.content,
+          },
+          true
+        );
       }
       return;
     }
@@ -1582,6 +1597,9 @@ export class AIChatRuntime {
                   {
                     kind: 'doc',
                     docId: item.resourceId,
+                    sourceTitle: item.title,
+                    sequence: item.sequence,
+                    currentSequence: item.currentSequence,
                     state: item.available ? 'finished' : 'failed',
                     tooltip:
                       item.currentSequence &&
@@ -1606,6 +1624,7 @@ export class AIChatRuntime {
                 ? [
                     {
                       kind: 'file',
+                      byteSize: item.byteSize,
                       file: new File([], item.title, {
                         type: item.mimeType ?? '',
                       }),

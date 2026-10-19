@@ -1447,6 +1447,26 @@ export class CopilotSessionModel extends BaseModel {
               )
           )
           AND NOT EXISTS (
+            SELECT 1 FROM "project_report_blob_references" ref
+            WHERE ref."project_id" = blob."project_id" AND ref."blob_key" = blob."key"
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "project_report_revisions" revision
+            WHERE revision."project_id" = blob."project_id" AND revision."content_blob_key" = blob."key"
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "project_report_source_manifests" manifest
+            WHERE manifest."project_id" = blob."project_id" AND manifest."blob_key" = blob."key"
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "project_report_exports" export
+            WHERE export."project_id" = blob."project_id" AND export."blob_key" = blob."key"
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "project_report_share_revisions" share
+            WHERE share."project_id" = blob."project_id" AND share."projection_blob_key" = blob."key"
+          )
+          AND NOT EXISTS (
             SELECT 1 FROM "office_command_requests" request
             WHERE request."project_id" = blob."project_id"
               AND request."command_blob_key" = blob."key"

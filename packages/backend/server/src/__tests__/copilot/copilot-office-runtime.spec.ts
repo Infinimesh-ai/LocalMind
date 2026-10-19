@@ -45,7 +45,7 @@ test('native Project collaboration survives empty legacy prompt config while Off
     responseMode: 'object',
     chatSurface: 'intelligence_workbench',
   });
-  t.deepEqual(selection.providerOptions.tools, ['blocker']);
+  t.deepEqual(selection.providerOptions.tools, ['blocker', 'report']);
   const office = await host.selectChat(session as never, {
     responseMode: 'object',
     officeContext,

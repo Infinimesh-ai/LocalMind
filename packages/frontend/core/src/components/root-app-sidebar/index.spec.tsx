@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
   },
   dialogOpen: vi.fn(),
   quickSearchToggle: vi.fn(),
+  globalRail: false,
 }));
 
 vi.mock('@affine/component', () => ({
@@ -145,7 +146,12 @@ vi.mock('@toeverything/infra', () => ({
     ({
       dialog: { open: state.dialogOpen },
       workspace: { workspace: { flavour: 'affine-cloud' } },
-      'feature-flags': { flags: { enable_ai: { $: true } } },
+      'feature-flags': {
+        flags: {
+          enable_ai: { $: true },
+          enable_global_rail: { $: state.globalRail },
+        },
+      },
       server: { server: { features$: { copilot: true } } },
       workbench: { workbench: state.workbench },
     })[service],
@@ -165,7 +171,11 @@ vi.mock('../../desktop/components/navigation-panel', () => ({
 vi.mock('../workspace-selector', () => ({ WorkspaceNavigator: () => null }));
 vi.mock('./journal-button', () => ({ AppSidebarJournalButton: () => null }));
 vi.mock('./notification-button', () => ({ NotificationButton: () => null }));
-vi.mock('./shortcut', () => ({ SidebarShortcutLink: () => null }));
+vi.mock('./shortcut', () => ({
+  SidebarShortcutLink: ({ testId }: { testId?: string }) => (
+    <span data-testid={testId} />
+  ),
+}));
 vi.mock('./sidebar-audio-player', () => ({ SidebarAudioPlayer: () => null }));
 vi.mock('./template-doc-entrance', () => ({ TemplateDocEntrance: () => null }));
 vi.mock('./trash-button', () => ({ TrashButton: () => null }));
@@ -173,7 +183,10 @@ vi.mock('./updater-button', () => ({ UpdaterButton: () => null }));
 vi.mock('./user-info', () => ({ default: () => null }));
 vi.mock('./workspaces', () => ({ SidebarWorkspaces: () => null }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  state.globalRail = false;
+});
 
 const CurrentPath = () => {
   const location = useLocation();
@@ -258,4 +271,31 @@ test('link menus stay mounted through microtasks until click dispatch finishes',
   } finally {
     vi.useRealTimers();
   }
+});
+
+test('the global rail replaces the projects shortcut and the tasks menu item', () => {
+  state.globalRail = true;
+  render(
+    <MemoryRouter initialEntries={['/workspace/test/all']}>
+      <RootAppSidebar />
+    </MemoryRouter>
+  );
+  expect(screen.queryByTestId('ai-chat')).toBeNull();
+  expect(screen.getByTestId('all-pages')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'more' }));
+  expect(
+    screen.queryByRole('link', { name: 'com.affine.workspaceSubPath.tasks' })
+  ).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'com.affine.settingSidebar.title' })
+  ).toBeTruthy();
+});
+
+test('keeps the projects shortcut while the global rail is off', () => {
+  render(
+    <MemoryRouter initialEntries={['/workspace/test/all']}>
+      <RootAppSidebar />
+    </MemoryRouter>
+  );
+  expect(screen.getByTestId('ai-chat')).toBeTruthy();
 });

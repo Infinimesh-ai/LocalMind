@@ -1,4 +1,7 @@
-import type { OfficeAiContext } from '@localmind/office';
+import type {
+  OfficeAiContext,
+  ProjectReportAiContext,
+} from '@localmind/office';
 
 import type { PromptKey } from '../../provider/prompt';
 import { Endpoint } from './copilot-client';
@@ -22,6 +25,7 @@ export type AIActionOptions = Omit<
     projectId?: string;
     modelSelection?: AIActionModelSelection;
     officeContext?: OfficeAiContext;
+    reportContext?: ProjectReportAiContext;
   };
 
 export type AIActionDefinition = {
@@ -75,6 +79,7 @@ export const actionDefinitions = {
     buildParams: options => {
       const contexts = options.contexts as
         | {
+            selectionContext?: string;
             docs?: unknown;
             files?: unknown;
             selectedSnapshot?: unknown;
@@ -83,12 +88,16 @@ export const actionDefinitions = {
           }
         | undefined;
       return {
+        selectionContext: contexts?.selectionContext,
         docs: contexts?.docs,
         files: contexts?.files,
         selectedSnapshot: contexts?.selectedSnapshot,
         selectedMarkdown: contexts?.selectedMarkdown,
         html: contexts?.html,
         officeContext: options.officeContext,
+        ...(options.reportContext
+          ? { reportContext: options.reportContext }
+          : {}),
         ...(options.docId ? { currentDocId: options.docId } : {}),
       };
     },

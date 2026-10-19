@@ -6,15 +6,16 @@ import {
   Menu,
   MenuItem,
 } from '@affine/component';
+import { useLegacyProjectReportsEnabled } from '@affine/core/components/report-deck-entry';
 import { useI18n } from '@affine/i18n';
 import {
   AiIcon,
   DeleteTemporarilyIcon,
   EditIcon,
-  FolderIcon,
   MoreHorizontalIcon,
   PinedIcon,
   PlusIcon,
+  PresentationIcon,
 } from '@blocksuite/icons/rc';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -52,6 +53,8 @@ type ProjectTreeProps = {
   onArchive: (project: WorkbenchProject) => Promise<void>;
   onRestore?: (project: WorkbenchProject) => Promise<void>;
   onManageCollaboration: (project: WorkbenchProject) => void;
+  /** Opens the project's report studio. The entry is hidden when omitted. */
+  onOpenReports?: (project: WorkbenchProject) => void;
 };
 
 export const ProjectTree = ({
@@ -78,8 +81,12 @@ export const ProjectTree = ({
   onArchive,
   onRestore = ASYNC_NOOP,
   onManageCollaboration,
+  onOpenReports,
 }: ProjectTreeProps) => {
   const t = useI18n();
+  const reportEntryLabel = useLegacyProjectReportsEnabled()
+    ? t['com.affine.localmind.reports.reports']()
+    : t['com.affine.localmind.reportDeck.entry']();
   const [creating, setCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(
@@ -160,14 +167,16 @@ export const ProjectTree = ({
       className={styles.root}
       aria-label={t['com.affine.localmind.workbench.projects']()}
     >
-      <Button
+      <button
+        type="button"
         className={styles.newConversation}
-        variant="primary"
         onClick={onNewConversation}
       >
-        <PlusIcon />
+        <span className={styles.newConversationPlus} aria-hidden="true">
+          <PlusIcon />
+        </span>
         <span>{t['com.affine.localmind.workbench.v9.newConversation']()}</span>
-      </Button>
+      </button>
 
       <div className={styles.overviewLabel}>
         {t['com.affine.localmind.workbench.v9.collaborationHub']()}
@@ -178,7 +187,7 @@ export const ProjectTree = ({
         data-selected={selectedProjectId === null}
         onClick={() => onSelectProject(null)}
       >
-        <AiIcon />
+        <span className={styles.overviewIcon} aria-hidden="true" />
         <span>{t['com.affine.localmind.workbench.v9.overview']()}</span>
         <span className={styles.projectCount}>{activeProjects.length}</span>
       </button>
@@ -287,13 +296,33 @@ export const ProjectTree = ({
                         })
                       }
                     >
-                      <FolderIcon />
+                      <span className={styles.projectDot} aria-hidden="true" />
                       <span className={styles.projectName} title={project.name}>
                         {project.name}
+                      </span>
+                      <span
+                        className={styles.projectChevron}
+                        aria-hidden="true"
+                      >
+                        ›
                       </span>
                     </button>
                   )}
 
+                  {renamingProjectId !== project.id && onOpenReports ? (
+                    <IconButton
+                      className={styles.projectReportButton}
+                      size="16"
+                      tooltip={reportEntryLabel}
+                      aria-label={reportEntryLabel}
+                      icon={<PresentationIcon />}
+                      data-testid="project-report-entry"
+                      onClick={event => {
+                        event.stopPropagation();
+                        onOpenReports(project);
+                      }}
+                    />
+                  ) : null}
                   {renamingProjectId !== project.id ? (
                     <Menu
                       contentOptions={{ align: 'end' }}
@@ -378,6 +407,13 @@ export const ProjectTree = ({
                               type="button"
                               className={styles.documentButton}
                               data-pinned={card.pinned}
+                              aria-description={t[
+                                card.column === 'todo'
+                                  ? 'com.affine.localmind.workbench.v9.todo'
+                                  : card.column === 'done'
+                                    ? 'com.affine.localmind.workbench.v9.done'
+                                    : 'com.affine.localmind.workbench.v9.progress'
+                              ]()}
                               aria-current={
                                 selectedSessionId === card.sessionId
                                   ? 'page'
@@ -392,13 +428,25 @@ export const ProjectTree = ({
                                 }
                               }}
                             >
-                              {card.pinned ? <PinedIcon /> : <AiIcon />}
+                              {card.pinned ? <PinedIcon /> : null}
                               <span title={card.title ?? undefined}>
                                 {card.title ||
                                   t[
                                     'com.affine.localmind.workbench.v9.untitled'
                                   ]()}
                               </span>
+                              <span
+                                className={styles.conversationState}
+                                data-column={card.column}
+                                aria-hidden="true"
+                                title={t[
+                                  card.column === 'todo'
+                                    ? 'com.affine.localmind.workbench.v9.todo'
+                                    : card.column === 'done'
+                                      ? 'com.affine.localmind.workbench.v9.done'
+                                      : 'com.affine.localmind.workbench.v9.progress'
+                                ]()}
+                              />
                             </button>
                           )}
                         </li>
@@ -474,6 +522,13 @@ export const ProjectTree = ({
                     <button
                       type="button"
                       className={styles.documentButton}
+                      aria-description={t[
+                        card.column === 'todo'
+                          ? 'com.affine.localmind.workbench.v9.todo'
+                          : card.column === 'done'
+                            ? 'com.affine.localmind.workbench.v9.done'
+                            : 'com.affine.localmind.workbench.v9.progress'
+                      ]()}
                       aria-current={
                         selectedSessionId === card.sessionId
                           ? 'page'
@@ -493,6 +548,18 @@ export const ProjectTree = ({
                         {card.title ||
                           t['com.affine.localmind.workbench.v9.untitled']()}
                       </span>
+                      <span
+                        className={styles.conversationState}
+                        data-column={card.column}
+                        aria-hidden="true"
+                        title={t[
+                          card.column === 'todo'
+                            ? 'com.affine.localmind.workbench.v9.todo'
+                            : card.column === 'done'
+                              ? 'com.affine.localmind.workbench.v9.done'
+                              : 'com.affine.localmind.workbench.v9.progress'
+                        ]()}
+                      />
                     </button>
                   )}
                 </li>

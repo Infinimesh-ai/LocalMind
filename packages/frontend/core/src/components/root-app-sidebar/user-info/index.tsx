@@ -12,6 +12,7 @@ import {
 } from '@affine/core/modules/cloud';
 import { GlobalDialogService } from '@affine/core/modules/dialogs';
 import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useI18n } from '@affine/i18n';
 import {
   useLiveData,
   useService,
@@ -27,28 +28,49 @@ import * as styles from './index.css';
 import { TeamList } from './team-list';
 import { UnknownUserIcon } from './unknow-user';
 
-export default function UserInfo() {
-  const session = useService(AuthService).session;
-  const account = useLiveData(session.account$);
+type UserInfoProps = {
+  className?: string;
+  inRail?: boolean;
+};
+
+export default function UserInfo(props: UserInfoProps) {
+  const session = useServiceOptional(AuthService)?.session;
+  const account = useLiveData(session?.account$);
+  if (!session) return null;
   return account ? (
-    <AuthorizedUserInfo account={account} />
+    <AuthorizedUserInfo account={account} {...props} />
   ) : (
-    <UnauthorizedUserInfo />
+    <UnauthorizedUserInfo {...props} />
   );
 }
 
 const menuContentOptions: MenuProps['contentOptions'] = {
   className: styles.operationMenu,
 };
-const AuthorizedUserInfo = ({ account }: { account: AuthAccountInfo }) => {
+const railMenuContentOptions: MenuProps['contentOptions'] = {
+  ...menuContentOptions,
+  side: 'right',
+  align: 'end',
+  sideOffset: 8,
+};
+const AuthorizedUserInfo = ({
+  account,
+  className,
+  inRail,
+}: UserInfoProps & { account: AuthAccountInfo }) => {
   return (
-    <Menu items={<OperationMenu />} contentOptions={menuContentOptions}>
+    <Menu
+      items={<OperationMenu />}
+      contentOptions={inRail ? railMenuContentOptions : menuContentOptions}
+    >
       <IconButton
         data-testid="sidebar-user-avatar"
-        variant="plain"
+        aria-label={account.label}
+        className={className}
+        variant={inRail ? 'custom' : 'plain'}
         size="20"
         style={{ padding: 0 }}
-        withoutHover
+        withoutHover={!inRail}
       >
         <Avatar size={20} name={account.label} url={account.avatar} />
       </IconButton>
@@ -56,7 +78,8 @@ const AuthorizedUserInfo = ({ account }: { account: AuthAccountInfo }) => {
   );
 };
 
-const UnauthorizedUserInfo = () => {
+const UnauthorizedUserInfo = ({ className, inRail }: UserInfoProps) => {
+  const t = useI18n();
   const globalDialogService = useService(GlobalDialogService);
 
   const openSignInModal = useCallback(() => {
@@ -67,7 +90,9 @@ const UnauthorizedUserInfo = () => {
     <IconButton
       onClick={openSignInModal}
       data-testid="sidebar-user-avatar"
-      variant="plain"
+      aria-label={t['Sign in']()}
+      className={className}
+      variant={inRail ? 'custom' : 'plain'}
       size="20"
     >
       <UnknownUserIcon />

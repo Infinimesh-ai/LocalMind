@@ -19,6 +19,24 @@ export const AFFINE_FLAGS = {
     configurable: true,
     defaultState: true,
   },
+  enable_global_rail: {
+    category: 'affine',
+    displayName: 'Enable global navigation rail',
+    description:
+      'Show the shared Workspace / Project / Documents / Reports rail on workspace and project pages.',
+    hide: true,
+    configurable: false,
+    defaultState: true,
+  },
+  enable_legacy_project_reports: {
+    category: 'affine',
+    displayName: 'Enable legacy project report studio',
+    description:
+      'Re-enable the legacy project report studio, schedules and PPTX template import.',
+    hide: true,
+    configurable: false,
+    defaultState: false,
+  },
   enable_ai_network_search: {
     category: 'affine',
     displayName:

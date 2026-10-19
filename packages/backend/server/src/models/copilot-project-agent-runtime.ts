@@ -59,7 +59,11 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       requestKey: string;
       sessionId?: string;
       workflow: string;
-      sourceType: 'project_resource' | 'project_publication' | 'project_import';
+      sourceType:
+        | 'project_resource'
+        | 'project_publication'
+        | 'project_import'
+        | 'project_report';
       title: string;
       command: Prisma.InputJsonObject;
       status?: 'queued' | 'waiting_for_location' | 'waiting_approval';
@@ -781,6 +785,179 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
     return this.read(input.projectId, input.runId);
   }
 
+  @Transactional()
+  async cancelReportRuns(input: ProjectActor & { reportId: string }) {
+    await this.models.projectResource.assertMember(input, true);
+    const rows = await this.db.aiAgentRun.findMany({
+      where: {
+        projectId: input.projectId,
+        sourceType: 'project_report',
+        status: {
+          in: [
+            'queued',
+            'waiting_for_location',
+            'waiting_lease',
+            'waiting_approval',
+            'running',
+          ],
+        },
+        steps: {
+          some: {
+            stepKey: 'execute',
+            input: { path: ['reportId'], equals: input.reportId },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    for (const row of rows) {
+      const run = await this.lock(input.projectId, row.id);
+      if (['completed', 'failed', 'cancelled'].includes(run.status)) continue;
+      if (!(await this.cancellationRequested(run.id)))
+        await this.event(
+          run,
+          run.status,
+          'Report lifecycle requested cancellation',
+          {
+            action: 'cancel_requested',
+            requestedByActorId: input.actorId,
+            reportId: input.reportId,
+          },
+          new Date(),
+          undefined,
+          'run_cancellation'
+        );
+      if (run.status !== 'running') await this.cancelCurrent(run);
+    }
+    return { cancelled: rows.length };
+  }
+
+  @Transactional()
+  async reportStep(
+    input: ProjectActor & {
+      runId: string;
+      key: string;
+      type?: 'tool' | 'model';
+      status: 'pending' | 'running' | 'completed';
+      order?: number;
+      output?: Prisma.InputJsonObject;
+      workerLeaseId?: string;
+      workerAttempt?: number;
+    }
+  ) {
+    await this.models.projectResource.assertMember(input);
+    const run = await this.lock(input.projectId, input.runId);
+    if (
+      run.sourceType !== 'project_report' ||
+      run.actorId !== input.actorId ||
+      input.key === 'execute' ||
+      input.key === 'approve'
+    )
+      throw new BadRequest('Report step is unavailable');
+    if (!(input.status === 'pending' && run.status === 'queued')) {
+      if (!input.workerLeaseId || input.workerAttempt === undefined)
+        throw new BadRequest('Report step requires an active worker');
+      this.requireLease(run, {
+        ...input,
+        workerLeaseId: input.workerLeaseId,
+        workerAttempt: input.workerAttempt,
+      });
+      if (await this.cancellationRequested(run.id))
+        throw new BadRequest('Report task was cancelled');
+    }
+    const existing = run.steps.find(step => step.stepKey === input.key);
+    if (existing?.status === 'completed') return existing;
+    const now = new Date(
+      Math.max(
+        Date.now(),
+        run.updatedAt.getTime(),
+        existing?.updatedAt.getTime() ?? 0
+      )
+    );
+    const type = existing?.stepType ?? input.type ?? 'tool';
+    const output = input.output ?? {};
+    const step = await this.db.aiAgentStep.upsert({
+      where: { runId_stepKey: { runId: run.id, stepKey: input.key } },
+      create: {
+        id: randomUUID(),
+        runId: run.id,
+        projectId: run.projectId,
+        actorId: run.actorId,
+        stepKey: input.key,
+        stepType: type,
+        title: input.key,
+        status: input.status,
+        order: input.order ?? 100,
+        startedAt: now,
+        completedAt: input.status === 'completed' ? now : null,
+        createdAt: now,
+        updatedAt: now,
+        outputSummary: output,
+        evidenceFingerprint: agentRuntimeFingerprint(output),
+      },
+      update: {
+        status: input.status,
+        startedAt: existing?.startedAt ?? now,
+        completedAt: input.status === 'completed' ? now : null,
+        updatedAt: now,
+        outputSummary: output,
+      },
+    });
+    await this.event(
+      run,
+      input.status,
+      `Report phase ${input.key} ${input.status}`,
+      {
+        stepKey: input.key,
+        stepType: type,
+        outputFingerprint: agentRuntimeFingerprint(output),
+      },
+      now,
+      step.id,
+      type === 'model' ? 'model_step' : 'tool_step'
+    );
+    return step;
+  }
+
+  @Transactional()
+  async retryReportRun(
+    input: ProjectActor & { runId: string; reportId: string }
+  ) {
+    await this.models.projectResource.assertMember(input, true);
+    const run = await this.lock(input.projectId, input.runId);
+    const command = run.steps.find(step => step.stepKey === 'execute')?.input;
+    if (
+      run.sourceType !== 'project_report' ||
+      run.workflow !== 'agent_runtime_project_report_v1' ||
+      run.actorId !== input.actorId ||
+      run.status !== 'failed' ||
+      !command ||
+      typeof command !== 'object' ||
+      Array.isArray(command) ||
+      command.reportId !== input.reportId
+    )
+      throw new BadRequest(
+        'Only the requesting member may retry a failed report generation'
+      );
+    const updated = await this.transition(
+      run,
+      'queued',
+      'Report generation retry requested',
+      { requestedByActorId: input.actorId },
+      {
+        workerMaxAttempts: run.workerAttempt + 3,
+        workerLeaseId: null,
+        workerLeaseExpiresAt: null,
+        queuedAt: new Date(),
+        completedAt: null,
+        failureCode: null,
+        failureMessage: null,
+      }
+    );
+    await this.stepStatus(updated, 'pending');
+    return this.read(input.projectId, input.runId);
+  }
+
   private async read(projectId: string, runId: string) {
     const run = await this.db.aiAgentRun.findFirst({
       where: { id: runId, projectId, workspaceId: null },
@@ -839,6 +1016,13 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       now
     );
     await this.stepStatus(cancelled, 'skipped');
+    if (run.sourceType === 'project_report')
+      for (const step of cancelled.steps)
+        if (
+          step.stepKey !== 'execute' &&
+          ['pending', 'running'].includes(step.status)
+        )
+          await this.stepStatus(cancelled, 'skipped', undefined, step.stepKey);
     if (
       run.steps.some(
         step => step.stepKey === 'approve' && step.status !== 'completed'
@@ -924,6 +1108,18 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       resultStatus,
       receipt ?? { failureCode, message: summary }
     );
+    if (!receipt && run.sourceType === 'project_report')
+      for (const step of updated.steps)
+        if (
+          step.stepKey !== 'execute' &&
+          ['pending', 'running'].includes(step.status)
+        )
+          await this.stepStatus(
+            updated,
+            'failed',
+            { failureCode },
+            step.stepKey
+          );
     await this.db.aiAgentRuntimeExecutionResult.create({
       data: {
         id: randomUUID(),
@@ -1023,7 +1219,11 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       {},
       now,
       step.id,
-      step.stepType === 'approval' ? 'approval_step' : 'tool_step'
+      step.stepType === 'approval'
+        ? 'approval_step'
+        : step.stepType === 'model'
+          ? 'model_step'
+          : 'tool_step'
     );
   }
 

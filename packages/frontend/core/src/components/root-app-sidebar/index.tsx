@@ -40,6 +40,8 @@ import {
   NavigationPanelTags,
 } from '../../desktop/components/navigation-panel';
 import { WorkbenchService } from '../../modules/workbench';
+import { compactUserInfo } from '../global-rail/global-rail.css';
+import { LocalmindBrandRow } from '../localmind-theme/brand-row';
 import { WorkspaceNavigator } from '../workspace-selector';
 import {
   bottomContainer,
@@ -188,6 +190,10 @@ export const RootAppSidebar = memo((): ReactElement => {
   );
 
   const sessionStatus = useLiveData(authService.session.status$);
+  const featureFlagService = useService(FeatureFlagService);
+  // Projects and tasks moved to the global rail; keep the sidebar entries
+  // for when the rail is switched off.
+  const globalRail = useLiveData(featureFlagService.flags.enable_global_rail.$);
   const [moreOpen, setMoreOpen] = useState(false);
   const t = useI18n();
   const workspaceDialogService = useService(WorkspaceDialogService);
@@ -254,6 +260,11 @@ export const RootAppSidebar = memo((): ReactElement => {
 
   return (
     <AppSidebar>
+      {globalRail && (
+        <LocalmindBrandRow>
+          <SidebarHeader />
+        </LocalmindBrandRow>
+      )}
       <SidebarContainer>
         <div className={workspaceAndUserWrapper}>
           <div className={workspaceWrapper}>
@@ -265,8 +276,8 @@ export const RootAppSidebar = memo((): ReactElement => {
               dense
             />
           </div>
-          <UserInfo />
-          <SidebarHeader />
+          <UserInfo className={globalRail ? compactUserInfo : undefined} />
+          {!globalRail && <SidebarHeader />}
         </div>
         <div
           className={shortcuts}
@@ -285,7 +296,7 @@ export const RootAppSidebar = memo((): ReactElement => {
           <AllDocsButton />
           <AppSidebarJournalButton compact />
           {sessionStatus === 'authenticated' && <NotificationButton iconOnly />}
-          <AIChatButton />
+          {!globalRail && <AIChatButton />}
           <Popover
             open={moreOpen}
             onOpenChange={setMoreOpen}
@@ -308,7 +319,7 @@ export const RootAppSidebar = memo((): ReactElement => {
                   }
                 }}
               >
-                <TasksButton />
+                {!globalRail && <TasksButton />}
                 <MenuItem
                   data-testid="slider-bar-workspace-setting-button"
                   icon={<SettingsIcon />}

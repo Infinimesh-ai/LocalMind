@@ -47,7 +47,16 @@ import {
 } from '@toeverything/infra';
 import { useSetAtom } from 'jotai';
 import { useEffect } from 'react';
-import { catchError, EMPTY, finalize, switchMap, tap, timeout } from 'rxjs';
+import {
+  catchError,
+  EMPTY,
+  filter,
+  finalize,
+  switchMap,
+  take,
+  tap,
+  timeout,
+} from 'rxjs';
 
 /**
  * @deprecated just for legacy code, will be removed in the future
@@ -63,18 +72,23 @@ export const WorkspaceSideEffects = () => {
   });
   const currentWorkspace = workspaceService.workspace;
   const docsList = docsService.list;
-  const docsListReady = useLiveData(docsList.isReady$);
-
   useEffect(() => {
-    if (!docsListReady) {
-      return;
-    }
-    migrateLegacyShowcaseWorkspace(currentWorkspace, docsService).catch(
-      error => {
-        console.error('Failed to migrate the legacy showcase workspace', error);
-      }
-    );
-  }, [currentWorkspace, docsListReady, docsService]);
+    // Migration is an initialization task. Syncing the migration itself must
+    // not reopen and rewrite the showcase on every ready -> syncing -> ready.
+    const subscription = docsList.isReady$
+      .pipe(filter(Boolean), take(1))
+      .subscribe(() => {
+        migrateLegacyShowcaseWorkspace(currentWorkspace, docsService).catch(
+          error => {
+            console.error(
+              'Failed to migrate the legacy showcase workspace',
+              error
+            );
+          }
+        );
+      });
+    return () => subscription.unsubscribe();
+  }, [currentWorkspace, docsList, docsService]);
 
   const workbench = useService(WorkbenchService).workbench;
   useEffect(() => {

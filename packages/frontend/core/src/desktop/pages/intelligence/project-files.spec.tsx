@@ -19,12 +19,22 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 const mock = vi.hoisted(() => ({
   gql: vi.fn(),
   confirm: vi.fn(),
+  confirmUnsaved: vi.fn(async () => true),
   upload: vi.fn(),
   folders: new Map<string | null, unknown[]>(),
+  reportDeckAvailable: false,
+  openReportDeck: vi.fn(),
+}));
+vi.mock('@affine/core/components/report-deck-entry', () => ({
+  useReportDeckEntryAvailable: () => mock.reportDeckAvailable,
+  useOpenReportDeck: () => mock.openReportDeck,
 }));
 vi.mock('@affine/core/modules/cloud', () => ({
   GraphQLService: class {},
   ServerService: class {},
+}));
+vi.mock('@affine/core/modules/project-resources/edit-guard', () => ({
+  useProjectUnsavedConfirmation: () => mock.confirmUnsaved,
 }));
 vi.mock('@toeverything/infra', () => ({
   useService: () => ({
@@ -33,6 +43,7 @@ vi.mock('@toeverything/infra', () => ({
   }),
 }));
 vi.mock('@affine/i18n', () => ({
+  getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
 }));
 vi.mock('@affine/core/modules/project-resources/upload', () => ({
@@ -132,6 +143,7 @@ import {
   changeProjectResourceMutation,
   createProjectResourceMutation,
   permanentlyDeleteProjectResourceMutation,
+  projectResourcePathQuery,
   releaseProjectResourceEditLeaseMutation,
 } from '@affine/graphql';
 
@@ -147,7 +159,9 @@ const file = (id: string, kind = 'page', parentId: string | null = null) => ({
   contentVersion: 1,
 });
 beforeEach(() => {
+  mock.confirmUnsaved.mockReset().mockResolvedValue(true);
   vi.clearAllMocks();
+  mock.reportDeckAvailable = false;
   mock.folders.clear();
   mock.folders.set(null, [
     file('Alpha'),
@@ -159,6 +173,213 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Project file tree', () => {
+  test('cancelling the active editor decision prevents batch writes and retains selection', async () => {
+    mock.confirmUnsaved.mockResolvedValue(false);
+    render(
+      <ProjectFiles
+        projectId="project-1"
+        selectedResourceId={null}
+        onOpen={vi.fn()}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.selectResources',
+      })
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Alpha' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.batchTrash',
+      })
+    );
+    await act(() => mock.confirm.mock.calls.at(-1)![0].onConfirm());
+    expect(mock.gql).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Alpha' }).checked
+    ).toBe(true);
+  });
+
+  test('batch trash keeps failed selections and reuses their request keys on retry', async () => {
+    let failBeta = true;
+    mock.gql.mockImplementation(async request => {
+      if (request.query === projectResourcePathQuery)
+        return {
+          projectResourcePath: [
+            {
+              id: request.variables.resourceId,
+              title: request.variables.resourceId,
+            },
+          ],
+        };
+      if (
+        request.query === changeProjectResourceMutation &&
+        request.variables.input.resourceId === 'Beta' &&
+        failBeta
+      )
+        throw new Error('conflict');
+      return {
+        changeProjectResource: file(request.variables.input?.resourceId ?? ''),
+      };
+    });
+    render(
+      <ProjectFiles
+        projectId="project-1"
+        selectedResourceId={null}
+        onOpen={vi.fn()}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.selectResources',
+      })
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Alpha' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Beta' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.batchTrash',
+      })
+    );
+    await act(() => mock.confirm.mock.calls.at(-1)![0].onConfirm());
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Alpha' }).checked
+    ).toBe(false);
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Beta' }).checked
+    ).toBe(true);
+    const firstKey = mock.gql.mock.calls.find(
+      ([request]) =>
+        request.query === changeProjectResourceMutation &&
+        request.variables.input.resourceId === 'Beta'
+    )![0].variables.input.requestKey;
+    failBeta = false;
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.batchTrash',
+      })
+    );
+    await act(() => mock.confirm.mock.calls.at(-1)![0].onConfirm());
+    const betaWrites = mock.gql.mock.calls.filter(
+      ([request]) =>
+        request.query === changeProjectResourceMutation &&
+        request.variables.input.resourceId === 'Beta'
+    );
+    expect(betaWrites).toHaveLength(2);
+    expect(betaWrites[1][0].variables.input.requestKey).toBe(firstKey);
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Beta' }).checked
+    ).toBe(false);
+  });
+
+  test('a selected folder covers its selected descendants without issuing duplicate writes', async () => {
+    mock.gql.mockImplementation(async request =>
+      request.query === projectResourcePathQuery
+        ? {
+            projectResourcePath:
+              request.variables.resourceId === 'Report'
+                ? [{ id: 'Reports' }, { id: 'Report' }]
+                : [{ id: 'Reports' }],
+          }
+        : { changeProjectResource: file('Reports', 'folder') }
+    );
+    render(
+      <ProjectFiles
+        projectId="project-1"
+        selectedResourceId={null}
+        onOpen={vi.fn()}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.selectResources',
+      })
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Reports' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Reports' })[0]);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Report' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.batchTrash',
+      })
+    );
+    await act(() => mock.confirm.mock.calls.at(-1)![0].onConfirm());
+    const writes = mock.gql.mock.calls.filter(
+      ([request]) => request.query === changeProjectResourceMutation
+    );
+    expect(writes).toHaveLength(1);
+    expect(writes[0][0].variables.input).toMatchObject({
+      resourceId: 'Reports',
+      expectedVersion: 1,
+      trash: true,
+    });
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Reports' })
+        .checked
+    ).toBe(false);
+  });
+
+  test('presents selected project resources as a report deck after the unsaved check', async () => {
+    mock.reportDeckAvailable = true;
+    mock.folders.set(null, [
+      file('Alpha'),
+      file('Sheet', 'workbook'),
+      file('Reports', 'folder'),
+    ]);
+    render(
+      <ProjectFiles
+        projectId="project-1"
+        selectedResourceId={null}
+        onOpen={vi.fn()}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.selectResources',
+      })
+    );
+    const present = screen.getByRole('button', {
+      name: 'com.affine.localmind.reportDeck.entry',
+    });
+    expect(present.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Alpha' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Sheet' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Reports' }));
+    mock.confirmUnsaved.mockResolvedValueOnce(false);
+    await act(async () => fireEvent.click(present));
+    expect(mock.openReportDeck).not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(present));
+    expect(mock.openReportDeck).toHaveBeenCalledExactlyOnceWith(
+      ['Alpha', 'Sheet', 'Reports'].map((id, index) => ({
+        scopeKind: 'project',
+        scopeId: 'project-1',
+        kind: ['doc', 'file', 'folder'][index],
+        resourceId: id,
+        title: id,
+      }))
+    );
+  });
+
+  test('hides the report deck entry without AI', () => {
+    render(
+      <ProjectFiles
+        projectId="project-1"
+        selectedResourceId={null}
+        onOpen={vi.fn()}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.selectResources',
+      })
+    );
+    expect(
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.reportDeck.entry',
+      })
+    ).toBeNull();
+  });
+
   test('renaming an existing document obtains proof and releases it after the write', async () => {
     mock.gql.mockImplementation(async ({ query }) =>
       query === acquireProjectResourceEditLeaseMutation
@@ -187,7 +408,7 @@ describe('Project file tree', () => {
     fireEvent.click(
       within(alpha).getByText('com.affine.localmind.project-files.rename')
     );
-    fireEvent.change(screen.getByRole('textbox'), {
+    fireEvent.change(within(screen.getByRole('dialog')).getByRole('textbox'), {
       target: { value: 'Renamed document' },
     });
     fireEvent.click(

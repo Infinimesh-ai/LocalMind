@@ -103,6 +103,46 @@ export class ProjectRealtimeProvider implements OnModuleInit {
       .strict();
     registerRealtimeLiveQuery(this.registry, {
       request: {
+        name: 'project.report.get',
+        input: leaseInput,
+        handle: async (user, input) => {
+          if (!user) throw new AuthenticationRequired();
+          await this.models.projectResource.assertMember(
+            { projectId: input.projectId, actorId: user.id },
+            false,
+            true
+          );
+          const latest = await this.db.projectReport.findFirst({
+            where: { projectId: input.projectId },
+            orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+            select: { id: true, version: true, updatedAt: true },
+          });
+          return {
+            revision: latest
+              ? `${latest.id}:${latest.version}:${latest.updatedAt.toISOString()}`
+              : 'empty',
+          };
+        },
+      },
+      topic: {
+        name: 'project.report.changed',
+        input: leaseInput,
+        authorize: async (user, input) => {
+          if (!user) throw new AuthenticationRequired();
+          await this.models.projectResource.assertMember(
+            { projectId: input.projectId, actorId: user.id },
+            false,
+            true
+          );
+        },
+        room: (user, input) => {
+          if (!user) throw new AuthenticationRequired();
+          return realtimeUserRoom(user.id, `project-report:${input.projectId}`);
+        },
+      },
+    });
+    registerRealtimeLiveQuery(this.registry, {
+      request: {
         name: 'project.lease.get',
         input: leaseInput,
         handle: async (user, input) => {
@@ -181,6 +221,38 @@ export class ProjectRealtimeProvider implements OnModuleInit {
               ),
             }
           );
+        } else if (
+          [
+            'project.report.changed',
+            'project.report.template.changed',
+            'project.report.schedule.changed',
+          ].includes(row.topic)
+        ) {
+          const members = await this.db.aiContextProjectMember.findMany({
+            where: {
+              projectId: row.scopeId,
+              project: { status: { in: ['active', 'archived'] } },
+            },
+            select: { userId: true },
+          });
+          published = true;
+          for (const member of members)
+            published =
+              this.publisher.publish(
+                'project.report.changed',
+                { projectId: row.scopeId },
+                {
+                  changed: true,
+                  reason: row.topic,
+                  ...(row.resourceId ? { reportId: row.resourceId } : {}),
+                },
+                {
+                  room: realtimeUserRoom(
+                    member.userId,
+                    `project-report:${row.scopeId}`
+                  ),
+                }
+              ) && published;
         } else if (row.topic === 'project.lease.changed') {
           published = this.publisher.publish(
             row.topic,

@@ -1,5 +1,10 @@
 import { cssVar } from '@toeverything/theme';
 import { style } from '@vanilla-extract/css';
+
+// LocalMind workspace shell (core `components/localmind-theme`): this package
+// cannot import core, so the workbench variables are referenced by name.
+const localmindShell = '[data-localmind-shell="true"] &';
+const wb = (name: string) => `var(--localmind-workbench-${name})`;
 export const browserWarningStyle = style({
   backgroundColor: cssVar('backgroundWarningColor'),
   color: cssVar('warningColor'),
@@ -50,11 +55,22 @@ export const tipsContainer = style({
       flexWrap: 'wrap',
     },
   },
+  selectors: {
+    [localmindShell]: {
+      padding: '10px 18px 10px 24px',
+      borderBottom: `1px solid ${wb('warningLine')}`,
+      backgroundColor: wb('warningSoft'),
+      color: wb('warning'),
+      fontSize: 13,
+      fontWeight: 560,
+    },
+  },
 });
 export const tipsMessage = style({
   color: cssVar('errorColor'),
   flexGrow: 1,
   flexShrink: 1,
+  selectors: { [localmindShell]: { color: 'inherit' } },
 });
 export const tipsRightItem = style({
   display: 'flex',

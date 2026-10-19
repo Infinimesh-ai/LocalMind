@@ -15,17 +15,26 @@ export const ListFloatingToolbar = ({
   open,
   onDelete,
   onRestore,
+  actions,
 }: {
   open: boolean;
   content: ReactNode;
   onClose: () => void;
   onDelete?: () => void;
   onRestore?: () => void;
+  /** Extra toolbar buttons shown before restore / delete. */
+  actions?: ReactNode;
 }) => {
   return (
     <FloatingToolbar className={styles.floatingToolbar} open={open}>
       <FloatingToolbar.Item>{content}</FloatingToolbar.Item>
       <FloatingToolbar.Button onClick={onClose} icon={<CloseIcon />} />
+      {!!actions && (
+        <>
+          <FloatingToolbar.Separator />
+          {actions}
+        </>
+      )}
       {(!!onRestore || !!onDelete) && <FloatingToolbar.Separator />}
       {!!onRestore && (
         <FloatingToolbar.Button

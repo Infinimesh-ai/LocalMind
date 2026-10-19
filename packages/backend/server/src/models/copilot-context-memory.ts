@@ -2345,6 +2345,10 @@ export class CopilotContextMemoryModel extends BaseModel {
     const current = await this.lockProjectOwner(id, actorUserId);
     if (!current) return null;
     if (current.status === 'active' && input.status === 'archived') {
+      await this.models.projectReportSchedule.pauseProject({
+        projectId: id,
+        actorId: actorUserId,
+      });
       await this.models.intelligenceWorkbenchAuthorization.withdrawPendingProjectWorkForArchive(
         { projectId: id, actorUserId }
       );

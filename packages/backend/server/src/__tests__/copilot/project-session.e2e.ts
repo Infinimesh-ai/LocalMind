@@ -502,8 +502,10 @@ test.serial(
       'test'
     );
     t.truthy(restrictedTools.project_doc_read);
-    t.falsy(restrictedTools.project_doc_create);
-    t.falsy(restrictedTools.project_folder_create);
+    // Valid Project members use the same native tools in both deployment
+    // flavors; execution still checks live ACL and the platform write switch.
+    t.truthy(restrictedTools.project_doc_create);
+    t.truthy(restrictedTools.project_folder_create);
     Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
     const call = async (
       name: string,

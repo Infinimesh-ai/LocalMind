@@ -1,5 +1,23 @@
 # Current State
 
+## Project Report Workbench
+
+The [report workbench contract](project-report-workbench-development.zh-CN.md)
+is implemented in source for W01–W09: document-based facts, creator fallback,
+templates, editing and review, immutable revisions, single/dual-screen and offline
+presentation, PDF/editable PPTX, controlled sharing, scheduled generation and
+explicitly authorized delivery. Private conversations are excluded and all model
+requests use global Project BYOK.
+
+The [execution record](project-report-workbench.execution.zh-CN.md) traces A01–A60
+with six real-model scenarios, focused Linux/API/UI/original-workflow tests,
+actual exports, 416 fresh/upgrade migrations and isolated database/Blob restore.
+Temporary acceptance credentials have been removed. The existing two unrelated
+frontend test type errors and LibreOffice/font compatibility limits remain explicit.
+The local hot-source development instance was subsequently backed up and
+synchronized during the runtime repair recorded there. No production deployment
+or image publication occurred.
+
 ## Workspace / Project Context And Sessions
 
 Project AI has fixed internal read and write capability. The project AI policy
@@ -49,6 +67,16 @@ without models or AI sessions. Verification and remaining limits are recorded in
 the [execution report](mcp-direct-resource-tools.execution.zh-CN.md).
 
 ## Project Workbench Redesign
+
+The 2026-10-12 v10 fusion implementation uses one shared Web/Electron Project
+business layout and retains the native window shell, editors, private work orders,
+task approvals and the independent collaboration orbit. It adds server-scoped card
+paging/counts, context versions/private attachment labels, resource search and batch
+management, and guarded editor return. See the
+[audit and design](project-workbench-v10-fusion-audit-and-design.zh-CN.md) and
+[execution evidence](project-workbench-v10-fusion.execution.zh-CN.md) for exact
+coverage and remaining verification limits; renderer compilation is not native
+Electron window acceptance.
 
 The confirmed [workbench contract](tracks/project-workbench-redesign.md)
 supersedes the reference migration and workspace-hosted UI described in the

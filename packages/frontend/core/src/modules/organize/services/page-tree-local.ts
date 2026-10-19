@@ -488,6 +488,7 @@ export class LocalPageTreeAdapter {
         canCreatePage: true,
         revision,
         authorizationRevision: localAuthority,
+        snapshotRevision: null,
         parent: parent ? describe(parent) : null,
         ancestors: parent
           ? pageTreeAncestors(byId, parent.nodeId).map(describe)

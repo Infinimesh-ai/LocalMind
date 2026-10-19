@@ -3,6 +3,7 @@
  */
 
 import type * as AffineComponentModule from '@affine/component';
+import { readDeckSources } from '@affine/core/modules/report-decks/source-handoff';
 import type * as AffineGraphQLModule from '@affine/graphql';
 import type * as AffineI18nModule from '@affine/i18n';
 import type * as BlockSuiteIconsModule from '@blocksuite/icons/rc';
@@ -12,12 +13,14 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import type * as InfraModule from '@toeverything/infra';
 import type {
   ButtonHTMLAttributes,
   PropsWithChildren,
   ReactElement,
+  ReactNode,
 } from 'react';
 import { useEffect } from 'react';
 import {
@@ -28,9 +31,15 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
+import { type Cache, useSWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import type * as ProjectBrowserModule from './project-browser';
+
 const state = vi.hoisted(() => ({
+  graphEdges: [] as Array<Record<string, unknown>>,
+  accountId: 'user-1' as string | null,
+  projectQueryCaches: [] as Cache[],
   conversationMounts: 0,
   conversationUnmounts: 0,
   frameworkScopes: [] as unknown[],
@@ -38,6 +47,9 @@ const state = vi.hoisted(() => ({
   layoutReady: vi.fn(),
   notifyError: vi.fn(),
   openWorkspaceDialog: vi.fn(),
+  confirmUnsaved: vi.fn(async () => true),
+  legacyReports: false,
+  reportDeckAvailable: true,
   projectAvailable: true,
   projectsLoading: false,
   projectsResolved: true,
@@ -79,17 +91,21 @@ const state = vi.hoisted(() => ({
 }));
 
 const tokens = vi.hoisted(() => ({
+  // eslint-disable-next-line rxjs/finnish -- Mock key mirrors the server account stream.
+  account$: Symbol('account'),
   GraphQLService: class GraphQLService {},
   DefaultServerService: class DefaultServerService {},
   NotificationCountService: class NotificationCountService {},
   WorkspaceServerService: class WorkspaceServerService {},
   QuickSearchService: class QuickSearchService {},
   WorkspaceDialogService: class WorkspaceDialogService {},
+  GlobalDialogService: class GlobalDialogService {},
   WorkspacesService: class WorkspacesService {},
   projectsQuery: Symbol('projectsQuery'),
   resourceQuery: Symbol('resourceQuery'),
   resourcePathQuery: Symbol('resourcePathQuery'),
   tasksQuery: Symbol('tasksQuery'),
+  graphQuery: Symbol('graphQuery'),
   confirmBlockerSuggestionMutation: Symbol('confirmBlockerSuggestion'),
   createBlockerMutation: Symbol('createBlocker'),
   updateProjectMutation: Symbol('updateProject'),
@@ -97,6 +113,17 @@ const tokens = vi.hoisted(() => ({
   workspaces$: Symbol('workspaces$'),
   revalidating$: Symbol('revalidating$'),
   /* eslint-enable rxjs/finnish */
+}));
+
+vi.mock('@affine/core/components/report-deck-entry', () => ({
+  useLegacyProjectReportsEnabled: () => state.legacyReports,
+  useReportDeckEntryAvailable: () => state.reportDeckAvailable,
+  useOpenReportDeck: () => vi.fn(),
+}));
+
+vi.mock('@affine/core/modules/project-resources/edit-guard', () => ({
+  ProjectEditorGuard: ({ children }: PropsWithChildren) => children,
+  useProjectUnsavedConfirmation: () => state.confirmUnsaved,
 }));
 
 vi.mock('@affine/component', async importOriginal => ({
@@ -130,6 +157,22 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
   ) => {
     if (!request) return { mutate: state.refreshProjects };
     state.query(request, config);
+    if (request.query === tokens.graphQuery)
+      return {
+        data: {
+          currentUser: {
+            copilot: {
+              myCollaborationGraph: {
+                nodes: [],
+                edges: state.graphEdges,
+                truncated: false,
+              },
+            },
+          },
+        },
+        isLoading: false,
+        mutate: state.refreshProjects,
+      };
     if (request.query === tokens.resourceQuery)
       return {
         data: {
@@ -215,7 +258,13 @@ vi.mock('@affine/core/components/hooks/use-workspace', () => ({
 }));
 
 vi.mock('@affine/core/components/providers/swr-config-provider', () => ({
-  SWRConfigProvider: ({ children }: PropsWithChildren) => children,
+  SWRConfigProvider: ({ children }: PropsWithChildren) => {
+    const { cache } = useSWRConfig();
+    useEffect(() => {
+      state.projectQueryCaches.push(cache);
+    }, [cache]);
+    return children;
+  },
 }));
 
 vi.mock('@affine/core/components/workspace-selector', () => ({
@@ -289,6 +338,7 @@ vi.mock('@affine/core/modules/cloud', () => ({
 
 vi.mock('@affine/core/modules/dialogs', () => ({
   WorkspaceDialogService: tokens.WorkspaceDialogService,
+  GlobalDialogService: tokens.GlobalDialogService,
 }));
 
 vi.mock('@affine/core/modules/desktop-api', () => ({
@@ -299,11 +349,22 @@ vi.mock('@affine/core/modules/app-tabs-header', () => ({
   AppTabsHeader: () => <div data-testid="desktop-tabs-header" />,
 }));
 
+vi.mock('@affine/core/modules/workbench', () => ({
+  WorkbenchService: class WorkbenchService {},
+  ViewTitle: ({ title }: { title: string }) => (
+    <output data-testid="project-tab-title">{title}</output>
+  ),
+  ViewIcon: ({ icon }: { icon: string }) => (
+    <output data-testid="project-tab-icon">{icon}</output>
+  ),
+}));
+
 vi.mock('@affine/core/modules/quicksearch/services/cmdk', () => ({
   CMDKQuickSearchService: tokens.QuickSearchService,
 }));
 
 vi.mock('@affine/core/modules/workspace', () => ({
+  WorkspaceService: class WorkspaceService {},
   WorkspacesService: tokens.WorkspacesService,
 }));
 
@@ -324,6 +385,7 @@ vi.mock('@affine/graphql', async importOriginal => ({
   copilotContextProjectUpdateMutation: tokens.updateProjectMutation,
   copilotWorkbenchProjectsGetQuery: tokens.projectsQuery,
   copilotWorkbenchTaskPanelGetQuery: tokens.tasksQuery,
+  copilotCollaborationGraphGetQuery: tokens.graphQuery,
   createCopilotBlockerMutation: tokens.createBlockerMutation,
   declineCopilotProjectInvitationMutation: Symbol('declineInvitation'),
   leaveCopilotContextProjectMutation: Symbol('leaveProject'),
@@ -371,6 +433,8 @@ vi.mock('@toeverything/infra', async importOriginal => ({
     return children;
   },
   useLiveData: (source: unknown) => {
+    if (source === tokens.account$)
+      return state.accountId ? { id: state.accountId } : null;
     if (source === tokens.workspaces$) return state.workspaces;
     if (source === tokens.revalidating$) return state.workspacesRevalidating;
     return undefined;
@@ -391,7 +455,14 @@ vi.mock('@toeverything/infra', async importOriginal => ({
     if (token === tokens.QuickSearchService)
       return { quickSearch: { show: state.quickSearchToggle, hide: vi.fn() } };
     if (token === tokens.DefaultServerService) {
-      return { server: { scope: 'default-server-scope' } };
+      return {
+        server: {
+          id: 'local-server',
+          scope: 'default-server-scope',
+          // eslint-disable-next-line rxjs/finnish -- Mock key mirrors the server account stream.
+          account$: tokens.account$,
+        },
+      };
     }
     if (token === tokens.NotificationCountService) {
       return {
@@ -400,6 +471,9 @@ vi.mock('@toeverything/infra', async importOriginal => ({
       };
     }
     if (token === tokens.WorkspaceDialogService) {
+      return { open: state.openWorkspaceDialog };
+    }
+    if (token === tokens.GlobalDialogService) {
       return { open: state.openWorkspaceDialog };
     }
     throw new Error('Unexpected service token');
@@ -445,6 +519,39 @@ vi.mock('./project-files', () => ({
     </div>
   ),
 }));
+
+vi.mock('./project-browser', async importOriginal => {
+  const actual = await importOriginal<typeof ProjectBrowserModule>();
+  return {
+    ...actual,
+    // The project folder browser has its own spec; the shell only needs its
+    // open contract. The projects overview (no project) stays real.
+    ProjectBrowser: (
+      props: Parameters<typeof ProjectBrowserModule.ProjectBrowser>[0]
+    ) =>
+      props.projectId &&
+      props.projects.some(project => project.id === props.projectId) ? (
+        <div
+          data-testid="project-main-files"
+          data-folder-id={String(props.folderId)}
+        >
+          <button
+            data-project-resource-id="native-doc"
+            onClick={() =>
+              props.onOpen(props.projectId as string, 'native-doc')
+            }
+          >
+            Open native resource
+          </button>
+          <button onClick={() => props.onOpen('project-2', 'other-doc')}>
+            Open other project resource
+          </button>
+        </div>
+      ) : (
+        <actual.ProjectBrowser {...props} />
+      ),
+  };
+});
 
 vi.mock('./new-conversation', () => ({
   NewConversation: () => <div data-testid="new-conversation" />,
@@ -509,6 +616,7 @@ vi.mock('./project-tree', () => ({
     onRefresh,
     onSelectProject,
     onManageCollaboration,
+    onOpenReports,
   }: {
     projects: Array<{ id: string; status: string }>;
     loading: boolean;
@@ -516,6 +624,7 @@ vi.mock('./project-tree', () => ({
     onRefresh: () => void;
     onSelectProject: (projectId: string | null) => void;
     onManageCollaboration: (project: { id: string; status: string }) => void;
+    onOpenReports?: (project: { id: string; status: string }) => void;
   }) => {
     const activeProjects = projects.filter(
       project => project.status === 'active'
@@ -548,6 +657,14 @@ vi.mock('./project-tree', () => ({
             >
               Manage project settings
             </button>
+            {onOpenReports ? (
+              <button
+                type="button"
+                onClick={() => onOpenReports(activeProjects[0])}
+              >
+                Open project reports
+              </button>
+            ) : null}
           </>
         ) : null}
       </>
@@ -620,7 +737,9 @@ vi.mock('./workbench-conversation', () => ({
   WorkbenchConversation: ({
     onConfirmBlockerSuggestion,
     onPinChanged,
+    headerActions,
   }: {
+    headerActions?: ReactNode;
     onPinChanged?: () => void;
     onConfirmBlockerSuggestion?: (suggestion: {
       aiSuggestionId: string;
@@ -642,6 +761,7 @@ vi.mock('./workbench-conversation', () => ({
     }, []);
     return (
       <div data-testid="conversation">
+        {headerActions}
         <button type="button" onClick={onPinChanged}>
           Pin conversation
         </button>
@@ -730,6 +850,63 @@ const renderWorkbench = (route = '/project/project-1') =>
   );
 
 describe('Intelligence workbench shell', () => {
+  test('retains the current account state but isolates project cache and conversations after identity changes', () => {
+    const view = renderWorkbench('/project/project-1');
+    state.projectQueryCaches[0].set('private-first-account', {
+      data: 'private',
+    });
+    const rerender = () =>
+      view.rerender(
+        <MemoryRouter initialEntries={['/project/project-1']}>
+          <Component />
+          <LocationProbe />
+        </MemoryRouter>
+      );
+    rerender();
+    expect(state.projectQueryCaches).toHaveLength(1);
+    expect(state.conversationMounts).toBe(1);
+    expect(state.conversationUnmounts).toBe(0);
+    state.accountId = 'user-2';
+    rerender();
+    expect(state.projectQueryCaches).toHaveLength(2);
+    expect(
+      state.projectQueryCaches[1].get('private-first-account')
+    ).toBeUndefined();
+    expect(state.conversationMounts).toBe(2);
+    expect(state.conversationUnmounts).toBe(1);
+    state.accountId = null;
+    rerender();
+    expect(state.projectQueryCaches).toHaveLength(3);
+    expect(
+      state.projectQueryCaches[2].get('private-first-account')
+    ).toBeUndefined();
+    expect(state.conversationUnmounts).toBe(2);
+  });
+
+  test('replaces the previous desktop tab metadata with the current project or resource title', () => {
+    const isElectron = BUILD_CONFIG.isElectron;
+    try {
+      BUILD_CONFIG.isElectron = true;
+      const overview = renderWorkbench('/project');
+      expect(screen.getByTestId('project-tab-title').textContent).toBe(
+        'com.affine.localmind.workbench.v9.overview'
+      );
+      expect(screen.getByTestId('project-tab-icon').textContent).toBe('ai');
+      overview.unmount();
+      const project = renderWorkbench('/project/project-1');
+      expect(screen.getByTestId('project-tab-title').textContent).toBe(
+        'Project one'
+      );
+      project.unmount();
+      renderWorkbench('/project/project-1/resources/native-doc');
+      expect(screen.getByTestId('project-tab-title').textContent).toBe(
+        'Native document'
+      );
+    } finally {
+      BUILD_CONFIG.isElectron = isElectron;
+    }
+  });
+
   test('reserves a desktop titlebar on project routes without adding it to the browser', () => {
     const isElectron = BUILD_CONFIG.isElectron;
     try {
@@ -753,6 +930,9 @@ describe('Intelligence workbench shell', () => {
   });
 
   beforeEach(() => {
+    state.graphEdges = [];
+    state.accountId = 'user-1';
+    state.projectQueryCaches.length = 0;
     state.conversationMounts = 0;
     state.conversationUnmounts = 0;
     state.frameworkScopes.length = 0;
@@ -761,6 +941,9 @@ describe('Intelligence workbench shell', () => {
     state.layoutReady.mockReset();
     state.notifyError.mockReset();
     state.openWorkspaceDialog.mockReset();
+    state.confirmUnsaved.mockReset().mockResolvedValue(true);
+    state.legacyReports = false;
+    state.reportDeckAvailable = true;
     state.projectAvailable = true;
     state.projectsLoading = false;
     state.projectsResolved = true;
@@ -795,6 +978,41 @@ describe('Intelligence workbench shell', () => {
   });
 
   afterEach(cleanup);
+
+  test('resets an inaccessible overview filter only after the authorized project list resolves', async () => {
+    const view = renderWorkbench('/project');
+    const filter = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'com.affine.localmind.workbench.v9.projectFilter',
+    });
+    fireEvent.change(filter, { target: { value: 'project-1' } });
+    expect(filter.value).toBe('project-1');
+    state.projectsResolved = false;
+    view.rerender(
+      <MemoryRouter initialEntries={['/project']}>
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    expect(state.notifyError).not.toHaveBeenCalled();
+    state.projectsResolved = true;
+    state.projectAvailable = false;
+    view.rerender(
+      <MemoryRouter initialEntries={['/project']}>
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(state.notifyError).toHaveBeenCalledWith({
+        title: 'com.affine.localmind.project-error.unavailable',
+      })
+    );
+    expect(
+      screen.getByRole<HTMLSelectElement>('combobox', {
+        name: 'com.affine.localmind.workbench.v9.projectFilter',
+      }).value
+    ).toBe('');
+  });
 
   test('a direct resource entry creates a Project parent for browser Back without writing', async () => {
     const original = window.history.state;
@@ -864,11 +1082,12 @@ describe('Intelligence workbench shell', () => {
         name: 'com.affine.localmind.workbench.v9.overview',
       })
     ).not.toBeNull();
+    // v10 overview path line: hub / current project filter.
     expect(
       screen.queryByText(
         'com.affine.localmind.workbench.v9.overview / com.affine.localmind.workbench.v9.allProjects'
       )
-    ).toBeNull();
+    ).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Select project' }));
     expect(screen.getByTestId('location').textContent).toBe(
@@ -876,11 +1095,12 @@ describe('Intelligence workbench shell', () => {
     );
     expect(screen.queryByTestId('conversation')).not.toBeNull();
     expect(state.conversationMounts).toBe(1);
+    // No work order belongs to this conversation, so there is no right box.
     expect(
-      screen.getByRole('region', {
+      screen.queryByRole('region', {
         name: 'com.affine.localmind.workbench.v9.contextPanel',
       })
-    ).not.toBeNull();
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'All projects' }));
     expect(screen.queryByTestId('conversation')).toBeNull();
@@ -893,7 +1113,226 @@ describe('Intelligence workbench shell', () => {
     ).not.toBeNull();
   });
 
-  test('expands the relationship workspace and restores the navigation without changing its saved width', () => {
+  test('opens project documents from the rail, selects a project and returns from an editor to its files', async () => {
+    renderWorkbench('/project');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.systemRail.docs',
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project?view=files'
+      )
+    );
+    expect(
+      screen.getByRole('region', {
+        name: 'com.affine.localmind.workbench.systemRail.docs',
+      })
+    ).not.toBeNull();
+    // The documents view swaps the project hub tree for the Finder sidebar.
+    expect(screen.queryByRole('button', { name: 'Select project' })).toBeNull();
+    const locations = screen.getByRole('navigation', {
+      name: 'com.affine.localmind.project-browser.sidebar.label',
+    });
+    fireEvent.click(
+      within(locations).getByRole('button', { name: 'Project one' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1?view=files'
+      )
+    );
+    expect(screen.queryByTestId('conversation')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open native resource' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/resources/native-doc?view=files'
+      )
+    );
+    expect(screen.queryByTestId('conversation')).toBeNull();
+    // The browser stays mounted (hidden) behind the editor.
+    expect(
+      screen.getByTestId('project-main-files').closest('[hidden]')
+    ).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Close resource' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1?view=files'
+      )
+    );
+    expect(
+      screen.getByTestId('project-main-files').closest('[hidden]')
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.systemRail.projects',
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe('/project')
+    );
+    expect(
+      screen.getByRole('heading', {
+        name: 'com.affine.localmind.workbench.v9.overview',
+      })
+    ).not.toBeNull();
+  });
+
+  test('does not leave a conversation for project documents when unsaved edits block navigation', async () => {
+    renderWorkbench('/project/project-1/conversations/session-1');
+    state.confirmUnsaved.mockResolvedValueOnce(false);
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.systemRail.docs',
+      })
+    );
+    await waitFor(() => expect(state.confirmUnsaved).toHaveBeenCalledOnce());
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/conversations/session-1'
+    );
+    expect(screen.getByTestId('conversation')).not.toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.systemRail.docs',
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1?view=files'
+      )
+    );
+    expect(screen.getByTestId('project-main-files')).not.toBeNull();
+    expect(screen.queryByTestId('conversation')).toBeNull();
+  });
+
+  test.each(['loading', 'error', 'empty', 'archived'] as const)(
+    'shows the %s state in the project documents index',
+    async status => {
+      state.projectsLoading = status === 'loading';
+      state.projectAvailable = status !== 'empty';
+      if (status === 'archived') state.project.status = 'archived';
+      if (status === 'error')
+        state.projectsError = new Error('Network unavailable');
+      state.refreshProjects.mockResolvedValue(undefined);
+      renderWorkbench('/project?view=files');
+      const documents = within(
+        screen.getByRole('region', {
+          name: 'com.affine.localmind.workbench.systemRail.docs',
+        })
+      );
+      expect(
+        documents.queryByRole('button', { name: 'Project one' })
+      ).toBeNull();
+      if (status === 'loading')
+        expect(documents.getByRole('status')).not.toBeNull();
+      else if (status === 'error') {
+        expect(documents.getByRole('alert')).not.toBeNull();
+        fireEvent.click(
+          documents.getByRole('button', {
+            name: 'com.affine.localmind.project-files.retry',
+          })
+        );
+        await waitFor(() =>
+          expect(state.refreshProjects).toHaveBeenCalledOnce()
+        );
+      } else
+        expect(
+          documents.getByText(
+            'com.affine.localmind.workbench.projects.emptyTitle'
+          )
+        ).not.toBeNull();
+    }
+  );
+
+  test.each([
+    { saved: { navigation: 280, documentsNavigation: 200 }, expected: 280 },
+    { saved: { documentsNavigation: 216 }, expected: 216 },
+    {
+      saved: { navigation: 'invalid', documentsNavigation: 224 },
+      expected: 224,
+    },
+    { saved: { navigation: -1, documentsNavigation: null }, expected: 240 },
+  ])(
+    'shares the saved sidebar width across Hub and Files: $expected',
+    async ({ saved, expected }) => {
+      localStorage.setItem(
+        'localmind.project.pane-widths',
+        JSON.stringify({ ...saved, resource: 540 })
+      );
+      renderWorkbench('/project?view=files');
+      expect(
+        screen.getByTestId('intelligence-workbench').getAttribute('style')
+      ).toContain(`${expected}px`);
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'com.affine.localmind.workbench.systemRail.projects',
+        })
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId('location').textContent).toBe('/project')
+      );
+      expect(
+        screen.getByTestId('intelligence-workbench').getAttribute('style')
+      ).toContain(`${expected}px`);
+      const stored = JSON.parse(
+        localStorage.getItem('localmind.project.pane-widths') ?? '{}'
+      );
+      expect(stored.documentsNavigation).toBeUndefined();
+      expect(stored.resource).toBe(540);
+    }
+  );
+
+  test('persists a shared resized sidebar and resets both views to 240px', async () => {
+    const view = renderWorkbench('/project');
+    const root = screen.getByTestId('intelligence-workbench');
+    expect(root.getAttribute('style')).toContain('240px');
+    fireEvent.keyDown(screen.getByTestId('project-navigation-resize'), {
+      key: 'Home',
+    });
+    expect(root.getAttribute('style')).toContain('192px');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.systemRail.docs',
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project?view=files'
+      )
+    );
+    expect(
+      screen.getByTestId('intelligence-workbench').getAttribute('style')
+    ).toContain('192px');
+    view.unmount();
+    renderWorkbench('/project?view=files');
+    expect(
+      screen.getByTestId('intelligence-workbench').getAttribute('style')
+    ).toContain('192px');
+    fireEvent.doubleClick(screen.getByTestId('project-navigation-resize'));
+    expect(
+      screen.getByTestId('intelligence-workbench').getAttribute('style')
+    ).toContain('240px');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.systemRail.projects',
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe('/project')
+    );
+    expect(
+      screen.getByTestId('intelligence-workbench').getAttribute('style')
+    ).toContain('240px');
+    expect(
+      JSON.parse(localStorage.getItem('localmind.project.pane-widths') ?? '{}')
+        .navigation
+    ).toBeUndefined();
+  });
+
+  test('keeps the workspace expansion across views and restores navigation only on request', () => {
     localStorage.setItem(
       'localmind.project.pane-widths',
       JSON.stringify({ navigation: 280 })
@@ -938,6 +1377,24 @@ describe('Intelligence workbench shell', () => {
     fireEvent.click(
       screen.getByRole('tab', {
         name: 'com.affine.localmind.workbench.v9.items',
+      })
+    );
+    expect(navigation?.hidden).toBe(true);
+    expect(root.dataset.workspaceExpanded).toBe('true');
+    fireEvent.click(
+      screen.getByRole('tab', {
+        name: 'com.affine.localmind.workbench.v9.relations',
+      })
+    );
+    expect(navigation?.hidden).toBe(true);
+    fireEvent.click(
+      screen.getByRole('tab', {
+        name: 'com.affine.localmind.workbench.v9.items',
+      })
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.v9.graphRestoreWorkspace',
       })
     );
     expect(navigation?.hidden).toBe(false);
@@ -1014,8 +1471,10 @@ describe('Intelligence workbench shell', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Open native resource' })
     );
-    expect(screen.getByTestId('location').textContent).toBe(
-      '/project/project-1/resources/native-doc'
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/resources/native-doc'
+      )
     );
     expect(screen.getByTestId('conversation').closest('[hidden]')).toBeNull();
     expect(state.conversationMounts).toBe(1);
@@ -1028,8 +1487,10 @@ describe('Intelligence workbench shell', () => {
     );
     expect(state.gql).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Close resource' }));
-    expect(screen.getByTestId('location').textContent).toBe(
-      '/project/project-1'
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1'
+      )
     );
     expect(state.conversationMounts).toBe(1);
     await waitFor(() =>
@@ -1039,7 +1500,7 @@ describe('Intelligence workbench shell', () => {
     );
   });
 
-  test('returns from a resource to its conversation URL', () => {
+  test('returns from a resource to its conversation URL', async () => {
     renderWorkbench('/project/project-1/conversations/session-1');
     fireEvent.click(
       screen.getByRole('button', {
@@ -1049,12 +1510,105 @@ describe('Intelligence workbench shell', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Open native resource' })
     );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/resources/native-doc?sessionId=session-1'
+      )
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close resource' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/conversations/session-1'
+      )
+    );
+  });
+
+  test('opens a report deck for the whole project from the project tree after the unsaved check', async () => {
+    renderWorkbench('/project/project-1/conversations/session-1');
+    state.confirmUnsaved.mockResolvedValue(false);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open project reports' })
+    );
+    await waitFor(() => expect(state.confirmUnsaved).toHaveBeenCalledOnce());
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/conversations/session-1'
+    );
+    state.confirmUnsaved.mockResolvedValue(true);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open project reports' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toMatch(
+        /^\/reports\/new\?handoff=/
+      )
+    );
+    const handoff = new URLSearchParams(
+      screen.getByTestId('location').textContent?.split('?')[1]
+    ).get('handoff');
+    expect(readDeckSources(handoff)).toEqual([
+      {
+        scopeKind: 'project',
+        scopeId: 'project-1',
+        kind: 'project_all',
+        title: 'Project one',
+      },
+    ]);
+  });
+
+  test('hides the project report entry without AI and the legacy studio', () => {
+    state.reportDeckAvailable = false;
+    renderWorkbench('/project/project-1/conversations/session-1');
+    expect(
+      screen.queryByRole('button', { name: 'Open project reports' })
+    ).toBeNull();
+  });
+
+  test('opens legacy project reports from the project tree while the legacy studio is enabled', async () => {
+    state.legacyReports = true;
+    renderWorkbench('/project/project-1/conversations/session-1');
+    expect(
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.reports.reports',
+      })
+    ).toBeNull();
+    state.confirmUnsaved.mockResolvedValue(false);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open project reports' })
+    );
+    await waitFor(() => expect(state.confirmUnsaved).toHaveBeenCalledOnce());
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/conversations/session-1'
+    );
+    state.confirmUnsaved.mockResolvedValue(true);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open project reports' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/reports'
+      )
+    );
+  });
+
+  test('keeps the editor and conversation mounted when closing is cancelled', async () => {
+    renderWorkbench(
+      '/project/project-1/resources/native-doc?sessionId=session-1'
+    );
+    state.confirmUnsaved.mockResolvedValue(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Close resource' }));
+    await waitFor(() => expect(state.confirmUnsaved).toHaveBeenCalledOnce());
     expect(screen.getByTestId('location').textContent).toBe(
       '/project/project-1/resources/native-doc?sessionId=session-1'
     );
+    expect(screen.getByTestId('project-resource-preview')).not.toBeNull();
+    expect(state.conversationMounts).toBe(1);
+    expect(state.conversationUnmounts).toBe(0);
+    state.confirmUnsaved.mockResolvedValue(true);
     fireEvent.click(screen.getByRole('button', { name: 'Close resource' }));
-    expect(screen.getByTestId('location').textContent).toBe(
-      '/project/project-1/conversations/session-1'
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/conversations/session-1'
+      )
     );
   });
 
@@ -1158,11 +1712,13 @@ describe('Intelligence workbench shell', () => {
     expect(state.layoutReady).toHaveBeenCalled();
   });
 
-  test('provides independent search, appearance, account and Workspace return controls', () => {
+  test('provides independent search, appearance, account and Workspace return controls', async () => {
     renderWorkbench();
 
     expect(state.workspaceSelector).not.toHaveBeenCalled();
-    expect(screen.getByText('User')).not.toBeNull();
+    expect(
+      within(screen.getByTestId('global-rail')).getByText('User')
+    ).not.toBeNull();
     expect(
       screen.getByRole('button', { name: 'Notifications' })
     ).not.toBeNull();
@@ -1181,7 +1737,9 @@ describe('Intelligence workbench shell', () => {
         name: 'com.affine.localmind.workbench.returnToWorkspace',
       })
     );
-    expect(screen.getByTestId('location').textContent).toBe('/');
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe('/')
+    );
   });
 
   test('opens project collaboration through the single header settings entry', () => {
@@ -1374,5 +1932,112 @@ describe('Intelligence workbench shell', () => {
       })
     );
     expect(state.refreshTaskPanel).not.toHaveBeenCalled();
+  });
+
+  test('opens the work order card only after this conversation sends a work order', async () => {
+    const workOrderCard = () => screen.queryByTestId('work-order-panel');
+    const toggle = () =>
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.workbench.orders.toggle',
+      });
+    state.graphEdges = [
+      {
+        id: 'draft-1',
+        kind: 'draft',
+        from: 'user-1',
+        to: 'peer',
+        status: 'draft',
+        label: 'Unsent',
+        ownSessionId: 'session-1',
+      },
+    ];
+    renderWorkbench('/project/project-1/conversations/session-1');
+    // Drafts and ordinary conversations have no right card at all.
+    expect(workOrderCard()).toBeNull();
+    expect(toggle()).toBeNull();
+    cleanup();
+
+    state.graphEdges = [
+      {
+        id: 'order-1',
+        kind: 'sent',
+        from: 'user-1',
+        to: 'peer',
+        status: 'delivered',
+        label: 'Deck',
+        ownSessionId: 'session-1',
+      },
+    ];
+    renderWorkbench('/project/project-1/conversations/session-1');
+    expect(workOrderCard()).not.toBeNull();
+    fireEvent.click(toggle()!);
+    expect(workOrderCard()).toBeNull();
+    // A delivery awaiting adoption flags the collapsed toggle.
+    expect(toggle()!.dataset.attention).toBe('true');
+    fireEvent.click(toggle()!);
+    await waitFor(() => expect(workOrderCard()).not.toBeNull());
+  });
+
+  test('records opened project files as recents and reopens them from the documents sidebar', async () => {
+    window.localStorage.clear();
+    const view = renderWorkbench('/project/project-1/resources/native-doc');
+    await waitFor(() =>
+      expect(
+        JSON.parse(
+          window.localStorage.getItem(
+            'localmind.project-browser.recent:user-1'
+          ) ?? '[]'
+        )
+      ).toEqual([
+        expect.objectContaining({
+          projectId: 'project-1',
+          projectName: 'Project one',
+          resourceId: 'native-doc',
+          title: 'Native document',
+          kind: 'page',
+        }),
+      ])
+    );
+    view.unmount();
+    renderWorkbench('/project?view=files');
+    const recent = screen.getByRole('list', {
+      name: 'com.affine.localmind.project-browser.sidebar.recent',
+    });
+    fireEvent.click(
+      within(recent).getByRole('button', { name: 'Native document' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/resources/native-doc?view=files'
+      )
+    );
+    // Recents are kept per signed-in account.
+    expect(
+      window.localStorage.getItem('localmind.project-browser.recent:guest')
+    ).toBeNull();
+  });
+
+  test('asks for a project before showing the trash and opens the selected project trash', async () => {
+    renderWorkbench('/project?view=files');
+    const locations = screen.getByRole('navigation', {
+      name: 'com.affine.localmind.project-browser.sidebar.label',
+    });
+    fireEvent.click(
+      within(locations).getByRole('button', {
+        name: 'com.affine.localmind.project-browser.sidebar.trash',
+      })
+    );
+    expect(within(locations).getByRole('note').textContent).toBe(
+      'com.affine.localmind.project-browser.sidebar.trashHint'
+    );
+    fireEvent.click(
+      within(locations).getByRole('button', { name: 'Project one' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1?view=files'
+      )
+    );
+    expect(within(locations).queryByRole('note')).toBeNull();
   });
 });

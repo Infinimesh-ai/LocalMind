@@ -5,9 +5,15 @@ import {
   useConfirmModal,
 } from '@affine/component';
 import { DocsService } from '@affine/core/modules/doc';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import { WorkspacePropertyService } from '@affine/core/modules/workspace-property';
 import { Trans, useI18n } from '@affine/i18n';
-import { useLiveData, useService } from '@toeverything/infra';
+import { PresentationIcon } from '@blocksuite/icons/rc';
+import {
+  useLiveData,
+  useService,
+  useServiceOptional,
+} from '@toeverything/infra';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import {
   createContext,
@@ -22,7 +28,12 @@ import {
 } from 'react';
 
 import { EmptyDocs } from '../../affine/empty';
+import { FloatingToolbar } from '../../page-list/components/floating-toolbar';
 import { ListFloatingToolbar } from '../../page-list/components/list-floating-toolbar';
+import {
+  useOpenReportDeck,
+  useReportDeckEntryAvailable,
+} from '../../report-deck-entry';
 import { SystemPropertyTypes } from '../../system-property-types';
 import { WorkspacePropertyTypes } from '../../workspace-property-types';
 import { DocExplorerContext } from '../context';
@@ -185,6 +196,9 @@ export const DocsExplorer = ({
   const collapsedGroups = useLiveData(contextValue.collapsedGroups$);
 
   const { openConfirmModal } = useConfirmModal();
+  const workspaceId = useServiceOptional(WorkspaceService)?.workspace.id;
+  const reportDeckAvailable = useReportDeckEntryAvailable();
+  const openReportDeck = useOpenReportDeck();
   const [resourceHeights, setResourceHeights] = useState(
     () => new Map<string, number>()
   );
@@ -297,6 +311,29 @@ export const DocsExplorer = ({
     selectedDocIds.length,
     t,
   ]);
+  const showReportDeckEntry =
+    reportDeckAvailable &&
+    !!workspaceId &&
+    !onRestore &&
+    !BUILD_CONFIG.isMobileEdition;
+  const handlePresent = useCallback(() => {
+    const ids = contextValue.selectedDocIds$.value;
+    if (!workspaceId || !ids.length) return;
+    openReportDeck(
+      ids.map(docId => ({
+        scopeKind: 'workspace' as const,
+        scopeId: workspaceId,
+        kind: 'doc' as const,
+        resourceId: docId,
+        title: docsService.list.doc$(docId).value?.title$.value || undefined,
+      }))
+    );
+  }, [
+    contextValue.selectedDocIds$,
+    docsService.list,
+    openReportDeck,
+    workspaceId,
+  ]);
   const handleMultiRestore = useCallback(() => {
     const selectedDocIds = contextValue.selectedDocIds$.value;
     onRestore?.(selectedDocIds);
@@ -377,6 +414,16 @@ export const DocsExplorer = ({
             onDelete={disableMultiDelete ? undefined : handleMultiDelete}
             onRestore={onRestore ? handleMultiRestore : undefined}
             onClose={handleCloseFloatingToolbar}
+            actions={
+              showReportDeckEntry ? (
+                <FloatingToolbar.Button
+                  onClick={handlePresent}
+                  icon={<PresentationIcon />}
+                  label={t['com.affine.localmind.reportDeck.entry']()}
+                  data-testid="list-toolbar-report-deck"
+                />
+              ) : undefined
+            }
             content={
               <Trans
                 i18nKey="com.affine.page.toolbar.selected"

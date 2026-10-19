@@ -30,15 +30,20 @@ const page = (id: string, nextCursor: string | null = null) => ({
 const stores: DirectoryAccessStore[] = [];
 afterEach(() => {
   stores.splice(0).forEach(store => store.dispose());
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 function fixture(
   gql = vi.fn().mockResolvedValue(page('visible')),
   flavour = 'affine-cloud'
 ) {
-  const accessEvents$ = new Subject<{ changed: true; reason: string }>();
-  const policyEvents$ = new Subject<{ changed: true; reason: string }>();
-  const resourceEvents$ = new Subject<{ changed: true }>();
+  const accessEvents$ = new Subject<
+    { changed: true; reason: string } | { type: 'ready' }
+  >();
+  const policyEvents$ = new Subject<
+    { changed: true; reason: string } | { type: 'ready' }
+  >();
+  const resourceEvents$ = new Subject<{ changed: true } | { type: 'ready' }>();
   const subscribeAccess = vi.fn((topic: string) =>
     topic === 'workspace.directory-policy.changed'
       ? policyEvents$
@@ -494,4 +499,49 @@ test('same-account access refresh during a write preserves its real result', asy
   pending.resolve({ mutateWorkspaceDirectory: { revision: 'new-revision' } });
   await expect(saving).resolves.toEqual({ revision: 'new-revision' });
   expect(store.saving$.value).toBe(false);
+});
+
+test('subscription readiness is batched, while real access changes still clear immediately', async () => {
+  const {
+    store,
+    gql,
+    accessEvents$,
+    policyEvents$,
+    resourceEvents$,
+    account$,
+  } = fixture();
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
+  gql.mockClear();
+  account$.next({ id: 'actor' });
+  expect(gql).not.toHaveBeenCalled();
+  const ready = () => {
+    accessEvents$.next({ type: 'ready' });
+    policyEvents$.next({ type: 'ready' });
+    resourceEvents$.next({ type: 'ready' });
+  };
+  ready();
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
+  expect(gql).toHaveBeenCalledTimes(1);
+  ready();
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
+  expect(gql).toHaveBeenCalledTimes(2);
+  const pending = Promise.withResolvers<ReturnType<typeof page>>();
+  gql.mockReturnValueOnce(pending.promise);
+  accessEvents$.next({ changed: true, reason: 'permission-revoked' });
+  expect(store.state$.value.items).toEqual([]);
+  pending.reject(new Error('denied'));
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('error'));
+});
+
+test('hidden pages stop directory polling and resume normally when visible', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal('document', { visibilityState: 'hidden' });
+  const { gql } = fixture();
+  await vi.advanceTimersByTimeAsync(0);
+  gql.mockClear();
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(gql).not.toHaveBeenCalled();
+  vi.stubGlobal('document', { visibilityState: 'visible' });
+  await vi.advanceTimersByTimeAsync(15_000);
+  expect(gql).toHaveBeenCalledTimes(1);
 });

@@ -171,6 +171,48 @@ describe('formal collaboration orbit', () => {
     expect(container.querySelector('[data-person-id="peer"]')).toBeTruthy();
   });
 
+  test('ordinary wheel zooms around the view centre instead of panning', () => {
+    const { container } = render(
+      <CollaborationOrbitBoard projectFilter="" onOpenRelation={vi.fn()} />
+    );
+    const canvas = container.querySelector<HTMLElement>(
+      '[data-finite-canvas]'
+    )!;
+    const viewport = canvas.parentElement!;
+    const camera = () => {
+      const [, tx, ty, scale] = canvas.style.transform.match(
+        /translate\(([-\d.]+)px, ([-\d.]+)px\) scale\(([\d.]+)\)/
+      )!;
+      const zoom = Number(scale);
+      return {
+        x: (500 - Number(tx)) / zoom,
+        y: (325 - Number(ty)) / zoom,
+        zoom,
+      };
+    };
+    const before = camera();
+    const wheel = new WheelEvent('wheel', {
+      deltaY: -60,
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(viewport, wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(camera().zoom).toBeGreaterThan(before.zoom);
+    expect(camera().x).toBeCloseTo(before.x);
+    expect(camera().y).toBeCloseTo(before.y);
+
+    fireEvent.wheel(viewport, { deltaY: 60 });
+    expect(camera().zoom).toBeCloseTo(before.zoom);
+    expect(camera().x).toBeCloseTo(before.x);
+    expect(camera().y).toBeCloseTo(before.y);
+
+    fireEvent.wheel(viewport, { deltaX: 60, deltaY: 0 });
+    expect(camera().zoom).toBeCloseTo(before.zoom);
+    expect(camera().x).toBeCloseTo(before.x);
+    expect(camera().y).toBeCloseTo(before.y);
+  });
+
   test('history-only people appear only through the history entrance', () => {
     state.graph = {
       ...base,
@@ -285,5 +327,45 @@ describe('formal collaboration orbit', () => {
         expect.objectContaining({ id: 'draft:one' })
       )
     );
+  });
+
+  test('exposes work orders only through avatar capsules with hover preview and click details', async () => {
+    state.graph = {
+      ...base,
+      edges: [
+        ...base.edges,
+        {
+          ...base.edges[0],
+          id: 'two',
+          kind: 'received',
+          from: 'peer',
+          to: 'self',
+          label: '验收清单',
+        },
+        { ...base.edges[0], id: 'three', status: 'delivered', label: '已交付' },
+      ],
+    };
+    const onOpenRelation = vi.fn();
+    const { container } = render(
+      <CollaborationOrbitBoard
+        projectFilter=""
+        onOpenRelation={onOpenRelation}
+      />
+    );
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(screen.queryByText('季度预算')).toBeNull();
+    fireEvent.click(container.querySelector('[data-person-id="peer"]')!);
+    expect(container.querySelectorAll('[data-order-id]')).toHaveLength(2);
+    expect(container.querySelector('[data-order-id="three"]')).toBeNull();
+    const capsule = container.querySelector('[data-order-id="one"]')!;
+    fireEvent.pointerEnter(capsule, { pointerType: 'mouse' });
+    const preview = await screen.findByRole('dialog', { name: '季度预算' });
+    expect(preview.dataset.preview).toBe('true');
+    expect(preview.textContent).toContain('交付材料');
+    expect(screen.queryByText('真实目的 one')).toBeNull();
+    fireEvent.click(capsule);
+    expect(await screen.findByText('真实目的 one')).toBeTruthy();
+    expect(preview.dataset.preview).toBe('false');
+    expect(onOpenRelation).not.toHaveBeenCalled();
   });
 });

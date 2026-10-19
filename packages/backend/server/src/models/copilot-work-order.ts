@@ -184,16 +184,20 @@ function confirmationHash(token: string) {
     .digest('hex');
 }
 
-function pageCursor(value: {
-  lastBusinessAt: Date;
-  sessionId: string;
-  session: { pinned: boolean };
-}) {
+function pageCursor(
+  value: {
+    lastBusinessAt: Date;
+    sessionId: string;
+    session: { pinned: boolean };
+  },
+  scope?: string
+) {
   return Buffer.from(
     JSON.stringify({
       at: value.lastBusinessAt.toISOString(),
       id: value.sessionId,
       pinned: value.session.pinned,
+      ...(scope ? { scope } : {}),
     })
   ).toString('base64url');
 }
@@ -201,25 +205,43 @@ function pageCursor(value: {
 function parsePageCursor(cursor?: string | null) {
   if (!cursor) return null;
   try {
+    if (cursor.length > 4096) throw new Error('invalid cursor');
     const value = JSON.parse(Buffer.from(cursor, 'base64url').toString()) as {
       at?: unknown;
       id?: unknown;
       pinned?: unknown;
+      scope?: unknown;
     };
     if (
       typeof value.at !== 'string' ||
       typeof value.id !== 'string' ||
-      (value.pinned !== undefined && typeof value.pinned !== 'boolean')
+      (value.pinned !== undefined && typeof value.pinned !== 'boolean') ||
+      (value.scope !== undefined &&
+        (typeof value.scope !== 'string' || value.scope.length !== 64))
     ) {
       throw new Error('invalid cursor');
     }
     const at = new Date(value.at);
     if (Number.isNaN(at.valueOf())) throw new Error('invalid cursor');
-    return { at, id: value.id, pinned: value.pinned === true };
+    return {
+      at,
+      id: value.id,
+      pinned: value.pinned === true,
+      scope: value.scope as string | undefined,
+    };
   } catch {
     throw new BadRequest('Conversation cursor is invalid');
   }
 }
+
+/**
+ * A sender sees delivery revisions only after every order in the dispatch is
+ * terminal in one of these states. Shared with project report evidence.
+ */
+export const WORK_ORDER_DISPATCH_RELEASED_STATUSES = [
+  'delivered',
+  'cancelled',
+] as const;
 
 @Injectable()
 export class CopilotWorkOrderModel extends BaseModel {
@@ -1766,6 +1788,8 @@ export class CopilotWorkOrderModel extends BaseModel {
   async listCards(input: {
     actorId: string;
     column?: 'todo' | 'progress' | 'done';
+    projectId?: string | null;
+    scopeType?: 'project' | 'workspace' | 'work_order' | null;
     first?: number;
     after?: string | null;
   }) {
@@ -1778,10 +1802,38 @@ export class CopilotWorkOrderModel extends BaseModel {
       .default(30)
       .parse(input.first);
     const after = parsePageCursor(input.after);
+    const column = z
+      .enum(['todo', 'progress', 'done'])
+      .optional()
+      .parse(input.column);
+    const filter = {
+      projectId: input.projectId ? id.parse(input.projectId) : undefined,
+      scopeType: z
+        .enum(['project', 'workspace', 'work_order'])
+        .nullish()
+        .parse(input.scopeType),
+    };
+    if (filter.projectId && filter.scopeType && filter.scopeType !== 'project')
+      throw new BadRequest('A project filter requires project conversations');
+    const cursorScope = fingerprint({
+      actorId,
+      column: column ?? null,
+      projectId: filter.projectId ?? null,
+      scopeType: filter.scopeType ?? null,
+    });
+    if (
+      after &&
+      ((after.scope && after.scope !== cursorScope) ||
+        (!after.scope && (filter.projectId || filter.scopeType)))
+    )
+      throw new BadRequest(
+        'Conversation cursor belongs to another scope; reload the list'
+      );
+    const scopeWhere = this.conversationCardScope(actorId, filter);
+    const columnWhere = this.conversationCardColumn(actorId, column);
     const rows = await this.db.aiSessionWorkState.findMany({
       where: {
-        ownerUserId: actorId,
-        session: { deletedAt: null },
+        AND: [scopeWhere, columnWhere],
         ...(after
           ? {
               OR: [
@@ -1918,19 +1970,16 @@ export class CopilotWorkOrderModel extends BaseModel {
         version: row.version,
       };
     });
-    const filtered = input.column
-      ? projected.filter(item => item.column === input.column)
-      : projected;
     const hasNextPage = rows.length > first;
-    const page = filtered.slice(0, first);
+    const page = projected.slice(0, first);
     const last = rows[Math.min(first, rows.length) - 1];
-    const counts = await this.countColumns(actorId);
+    const counts = await this.countColumns(actorId, scopeWhere);
     return {
       items: page,
       counts,
       pageInfo: {
         hasNextPage,
-        endCursor: hasNextPage && last ? pageCursor(last) : null,
+        endCursor: hasNextPage && last ? pageCursor(last, cursorScope) : null,
       },
     };
   }
@@ -2890,7 +2939,10 @@ export class CopilotWorkOrderModel extends BaseModel {
 
   private async isDispatchReleased(dispatchId: string) {
     const blocked = await this.db.workOrder.count({
-      where: { dispatchId, status: { notIn: ['delivered', 'cancelled'] } },
+      where: {
+        dispatchId,
+        status: { notIn: [...WORK_ORDER_DISPATCH_RELEASED_STATUSES] },
+      },
     });
     return blocked === 0;
   }
@@ -2910,33 +2962,63 @@ export class CopilotWorkOrderModel extends BaseModel {
     return { order, delivery: revision };
   }
 
-  private async countColumns(actorId: string) {
-    const states = await this.db.aiSessionWorkState.findMany({
-      where: { ownerUserId: actorId, session: { deletedAt: null } },
-      select: {
-        completedAt: true,
-        session: {
-          select: {
-            attentions: {
-              where: { actorId, status: 'open' },
-              select: { id: true },
-              take: 1,
-            },
-            workOrderBinding: {
-              select: { workOrder: { select: { status: true } } },
+  private conversationCardScope(
+    actorId: string,
+    filter: {
+      projectId?: string;
+      scopeType?: 'project' | 'workspace' | 'work_order' | null;
+    }
+  ): Prisma.AiSessionWorkStateWhereInput {
+    return {
+      ownerUserId: actorId,
+      session: {
+        deletedAt: null,
+        OR: [
+          { scopeType: { not: 'project' } },
+          {
+            selectedContextProject: {
+              is: { status: 'active', members: { some: { userId: actorId } } },
             },
           },
-        },
+        ],
+        ...(filter.scopeType ? { scopeType: filter.scopeType } : {}),
+        ...(filter.projectId
+          ? { scopeType: 'project', selectedContextProjectId: filter.projectId }
+          : {}),
       },
-    });
-    return states.reduce(
-      (counts, state) => {
-        if (state.session.attentions.length) counts.todo += 1;
-        else if (state.completedAt) counts.done += 1;
-        else counts.progress += 1;
-        return counts;
+    };
+  }
+
+  private conversationCardColumn(
+    actorId: string,
+    column?: 'todo' | 'progress' | 'done'
+  ): Prisma.AiSessionWorkStateWhereInput {
+    if (!column) return {};
+    const attention = { actorId, status: 'open' };
+    return {
+      ...(column === 'progress' ? { completedAt: null } : {}),
+      ...(column === 'done' ? { completedAt: { not: null } } : {}),
+      session: {
+        attentions:
+          column === 'todo' ? { some: attention } : { none: attention },
       },
-      { todo: 0, progress: 0, done: 0 }
+    };
+  }
+
+  private async countColumns(
+    actorId: string,
+    scope: Prisma.AiSessionWorkStateWhereInput = this.conversationCardScope(
+      actorId,
+      {}
+    )
+  ) {
+    const [todo, progress, done] = await Promise.all(
+      (['todo', 'progress', 'done'] as const).map(column =>
+        this.db.aiSessionWorkState.count({
+          where: { AND: [scope, this.conversationCardColumn(actorId, column)] },
+        })
+      )
     );
+    return { todo, progress, done };
   }
 }

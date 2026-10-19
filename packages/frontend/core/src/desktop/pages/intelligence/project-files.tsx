@@ -1,78 +1,34 @@
-import {
-  Button,
-  IconButton,
-  Input,
-  Loading,
-  Menu,
-  MenuItem,
-  Modal,
-  notify,
-  useConfirmModal,
-} from '@affine/component';
-import { NativeFileCreateDialog } from '@affine/core/components/native-files/create-dialog';
-import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
-import { projectEditLeaseStore } from '@affine/core/modules/project-resources/edit-lease-store';
+import { Button, IconButton, Input, Loading, Menu } from '@affine/component';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
-import {
-  type ProjectUploadProgress,
-  uploadProjectBlobWithProgress,
-} from '@affine/core/modules/project-resources/upload';
-import { ProjectUploadQueue } from '@affine/core/modules/project-resources/upload-queue';
-import {
-  changeProjectResourceMutation,
-  createProjectResourceMutation,
-  permanentlyDeleteProjectResourceMutation,
-  type ProjectEditLeaseProofInput,
-  ProjectResourceKind,
-} from '@affine/graphql';
+import { ProjectResourceKind } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
-  ArrowDownSmallIcon,
-  ArrowLeftSmallIcon,
   ArrowRightSmallIcon,
-  ArrowUpSmallIcon,
   DeleteTemporarilyIcon,
-  EditIcon,
-  FolderIcon,
   MoreHorizontalIcon,
-  PageIcon,
   PlusIcon,
-  ResetIcon,
   UploadIcon,
 } from '@blocksuite/icons/rc';
-import { useService } from '@toeverything/infra';
-import { nanoid } from 'nanoid';
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 
+import {
+  CreateMenuItems,
+  type FileAction,
+  type FileChange,
+  FileMenuItems,
+  SelectionToolbar,
+  useProjectFileActions,
+} from './project-browser/file-actions';
 import {
   ProjectFileDropTarget,
   ProjectFolderDropTarget,
 } from './project-file-drop-target';
 import * as styles from './project-files.css';
-import {
-  type ProjectFile,
-  uploadProjectFile,
-  useProjectFolder,
-} from './project-files-data';
-import {
-  ProjectWorkspaceImportPicker,
-  ProjectWorkspaceImportStatus,
-} from './project-workspace-import';
+import { type ProjectFile, useProjectFolder } from './project-files-data';
+import { ProjectResourceIcon } from './project-resource-icon';
+import { ProjectResourceSearch } from './project-resource-search';
 
-type FileAction =
-  | {
-      kind: 'create';
-      parentId: string | null;
-      resourceKind: ProjectResourceKind;
-      name: string;
-      requestKey: string;
-    }
-  | {
-      kind: 'rename' | 'move';
-      file: ProjectFile;
-      name: string;
-      requestKey: string;
-    };
+export { projectFileDeckSource } from './project-browser/file-actions';
 
 type FileTreeProps = {
   projectId: string;
@@ -88,21 +44,15 @@ type BranchProps = FileTreeProps & {
   expanded: Set<string>;
   onToggle: (id: string) => void;
   onAction: (action: FileAction) => void;
-  onChange: (
-    file: ProjectFile,
-    change: {
-      trash?: boolean;
-      parentId?: string | null;
-      beforeId?: string | null;
-    }
-  ) => void;
+  onChange: (file: ProjectFile, change: FileChange) => void;
   onFiles: (files: File[], parentId: string | null) => void;
   onDelete?: (file: ProjectFile) => void;
   selection?: {
     ids: ReadonlySet<string>;
     disabled: boolean;
     limit?: number;
-    toggle: (id: string) => void;
+    includeFolders?: boolean;
+    toggle: (id: string, file?: ProjectFile) => void;
   };
 };
 
@@ -137,10 +87,14 @@ function FileBranch(props: BranchProps) {
           const selectionDisabled =
             props.selection &&
             (props.selection.disabled ||
-              (!folder &&
-                !props.selection.ids.has(file.id) &&
+              (!props.selection.ids.has(file.id) &&
                 props.selection.ids.size >=
                   (props.selection.limit ?? Infinity)));
+          // Folders stay expandable after the selection limit is reached;
+          // only their own checkbox is limited.
+          const openDisabled = folder
+            ? props.selection?.disabled
+            : selectionDisabled;
           return (
             <li key={file.id}>
               <ProjectFileDropTarget
@@ -152,14 +106,15 @@ function FileBranch(props: BranchProps) {
                 onFiles={props.onFiles}
                 readOnly={!!props.selection}
               >
-                {props.selection && !folder ? (
+                {props.selection &&
+                (!folder || props.selection.includeFolders) ? (
                   <input
                     type="checkbox"
                     className={styles.selectionCheckbox}
                     aria-label={file.title}
                     checked={props.selection.ids.has(file.id)}
                     disabled={selectionDisabled}
-                    onChange={() => props.selection?.toggle(file.id)}
+                    onChange={() => props.selection?.toggle(file.id, file)}
                   />
                 ) : null}
                 {folder && !props.trash ? (
@@ -181,18 +136,18 @@ function FileBranch(props: BranchProps) {
                   className={styles.open}
                   type="button"
                   data-project-resource-id={file.id}
-                  disabled={props.trash || selectionDisabled}
+                  disabled={props.trash || openDisabled}
                   aria-current={props.selectedResourceId === file.id}
                   onClick={() =>
                     props.selection
                       ? folder
                         ? props.onToggle(file.id)
-                        : props.selection.toggle(file.id)
+                        : props.selection.toggle(file.id, file)
                       : props.onOpen(file.id)
                   }
-                  aria-disabled={selectionDisabled}
+                  aria-disabled={openDisabled}
                 >
-                  {folder ? <FolderIcon /> : <PageIcon />}
+                  <ProjectResourceIcon kind={file.kind} title={file.title} />
                   <span className={styles.title} title={file.title}>
                     {file.title}
                   </span>
@@ -201,131 +156,15 @@ function FileBranch(props: BranchProps) {
                   <Menu
                     contentOptions={{ align: 'end' }}
                     items={
-                      props.trash ? (
-                        <>
-                          <MenuItem
-                            prefixIcon={<ResetIcon />}
-                            disabled={props.pending.has(file.id)}
-                            onClick={() =>
-                              props.onChange(file, { trash: false })
-                            }
-                          >
-                            {t['com.affine.localmind.project-files.restore']()}
-                          </MenuItem>
-                          <MenuItem
-                            prefixIcon={<DeleteTemporarilyIcon />}
-                            disabled={props.pending.has(file.id)}
-                            onClick={() => props.onDelete?.(file)}
-                          >
-                            {t[
-                              'com.affine.localmind.project-files.permanentlyDelete'
-                            ]()}
-                          </MenuItem>
-                        </>
-                      ) : (
-                        <>
-                          {folder ? (
-                            <>
-                              <MenuItem
-                                prefixIcon={<PageIcon />}
-                                disabled={props.pending.has(file.id)}
-                                onClick={() =>
-                                  props.onAction({
-                                    kind: 'create',
-                                    parentId: file.id,
-                                    resourceKind: ProjectResourceKind.page,
-                                    name: '',
-                                    requestKey: nanoid(),
-                                  })
-                                }
-                              >
-                                {t[
-                                  'com.affine.localmind.project-files.newDocument'
-                                ]()}
-                              </MenuItem>
-                              <MenuItem
-                                prefixIcon={<FolderIcon />}
-                                disabled={props.pending.has(file.id)}
-                                onClick={() =>
-                                  props.onAction({
-                                    kind: 'create',
-                                    parentId: file.id,
-                                    resourceKind: ProjectResourceKind.folder,
-                                    name: '',
-                                    requestKey: nanoid(),
-                                  })
-                                }
-                              >
-                                {t[
-                                  'com.affine.localmind.project-files.newFolder'
-                                ]()}
-                              </MenuItem>
-                            </>
-                          ) : null}
-                          <MenuItem
-                            prefixIcon={<EditIcon />}
-                            disabled={props.pending.has(file.id)}
-                            onClick={() =>
-                              props.onAction({
-                                kind: 'rename',
-                                file,
-                                name: file.title,
-                                requestKey: nanoid(),
-                              })
-                            }
-                          >
-                            {t['com.affine.localmind.project-files.rename']()}
-                          </MenuItem>
-                          <MenuItem
-                            prefixIcon={<FolderIcon />}
-                            disabled={props.pending.has(file.id)}
-                            onClick={() =>
-                              props.onAction({
-                                kind: 'move',
-                                file,
-                                name: file.title,
-                                requestKey: nanoid(),
-                              })
-                            }
-                          >
-                            {t['com.affine.localmind.project-files.move']()}
-                          </MenuItem>
-                          <MenuItem
-                            prefixIcon={<ArrowUpSmallIcon />}
-                            disabled={props.pending.has(file.id) || index === 0}
-                            onClick={() =>
-                              props.onChange(file, {
-                                beforeId: query.items[index - 1].id,
-                              })
-                            }
-                          >
-                            {t['com.affine.localmind.project-files.moveUp']()}
-                          </MenuItem>
-                          <MenuItem
-                            prefixIcon={<ArrowDownSmallIcon />}
-                            disabled={
-                              props.pending.has(file.id) ||
-                              index === query.items.length - 1
-                            }
-                            onClick={() =>
-                              props.onChange(file, {
-                                beforeId: query.items[index + 2]?.id ?? null,
-                              })
-                            }
-                          >
-                            {t['com.affine.localmind.project-files.moveDown']()}
-                          </MenuItem>
-                          <MenuItem
-                            prefixIcon={<DeleteTemporarilyIcon />}
-                            disabled={props.pending.has(file.id)}
-                            onClick={() =>
-                              props.onChange(file, { trash: true })
-                            }
-                          >
-                            {t['com.affine.localmind.project-files.delete']()}
-                          </MenuItem>
-                        </>
-                      )
+                      <FileMenuItems
+                        file={file}
+                        siblings={query.items}
+                        trash={props.trash}
+                        pending={props.pending.has(file.id)}
+                        onAction={props.onAction}
+                        onChange={props.onChange}
+                        onDelete={props.onDelete}
+                      />
                     }
                   >
                     <IconButton
@@ -404,339 +243,34 @@ export function ProjectFileSelectionTree({
       onAction={ignoreTreeAction}
       onChange={ignoreTreeAction}
       onFiles={ignoreTreeAction}
-      selection={{ ids: selected, disabled, limit, toggle: onToggle }}
+      selection={{ ids: selected, disabled, limit, toggle: id => onToggle(id) }}
     />
-  );
-}
-
-function MoveFolderList({
-  projectId,
-  path,
-  excludedId,
-  onEnter,
-}: {
-  projectId: string;
-  path: ProjectFile[];
-  excludedId: string;
-  onEnter: (file: ProjectFile) => void;
-}) {
-  const t = useI18n();
-  const [search, setSearch] = useState('');
-  const query = useProjectFolder({
-    projectId,
-    parentId: path.at(-1)?.id ?? null,
-    search,
-  });
-  return (
-    <>
-      <Input
-        value={search}
-        onChange={setSearch}
-        maxLength={128}
-        placeholder={t['com.affine.localmind.project-files.search']()}
-      />
-      <div className={styles.picker}>
-        {query.isLoading && !query.error ? (
-          <div className={styles.state}>
-            <Loading size={20} />
-          </div>
-        ) : query.error ? (
-          <div className={styles.state} role="alert">
-            <span>{projectErrorMessage(query.error)}</span>
-            <Button
-              loading={query.isValidating}
-              disabled={query.isValidating}
-              onClick={() => void query.retry()}
-            >
-              {t['com.affine.localmind.project-files.retry']()}
-            </Button>
-          </div>
-        ) : (
-          <>
-            {query.items
-              .filter(file => file.kind === ProjectResourceKind.folder)
-              .map(file => (
-                <button
-                  className={styles.open}
-                  type="button"
-                  key={file.id}
-                  disabled={file.id === excludedId}
-                  onClick={() => onEnter(file)}
-                >
-                  <FolderIcon />
-                  <span className={styles.title}>{file.title}</span>
-                  <ArrowRightSmallIcon />
-                </button>
-              ))}
-            {!query.items.length ? (
-              <div className={styles.state}>
-                {t['com.affine.localmind.project-files.empty']()}
-              </div>
-            ) : null}
-            {query.hasMore ? (
-              <Button
-                disabled={query.loadingMore}
-                loading={query.loadingMore}
-                onClick={() => void query.loadMore()}
-              >
-                {t['com.affine.localmind.project-files.more']()}
-              </Button>
-            ) : null}
-          </>
-        )}
-      </div>
-    </>
   );
 }
 
 export function ProjectFiles(props: FileTreeProps) {
   const t = useI18n();
-  const { openConfirmModal } = useConfirmModal();
-  const graphql = useService(GraphQLService);
-  const server = useService(ServerService).server;
   const parentId = props.parentId ?? null;
   const [expanded, setExpanded] = useState(new Set<string>());
   const [trash, setTrash] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [nativeCreateOpen, setNativeCreateOpen] = useState(false);
-  const [importRevision, setImportRevision] = useState(0);
-  const [action, setAction] = useState<FileAction | null>(null);
-  const [path, setPath] = useState<ProjectFile[]>([]);
-  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(
-    new Set()
-  );
-  const pendingRef = useRef(new Set<string>());
-  const actionKey =
-    action?.kind === 'create'
-      ? `create:${action.parentId ?? 'root'}`
-      : action?.file.id;
-  const pending = !!actionKey && pendingKeys.has(actionKey);
-  const [error, setError] = useState<string | null>(null);
-  type Upload = {
-    file: File;
-    requestKey: string;
-    parentId: string | null;
-    status: 'queued' | 'uploading' | 'processing' | 'completed' | 'failed';
-    progress?: ProjectUploadProgress;
-    error?: string;
-  };
-  const [uploads, setUploads] = useState<Upload[]>([]);
-  const uploadQueue = useRef<ProjectUploadQueue<Upload> | null>(null);
-  const uploadRef = useRef<HTMLInputElement>(null);
-
-  const report = (caught: unknown) => {
-    const message = projectErrorMessage(caught);
-    notify.error({ title: message });
-    return message;
-  };
-  const run = async (key: string, operation: () => Promise<void>) => {
-    if (pendingRef.current.has(key)) return;
-    pendingRef.current.add(key);
-    setPendingKeys(new Set(pendingRef.current));
-    setError(null);
-    try {
-      await operation();
-    } catch (caught) {
-      setError(report(caught));
-    } finally {
-      pendingRef.current.delete(key);
-      setPendingKeys(new Set(pendingRef.current));
-    }
-  };
-
-  const submit = () =>
-    run(actionKey ?? 'create', async () => {
-      if (!action) return;
-      if (action.kind === 'create') {
-        const result = await graphql.gql({
-          query: createProjectResourceMutation,
-          variables: {
-            input: {
-              projectId: props.projectId,
-              parentId: action.parentId,
-              kind: action.resourceKind,
-              title: action.name.trim(),
-              markdown: '',
-              requestKey: action.requestKey,
-            },
-          },
-        });
-        if (action.parentId)
-          setExpanded(current =>
-            new Set(current).add(action.parentId as string)
-          );
-        if (result.createProjectResource.kind !== ProjectResourceKind.folder)
-          props.onOpen(result.createProjectResource.id);
-      } else {
-        const change = (editLease?: ProjectEditLeaseProofInput) =>
-          graphql.gql({
-            query: changeProjectResourceMutation,
-            variables: {
-              input: {
-                projectId: props.projectId,
-                resourceId: action.file.id,
-                expectedVersion: action.file.version,
-                requestKey: action.requestKey,
-                editLease,
-                ...(action.kind === 'move'
-                  ? { parentId: path.at(-1)?.id ?? null }
-                  : { title: action.name.trim() }),
-              },
-            },
-          });
-        if (action.kind === 'rename')
-          await projectEditLeaseStore(
-            graphql,
-            props.projectId,
-            action.file.id
-          ).withProof(change);
-        else await change();
-      }
-      setAction(null);
-    });
-
-  const permanentlyDelete = (file: ProjectFile) => {
-    const requestKey = nanoid();
-    openConfirmModal({
-      title: t['com.affine.localmind.project-files.permanentlyDelete'](),
-      description: t[
-        'com.affine.localmind.project-files.permanentlyDeleteConfirm'
-      ]({ title: file.title }),
-      confirmText: t['com.affine.localmind.project-files.permanentlyDelete'](),
-      cancelText: t['Cancel'](),
-      confirmButtonOptions: { variant: 'error' },
-      onConfirm: () =>
-        run(file.id, async () => {
-          await graphql.gql({
-            query: permanentlyDeleteProjectResourceMutation,
-            variables: {
-              input: {
-                projectId: props.projectId,
-                resourceId: file.id,
-                expectedVersion: file.version,
-                requestKey,
-              },
-            },
-          });
-        }),
-    });
-  };
-
-  const selectAction = (next: FileAction) => {
-    setError(null);
-    if (
-      next.kind === 'create' &&
-      next.resourceKind !== ProjectResourceKind.folder
-    ) {
-      void run(`create:${next.parentId ?? 'root'}`, async () => {
-        const result = await graphql.gql({
-          query: createProjectResourceMutation,
-          variables: {
-            input: {
-              projectId: props.projectId,
-              parentId: next.parentId,
-              kind: next.resourceKind,
-              title: t['Untitled'](),
-              markdown: '',
-              requestKey: next.requestKey,
-            },
-          },
-        });
-        props.onOpen(result.createProjectResource.id);
-      }).catch(report);
-    } else {
-      setPath([]);
-      setAction(next);
-    }
-  };
-
-  const changeFile: BranchProps['onChange'] = (file, change) => {
-    void run(file.id, async () => {
-      await graphql.gql({
-        query: changeProjectResourceMutation,
-        variables: {
-          input: {
-            projectId: props.projectId,
-            resourceId: file.id,
-            expectedVersion: file.version,
-            requestKey: nanoid(),
-            ...change,
-          },
-        },
-      });
-    }).catch(report);
-  };
-
-  const upload = async (input: Upload, signal: AbortSignal) => {
-    const update = (patch: Partial<Upload>) => {
-      if (!signal.aborted)
-        setUploads(current =>
-          current.map(item =>
-            item.requestKey === input.requestKey ? { ...item, ...patch } : item
-          )
-        );
-    };
-    update({ status: 'uploading', error: undefined, progress: undefined });
-    try {
-      await uploadProjectFile(graphql, {
-        ...input,
-        projectId: props.projectId,
-        signal,
-        uploadBlob: file =>
-          uploadProjectBlobWithProgress({
-            baseUrl: server.serverMetadata.baseUrl,
-            projectId: props.projectId,
-            file,
-            signal,
-            onProgress: progress => update({ progress }),
-          }),
-        onUploaded: () => update({ status: 'processing' }),
-      });
-      update({ status: 'completed' });
-    } catch (caught) {
-      if (!signal.aborted) update({ status: 'failed', error: report(caught) });
-    }
-  };
-  const enqueueFiles = (files: File[], directoryId: string | null) => {
-    const queue: Upload[] = files.map(file => ({
-      file,
-      parentId: directoryId,
-      requestKey: nanoid(),
-      status: 'queued',
-    }));
-    setUploads(current => [...current, ...queue]);
-    uploadQueue.current?.enqueue(queue);
-  };
-  const executeUpload = useRef(upload);
-  executeUpload.current = upload;
-  const reportUpload = useRef(report);
-  reportUpload.current = report;
-  useEffect(() => {
-    const queue = new ProjectUploadQueue<Upload>(
-      (job, signal) => executeUpload.current(job, signal),
-      (_job, caught) => {
-        reportUpload.current(caught);
-      }
-    );
-    uploadQueue.current = queue;
-    return () => {
-      queue.dispose();
-      uploadQueue.current = null;
-    };
-  }, []);
-
-  const title =
-    action?.kind === 'move'
-      ? t['com.affine.localmind.project-files.move']()
-      : action?.kind === 'rename'
-        ? t['com.affine.localmind.project-files.rename']()
-        : action?.kind === 'create' &&
-            action.resourceKind === ProjectResourceKind.folder
-          ? t['com.affine.localmind.project-files.newFolder']()
-          : action?.kind === 'create' &&
-              action.resourceKind === ProjectResourceKind.edgeless
-            ? t['com.affine.localmind.project-files.newCanvas']()
-            : t['com.affine.localmind.project-files.newDocument']();
+  const [search, setSearch] = useState('');
+  const searchText = useDeferredValue(search.trim());
+  const actions = useProjectFileActions({
+    projectId: props.projectId,
+    parentId,
+    onOpen: props.onOpen,
+    onFolderCreated: id => setExpanded(current => new Set(current).add(id)),
+  });
+  const {
+    selecting,
+    setSelecting,
+    setSelected,
+    selectionIds,
+    toggleSelected,
+    batchPending,
+    pendingKeys,
+    elements,
+  } = actions;
 
   return (
     <section
@@ -751,7 +285,7 @@ export function ProjectFiles(props: FileTreeProps) {
       onDrop={event => {
         if (!trash && event.dataTransfer.files.length) {
           event.preventDefault();
-          enqueueFiles(Array.from(event.dataTransfer.files), parentId);
+          actions.enqueueFiles(Array.from(event.dataTransfer.files), parentId);
         }
       }}
     >
@@ -767,7 +301,13 @@ export function ProjectFiles(props: FileTreeProps) {
           tooltip={t['com.affine.localmind.project-files.trash']()}
           aria-label={t['com.affine.localmind.project-files.trash']()}
           aria-pressed={trash}
-          onClick={() => setTrash(value => !value)}
+          onClick={() => {
+            setTrash(value => !value);
+            setSearch('');
+            setSelecting(false);
+            setSelected(new Map());
+          }}
+          disabled={batchPending}
         />
         <IconButton
           size="16"
@@ -775,253 +315,111 @@ export function ProjectFiles(props: FileTreeProps) {
           tooltip={t['com.affine.localmind.project-files.upload']()}
           aria-label={t['com.affine.localmind.project-files.upload']()}
           disabled={trash}
-          onClick={() => uploadRef.current?.click()}
+          onClick={actions.openUpload}
         />
-        <Menu
-          items={
-            <>
-              <MenuItem
-                prefixIcon={<PageIcon />}
-                onClick={() => setNativeCreateOpen(true)}
-              >
-                {t['com.affine.localmind.native-files.newFile']()}
-              </MenuItem>
-              {[
-                [
-                  ProjectResourceKind.page,
-                  t['com.affine.localmind.project-files.newDocument'](),
-                ],
-                [
-                  ProjectResourceKind.edgeless,
-                  t['com.affine.localmind.project-files.newCanvas'](),
-                ],
-                [
-                  ProjectResourceKind.folder,
-                  t['com.affine.localmind.project-files.newFolder'](),
-                ],
-              ].map(([kind, label]) => (
-                <MenuItem
-                  key={kind}
-                  prefixIcon={
-                    kind === ProjectResourceKind.folder ? (
-                      <FolderIcon />
-                    ) : (
-                      <PageIcon />
-                    )
-                  }
-                  onClick={() => {
-                    selectAction({
-                      kind: 'create',
-                      parentId,
-                      resourceKind: kind as ProjectResourceKind,
-                      name: '',
-                      requestKey: nanoid(),
-                    });
-                  }}
-                >
-                  {label}
-                </MenuItem>
-              ))}
-            </>
-          }
-        >
+        <Menu items={<CreateMenuItems actions={actions} />}>
           <IconButton
             size="16"
             icon={<PlusIcon />}
             tooltip={t['com.affine.localmind.project-files.create']()}
             aria-label={t['com.affine.localmind.project-files.create']()}
-            disabled={pendingKeys.has(`create:${parentId ?? 'root'}`) || trash}
+            disabled={actions.createPending || trash}
           />
         </Menu>
-        <Button disabled={trash} onClick={() => setImportOpen(true)}>
+        <Button disabled={trash} onClick={actions.openImport}>
           {t['com.affine.localmind.workspace-import.title']()}
         </Button>
-        <input
-          className={styles.hidden}
-          ref={uploadRef}
-          type="file"
-          multiple
-          onChange={event => {
-            const files = Array.from(event.target.files ?? []);
-            event.target.value = '';
-            enqueueFiles(files, parentId);
+        <Button
+          aria-pressed={selecting}
+          disabled={trash || batchPending}
+          onClick={() => {
+            setSelecting(value => !value);
+            setSelected(new Map());
+            actions.setBatchMessage(null);
           }}
-        />
+        >
+          {selecting
+            ? t['Done']()
+            : t['com.affine.localmind.workbench.fusion.selectResources']()}
+        </Button>
+        {elements.uploadInput}
       </div>
       {!trash ? (
-        <ProjectWorkspaceImportStatus
-          key={`${props.projectId}:${parentId}`}
-          projectId={props.projectId}
-          parentId={parentId}
-          revision={importRevision}
-          onOpen={props.onOpen}
-        />
-      ) : null}
-      {importOpen ? (
-        <ProjectWorkspaceImportPicker
-          projectId={props.projectId}
-          parentId={parentId}
-          onClose={() => setImportOpen(false)}
-          onSubmitted={() => setImportRevision(value => value + 1)}
-        />
-      ) : null}
-      {error && !action ? (
-        <div className={styles.state} role="alert">
-          <span>{error}</span>
+        <div className={styles.searchToolbar}>
+          <Input
+            value={search}
+            maxLength={128}
+            aria-label={t['com.affine.localmind.workbench.fusion.fileSearch']()}
+            placeholder={t[
+              'com.affine.localmind.workbench.fusion.fileSearch'
+            ]()}
+            onChange={setSearch}
+          />
         </div>
       ) : null}
-      {uploads.length ? (
-        <ul className={styles.uploads} aria-live="polite">
-          {uploads.map(item => (
-            <li key={item.requestKey} className={styles.uploadRow}>
-              <span className={styles.title}>{item.file.name}</span>
-              <span>
-                {t[
-                  `com.affine.localmind.project-files.upload.${item.status}`
-                ]()}
-              </span>
-              {item.status === 'uploading' ? (
-                <progress
-                  aria-label={item.file.name}
-                  max={item.progress?.total ?? 1}
-                  value={item.progress?.loaded}
-                />
-              ) : null}
-              {item.status === 'failed' ? (
-                <Button onClick={() => uploadQueue.current?.enqueue([item])}>
-                  {t['com.affine.localmind.project-files.retry']()}
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <ProjectFolderDropTarget
-        projectId={props.projectId}
-        parentId={parentId}
-        trash={trash}
-        onMove={changeFile}
-      >
-        <FileBranch
-          {...props}
-          key={`${props.projectId}:${trash}`}
-          parentId={trash ? null : parentId}
-          trash={trash}
-          pending={pendingKeys}
-          onFiles={enqueueFiles}
-          onDelete={permanentlyDelete}
-          expanded={expanded}
-          onToggle={id =>
-            setExpanded(current => {
-              const next = new Set(current);
-              if (!next.delete(id)) next.add(id);
-              return next;
-            })
+      {selecting ? <SelectionToolbar actions={actions} /> : null}
+      {elements.batchMessage}
+      {!trash ? elements.importStatus : null}
+      {elements.importPicker}
+      {elements.errorAlert}
+      {elements.uploadList}
+      {searchText && !trash ? (
+        <ProjectResourceSearch
+          key={props.projectId + ':' + searchText}
+          projectId={props.projectId}
+          query={searchText}
+          onOpen={props.onOpen}
+          selection={
+            selecting
+              ? {
+                  ids: selectionIds,
+                  disabled: batchPending,
+                  toggle: toggleSelected,
+                }
+              : undefined
           }
-          onAction={selectAction}
-          onChange={changeFile}
         />
-      </ProjectFolderDropTarget>
-      {nativeCreateOpen && (
-        <NativeFileCreateDialog
-          owner={{ projectId: props.projectId }}
+      ) : (
+        <ProjectFolderDropTarget
+          projectId={props.projectId}
           parentId={parentId}
-          onClose={() => setNativeCreateOpen(false)}
-          onCreated={id => props.onOpen(id)}
-        />
+          trash={trash}
+          onMove={actions.changeFile}
+        >
+          <FileBranch
+            {...props}
+            key={`${props.projectId}:${trash}`}
+            parentId={trash ? null : parentId}
+            trash={trash}
+            pending={pendingKeys}
+            onFiles={actions.enqueueFiles}
+            onDelete={actions.permanentlyDelete}
+            expanded={expanded}
+            onToggle={id =>
+              setExpanded(current => {
+                const next = new Set(current);
+                if (!next.delete(id)) next.add(id);
+                return next;
+              })
+            }
+            onAction={actions.selectAction}
+            onChange={actions.changeFile}
+            selection={
+              selecting
+                ? {
+                    ids: selectionIds,
+                    disabled: batchPending,
+                    limit: 50,
+                    includeFolders: true,
+                    toggle: toggleSelected,
+                  }
+                : undefined
+            }
+          />
+        </ProjectFolderDropTarget>
       )}
-      <Modal
-        open={!!action}
-        title={title}
-        onOpenChange={open => {
-          if (!open && !pending) setAction(null);
-        }}
-      >
-        {action ? (
-          <form
-            className={styles.form}
-            onSubmit={event => {
-              event.preventDefault();
-              void submit().catch(report);
-            }}
-          >
-            {action.kind === 'move' ? (
-              <>
-                <nav
-                  className={styles.breadcrumbs}
-                  aria-label={t['com.affine.localmind.project-files.move']()}
-                >
-                  <IconButton
-                    size="16"
-                    icon={<ArrowLeftSmallIcon />}
-                    disabled={!path.length || pending}
-                    tooltip={t['com.affine.localmind.project-files.back']()}
-                    aria-label={t['com.affine.localmind.project-files.back']()}
-                    onClick={() => setPath(current => current.slice(0, -1))}
-                  />
-                  <Button disabled={pending} onClick={() => setPath([])}>
-                    {t['com.affine.localmind.project-files.root']()}
-                  </Button>
-                  {path.map((file, index) => (
-                    <Button
-                      key={file.id}
-                      disabled={pending}
-                      onClick={() =>
-                        setPath(current => current.slice(0, index + 1))
-                      }
-                    >
-                      {file.title}
-                    </Button>
-                  ))}
-                </nav>
-                <MoveFolderList
-                  key={path.at(-1)?.id ?? 'root'}
-                  projectId={props.projectId}
-                  path={path}
-                  excludedId={action.file.id}
-                  onEnter={file => {
-                    if (!pending) setPath(current => [...current, file]);
-                  }}
-                />
-              </>
-            ) : (
-              <Input
-                autoFocus
-                autoSelect
-                aria-label={t['com.affine.localmind.project-files.name']()}
-                value={action.name}
-                maxLength={512}
-                disabled={pending}
-                onChange={name =>
-                  setAction(current =>
-                    current ? { ...current, name, requestKey: nanoid() } : null
-                  )
-                }
-              />
-            )}
-            {error ? <div role="alert">{error}</div> : null}
-            <div className={styles.actions}>
-              <Button disabled={pending} onClick={() => setAction(null)}>
-                {t['com.affine.localmind.project-files.cancel']()}
-              </Button>
-              <Button
-                variant="primary"
-                loading={pending}
-                disabled={
-                  pending || (!action.name.trim() && action.kind !== 'move')
-                }
-                onClick={() => void submit().catch(report)}
-              >
-                {action.kind === 'move'
-                  ? t['com.affine.localmind.project-files.moveHere']()
-                  : action.kind === 'rename'
-                    ? t['com.affine.localmind.project-files.save']()
-                    : t['com.affine.localmind.project-files.create']()}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </Modal>
+      {elements.nativeCreate}
+      {elements.modal}
     </section>
   );
 }

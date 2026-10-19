@@ -1,0 +1,11 @@
+mutation undoCopilotProjectContextMemoryEvent($projectId: String!, $eventId: ID!) {
+  undoCopilotProjectContextMemoryEvent(projectId: $projectId, eventId: $eventId) {
+    id
+    operation
+    memoryId
+    previousMemoryId
+    undoneAt
+    canUndo
+    createdAt
+  }
+}

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { CopilotByokNotConfigured } from '../../../base';
+import type { ReportDesignLease } from '../../../models/report-deck-design';
 import { ByokService } from '../byok/service';
 import type { ByokFeatureKind } from '../byok/types';
 import type { CopilotProviderProfile } from '../config';
@@ -8,6 +9,7 @@ import { ConversationPolicy } from '../conversation/policy';
 import { getByokSourceCoverage } from './feature-coverage';
 
 export type CopilotAccessContext = {
+  reportImageInput?: ReportDesignLease;
   sessionId?: string;
   projectId?: string;
   userId?: string;

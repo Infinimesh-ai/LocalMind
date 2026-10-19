@@ -31,7 +31,8 @@ export function useCollaborationGraphCamera(
   width: number,
   height: number,
   contentWidth: number,
-  contentHeight: number
+  contentHeight: number,
+  wheelBehavior: 'pan' | 'zoom' = 'pan'
 ) {
   const host = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, Pointer>());
@@ -111,7 +112,7 @@ export function useCollaborationGraphCamera(
       event.preventDefault();
       const unit =
         event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height : 1;
-      if (event.ctrlKey || event.metaKey) {
+      if (wheelBehavior === 'zoom' || event.ctrlKey || event.metaKey) {
         // Never anchor to the pointer: zoom changes only scale around the viewport centre.
         zoomBy(
           Math.exp(-Math.max(-200, Math.min(200, event.deltaY * unit)) * 0.004)
@@ -125,7 +126,7 @@ export function useCollaborationGraphCamera(
     };
     element.addEventListener('wheel', wheel, { passive: false });
     return () => element.removeEventListener('wheel', wheel);
-  }, [height, pan, zoomBy]);
+  }, [height, pan, wheelBehavior, zoomBy]);
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {

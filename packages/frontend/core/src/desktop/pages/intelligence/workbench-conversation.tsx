@@ -1,5 +1,6 @@
 import { Button, notify, useConfirmModal } from '@affine/component';
 import {
+  type AIChatContextItem,
   AIChatRuntime,
   createAIRequestService,
   ProjectAIChatSessionStrategy,
@@ -42,9 +43,20 @@ import {
   prepareWorkOrderDispatchMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import type { OfficeAiContext } from '@localmind/office';
+import type {
+  OfficeAiContext,
+  ProjectReportAiContext,
+} from '@localmind/office';
 import { useFramework, useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { assignInlineVars } from '@vanilla-extract/dynamic';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { useProjectChatConfig } from './project-chat-config';
 import { ProjectFilePicker } from './project-file-picker';
@@ -82,6 +94,7 @@ type WorkbenchConversationProps = {
   onOpenResource: (resourceId: string) => void;
   onConfirmBlockerSuggestion?: (suggestion: BlockerSuggestion) => Promise<void>;
   officeContext?: OfficeAiContext;
+  reportContext?: ProjectReportAiContext;
   selectedSessionId?: string;
   selectedCard?: WorkbenchConversationCard;
   onCompleteConversation?: (card: WorkbenchConversationCard) => Promise<void>;
@@ -91,13 +104,20 @@ type WorkbenchConversationProps = {
   onSessionCreated?: (sessionId: string) => Promise<unknown> | unknown;
   onPinChanged?: () => void;
   onContextPanelChange?: (state: WorkbenchContextPanelState | null) => void;
+  /** Extra controls in the title card, e.g. the work order panel toggle. */
+  headerActions?: ReactNode;
+  /** Shown under the title card, e.g. AI execution progress. */
+  banner?: ReactNode;
 };
 
 export type WorkbenchContextPanelState = {
   resourceIds: string[];
+  items?: AIChatContextItem[];
+  error?: Error | null;
   loading: boolean;
   openPicker: () => void;
   referenceResource: (resourceId: string) => Promise<void>;
+  refresh?: () => Promise<void>;
 };
 
 const useAIRequestService = () => {
@@ -121,6 +141,7 @@ export const WorkbenchConversation = ({
   onOpenResource,
   onConfirmBlockerSuggestion,
   officeContext,
+  reportContext,
   selectedSessionId,
   selectedCard,
   onCompleteConversation,
@@ -130,6 +151,8 @@ export const WorkbenchConversation = ({
   onSessionCreated,
   onPinChanged,
   onContextPanelChange,
+  headerActions,
+  banner,
 }: WorkbenchConversationProps) => {
   const t = useI18n();
   const framework = useFramework();
@@ -450,15 +473,21 @@ export const WorkbenchConversation = ({
   const contextPanelState = useMemo<WorkbenchContextPanelState>(
     () => ({
       resourceIds: contextResourceIds,
+      items: snapshot?.composer.context.items ?? [],
+      error: snapshot?.composer.context.error,
       loading: snapshot?.composer.context.loading ?? false,
       openPicker: openDocuments,
       referenceResource,
+      refresh: () => runtime.dispatch({ type: 'refreshProjectContext' }),
     }),
     [
       contextResourceIds,
       openDocuments,
       referenceResource,
       snapshot?.composer.context.loading,
+      snapshot?.composer.context.items,
+      snapshot?.composer.context.error,
+      runtime,
     ]
   );
   useEffect(() => {
@@ -516,6 +545,7 @@ export const WorkbenchConversation = ({
       content.runtimeSnapshot = snapshot;
       content.workspaceId = undefined;
       content.officeContext = officeContext;
+      content.reportContext = reportContext;
       content.extensions = specs;
       content.docDisplayConfig = docDisplayConfig;
       content.searchMenuConfig = searchMenuConfig;
@@ -572,16 +602,32 @@ export const WorkbenchConversation = ({
       className={styles.root}
       aria-label={t['com.affine.localmind.workbench.conversation']()}
       data-testid="workbench-conversation"
+      style={assignInlineVars({
+        [styles.youLabelVar]: JSON.stringify(
+          t['com.affine.localmind.workbench.orbit.you']()
+        ),
+      })}
     >
       <header className={styles.header}>
         <div className={styles.conversationIdentity}>
-          <strong>
+          <strong title={activeSession?.title ?? undefined}>
             {activeSession?.title ||
               t['com.affine.localmind.workbench.v9.newConversation']()}
           </strong>
           <span>{selectedProjectName}</span>
         </div>
         <div className={styles.tools}>
+          {selectedCard ? (
+            <span className={styles.status} data-column={selectedCard.column}>
+              {t[
+                selectedCard.column === 'todo'
+                  ? 'com.affine.localmind.workbench.v9.todo'
+                  : selectedCard.column === 'done'
+                    ? 'com.affine.localmind.workbench.v9.done'
+                    : 'com.affine.localmind.workbench.v9.progress'
+              ]()}
+            </span>
+          ) : null}
           {selectedCard &&
           selectedCard.column !== 'done' &&
           selectedCard.scopeType !== 'work_order' &&
@@ -590,9 +636,11 @@ export const WorkbenchConversation = ({
               {t['com.affine.localmind.workbench.v9.markComplete']()}
             </Button>
           ) : null}
+          {headerActions}
           <div ref={setToolbarContainer} />
         </div>
       </header>
+      {banner ? <div className={styles.banner}>{banner}</div> : null}
       {configuration === 'missing' || configuration === 'error' ? (
         <div role="status" className={styles.configuration}>
           <span>

@@ -48,14 +48,14 @@ export class DocEventsListener {
     // update doc content to database
     try {
       if (isDoc) {
-        const content = this.docReader.parseDocContent(blob);
+        const content = await this.docReader.parseDocContent(blob);
         if (!content) {
           return;
         }
         await this.models.doc.upsertMeta(workspaceId, docId, content);
       } else {
         // update workspace content to database
-        const content = this.docReader.parseWorkspaceContent(blob);
+        const content = await this.docReader.parseWorkspaceContent(blob);
         if (!content) {
           return;
         }

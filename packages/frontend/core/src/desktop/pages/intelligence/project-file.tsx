@@ -183,7 +183,9 @@ export function ProjectFile({
     }
   };
   useProjectEditGuard({
-    hasUnsavedChanges: dirty,
+    get hasUnsavedChanges() {
+      return dirtyRef.current;
+    },
     save,
     discard: async () => {
       if (savingRef.current) throw new Error('Wait for the current save');

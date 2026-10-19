@@ -6,6 +6,7 @@ import {
   type DeltaInsert,
   Text,
 } from '@blocksuite/affine/store';
+import { isEqual } from 'lodash-es';
 
 import type { DocsService } from '../modules/doc';
 import type { Workspace } from '../modules/workspace';
@@ -180,6 +181,13 @@ function getTextModels(blockSuiteDoc: {
   );
 }
 
+function textReplacement(model: TextBlockModel) {
+  const text = model.props.text;
+  return textReplacements.find(
+    ({ from, to }) => text.toString() === from && !isEqual(text.toDelta(), to)
+  );
+}
+
 function hasLegacyContent(
   textModels: TextBlockModel[],
   imageModels: GenericBlockModel[],
@@ -187,9 +195,7 @@ function hasLegacyContent(
   bookmarkModels: GenericBlockModel[]
 ) {
   return (
-    textModels.some(model =>
-      textReplacements.some(({ from }) => model.props.text.toString() === from)
-    ) ||
+    textModels.some(model => textReplacement(model)) ||
     textModels.some(model =>
       model.props.text
         .toDelta()
@@ -228,7 +234,22 @@ async function loadLocalMindLogo(workspace: Workspace) {
   return { sourceId, size: file.size };
 }
 
-export async function migrateLegacyShowcaseWorkspace(
+const pendingMigrations = new WeakMap<Workspace, Promise<boolean>>();
+
+export function migrateLegacyShowcaseWorkspace(
+  workspace: Workspace,
+  docsService: DocsService
+) {
+  const pending = pendingMigrations.get(workspace);
+  if (pending) return pending;
+  const migration = migrateShowcaseDocuments(workspace, docsService).finally(
+    () => pendingMigrations.delete(workspace)
+  );
+  pendingMigrations.set(workspace, migration);
+  return migration;
+}
+
+async function migrateShowcaseDocuments(
   workspace: Workspace,
   docsService: DocsService
 ) {
@@ -284,10 +305,7 @@ export async function migrateLegacyShowcaseWorkspace(
 
       blockSuiteDoc.transact(() => {
         for (const model of textModels) {
-          const currentText = model.props.text.toString();
-          const replacement = textReplacements.find(
-            ({ from }) => from === currentText
-          );
+          const replacement = textReplacement(model);
           if (replacement) {
             blockSuiteDoc.updateBlock(model, {
               text: new Text(replacement.to),

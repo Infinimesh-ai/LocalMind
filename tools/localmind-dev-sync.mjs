@@ -1,15 +1,17 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  copyFile,
   mkdtemp,
   readdir,
   readFile,
+  rename,
   rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,11 +21,17 @@ const target = process.argv[2] || 'backend';
 const runtimeSource = process.env.LOCALMIND_RUNTIME_SOURCE_CONTAINER;
 const backupPath = process.env.LOCALMIND_DATABASE_BACKUP;
 const runtimeStatePath = '/app/localmind-dev-sync-state.json';
+const runtimeMode = process.env.LOCALMIND_RUNTIME_MODE || 'bundled';
+const migrationContainer = process.env.LOCALMIND_RUNTIME_MIGRATION_CONTAINER;
 
 if (!['backend', 'web', 'all'].includes(target)) {
   console.error('Usage: node tools/localmind-dev-sync.mjs [backend|web|all]');
   process.exit(2);
 }
+if (!['bundled', 'source'].includes(runtimeMode))
+  throw new Error('LOCALMIND_RUNTIME_MODE must be bundled or source');
+if (runtimeMode === 'source' && target !== 'backend')
+  throw new Error('Source runtime synchronization only supports backend');
 
 async function run(command, args, capture = false) {
   return await new Promise((resolveRun, rejectRun) => {
@@ -62,6 +70,12 @@ async function runtimeInputs() {
     await run('git', ['ls-files', '-c', '-o', '--exclude-standard'], true)
   )
     .split('\n')
+    .filter(
+      path =>
+        !path.startsWith('.codex-artifacts/') &&
+        !path.startsWith('backups/') &&
+        !path.startsWith('.docker/')
+    )
     .filter(
       path =>
         path.endsWith('.rs') ||
@@ -156,8 +170,9 @@ async function prepareRuntimeSync() {
       `${temporary}/client`,
     ]);
     const generatedSchema = await readFile(`${temporary}/client/schema.prisma`);
-    // Prisma formats the schema embedded in its generated client. Compare tokens
-    // while preserving quoted values; formatting alone is not schema drift.
+    // Prisma also moves fields placed after block attributes when generating
+    // its embedded schema. Canonicalize a temporary source copy with the pinned
+    // formatter, preserving quoted values instead of treating that as drift.
     const schemaTokens = value =>
       value
         .toString()
@@ -166,7 +181,18 @@ async function prepareRuntimeSync() {
     const sourceSchema = await readFile(
       resolve(repoRoot, 'packages/backend/server/schema.prisma')
     );
-    if (schemaTokens(generatedSchema) !== schemaTokens(sourceSchema))
+    const canonicalSchemaPath = `${temporary}/source.prisma`;
+    await writeFile(canonicalSchemaPath, sourceSchema);
+    await run(process.execPath, [
+      resolve(repoRoot, 'node_modules/prisma/build/index.js'),
+      'format',
+      '--schema',
+      canonicalSchemaPath,
+    ]);
+    if (
+      schemaTokens(generatedSchema) !==
+      schemaTokens(await readFile(canonicalSchemaPath))
+    )
       throw new Error('Validated Prisma Client is stale');
     await run('docker', [
       'cp',
@@ -260,6 +286,174 @@ async function syncBackend() {
   }
 }
 
+async function syncSourceBackend() {
+  if (
+    !runtimeSource ||
+    !backupPath ||
+    !migrationContainer ||
+    migrationContainer === container
+  )
+    throw new Error(
+      'Source runtime synchronization requires a validated Linux source, database backup and separate migration container'
+    );
+  const inspected = JSON.parse(
+    await run('docker', ['inspect', container], true)
+  )[0];
+  const composeFiles =
+    inspected.Config.Labels?.['com.docker.compose.project.config_files']?.split(
+      ','
+    );
+  const composeService =
+    inspected.Config.Labels?.['com.docker.compose.service'];
+  const composeProject =
+    inspected.Config.Labels?.['com.docker.compose.project'];
+  if (!composeFiles?.length || !composeService || !composeProject)
+    throw new Error(
+      'Source runtime synchronization requires a Compose-managed service'
+    );
+  for (const file of composeFiles) {
+    const path = relative(repoRoot, file);
+    if (
+      !path ||
+      path.startsWith('..') ||
+      path.startsWith('/') ||
+      !(await stat(file)).isFile()
+    )
+      throw new Error(
+        'Source runtime Compose files must belong to this repository'
+      );
+  }
+  const nativeMount = inspected.Mounts.find(
+    mount =>
+      mount.Type === 'bind' &&
+      mount.Destination ===
+        '/workspace/packages/backend/native/server-native.node'
+  );
+  const nativePath = nativeMount?.Source;
+  const nativeRelative = nativePath && relative(repoRoot, nativePath);
+  if (
+    !nativePath ||
+    !nativeRelative ||
+    nativeRelative.startsWith('..') ||
+    nativeRelative.startsWith('/')
+  )
+    throw new Error(
+      'Source runtime native addon must be bound from this repository'
+    );
+  const databaseEnvironment = inspected.Config.Env.find(value =>
+    value.startsWith('DATABASE_URL=')
+  );
+  if (!databaseEnvironment)
+    throw new Error('Source runtime database configuration is unavailable');
+  const migrationInfo = JSON.parse(
+    await run('docker', ['inspect', migrationContainer], true)
+  )[0];
+  if (
+    !Object.keys(inspected.NetworkSettings.Networks).some(
+      network => network in migrationInfo.NetworkSettings.Networks
+    )
+  )
+    throw new Error(
+      'Migration container must share the runtime database network'
+    );
+  const databaseIdentity = `const {PrismaClient}=require('/workspace/node_modules/@prisma/client'); const db=new PrismaClient(); db.$queryRawUnsafe('SELECT current_database() AS database, pg_postmaster_start_time() AS started_at').then(rows=>console.log(JSON.stringify(rows))).finally(()=>db.$disconnect());`;
+  const currentDatabase = await run(
+    'docker',
+    ['exec', container, 'node', '-e', databaseIdentity],
+    true
+  );
+  const migrationDatabase = await run(
+    'docker',
+    [
+      'exec',
+      '-e',
+      databaseEnvironment,
+      migrationContainer,
+      'node',
+      '-e',
+      databaseIdentity,
+    ],
+    true
+  );
+  if (currentDatabase !== migrationDatabase)
+    throw new Error('Migration container resolved a different database');
+  const currentSchemaHash = createHash('sha256')
+    .update(
+      await readFile(resolve(repoRoot, 'packages/backend/server/schema.prisma'))
+    )
+    .digest('hex');
+  const migrationSchemaHash = await run(
+    'docker',
+    [
+      'exec',
+      migrationContainer,
+      'node',
+      '-e',
+      `console.log(require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync('/workspace/packages/backend/server/schema.prisma')).digest('hex'))`,
+    ],
+    true
+  );
+  if (currentSchemaHash !== migrationSchemaHash)
+    throw new Error('Migration container source schema differs');
+  const runtime = await prepareRuntimeSync();
+  if (!runtime)
+    throw new Error('Validated source runtime artifacts are unavailable');
+  let stopped = false;
+  try {
+    // Quiesce every worker before changing schema/client/native together.
+    await run('docker', ['stop', container]);
+    stopped = true;
+    // Credentials stay in this process and the short-lived migration process;
+    // they are never written to files, logs or the source container configuration.
+    await run('docker', [
+      'exec',
+      '-w',
+      '/workspace/packages/backend/server',
+      '-e',
+      databaseEnvironment,
+      migrationContainer,
+      '/workspace/node_modules/.bin/prisma',
+      'migrate',
+      'deploy',
+    ]);
+    await run('docker', [
+      'cp',
+      `${runtime}/client/.`,
+      `${container}:/workspace/node_modules/.prisma/client`,
+    ]);
+    // Replace on the host while the container is stopped. A file bind mount must
+    // be rebound at startup; renaming its mounted destination would fail EBUSY.
+    const nextNative = `${nativePath}.next`;
+    await copyFile(`${runtime}/server-native.node`, nextNative);
+    await rename(nextNative, nativePath);
+    await copyFile(
+      `${runtime}/state.json`,
+      resolve(dirname(nativePath), 'localmind-dev-sync-state.json')
+    );
+    await run('docker', [
+      'compose',
+      ...composeFiles.flatMap(file => ['-f', file]),
+      '-p',
+      composeProject,
+      'up',
+      '-d',
+      '--no-deps',
+      '--no-build',
+      '--force-recreate',
+      composeService,
+    ]);
+    stopped = false;
+  } catch (error) {
+    if (stopped)
+      console.error(
+        'Source runtime remains stopped after an incomplete synchronization; preserve the backup and retry.'
+      );
+    throw error;
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+}
+
 async function syncWeb() {
   process.env.LOCALMIND_WORKER_BUILD_ID = Date.now().toString(36);
   await run('yarn', ['affine', 'bundle', '-p', '@affine/web']);
@@ -293,7 +487,13 @@ async function waitUntilReady() {
         signal: AbortSignal.timeout(2_000),
       });
       if (response.status < 500) {
-        return;
+        const api = await fetch(`${localUrl}/graphql`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: '{ __typename }' }),
+          signal: AbortSignal.timeout(2_000),
+        });
+        if (api.ok && (await api.json()).data?.__typename === 'Query') return;
       }
     } catch {
       // The server is still restarting.
@@ -335,13 +535,14 @@ async function verifyWebEntrypoint() {
 await assertContainerIsRunning();
 
 if (target === 'backend' || target === 'all') {
-  await syncBackend();
+  if (runtimeMode === 'source') await syncSourceBackend();
+  else await syncBackend();
 }
 if (target === 'web' || target === 'all') {
   await syncWeb();
 }
 
-await run('docker', ['restart', container]);
+if (runtimeMode !== 'source') await run('docker', ['restart', container]);
 await waitUntilReady();
 if (target === 'web' || target === 'all') {
   await verifyWebEntrypoint();

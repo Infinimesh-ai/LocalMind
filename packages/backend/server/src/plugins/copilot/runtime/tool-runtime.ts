@@ -30,6 +30,7 @@ import { ExternalMcpToolRegistry } from '../external-mcp';
 import { McpAttachmentService } from '../mcp/attachments';
 import { OfficeAgentCommandService } from '../office-agent-command';
 import { ProjectOfficeAgentCommandService } from '../project-office-agent-command';
+import { ProjectReportToolHost } from '../project-report-tool-host';
 import {
   type CopilotChatOptions,
   type CopilotChatTools,
@@ -77,6 +78,7 @@ import {
   PROJECT_NATIVE_TOOL_NAMES,
 } from '../tools/project-doc';
 import { createProjectFileRequestTools } from '../tools/project-file-request';
+import { createProjectReportTools } from '../tools/project-report';
 import { createWorkOrderDraftTools } from '../tools/work-order';
 import { createWorkOrderFileTool } from '../tools/work-order-file-create';
 import { createWorkspaceNativeTools } from '../tools/workspace-native';
@@ -163,7 +165,8 @@ export class ToolRuntime {
     @Optional() private readonly workOrderStorage?: WorkOrderStorage,
     @Optional()
     private readonly workspaceNativeResources?: WorkspaceNativeResourceService,
-    @Optional() private readonly pageTree?: WorkspacePageTreeService
+    @Optional() private readonly pageTree?: WorkspacePageTreeService,
+    @Optional() private readonly projectReports?: ProjectReportToolHost
   ) {}
 
   async getTools(
@@ -306,7 +309,7 @@ export class ToolRuntime {
       )
         continue;
       const toolDef =
-        selectedProjectId || tool === 'blocker'
+        selectedProjectId || tool === 'blocker' || tool === 'report'
           ? undefined
           : resolveProviderSpecificTool?.(tool, model);
       if (toolDef) {
@@ -599,6 +602,37 @@ export class ToolRuntime {
               })
             );
           }
+          break;
+        }
+        case 'report': {
+          if (
+            !nativeProjectId ||
+            !this.projectReports ||
+            !this.projectReports.enabled()
+          )
+            break;
+          if (
+            options.reportContext &&
+            options.reportContext.projectId !== nativeProjectId
+          )
+            throw new Error('Report context belongs to another Project.');
+          Object.assign(
+            tools,
+            Object.fromEntries(
+              Object.entries(
+                createProjectReportTools(
+                  this.models,
+                  this.projectReports,
+                  options,
+                  nativeProjectId,
+                  options.reportContext
+                )
+              ).filter(
+                ([, tool]) =>
+                  documentWriteToolsEnabled || tool.sideEffectType === 'read'
+              )
+            )
+          );
           break;
         }
         case 'enterprise': {

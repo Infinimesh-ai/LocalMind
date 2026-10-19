@@ -87,6 +87,11 @@ vi.mock('@affine/i18n', () => ({
     ),
 }));
 
+const flags = vi.hoisted(() => ({ legacyReports: false }));
+vi.mock('@affine/core/components/report-deck-entry', () => ({
+  useLegacyProjectReportsEnabled: () => flags.legacyReports,
+}));
+
 vi.mock('@blocksuite/icons/rc', () => ({
   AiIcon: () => <svg />,
   DeleteTemporarilyIcon: () => <svg />,
@@ -96,12 +101,16 @@ vi.mock('@blocksuite/icons/rc', () => ({
   PageIcon: () => <svg />,
   PinedIcon: () => <svg />,
   PlusIcon: () => <svg />,
+  PresentationIcon: () => <svg />,
 }));
 
 import { ProjectTree } from './project-tree';
 import type { WorkbenchConversationCard, WorkbenchProject } from './types';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  flags.legacyReports = false;
+});
 
 const project: WorkbenchProject = {
   id: 'project-1',
@@ -173,6 +182,72 @@ describe('ProjectTree', () => {
     expect(
       screen.getByRole('button', { name: 'Conversation one' })
     ).not.toBeNull();
+  });
+
+  test('opens project reports without toggling the project row', () => {
+    const onOpenReports = vi.fn();
+    const onSelectProject = vi.fn();
+    const containerClick = vi.fn();
+    render(
+      <div onClick={containerClick}>
+        <ProjectTree
+          projects={[project]}
+          selectedProjectId={null}
+          conversations={[conversation]}
+          loading={false}
+          mutationsPending={false}
+          onRefresh={vi.fn()}
+          onSelectProject={onSelectProject}
+          onCreate={vi.fn()}
+          onRename={vi.fn()}
+          onArchive={vi.fn()}
+          onManageCollaboration={vi.fn()}
+          onOpenReports={onOpenReports}
+        />
+      </div>
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.reportDeck.entry',
+      })
+    );
+
+    expect(onOpenReports).toHaveBeenCalledWith(project);
+    expect(containerClick).not.toHaveBeenCalled();
+    expect(onSelectProject).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getByRole('button', { name: 'Project one' })
+        .getAttribute('aria-expanded')
+    ).toBe('false');
+    expect(
+      screen.queryByRole('button', { name: 'Conversation one' })
+    ).toBeNull();
+  });
+
+  test('hides the report entry when no report handler is provided', () => {
+    renderTree();
+    expect(
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.reportDeck.entry',
+      })
+    ).toBeNull();
+  });
+
+  test('labels the report entry as the legacy studio while it is enabled', () => {
+    flags.legacyReports = true;
+    renderTree({ onOpenReports: vi.fn() });
+    expect(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.reports.reports',
+      })
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.reportDeck.entry',
+      })
+    ).toBeNull();
   });
 
   test('opens a conversation and renames it with F2', async () => {

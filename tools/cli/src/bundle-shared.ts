@@ -32,6 +32,22 @@ export function assertRspackSupportedPackageName(name: string) {
   );
 }
 
+/** API GETs must reach their proxy even while a frontend compilation is invalid. */
+export function prioritizeDevProxies<T>(middlewares: T[]): T[] {
+  const name = (item: T) =>
+    item && typeof item === 'object' && 'name' in item ? item.name : undefined;
+  const isProxy = (item: T) =>
+    name(item) === 'http-proxy-middleware' ||
+    name(item) === 'http-proxy-middleware-error-handler';
+  const proxies = middlewares.filter(isProxy);
+  const rest = middlewares.filter(item => !isProxy(item));
+  const compiler = rest.findIndex(
+    item => name(item) === '@rspack/dev-middleware'
+  );
+  if (compiler < 0 || !proxies.length) return middlewares;
+  return [...rest.slice(0, compiler), ...proxies, ...rest.slice(compiler)];
+}
+
 function rewriteSelfHostedAdminAssetPath(url: string | undefined) {
   if (process.env.SELF_HOSTED !== 'true' || !url) {
     return url;

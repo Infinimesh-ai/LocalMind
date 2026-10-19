@@ -15,6 +15,7 @@ import { folderTrashFingerprint } from './folder-trash-manifest';
 import { pageTreeWriteContext } from './page-tree-context';
 import { DocReader } from './reader';
 import { ResourceError } from './resource-types';
+import { snapshotParser } from './snapshot-parser';
 import { workspaceDocTransaction } from './transaction-context';
 import { DocWriter } from './writer';
 
@@ -892,6 +893,23 @@ export class WorkspaceOrganizationService {
     };
   }
 
+  private async readSnapshot(
+    workspaceId: string,
+    docId: string,
+    createIfMissing = false
+  ) {
+    const record = await (
+      workspaceDocTransaction.getStore()?.read ??
+      this.reader.getDoc.bind(this.reader)
+    )(workspaceId, docId);
+    if (!record?.bin && !createIfMissing)
+      throw new NotFoundException(`Document ${docId} not found`);
+    return snapshotParser.decode(
+      `${workspaceId}:${docId}`,
+      record?.bin ?? null
+    );
+  }
+
   private async save(
     workspaceId: string,
     docId: string,
@@ -914,19 +932,12 @@ export class WorkspaceOrganizationService {
   ) {
     const descriptor = TABLES[table];
     const docId = resolveWorkspaceDataDocId(table, workspaceId, userId);
-    const loaded = await this.load(workspaceId, docId, true);
-    try {
-      const records: JsonObject[] = [];
-      for (const type of loaded.doc.share.values()) {
-        if (tableField(type, '$$DELETED') === true) continue;
-        const record = tableRecord(type);
-        if (typeof record[descriptor.keyField] === 'string')
-          records.push(record);
-      }
-      return records;
-    } finally {
-      loaded.doc.destroy();
-    }
+    const snapshot = await this.readSnapshot(workspaceId, docId, true);
+    return Object.values(snapshot.maps).filter(
+      record =>
+        record.$$DELETED !== true &&
+        typeof record[descriptor.keyField] === 'string'
+    );
   }
 
   /** Match DocPropertiesStore: non-null current properties override legacy
@@ -934,36 +945,22 @@ export class WorkspaceOrganizationService {
    * reads retain the root/body/properties content locks through commit; sync and
    * snapshot writers acquire the same per-document locks at persistence. */
   async readDocumentPrimaryMode(workspaceId: string, documentId: string) {
-    const root = await this.load(workspaceId, workspaceId);
-    try {
-      const properties = await this.load(
-        workspaceId,
-        resolveWorkspaceDataDocId('document_properties', workspaceId, ''),
-        true
-      );
-      try {
-        const record = properties.doc.getMap<unknown>(documentId);
-        const current =
-          record.get('$$DELETED') === true
-            ? undefined
-            : record.get('primaryMode');
-        const pages = root.doc
-          .getMap('affine:workspace-properties')
-          .get('pageProperties');
-        const legacy = jsonObject(
-          pages instanceof Y.Map ? pages.get(documentId) : undefined
-        );
-        const legacyMode = jsonObject(
-          jsonObject(legacy.system).primaryMode
-        ).value;
-        const mode = current ?? legacyMode?.toString();
-        return mode === 'edgeless' ? ('edgeless' as const) : ('page' as const);
-      } finally {
-        properties.doc.destroy();
-      }
-    } finally {
-      root.doc.destroy();
-    }
+    const root = await this.readSnapshot(workspaceId, workspaceId);
+    const properties = await this.readSnapshot(
+      workspaceId,
+      resolveWorkspaceDataDocId('document_properties', workspaceId, ''),
+      true
+    );
+    const record = properties.maps[documentId] ?? {};
+    const current = record.$$DELETED === true ? undefined : record.primaryMode;
+    const pages = root.legacyPagePropertiesIsMap
+      ? jsonObject(root.maps['affine:workspace-properties']?.pageProperties)
+      : {};
+    const legacy = jsonObject(pages[documentId]);
+    const legacyMode = jsonObject(jsonObject(legacy.system).primaryMode).value;
+    return (current ?? legacyMode?.toString()) === 'edgeless'
+      ? ('edgeless' as const)
+      : ('page' as const);
   }
 
   async readFolders(workspaceId: string, userId: string) {
@@ -1053,16 +1050,15 @@ export class WorkspaceOrganizationService {
       this.directorySnapshots.delete(workspaceId);
       this.directorySnapshotBytes -= cached.bytes;
     }
-    const doc = new Y.Doc();
-    let rows: JsonObject[];
-    try {
-      if (record?.bin) Y.applyUpdate(doc, record.bin);
-      rows = tableRecords(doc);
-      if (rows.length > 10_000)
-        throw new BadRequest('Directory listing exceeds the supported limit');
-    } finally {
-      doc.destroy();
-    }
+    const snapshot = await snapshotParser.decode(
+      `${workspaceId}:folders`,
+      record?.bin ?? null
+    );
+    const rows = Object.values(snapshot.maps).filter(
+      row => row.$$DELETED !== true && typeof row.id === 'string'
+    );
+    if (rows.length > 10_000)
+      throw new BadRequest('Directory listing exceeds the supported limit');
     const bytes = Buffer.byteLength(JSON.stringify(rows));
     if (bytes <= 4 * 1024 * 1024) {
       while (
@@ -1224,28 +1220,28 @@ export class WorkspaceOrganizationService {
     );
     const titles = new Map<string, string>();
     if (pageTree) {
-      const all = await this.load(
+      const all = await this.readSnapshot(
         input.workspaceId,
         resolveWorkspaceDataDocId('folders', input.workspaceId, input.actorId),
         true
       );
-      const root = await this.load(input.workspaceId, input.workspaceId);
-      try {
-        raw.rows = tableRecords(all.doc, true).filter(
-          row => row.$pageTreeRetired !== true
+      const root = await this.readSnapshot(
+        input.workspaceId,
+        input.workspaceId
+      );
+      raw.rows = Object.values(all.maps).filter(
+        row => typeof row.id === 'string' && row.$pageTreeRetired !== true
+      );
+      const pages = root.maps.meta?.pages;
+      for (const value of Array.isArray(pages) ? pages : []) {
+        const page = jsonObject(value);
+        titles.set(
+          String(page.id),
+          typeof page.title === 'string' ? page.title : ''
         );
-        for (const value of rootPages(root.doc).toArray()) {
-          const page = rootPageRecord(value);
-          titles.set(
-            String(page.id),
-            typeof page.title === 'string' ? page.title : ''
-          );
-        }
-      } finally {
-        all.doc.destroy();
-        root.doc.destroy();
       }
     }
+
     const records = new Map(raw.rows.map(row => [String(row.id), row]));
     const placements = raw.rows.filter(
       row =>
@@ -1958,22 +1954,20 @@ export class WorkspaceOrganizationService {
 
   /** The Workspace CRDT remains the only tag dictionary. Call inside the resource ACL boundary. */
   async resourceTagDefinitions(workspaceId: string) {
-    const root = await this.load(workspaceId, workspaceId, true);
-    try {
-      return rootTagOptions(root.doc)
-        .toArray()
-        .map(value => {
-          const tag = jsonObject(value);
-          return {
-            id: String(tag.id ?? ''),
-            name: String(tag.value ?? ''),
-            color: String(tag.color ?? ''),
-          };
-        })
-        .filter(tag => tag.id);
-    } finally {
-      root.doc.destroy();
-    }
+    const root = await this.readSnapshot(workspaceId, workspaceId, true);
+    const options = jsonObject(
+      jsonObject(root.maps.meta?.properties).tags
+    ).options;
+    return (Array.isArray(options) ? options : [])
+      .map(value => {
+        const tag = jsonObject(value);
+        return {
+          id: String(tag.id ?? ''),
+          name: String(tag.value ?? ''),
+          color: String(tag.color ?? ''),
+        };
+      })
+      .filter(tag => tag.id);
   }
 
   async readOrganization(workspaceId: string, userId: string) {

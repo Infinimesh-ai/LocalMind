@@ -1,5 +1,10 @@
 import { usePromptModal } from '@affine/component';
+import { ExplorerPageHero } from '@affine/core/components/explorer/header/page-hero';
 import { useNavigateHelper } from '@affine/core/components/hooks/use-navigate-helper';
+import {
+  explorerCard,
+  explorerSurface,
+} from '@affine/core/components/localmind-theme/surface.css';
 import {
   CollectionListHeader,
   VirtualizedCollectionList,
@@ -11,6 +16,7 @@ import {
 import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
+import clsx from 'clsx';
 import { useCallback, useState } from 'react';
 
 import { CollectionService } from '../../../../modules/collection';
@@ -72,19 +78,26 @@ export const AllCollection = () => {
         />
       </ViewHeader>
       <ViewBody>
-        <div className={styles.body}>
-          {collections.size > 0 ? (
-            <VirtualizedCollectionList
-              setHideHeaderCreateNewCollection={setHideHeaderCreateNew}
-              handleCreateCollection={handleCreateCollection}
-            />
-          ) : (
-            <EmptyCollectionList
-              heading={
-                <CollectionListHeader onCreate={handleCreateCollection} />
-              }
-            />
-          )}
+        <div className={clsx(styles.body, explorerSurface)}>
+          <ExplorerPageHero
+            section={t['com.affine.collections.header']()}
+            title={t['com.affine.collections.header']()}
+            subtitle={t['com.affine.localmind.shell.collections.subtitle']()}
+          />
+          <div className={clsx(styles.list, explorerCard)}>
+            {collections.size > 0 ? (
+              <VirtualizedCollectionList
+                setHideHeaderCreateNewCollection={setHideHeaderCreateNew}
+                handleCreateCollection={handleCreateCollection}
+              />
+            ) : (
+              <EmptyCollectionList
+                heading={
+                  <CollectionListHeader onCreate={handleCreateCollection} />
+                }
+              />
+            )}
+          </div>
         </div>
       </ViewBody>
       <AllDocSidebarTabs />

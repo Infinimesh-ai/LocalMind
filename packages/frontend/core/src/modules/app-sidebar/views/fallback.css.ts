@@ -1,9 +1,15 @@
 import { style } from '@vanilla-extract/css';
 
+import { localmindShell } from '../../../components/localmind-theme/shell';
+import { workbenchTokens as wb } from '../../../components/localmind-theme/tokens.css';
+
 export const fallback = style({
   padding: '4px 8px',
   height: '100%',
   overflow: 'clip',
+  selectors: {
+    [`${localmindShell} &`]: { paddingInline: wb.sidebarInset },
+  },
 });
 
 export const fallbackHeader = style({

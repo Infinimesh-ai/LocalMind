@@ -31,5 +31,7 @@ export default {
     MAILER_USER: 'noreply@toeverything.info',
     MAILER_PASSWORD: 'affine',
     MAILER_SENDER: 'noreply@toeverything.info',
+    // Legacy Project reports are disabled by default; keep their tests running.
+    LOCALMIND_PROJECT_REPORTS_ENABLED: 'true',
   },
 };

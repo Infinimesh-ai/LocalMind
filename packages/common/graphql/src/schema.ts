@@ -1036,6 +1036,8 @@ export interface CopilotMyConversationCardsArgs {
   after?: InputMaybe<Scalars['String']['input']>;
   column?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  scopeType?: InputMaybe<Scalars['String']['input']>;
 }
 
 export interface CopilotMyWorkOrderArgs {
@@ -6339,6 +6341,7 @@ export interface Mutation {
   previewCopilotPromptRegistryBodyEdit: CopilotPromptRegistryBodyEditPreviewType;
   previewLicense: AdminLicensePreview;
   previewProjectPublication: ProjectPublicationType;
+  projectReportCommand: Scalars['JSONObject']['output'];
   /** Publish a workspace-scoped DB-backed model definition revision for an existing configured provider. */
   publishCopilotModelRegistryRevision: CopilotModelRegistryRevisionType;
   /** Publish a Prompt Registry message body edit after a matching diff preview fingerprint. */
@@ -6388,6 +6391,7 @@ export interface Mutation {
   reorderWorkspaceDirectory: WorkspaceDirectoryMutationType;
   /** Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence. */
   replayCopilotSupportBundleTransferForwardingEvent: CopilotSupportBundleTransferForwardingEventType;
+  reportDeckCommand: Scalars['JSONObject']['output'];
   /** Request to apply the subscription in advance */
   requestApplySubscription: Array<SubscriptionType>;
   /** Request an approval-gated Agent Runtime office task that updates one workspace document after approval. */
@@ -7165,6 +7169,10 @@ export interface MutationPreviewProjectPublicationArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationProjectReportCommandArgs {
+  input: ProjectReportCommandInput;
+}
+
 export interface MutationPublishCopilotModelRegistryRevisionArgs {
   input: CopilotModelRegistryPublishInput;
 }
@@ -7305,6 +7313,10 @@ export interface MutationReorderWorkspaceDirectoryArgs {
 
 export interface MutationReplayCopilotSupportBundleTransferForwardingEventArgs {
   input: CopilotSupportBundleTransferForwardingReplayInput;
+}
+
+export interface MutationReportDeckCommandArgs {
+  input: Scalars['JSONObject']['input'];
 }
 
 export interface MutationRequestApplySubscriptionArgs {
@@ -7843,6 +7855,7 @@ export enum NotificationType {
   Mention = 'Mention',
   ProjectFileRequest = 'ProjectFileRequest',
   ProjectInvitation = 'ProjectInvitation',
+  ProjectReport = 'ProjectReport',
   WorkOrder = 'WorkOrder',
 }
 
@@ -8521,6 +8534,31 @@ export interface ProjectPublicationType {
   title: Scalars['String']['output'];
 }
 
+export interface ProjectReportCommandInput {
+  command: Scalars['JSONObject']['input'];
+  editLease?: InputMaybe<Scalars['JSONObject']['input']>;
+  expectedVersion?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['ID']['input'];
+  reportId?: InputMaybe<Scalars['ID']['input']>;
+  requestKey: Scalars['String']['input'];
+}
+
+export interface ProjectReportNotificationBodyType {
+  __typename?: 'ProjectReportNotificationBodyType';
+  /** The user who created the notification, maybe null when user is deleted or sent by system */
+  createdByUser: Maybe<PublicUserType>;
+  projectId: Scalars['ID']['output'];
+  reportId: Maybe<Scalars['ID']['output']>;
+  revisionId: Maybe<Scalars['ID']['output']>;
+  scheduleId: Maybe<Scalars['ID']['output']>;
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  /** The type of the notification */
+  type: NotificationType;
+  url: Scalars['String']['output'];
+  workspace: Maybe<NotificationWorkspaceType>;
+}
+
 export enum ProjectResourceKind {
   document = 'document',
   edgeless = 'edgeless',
@@ -8724,6 +8762,7 @@ export interface Query {
   projectPublication: ProjectPublicationType;
   projectPublicationCandidates: ProjectPublicationCandidatesType;
   projectPublications: ProjectPublicationPageType;
+  projectReportState: Scalars['JSONObject']['output'];
   projectResource: ProjectResourceType;
   projectResourceEditLease: Maybe<ProjectEditLeaseType>;
   projectResourceHistory: Array<ProjectContentHistoryType>;
@@ -8741,6 +8780,10 @@ export interface Query {
    * @deprecated Use realtime subscription "workspace.embedding.progress.changed" instead.
    */
   queryWorkspaceEmbeddingStatus: ContextWorkspaceEmbeddingStatus;
+  reportDeck: Scalars['JSONObject']['output'];
+  reportDeckAiOptions: Scalars['JSONObject']['output'];
+  reportDeckPreflight: Scalars['JSONObject']['output'];
+  reportDecks: Scalars['JSONObject']['output'];
   searchProjectResources: ProjectSearchPageType;
   /** server config */
   serverConfig: ServerConfigType;
@@ -9042,6 +9085,18 @@ export interface QueryProjectPublicationsArgs {
   resourceId?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface QueryProjectReportStateArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  lifecycle?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['ID']['input'];
+  reportId?: InputMaybe<Scalars['ID']['input']>;
+  revisionId?: InputMaybe<Scalars['ID']['input']>;
+  scheduleId?: InputMaybe<Scalars['ID']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  view?: InputMaybe<Scalars['String']['input']>;
+}
+
 export interface QueryProjectResourceArgs {
   projectId: Scalars['String']['input'];
   resourceId: Scalars['String']['input'];
@@ -9099,6 +9154,23 @@ export interface QueryPublicUsersByIdsArgs {
 
 export interface QueryQueryWorkspaceEmbeddingStatusArgs {
   workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryReportDeckArgs {
+  deckId: Scalars['ID']['input'];
+}
+
+export interface QueryReportDeckAiOptionsArgs {
+  input: Scalars['JSONObject']['input'];
+}
+
+export interface QueryReportDeckPreflightArgs {
+  input: Scalars['JSONObject']['input'];
+}
+
+export interface QueryReportDecksArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
 }
 
 export interface QuerySearchProjectResourcesArgs {
@@ -9815,6 +9887,7 @@ export type UnionNotificationBodyType =
   | MentionNotificationBodyType
   | ProjectFileRequestNotificationBodyType
   | ProjectInvitationNotificationBodyType
+  | ProjectReportNotificationBodyType
   | WorkOrderNotificationBodyType;
 
 export interface UnknownOauthProviderDataType {
@@ -10787,6 +10860,7 @@ export interface WorkspacePageTreePage {
   nextCursor: Maybe<Scalars['String']['output']>;
   parent: Maybe<WorkspacePageTreeItem>;
   revision: Scalars['Int']['output'];
+  snapshotRevision: Maybe<Scalars['String']['output']>;
 }
 
 export interface WorkspacePageTreeReceipt {
@@ -20890,6 +20964,8 @@ export type CopilotWorkbenchConversationsGetQueryVariables = Exact<{
   column?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   after?: InputMaybe<Scalars['String']['input']>;
+  projectId?: InputMaybe<Scalars['ID']['input']>;
+  scopeType?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 export type CopilotWorkbenchConversationsGetQuery = {
@@ -25399,6 +25475,32 @@ export type ProjectPublicationsQuery = {
   };
 };
 
+export type ProjectReportCommandMutationVariables = Exact<{
+  input: ProjectReportCommandInput;
+}>;
+
+export type ProjectReportCommandMutation = {
+  __typename?: 'Mutation';
+  projectReportCommand: any;
+};
+
+export type ProjectReportStateQueryVariables = Exact<{
+  projectId: Scalars['ID']['input'];
+  reportId?: InputMaybe<Scalars['ID']['input']>;
+  scheduleId?: InputMaybe<Scalars['ID']['input']>;
+  revisionId?: InputMaybe<Scalars['ID']['input']>;
+  view?: InputMaybe<Scalars['String']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  lifecycle?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type ProjectReportStateQuery = {
+  __typename?: 'Query';
+  projectReportState: any;
+};
+
 export type ProjectResourceEditLeaseQueryVariables = Exact<{
   input: ProjectEditLeaseInput;
 }>;
@@ -25817,6 +25919,46 @@ export type RenewProjectResourceEditLeaseMutation = {
   };
 };
 
+export type ReportDeckAiOptionsQueryVariables = Exact<{
+  input: Scalars['JSONObject']['input'];
+}>;
+
+export type ReportDeckAiOptionsQuery = {
+  __typename?: 'Query';
+  reportDeckAiOptions: any;
+};
+
+export type ReportDeckCommandMutationVariables = Exact<{
+  input: Scalars['JSONObject']['input'];
+}>;
+
+export type ReportDeckCommandMutation = {
+  __typename?: 'Mutation';
+  reportDeckCommand: any;
+};
+
+export type ReportDeckPreflightQueryVariables = Exact<{
+  input: Scalars['JSONObject']['input'];
+}>;
+
+export type ReportDeckPreflightQuery = {
+  __typename?: 'Query';
+  reportDeckPreflight: any;
+};
+
+export type ReportDeckQueryVariables = Exact<{
+  deckId: Scalars['ID']['input'];
+}>;
+
+export type ReportDeckQuery = { __typename?: 'Query'; reportDeck: any };
+
+export type ReportDecksQueryVariables = Exact<{
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+export type ReportDecksQuery = { __typename?: 'Query'; reportDecks: any };
+
 export type RequestProjectImportPermissionMutationVariables = Exact<{
   projectId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
@@ -26154,6 +26296,25 @@ export type SubscriptionQuery = {
       variant: SubscriptionVariant | null;
     }>;
   } | null;
+};
+
+export type UndoCopilotProjectContextMemoryEventMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  eventId: Scalars['ID']['input'];
+}>;
+
+export type UndoCopilotProjectContextMemoryEventMutation = {
+  __typename?: 'Mutation';
+  undoCopilotProjectContextMemoryEvent: {
+    __typename?: 'CopilotContextMemoryEventType';
+    id: string;
+    operation: string;
+    memoryId: string | null;
+    previousMemoryId: string | null;
+    undoneAt: string | null;
+    canUndo: boolean;
+    createdAt: string;
+  };
 };
 
 export type UpdateDocDefaultRoleMutationVariables = Exact<{
@@ -27287,6 +27448,7 @@ export type WorkspacePageTreeQuery = {
     enabled: boolean;
     revision: number;
     authorizationRevision: string;
+    snapshotRevision: string | null;
     nextCursor: string | null;
     parent: {
       __typename?: 'WorkspacePageTreeItem';
@@ -28156,6 +28318,11 @@ export type Queries =
       response: ProjectPublicationsQuery;
     }
   | {
+      name: 'projectReportStateQuery';
+      variables: ProjectReportStateQueryVariables;
+      response: ProjectReportStateQuery;
+    }
+  | {
       name: 'projectResourceEditLeaseQuery';
       variables: ProjectResourceEditLeaseQueryVariables;
       response: ProjectResourceEditLeaseQuery;
@@ -28204,6 +28371,26 @@ export type Queries =
       name: 'quotaQuery';
       variables: QuotaQueryVariables;
       response: QuotaQuery;
+    }
+  | {
+      name: 'reportDeckAiOptionsQuery';
+      variables: ReportDeckAiOptionsQueryVariables;
+      response: ReportDeckAiOptionsQuery;
+    }
+  | {
+      name: 'reportDeckPreflightQuery';
+      variables: ReportDeckPreflightQueryVariables;
+      response: ReportDeckPreflightQuery;
+    }
+  | {
+      name: 'reportDeckQuery';
+      variables: ReportDeckQueryVariables;
+      response: ReportDeckQuery;
+    }
+  | {
+      name: 'reportDecksQuery';
+      variables: ReportDecksQueryVariables;
+      response: ReportDecksQuery;
     }
   | {
       name: 'searchProjectResourcesQuery';
@@ -29298,6 +29485,11 @@ export type Mutations =
       response: PreviewProjectPublicationMutation;
     }
   | {
+      name: 'projectReportCommandMutation';
+      variables: ProjectReportCommandMutationVariables;
+      response: ProjectReportCommandMutation;
+    }
+  | {
       name: 'restoreProjectResourceVersionMutation';
       variables: RestoreProjectResourceVersionMutationVariables;
       response: RestoreProjectResourceVersionMutation;
@@ -29356,6 +29548,11 @@ export type Mutations =
       name: 'renewProjectResourceEditLeaseMutation';
       variables: RenewProjectResourceEditLeaseMutationVariables;
       response: RenewProjectResourceEditLeaseMutation;
+    }
+  | {
+      name: 'reportDeckCommandMutation';
+      variables: ReportDeckCommandMutationVariables;
+      response: ReportDeckCommandMutation;
     }
   | {
       name: 'requestProjectImportPermissionMutation';
@@ -29446,6 +29643,11 @@ export type Mutations =
       name: 'requestApplySubscriptionMutation';
       variables: RequestApplySubscriptionMutationVariables;
       response: RequestApplySubscriptionMutation;
+    }
+  | {
+      name: 'undoCopilotProjectContextMemoryEventMutation';
+      variables: UndoCopilotProjectContextMemoryEventMutationVariables;
+      response: UndoCopilotProjectContextMemoryEventMutation;
     }
   | {
       name: 'updateDocDefaultRoleMutation';

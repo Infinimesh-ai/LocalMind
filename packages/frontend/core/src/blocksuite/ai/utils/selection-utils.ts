@@ -103,7 +103,7 @@ export function traverse(model: DraftModel, drafts: DraftModel[]) {
 export async function getTextContentFromBlockModels(
   editorHost: EditorHost,
   models: BlockModel[],
-  type: 'markdown' | 'plain-text' = 'markdown'
+  type: 'markdown' | 'plain-text' | 'ai-context' = 'markdown'
 ) {
   // Currently only filter out images and databases
   const selectedTextModels = models.filter(
@@ -117,7 +117,7 @@ export async function getTextContentFromBlockModels(
 
 export async function getSelectedTextContent(
   editorHost: EditorHost,
-  type: 'markdown' | 'plain-text' = 'markdown'
+  type: 'markdown' | 'plain-text' | 'ai-context' = 'markdown'
 ) {
   const selectedModels = getSelectedModels(editorHost);
   if (!selectedModels) return '';

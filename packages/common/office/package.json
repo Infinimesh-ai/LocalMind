@@ -11,15 +11,26 @@
     "./xlsx": "./src/xlsx/index.ts",
     "./pptx": "./src/pptx/index.ts",
     "./pdf": "./src/pdf/index.ts",
-    "./testing": "./src/testing.ts"
+    "./report": "./src/report/index.ts",
+    "./report-render": "./src/report/render.ts",
+    "./report-import": "./src/report/import-template.ts",
+    "./report-deck": "./src/report/deck/index.ts",
+    "./testing": "./src/testing.ts",
+    "./report-font": "./assets/report-fonts/NotoSansCJKsc-Regular.otf",
+    "./report-font-license": "./assets/report-fonts/LICENSE.txt"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "1.1.1",
     "fast-xml-parser": "^5.8.0",
     "fflate": "^0.8.2",
+    "parse5": "^7.3.0",
     "pdf-lib": "^1.17.1",
+    "postcss": "^8.5.18",
+    "postcss-selector-parser": "^7.1.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "pdfjs-dist": "5.4.624",
     "vitest": "^4.1.10"
   }
 }

@@ -4,12 +4,17 @@ import {
   DocExplorerContext,
 } from '@affine/core/components/explorer/context';
 import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
+import { ExplorerPageHero } from '@affine/core/components/explorer/header/page-hero';
 import {
   migrateResourcePreference,
   resourcePreferenceKey,
 } from '@affine/core/components/explorer/resource-preferences';
 import type { ExplorerDisplayPreference } from '@affine/core/components/explorer/types';
 import { Filters } from '@affine/core/components/filter';
+import {
+  explorerCard,
+  explorerSurface,
+} from '@affine/core/components/localmind-theme/surface.css';
 import { WorkspaceResourceExplorer } from '@affine/core/components/native-files/resource-explorer';
 import { WorkspaceServerService } from '@affine/core/modules/cloud';
 import {
@@ -27,6 +32,7 @@ import {
 import { WorkspacePropertyService } from '@affine/core/modules/workspace-property';
 import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
+import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
@@ -395,7 +401,12 @@ export const AllPage = () => {
         />
       </ViewHeader>
       <ViewBody>
-        <div className={styles.body}>
+        <div className={clsx(styles.body, explorerSurface)}>
+          <ExplorerPageHero
+            section={t['com.affine.docs.header']()}
+            title={t['All pages']()}
+            subtitle={t['com.affine.localmind.shell.docs.subtitle']()}
+          />
           <MigrationAllDocsDataNotification />
           <div className={styles.pinnedCollection}>
             <PinnedCollections
@@ -429,7 +440,7 @@ export const AllPage = () => {
               </div>
             )}
           </div>
-          <div className={styles.scrollArea}>
+          <div className={clsx(styles.scrollArea, explorerCard)}>
             {mixed ? (
               <WorkspaceResourceExplorer filters={tempFilters ?? []} />
             ) : (

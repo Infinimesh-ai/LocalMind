@@ -137,7 +137,8 @@ export function CollaborationOrbit({
     size.width,
     size.height,
     sceneBounds.width,
-    sceneBounds.height
+    sceneBounds.height,
+    'zoom'
   );
   const { host, reveal, setView } = viewport;
   const sceneTransform = `${viewport.transform} translate(${-sceneBounds.left}px, ${-sceneBounds.top}px)`;

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
@@ -127,7 +127,21 @@ export const CommentMentionNotificationCreateSchema =
     body: CommentNotificationBodySchema,
   });
 
+export type ProjectReportNotificationBody = {
+  workspaceId?: never;
+  createdByUserId: string;
+  projectId: string;
+  reportId?: string;
+  revisionId?: string;
+  scheduleId?: string;
+  deliveryId?: string;
+  status: string;
+  title: string;
+  url: string;
+};
+
 export type UnionNotificationBody =
+  | ProjectReportNotificationBody
   | ProjectInvitationNotificationBody
   | ProjectFileRequestNotificationBody
   | WorkOrderNotificationBody
@@ -180,6 +194,7 @@ export type CommentNotification = Notification &
   z.infer<typeof CommentNotificationCreateSchema>;
 
 export type UnionNotification =
+  | (Notification & { body: ProjectReportNotificationBody })
   | (Notification & { body: ProjectInvitationNotificationBody })
   | (Notification & { body: ProjectFileRequestNotificationBody })
   | (Notification & { body: WorkOrderNotificationBody })
@@ -200,6 +215,131 @@ export class NotificationModel extends BaseModel {
       create: { userId, revision },
       update: { revision },
     });
+  }
+
+  @Transactional()
+  async reportChanged(input: {
+    id: string;
+    userId: string;
+    actorId: string;
+    projectId: string;
+    reportId?: string;
+    revisionId?: string;
+    scheduleId?: string;
+    deliveryId?: string;
+    status: string;
+    title: string;
+    url: string;
+  }) {
+    const body = {
+      createdByUserId: input.actorId,
+      projectId: input.projectId,
+      ...(input.reportId ? { reportId: input.reportId } : {}),
+      ...(input.revisionId ? { revisionId: input.revisionId } : {}),
+      ...(input.scheduleId ? { scheduleId: input.scheduleId } : {}),
+      ...(input.deliveryId ? { deliveryId: input.deliveryId } : {}),
+      status: input.status,
+      title: input.title,
+      url: input.url,
+    } satisfies ProjectReportNotificationBody;
+    const result = await this.db.notification.createMany({
+      data: {
+        id: input.id,
+        userId: input.userId,
+        type: NotificationType.ProjectReport,
+        level: NotificationLevel.Default,
+        body,
+      },
+      skipDuplicates: true,
+    });
+    if (result.count) await this.enqueueRefresh(input.userId);
+  }
+
+  async presentReportNotification(
+    body: ProjectReportNotificationBody,
+    userId: string
+  ): Promise<
+    Omit<
+      Partial<ProjectReportNotificationBody>,
+      'reportId' | 'revisionId' | 'scheduleId'
+    > & {
+      reportId?: string | null;
+      revisionId?: string | null;
+      scheduleId?: string | null;
+      createdByUser?: undefined;
+    }
+  > {
+    const unavailable = {
+      projectId: '',
+      reportId: null,
+      revisionId: null,
+      scheduleId: null,
+      deliveryId: undefined,
+      createdByUser: undefined,
+      createdByUserId: '',
+      status: 'unavailable',
+      title: '',
+      url: '',
+    };
+    if (body.status === 'shared') {
+      const delivery = body.deliveryId
+        ? await this.db.projectReportDelivery.findFirst({
+            where: {
+              id: body.deliveryId,
+              recipientKey: userId,
+              projectId: body.projectId,
+              channel: 'notification',
+            },
+          })
+        : null;
+      const share = delivery?.shareId
+        ? await this.db.projectReportShare.findUnique({
+            where: { id: delivery.shareId },
+            include: { current: true, report: true },
+          })
+        : null;
+      const token = body.url.split('#token=')[1];
+      if (
+        !share ||
+        share.status !== 'active' ||
+        share.report.lifecycle === 'trash' ||
+        !share.current ||
+        share.current.expiresAt <= new Date() ||
+        share.current.accessMode !== 'accounts' ||
+        !share.current.recipientIds.includes(userId) ||
+        !token ||
+        createHash('sha256').update(token).digest('hex') !==
+          share.current.tokenHash
+      )
+        return unavailable;
+      // External notifications contain only the authorized share entry point.
+      return {
+        ...unavailable,
+        status: 'shared',
+        title: body.title,
+        url: body.url,
+      };
+    }
+    try {
+      await this.models.projectResource.assertMember(
+        { projectId: body.projectId, actorId: userId },
+        false,
+        true
+      );
+      if (body.reportId) {
+        const report = await this.db.projectReport.findFirst({
+          where: {
+            id: body.reportId,
+            projectId: body.projectId,
+            lifecycle: { not: 'trash' },
+          },
+        });
+        if (!report) return unavailable;
+      }
+      return { deliveryId: undefined };
+    } catch {
+      return unavailable;
+    }
   }
 
   async syncProjectInvitation(invitation: AiContextProjectInvitation) {

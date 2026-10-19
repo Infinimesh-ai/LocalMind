@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import type * as GraphQL from '@affine/graphql';
 import { describe, expect, test, vi } from 'vitest';
 
 import { resolveActionPromptName } from './action-definitions';
@@ -15,7 +16,8 @@ Object.defineProperty(globalThis, 'EventSource', {
   },
 });
 
-vi.mock('@affine/graphql', () => ({
+vi.mock('@affine/graphql', async importOriginal => ({
+  ...(await importOriginal<typeof GraphQL>()),
   ContextCategories: {
     Tag: 'tag',
     Collection: 'collection',
@@ -239,6 +241,44 @@ describe('AIRequestService action definitions', () => {
     ).toThrow('processImage requires a promptName');
   });
 
+  test('stores selection separately from user content and reuses it on retry', async () => {
+    const client = createClient();
+    const service = new AIRequestService(client);
+    const input = '为什么我按tab';
+    const selectionContext = '第一段\n\n  \n\t第二段\n字面量 &#x20;\n';
+
+    await drainActionResult(
+      await service.executeAction('chat', {
+        workspaceId: 'workspace-1',
+        sessionId: 'session-1',
+        input,
+        contexts: { selectionContext },
+        stream: true,
+      })
+    );
+    expect(client.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: input,
+        params: expect.objectContaining({ selectionContext }),
+      }),
+      expect.anything()
+    );
+
+    await drainActionResult(
+      await service.executeAction('chat', {
+        workspaceId: 'workspace-1',
+        sessionId: 'session-1',
+        retry: true,
+        stream: true,
+      })
+    );
+    expect(client.createMessage).toHaveBeenCalledTimes(1);
+    expect(client.chatTextStream).toHaveBeenLastCalledWith(
+      expect.objectContaining({ retry: true, sessionId: 'session-1' }),
+      Endpoint.StreamObject
+    );
+  });
+
   test('persists the strict Office context in the user message params', async () => {
     const client = createClient();
     const service = new AIRequestService(client);
@@ -270,6 +310,41 @@ describe('AIRequestService action definitions', () => {
     expect(client.createMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         params: expect.objectContaining({ officeContext }),
+      }),
+      expect.anything()
+    );
+  });
+
+  test('persists the project report context in the user message params', async () => {
+    const client = createClient();
+    const service = new AIRequestService(client);
+    const reportContext = {
+      version: 'localmind-project-report-ai-context/v1',
+      projectId: 'project-1',
+      reportId: 'report-1',
+      revisionId: 'revision-2',
+      reportVersion: 4,
+      chapterIds: ['chapter-1'],
+      nodeIds: [],
+    } as const;
+
+    await drainActionResult(
+      (await service.executeAction('chat', {
+        workspaceId: 'workspace-1',
+        projectId: 'project-1',
+        input: 'rewrite the selected chapter',
+        reportContext: {
+          ...reportContext,
+          chapterIds: [...reportContext.chapterIds],
+          nodeIds: [],
+        },
+        stream: true,
+      })) as AsyncIterable<unknown>
+    );
+
+    expect(client.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ reportContext }),
       }),
       expect.anything()
     );

@@ -102,7 +102,14 @@ export const chatMessageFromTurn = (turn: Turn): ChatMessage => {
 
 export const promptMessageFromTurn = (turn: Turn): PromptMessage => ({
   role: turn.role,
-  content: turn.content,
+  // Keep selection context out of stored/displayed content, but include it in
+  // every model-facing turn (including history, retries and token budgeting).
+  content:
+    turn.role === 'user' &&
+    typeof turn.metadata.selectionContext === 'string' &&
+    turn.metadata.selectionContext
+      ? `${turn.metadata.selectionContext}\n${turn.content}`
+      : turn.content,
   attachments: turn.attachments.length ? turn.attachments : undefined,
   params: Object.keys(turn.metadata).length ? turn.metadata : undefined,
 });

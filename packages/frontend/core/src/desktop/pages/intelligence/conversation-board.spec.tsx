@@ -64,6 +64,100 @@ const orderCard: WorkbenchConversationCard = {
 };
 
 describe('personal work-order action card', () => {
+  test('offers sign-in instead of presenting unauthenticated data as an empty project', () => {
+    const empty = {
+      items: [] as WorkbenchConversationCard[],
+      counts: null,
+      loading: false,
+      loadingMore: false,
+      error: null,
+      hasNextPage: false,
+      loadMore: async () => {},
+      refresh: async () => {},
+    };
+    const cards: ConversationCardsState = {
+      todo: { ...empty, authenticationRequired: true },
+      progress: { ...empty, items: [orderCard] },
+      done: empty,
+      counts: null,
+      refresh: async () => [undefined, undefined, undefined] as const,
+    };
+    const onSignIn = vi.fn();
+    render(
+      <ConversationBoard
+        cards={cards}
+        projects={[]}
+        onOpenCard={vi.fn()}
+        onOpenRelation={() => {}}
+        onNewConversation={() => {}}
+        onSignIn={onSignIn}
+        workspaceExpanded={false}
+        onWorkspaceExpandedChange={() => {}}
+      />
+    );
+    expect(screen.getByRole('status').textContent).toContain('signInRequired');
+    expect(screen.queryByText('Return a deck')).toBeNull();
+    expect(
+      screen.queryAllByText('com.affine.localmind.workbench.v9.emptyColumn')
+    ).toHaveLength(0);
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.fusion.signIn',
+      })
+    );
+    expect(onSignIn).toHaveBeenCalledOnce();
+  });
+
+  test('hides revoked project metadata while keeping private work-order snapshots', () => {
+    const empty = {
+      items: [] as WorkbenchConversationCard[],
+      counts: null,
+      loading: false,
+      loadingMore: false,
+      error: null,
+      hasNextPage: false,
+      loadMore: async () => {},
+      refresh: async () => {},
+    };
+    const projectCard: WorkbenchConversationCard = {
+      ...orderCard,
+      sessionId: 'old-project-session',
+      scopeType: 'project',
+      project: { id: 'revoked', name: 'Former project' },
+      title: 'Private project history',
+      workOrderId: null,
+      workOrderStatus: null,
+      workOrderSenderName: null,
+      workOrderSourceProjectName: null,
+      workOrderRequiredReturnTitles: [],
+      workOrderMissingRequiredCount: 0,
+    };
+    const cards: ConversationCardsState = {
+      todo: { ...empty, items: [projectCard, orderCard] },
+      progress: empty,
+      done: empty,
+      counts: null,
+      refresh: async () => [undefined, undefined, undefined] as const,
+    };
+    render(
+      <ConversationBoard
+        cards={cards}
+        projects={[]}
+        projectsResolved
+        onOpenCard={vi.fn()}
+        onOpenRelation={() => {}}
+        onNewConversation={() => {}}
+        workspaceExpanded={false}
+        onWorkspaceExpandedChange={() => {}}
+      />
+    );
+    expect(screen.queryByText('Private project history')).toBeNull();
+    expect(screen.queryByText('Former project')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Return a deck/ })
+    ).not.toBeNull();
+  });
+
   test('shows the frozen sender, project, returns and missing count, then opens its conversation', () => {
     const onOpenCard = vi.fn();
     const empty = {
@@ -99,7 +193,61 @@ describe('personal work-order action card', () => {
     expect(card.textContent).toContain('Planning');
     expect(card.textContent).toContain('Summary · Deck');
     expect(card.textContent).toContain('missingRequired:1');
+    // Missing required returns mark the card for attention (v10 red border).
+    expect(card.dataset.attention).toBe('true');
     fireEvent.click(card);
     expect(onOpenCard).toHaveBeenCalledWith(orderCard);
+  });
+
+  test('labels card groups only when a column mixes work orders and AI chats', () => {
+    const empty = {
+      items: [] as WorkbenchConversationCard[],
+      counts: null,
+      loading: false,
+      loadingMore: false,
+      error: null,
+      hasNextPage: false,
+      loadMore: async () => {},
+      refresh: async () => {},
+    };
+    const chat: WorkbenchConversationCard = {
+      ...orderCard,
+      sessionId: 'chat',
+      scopeType: 'workspace',
+      title: 'Plan launch',
+      column: 'done',
+      workOrderId: null,
+      workOrderMissingRequiredCount: 0,
+    };
+    const cards: ConversationCardsState = {
+      todo: {
+        ...empty,
+        items: [{ ...chat, sessionId: 'solo', column: 'todo' }],
+      },
+      progress: empty,
+      done: { ...empty, items: [{ ...orderCard, column: 'done' }, chat] },
+      counts: null,
+      refresh: async () => [undefined, undefined, undefined] as const,
+    };
+    render(
+      <ConversationBoard
+        cards={cards}
+        projects={[]}
+        onOpenCard={() => {}}
+        onOpenRelation={() => {}}
+        onNewConversation={() => {}}
+        workspaceExpanded={false}
+        onWorkspaceExpandedChange={() => {}}
+      />
+    );
+    expect(
+      screen.getAllByText(
+        'com.affine.localmind.workbench.overview.conversations'
+      )
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByRole('button', { name: /Plan launch/ })[0].dataset
+        .attention
+    ).toBe('false');
   });
 });

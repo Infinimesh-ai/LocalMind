@@ -1,0 +1,3 @@
+query reportDecks($cursor: String, $limit: Int) {
+  reportDecks(cursor: $cursor, limit: $limit)
+}

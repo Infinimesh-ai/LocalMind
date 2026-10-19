@@ -1,6 +1,12 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { createVar, globalStyle, style } from '@vanilla-extract/css';
 
+import {
+  toolButton,
+  toolButtonHover,
+} from '../../../components/localmind-theme/recipes';
+import { workbenchTokens as wb } from './workbench-tokens.css';
+
 export const railWidthVar = createVar();
 export const paneWidthVar = createVar();
 export const treeWidthVar = createVar();
@@ -10,7 +16,20 @@ export const shell = style({
   height: '100dvh',
   display: 'flex',
   flexDirection: 'column',
-  background: cssVarV2('layer/background/primary'),
+  background: wb.sidebar,
+  selectors: {
+    // Desktop client only: the workspace floats as one rounded window; the web
+    // build fills the viewport edge to edge.
+    '&[data-framed="true"]': {
+      padding: '0 14px 14px',
+      background: wb.canvas,
+    },
+  },
+  '@media': {
+    'screen and (max-width: 760px)': {
+      selectors: { '&[data-framed="true"]': { padding: 0 } },
+    },
+  },
 });
 
 export const desktopTitlebar = style({
@@ -25,19 +44,26 @@ export const root = style({
   minWidth: 0,
   minHeight: 0,
   display: 'grid',
-  gridTemplateColumns: `clamp(192px, ${railWidthVar}, min(420px, calc(100% - 760px))) minmax(0, 1fr)`,
+  gridTemplateColumns: `56px clamp(192px, ${railWidthVar}, min(420px, calc(100% - 816px))) minmax(0, 1fr)`,
   overflow: 'hidden',
-  background: cssVarV2('layer/background/primary'),
-  color: cssVarV2('text/primary'),
+  background: wb.paper,
+  color: wb.ink,
   letterSpacing: 0,
   selectors: {
     '&[data-workspace-expanded="true"]': {
-      gridTemplateColumns: 'minmax(0, 1fr)',
+      gridTemplateColumns: '56px minmax(0, 1fr)',
+    },
+    [`${shell}[data-framed="true"] &`]: {
+      width: '100%',
+      borderRadius: 22,
+      border: '1px solid rgba(255, 255, 255, 0.78)',
+      boxShadow:
+        '0 28px 70px rgba(71, 78, 85, 0.16), inset 0 0 0 1px rgba(96, 106, 116, 0.07)',
     },
   },
   '@media': {
     'screen and (max-width: 1040px)': {
-      gridTemplateColumns: `clamp(192px, ${railWidthVar}, min(420px, calc(100% - 400px))) minmax(0, 1fr)`,
+      gridTemplateColumns: `56px clamp(192px, ${railWidthVar}, min(420px, calc(100% - 456px))) minmax(0, 1fr)`,
     },
     'screen and (max-width: 760px)': {
       display: 'block',
@@ -52,8 +78,8 @@ export const rail = style({
   minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
-  borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  background: cssVarV2('layer/background/secondary'),
+  borderRight: `1px solid ${wb.line}`,
+  background: wb.sidebar,
   '@media': {
     'screen and (max-width: 760px)': {
       position: 'absolute',
@@ -109,8 +135,8 @@ export const railHeader = style({
   justifyContent: 'space-between',
   minHeight: 58,
   padding: '0 16px',
-  borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  background: cssVarV2('layer/background/primary'),
+  borderBottom: `1px solid ${wb.line}`,
+  background: wb.paper,
 });
 
 export const brand = style({
@@ -118,17 +144,17 @@ export const brand = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: 10,
-  padding: 0,
+  padding: '0 4px',
   border: 0,
   background: 'transparent',
-  color: cssVarV2('text/primary'),
+  color: wb.ink,
   fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: '0.07em',
-  cursor: 'pointer',
+  fontWeight: 760,
+  letterSpacing: '0.09em',
+  cursor: 'default',
   selectors: {
     '&:focus-visible': {
-      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outline: `2px solid ${wb.signal}`,
       outlineOffset: 4,
     },
   },
@@ -162,14 +188,13 @@ export const workspaceSelector = style({
 export const railUtilities = style({
   display: 'flex',
   alignItems: 'center',
-  gap: 6,
+  gap: 8,
 });
-
 export const tasksTrigger = style({
   selectors: {
     '&[aria-expanded="true"]': {
-      background: cssVarV2('layer/background/hoverOverlay'),
-      color: cssVarV2('text/primary'),
+      background: wb.sidebarHover,
+      color: wb.ink,
     },
   },
 });
@@ -201,6 +226,9 @@ export const conversationAndPeek = style({
     '&[data-project="true"][data-fullscreen="false"]': {
       gridTemplateColumns: `minmax(320px, 1fr) clamp(220px, ${paneWidthVar}, calc(100% - 320px))`,
     },
+    '&[data-project="true"][data-panel="context"][data-fullscreen="false"]': {
+      gridTemplateColumns: `minmax(320px, 1fr) clamp(380px, ${paneWidthVar}, calc(100% - 320px))`,
+    },
     '&[data-project="true"][data-panel="projectTree"][data-fullscreen="false"]':
       {
         gridTemplateColumns: `minmax(320px, 1fr) clamp(260px, ${paneWidthVar}, calc(100% - 320px))`,
@@ -208,11 +236,14 @@ export const conversationAndPeek = style({
     '&[data-project="true"][data-panel="resource"][data-fullscreen="false"]': {
       gridTemplateColumns: `minmax(320px, 1fr) clamp(420px, ${paneWidthVar}, calc(100% - 320px))`,
     },
+    '&[data-project="true"][data-work-order="false"][data-panel="none"]': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
     '&[data-work-order="true"]': {
       gridTemplateColumns: `minmax(320px, 1fr) clamp(380px, ${paneWidthVar}, calc(100% - 320px))`,
     },
     '&[data-work-order="true"][data-work-order-collapsed="true"]': {
-      gridTemplateColumns: 'minmax(0, 1fr) 48px',
+      gridTemplateColumns: 'minmax(0, 1fr)',
     },
   },
   '@media': {
@@ -226,6 +257,10 @@ export const conversationAndPeek = style({
             gridTemplateColumns: 'minmax(0, 1fr)',
           },
         '&[data-project="true"][data-panel="resource"][data-fullscreen="false"]':
+          {
+            gridTemplateColumns: 'minmax(0, 1fr)',
+          },
+        '&[data-project="true"][data-panel="context"][data-fullscreen="false"]':
           {
             gridTemplateColumns: 'minmax(0, 1fr)',
           },
@@ -260,7 +295,7 @@ export const resourcePane = style({
   minHeight: 0,
   height: '100%',
   overflow: 'hidden',
-  borderLeft: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderLeft: `1px solid ${wb.line}`,
   '@media': {
     'screen and (max-width: 1040px)': {
       borderLeft: 0,
@@ -272,7 +307,8 @@ export const resourcePane = style({
   },
 });
 export const workOrderPane = style({
-  background: cssVarV2('layer/background/primary'),
+  borderLeft: 0,
+  background: wb.panel,
 });
 export const workOrderPanelContent = style({
   height: '100%',
@@ -291,29 +327,9 @@ export const workOrderPanelContent = style({
     },
   },
 });
-export const workOrderCollapsedRail = style({
-  height: '100%',
-  display: 'none',
-  alignItems: 'flex-start',
-  justifyContent: 'center',
-  flexDirection: 'row',
-  padding: '12px 8px',
-  selectors: {
-    [`${conversationAndPeek}[data-work-order-collapsed="true"] &`]: {
-      display: 'flex',
-    },
-  },
-  '@media': {
-    'screen and (max-width: 1040px)': {
-      selectors: {
-        [`${conversationAndPeek}[data-work-order-collapsed="true"] &`]: {
-          display: 'none',
-        },
-      },
-    },
-  },
-});
 export const resourceWorkspace = style({
+  containerType: 'inline-size',
+  containerName: 'project-editor',
   width: '100%',
   height: '100%',
   minWidth: 0,
@@ -332,7 +348,7 @@ export const narrowTree = style({
   minWidth: 0,
   minHeight: 0,
   overflow: 'hidden',
-  borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRight: `1px solid ${wb.line}`,
 });
 
 export const paneResizeHandle = style({
@@ -353,7 +369,7 @@ export const paneResizeHandle = style({
       bottom: 0,
       left: 3,
       width: 2,
-      background: cssVarV2('button/primary'),
+      background: wb.lineStrong,
       opacity: 0,
       transition: 'opacity 120ms ease-out',
     },
@@ -390,8 +406,8 @@ export const projectHeader = style({
   padding: '0 18px 0 24px',
   gap: 8,
   alignItems: 'center',
-  borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  background: cssVarV2('layer/background/primary'),
+  borderBottom: `1px solid ${wb.line}`,
+  background: wb.paper,
 });
 export const projectBreadcrumbs = style({
   flex: 1,
@@ -408,14 +424,23 @@ globalStyle(`${projectBreadcrumbs} button`, {
   background: 'transparent',
   border: 0,
   padding: '4px 6px',
-  color: 'inherit',
-  fontSize: 14,
+  color: wb.ink3,
+  fontSize: 12,
   cursor: 'pointer',
+  borderRadius: 7,
+});
+globalStyle(`${projectBreadcrumbs} button:first-child`, {
+  color: wb.ink,
+  fontSize: 14,
+  fontWeight: 660,
+});
+globalStyle(`${projectBreadcrumbs} button:hover`, {
+  background: wb.panel,
 });
 globalStyle(`${projectBreadcrumbs} button + button::before`, {
   content: '"/"',
   marginRight: 8,
-  color: cssVarV2('text/secondary'),
+  color: wb.ink3,
 });
 export const mobileViewTabs = style({
   display: 'none',
@@ -434,8 +459,8 @@ export const taskArea = style({
   width: 'min(520px, 100%)',
   minWidth: 0,
   overflow: 'auto',
-  background: cssVarV2('layer/background/primary'),
-  boxShadow: '-12px 0 32px rgba(25, 29, 34, 0.12)',
+  background: wb.paper,
+  boxShadow: wb.shadowRaised,
   selectors: {
     '&[data-open="false"], &[hidden]': { display: 'none' },
   },
@@ -460,14 +485,14 @@ export const workOrderSenderState = style({
   alignItems: 'center',
   justifyContent: 'center',
   padding: 24,
-  color: cssVarV2('text/secondary'),
+  color: wb.ink2,
   textAlign: 'center',
 });
 
 export const peekPane = style({
   minWidth: 0,
   minHeight: 0,
-  borderLeft: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderLeft: `1px solid ${wb.line}`,
   overflow: 'hidden',
   '@media': {
     'screen and (max-width: 1040px)': {
@@ -475,7 +500,7 @@ export const peekPane = style({
       zIndex: 2,
       inset: 0,
       borderLeft: 0,
-      background: cssVarV2('layer/background/primary'),
+      background: wb.paper,
     },
   },
 });
@@ -489,8 +514,8 @@ export const unavailableRoot = style({
   justifyContent: 'center',
   gap: 10,
   padding: 24,
-  background: cssVarV2('layer/background/primary'),
-  color: cssVarV2('text/secondary'),
+  background: wb.canvas,
+  color: wb.ink2,
   textAlign: 'center',
 });
 
@@ -507,7 +532,7 @@ globalStyle(`${unavailableRoot} > svg`, {
 
 globalStyle(`${unavailableRoot} > h1`, {
   margin: '8px 0 0',
-  color: cssVarV2('text/primary'),
+  color: wb.ink,
   fontSize: 20,
   lineHeight: '28px',
   fontWeight: 600,
@@ -520,3 +545,97 @@ globalStyle(`${unavailableRoot} > p`, {
   fontSize: 13,
   lineHeight: '20px',
 });
+
+// v10 header tools: bordered 34px squares; the account avatar is a dark tile.
+const headerTool = `${projectHeader} > button, ${projectHeader} > div > button, ${projectHeader} > div > div > button`;
+globalStyle(headerTool, toolButton);
+globalStyle(
+  `${projectHeader} > button:hover, ${projectHeader} > div > button:hover, ${projectHeader} > div > div > button:hover`,
+  toolButtonHover
+);
+globalStyle(`${railUtilities} > button:last-child`, {
+  background: wb.action,
+  borderColor: wb.action,
+});
+globalStyle(`${railUtilities} > button:last-child span`, {
+  borderRadius: 8,
+});
+
+// v10: context and project files float as cards beside the stream.
+globalStyle(
+  `${conversationAndPeek}[data-panel="context"] ${resourcePane}, ${conversationAndPeek}[data-panel="projectTree"] ${resourcePane}`,
+  { borderLeft: 0, background: wb.panel }
+);
+globalStyle(`${conversationAndPeek}[data-panel="projectTree"] ${filesPane}`, {
+  height: 'auto',
+  maxHeight: 'calc(100% - 40px)',
+  margin: '20px 16px 20px 4px',
+  overflow: 'hidden',
+  border: `1px solid ${wb.line}`,
+  borderRadius: 17,
+  background: wb.paper,
+  boxShadow: '0 1px 2px rgba(75, 84, 93, 0.05)',
+});
+// The documents view is a full-bleed file browser, not a floating card.
+globalStyle(
+  `${conversationAndPeek}[data-view="files"][data-panel="projectTree"] ${filesPane}`,
+  {
+    height: '100%',
+    maxHeight: 'none',
+    margin: 0,
+    border: 0,
+    borderRadius: 0,
+    boxShadow: 'none',
+  }
+);
+
+// v10 task-context card: the work order panel floats beside the stream.
+globalStyle(`${workOrderPanelContent}`, {
+  padding: '20px 16px 20px 4px',
+  boxSizing: 'border-box',
+});
+
+// Collapsing a work order card removes the column; the title card holds the toggle.
+globalStyle(
+  `${conversationAndPeek}[data-work-order-collapsed="true"] ${workOrderPane}`,
+  {
+    '@media': { 'screen and (min-width: 1041px)': { display: 'none' } },
+  }
+);
+export const orderCard = style({
+  height: '100%',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  padding: '20px 16px 20px 4px',
+  boxSizing: 'border-box',
+  background: wb.panel,
+});
+export const orderSwitch = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  padding: 4,
+  borderRadius: 12,
+  background: wb.panelStrong,
+});
+globalStyle(`${orderSwitch} button`, {
+  flex: '1 1 auto',
+  minHeight: 28,
+  padding: '0 10px',
+  border: 0,
+  borderRadius: 9,
+  background: 'transparent',
+  color: wb.ink3,
+  font: 'inherit',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+});
+globalStyle(`${orderSwitch} button[aria-selected="true"]`, {
+  background: wb.paper,
+  color: wb.ink,
+  boxShadow: '0 1px 3px rgba(24, 27, 31, 0.1)',
+});
+export const orderCardBody = style({ flex: 1, minHeight: 0 });

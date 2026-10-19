@@ -51,6 +51,8 @@ RUN apt-get update \
     pkg-config \
     python3 \
     build-essential \
+    chromium \
+    fonts-noto-cjk \
   && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
   && apt-get install -y --no-install-recommends nodejs \
   && corepack enable \
@@ -173,7 +175,7 @@ ENV NODE_ENV=production \
     LOCALMIND_ENTERPRISE_CLI_ROOT_DIR=/var/lib/localmind/enterprise-cli
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl libssl3 unzip \
+  && apt-get install -y --no-install-recommends ca-certificates curl libssl3 unzip chromium fonts-noto-cjk \
   && rm -rf /var/lib/apt/lists/*
 
 RUN npm install --global --omit=dev --no-audit --no-fund \

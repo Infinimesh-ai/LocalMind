@@ -16,6 +16,7 @@ import {
   type CopilotProviderType,
   type CopilotStructuredOptions,
   ModelOutputType,
+  type PromptAttachment,
   type PromptMessage,
   type PromptParams,
 } from '../providers/types';
@@ -65,21 +66,35 @@ export class PromptRuntime {
     private readonly models: Models
   ) {}
 
+  /** Freeze the effective DB/config-resolved template for a durable run. */
+  async snapshot(promptName: string): Promise<ResolvedPrompt> {
+    const prompt = await this.prompts.get(promptName);
+    if (!prompt || prompt.source === 'built_in' || !prompt.messages?.length)
+      throw new CopilotPromptNotFound({ name: promptName });
+    return structuredClone(prompt);
+  }
+
   private async preparePrompt(
     promptName: string,
     params: PromptParams,
     options: {
       modelId?: string;
+      promptSnapshot?: ResolvedPrompt;
+      requireModelId?: boolean;
+      attachments?: PromptAttachment[];
       prefer?: CopilotProviderType;
       appendMessages?: PromptMessage[];
       providerOptions?: PromptRuntimeProviderOptions;
       outputType?: 'text' | 'structured';
     } = {}
   ) {
-    const prompt = await this.prompts.get(promptName);
+    const prompt =
+      options.promptSnapshot ?? (await this.prompts.get(promptName));
     if (!prompt) {
       throw new CopilotPromptNotFound({ name: promptName });
     }
+    if (prompt.name !== promptName)
+      throw new CopilotPromptNotFound({ name: promptName });
 
     const providerOptions: PromptRuntimeProviderOptions =
       options.providerOptions ?? {};
@@ -116,9 +131,11 @@ export class PromptRuntime {
       requestedModelId: options.modelId,
       outputType: options.outputType ?? ModelOutputType.Text,
       routeContext: {
+        reportImageInput: providerOptions.reportImageInput,
         userId: providerOptions.user,
         sessionId: providerOptions.session,
         workspaceId: providerOptions.workspace,
+        projectId: providerOptions.projectId,
         byokLeaseId: providerOptions.byokLeaseId,
         featureKind,
         quotaBackedRoutesAllowed: providerOptions.quotaBackedRoutesAllowed,
@@ -137,6 +154,22 @@ export class PromptRuntime {
         )
       : this.prompts.finish(prompt, params, providerOptions.session);
 
+    if (
+      options.requireModelId &&
+      (!options.modelId || selection.model !== options.modelId)
+    )
+      throw new Error('Pinned report model is no longer available');
+    if (options.attachments?.length) {
+      const message = [...baseMessages]
+        .reverse()
+        .find(item => item.role === 'user');
+      if (!message) throw new Error('Image input requires a user data message');
+      message.attachments = [
+        ...(message.attachments ?? []),
+        ...options.attachments,
+      ];
+    }
+
     return {
       prompt,
       modelId: selection.model,
@@ -152,6 +185,9 @@ export class PromptRuntime {
     params: PromptParams,
     options: {
       modelId?: string;
+      promptSnapshot?: ResolvedPrompt;
+      requireModelId?: boolean;
+      attachments?: PromptAttachment[];
       prefer?: CopilotProviderType;
       appendMessages?: PromptMessage[];
       providerOptions?: NonNullable<CopilotChatOptions>;
@@ -177,6 +213,9 @@ export class PromptRuntime {
     options: {
       responseContract: PromptRuntimeStructuredContract;
       modelId?: string;
+      promptSnapshot?: ResolvedPrompt;
+      requireModelId?: boolean;
+      attachments?: PromptAttachment[];
       prefer?: CopilotProviderType;
       appendMessages?: PromptMessage[];
       providerOptions?: PromptRuntimeStructuredProviderOptions;

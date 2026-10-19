@@ -15,12 +15,11 @@ import { WorkspaceBlobStorage } from '../storage';
 import {
   type PageDocContent,
   parseDocToMarkdownFromDocSnapshot,
-  parsePageDoc,
-  parseWorkspaceDoc,
   type WorkspaceDocContent,
 } from '../utils/blocksuite';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
 import { documentContentVersion } from './content-version';
+import { snapshotParser } from './snapshot-parser';
 import { type DocDiff, type DocRecord } from './storage';
 
 const DOC_CONTENT_CACHE_7_DAYS = 7 * 24 * 60 * 60 * 1000;
@@ -50,12 +49,12 @@ export abstract class DocReader {
 
   // keep methods to allow test mocking
   parseDocContent(bin: Uint8Array, maxSummaryLength = 150) {
-    return parsePageDoc(bin, { maxSummaryLength });
+    return snapshotParser.pageContent(bin, maxSummaryLength);
   }
 
   // keep methods to allow test mocking
   parseWorkspaceContent(bin: Uint8Array) {
-    return parseWorkspaceDoc(bin);
+    return snapshotParser.workspaceContent(bin);
   }
 
   abstract getDoc(
@@ -265,7 +264,7 @@ export class DatabaseDocReader extends DocReader {
     }
     let content: WorkspaceDocContent | null;
     try {
-      content = this.parseWorkspaceContent(docRecord.bin);
+      content = await this.parseWorkspaceContent(docRecord.bin);
     } catch (error) {
       this.logger.warn(
         `Failed to parse workspace ${workspaceId} content`,

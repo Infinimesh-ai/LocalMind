@@ -2,6 +2,7 @@
  * @vitest-environment happy-dom
  */
 
+import type * as AffineComponentModule from '@affine/component';
 import {
   cleanup,
   fireEvent,
@@ -22,7 +23,8 @@ const tokens = vi.hoisted(() => ({
   rename: Symbol('renameConversation'),
 }));
 
-vi.mock('@affine/component', () => ({
+vi.mock('@affine/component', async importOriginal => ({
+  ...(await importOriginal<typeof AffineComponentModule>()),
   Menu: ({ children, items }: PropsWithChildren<{ items: ReactNode }>) => (
     <div>
       {children}

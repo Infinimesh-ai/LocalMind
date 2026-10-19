@@ -11,6 +11,7 @@ import { CompatSubmissionStore } from '../../compat/submission-store';
 import { ContextMemoryService } from '../../context-memory-service';
 import {
   canonicalizeTurnTrace,
+  promptMessageFromTurn,
   type Turn,
   turnFromChatMessage,
 } from '../../core';
@@ -296,7 +297,7 @@ export class ConversationHost {
 
     return {
       ...latestTurn.metadata,
-      content: latestTurn.content,
+      content: promptMessageFromTurn(latestTurn).content,
       attachments: latestTurn.attachments,
     };
   }

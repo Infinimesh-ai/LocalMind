@@ -5,6 +5,7 @@ import {
   getProjectPath,
   PROJECT_NEW_CONVERSATION_PATH,
   PROJECT_ROUTE_PATH,
+  REPORT_DECKS_ROUTE_PATH,
 } from './route-paths';
 
 export { PROJECT_ROUTE_PATH } from './route-paths';
@@ -26,6 +27,36 @@ export const legacyProjectRedirectLoader: LoaderFunction = ({
 };
 
 export const projectTopLevelRoutes = [
+  ...[
+    'reports',
+    'reports/:reportId',
+    'reports/:reportId/revisions/:revisionId',
+    'reports/:reportId/present',
+    'reports/:reportId/presenter',
+    'report-templates',
+    'report-schedules',
+  ].map(path => ({
+    path: `${PROJECT_ROUTE_PATH}/:projectId/${path}`,
+    // Disabled unless `enable_legacy_project_reports`; then redirects to /reports.
+    lazy: () => import('./pages/report-decks/legacy-reports-route'),
+  })),
+  ...[
+    REPORT_DECKS_ROUTE_PATH,
+    `${REPORT_DECKS_ROUTE_PATH}/new`,
+    `${REPORT_DECKS_ROUTE_PATH}/:deckId`,
+    `${REPORT_DECKS_ROUTE_PATH}/:deckId/present`,
+  ].map(path => ({
+    path,
+    lazy: () => import('./pages/report-decks'),
+  })),
+  {
+    path: '/share/decks/:shareId',
+    lazy: () => import('./pages/report-decks/shared-route'),
+  },
+  {
+    path: '/share/reports/:shareId',
+    lazy: () => import('./pages/intelligence/reports/shared-route'),
+  },
   {
     path: PROJECT_ROUTE_PATH,
     lazy: () => import('./pages/intelligence'),

@@ -1,14 +1,24 @@
-import { IconButton, notify, useConfirmModal } from '@affine/component';
-import { LocalMindLogo } from '@affine/component/localmind-logo';
+import { Button, IconButton, notify, useConfirmModal } from '@affine/component';
 import type { BlockerSuggestion } from '@affine/core/blocksuite/ai/components/ai-chat-messages';
+import {
+  GlobalRail,
+  rememberLastProjectId,
+} from '@affine/core/components/global-rail';
+import { compactUserInfo } from '@affine/core/components/global-rail/global-rail.css';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { ProjectFileRequestModal } from '@affine/core/components/project-file-request/detail';
 import { SWRConfigProvider } from '@affine/core/components/providers/swr-config-provider';
+import {
+  useLegacyProjectReportsEnabled,
+  useReportDeckEntryAvailable,
+} from '@affine/core/components/report-deck-entry';
 import { NotificationButton } from '@affine/core/components/root-app-sidebar/notification-button';
 import UserInfo from '@affine/core/components/root-app-sidebar/user-info';
 import {
   getProjectConversationPath,
+  getProjectDocumentsPath,
   getProjectPath,
+  getProjectReportPath,
   getWorkOrderPath,
   getWorkspaceDocPath,
   PROJECT_NEW_CONVERSATION_PATH,
@@ -19,6 +29,11 @@ import {
   GraphQLService,
 } from '@affine/core/modules/cloud';
 import { useAppLayoutReady } from '@affine/core/modules/desktop-api';
+import { GlobalDialogService } from '@affine/core/modules/dialogs';
+import {
+  ProjectEditorGuard,
+  useProjectUnsavedConfirmation,
+} from '@affine/core/modules/project-resources/edit-guard';
 import {
   projectErrorMessage,
   reportProjectError,
@@ -29,9 +44,12 @@ import {
   QuickSearchContainer,
   QuickSearchService,
 } from '@affine/core/modules/quicksearch';
+import { stashDeckSources } from '@affine/core/modules/report-decks/source-handoff';
+import { ViewIcon, ViewTitle } from '@affine/core/modules/workbench';
 import {
   completeConversationMutation,
   confirmCopilotBlockerSuggestionMutation,
+  copilotCollaborationGraphGetQuery,
   copilotContextProjectCreateMutation,
   copilotContextProjectUpdateMutation,
   copilotWorkbenchProjectsGetQuery,
@@ -53,11 +71,15 @@ import {
   CloseIcon,
   FolderIcon,
   SearchIcon,
-  SettingsIcon,
   SidebarIcon,
 } from '@blocksuite/icons/rc';
 import type { OfficeAiContext } from '@localmind/office';
-import { FrameworkScope, useFramework, useService } from '@toeverything/infra';
+import {
+  FrameworkScope,
+  useFramework,
+  useLiveData,
+  useService,
+} from '@toeverything/infra';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -67,13 +89,21 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom';
+import { type State, SWRConfig, type SWRConfiguration } from 'swr';
 
 import { ConversationBoard } from './conversation-board';
+import { ExecutionPath, findSessionRun } from './execution-path';
 import * as styles from './index.css';
 import { NewConversation } from './new-conversation';
 import { PaneResizeHandle } from './pane-resize-handle';
+import {
+  ProjectBrowser,
+  ProjectBrowserSidebar,
+  recordRecentProjectFile,
+  useProjectBrowserState,
+  useRecentProjectFiles,
+} from './project-browser';
 import { type ProjectCollaborationPendingKey } from './project-collaboration';
-import { ProjectContextPanel } from './project-context-panel';
 import { ProjectFiles } from './project-files';
 import { ProjectResourcePreview } from './project-resource-preview';
 import { ProjectShellSettings } from './project-shell-settings';
@@ -95,14 +125,20 @@ import { useConversationCards } from './use-conversation-cards';
 import { useProjectTaskDecision } from './use-project-task-decision';
 import { WorkOrderConversation } from './work-order-conversation';
 import { type WorkOrder, WorkOrderPanel } from './work-order-panel';
+import { WorkOrderPanelToggle } from './work-order-panel-toggle';
 import type { WorkbenchContextPanelState } from './workbench-conversation';
 import { WorkbenchConversation } from './workbench-conversation';
 import { executeWorkbenchTaskAction } from './workbench-task-action';
+
+const projectQueryCache: SWRConfiguration = {
+  provider: () => new Map<string, State<unknown, unknown>>(),
+};
 
 export const Component = () => {
   useAppLayoutReady();
 
   const defaultServer = useService(DefaultServerService).server;
+  const account = useLiveData(defaultServer?.account$);
   const navigate = useNavigate();
   const location = useLocation();
   const seeded = useRef(false);
@@ -114,6 +150,15 @@ export const Component = () => {
     workOrderId = null,
   } = useParams();
   const newConversation = location.pathname === PROJECT_NEW_CONVERSATION_PATH;
+  const documentsView =
+    searchParams.get('view') === 'files' &&
+    !selectedSessionId &&
+    !workOrderId &&
+    !newConversation;
+
+  useEffect(() => {
+    rememberLastProjectId(selectedProjectId);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (
@@ -131,14 +176,22 @@ export const Component = () => {
     window.history.replaceState(
       window.history.state,
       '',
-      getProjectPath(selectedProjectId)
+      documentsView
+        ? getProjectDocumentsPath(selectedProjectId)
+        : getProjectPath(selectedProjectId)
     );
     void Promise.resolve(
       navigate(target, {
         state: { ...location.state, projectHistorySeeded: true },
       })
     ).catch(reportProjectError);
-  }, [location, navigate, selectedProjectId, selectedResourceId]);
+  }, [
+    documentsView,
+    location,
+    navigate,
+    selectedProjectId,
+    selectedResourceId,
+  ]);
 
   const selectResource = useCallback(
     (
@@ -146,7 +199,9 @@ export const Component = () => {
       resourceId: string | null,
       returnSessionId?: string | null
     ) => {
-      if (resourceId) {
+      if (documentsView) {
+        navigate(getProjectDocumentsPath(projectId, resourceId));
+      } else if (resourceId) {
         const path = getProjectPath(projectId, resourceId);
         navigate(
           returnSessionId
@@ -161,18 +216,22 @@ export const Component = () => {
         );
       }
     },
-    [navigate]
+    [documentsView, navigate]
   );
 
   const selectProject = useCallback(
     (projectId: string | null) => {
-      navigate(getProjectPath(projectId));
+      navigate(
+        documentsView
+          ? getProjectDocumentsPath(projectId)
+          : getProjectPath(projectId)
+      );
     },
-    [navigate]
+    [documentsView, navigate]
   );
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-framed={BUILD_CONFIG.isElectron}>
       {BUILD_CONFIG.isElectron && (
         <div
           className={styles.desktopTitlebar}
@@ -182,42 +241,53 @@ export const Component = () => {
         </div>
       )}
       <FrameworkScope scope={defaultServer?.scope}>
-        <SWRConfigProvider>
-          <QuickSearchContainer />
-          <ProjectFileRequestModal
-            requestId={searchParams.get('fileRequest')}
-            onClose={() =>
-              setSearchParams(
-                current => {
-                  const next = new URLSearchParams(current);
-                  next.delete('fileRequest');
-                  return next;
-                },
-                { replace: true }
-              )
-            }
-          />
-          <IntelligenceWorkbench
-            selectedProjectId={selectedProjectId}
-            selectedResourceId={selectedResourceId}
-            selectedSessionId={selectedSessionId}
-            workOrderId={workOrderId}
-            newConversation={newConversation}
-            onSelectResource={selectResource}
-            onSelectProject={selectProject}
-          />
-        </SWRConfigProvider>
+        <SWRConfig
+          key={`${defaultServer?.id ?? 'no-server'}:${account?.id ?? 'guest'}`}
+          value={projectQueryCache}
+        >
+          <SWRConfigProvider>
+            <QuickSearchContainer />
+            <ProjectFileRequestModal
+              requestId={searchParams.get('fileRequest')}
+              onClose={() =>
+                setSearchParams(
+                  current => {
+                    const next = new URLSearchParams(current);
+                    next.delete('fileRequest');
+                    return next;
+                  },
+                  { replace: true }
+                )
+              }
+            />
+            <ProjectEditorGuard>
+              <IntelligenceWorkbench
+                accountId={account?.id ?? null}
+                selectedProjectId={selectedProjectId}
+                selectedResourceId={selectedResourceId}
+                selectedSessionId={selectedSessionId}
+                workOrderId={workOrderId}
+                newConversation={newConversation}
+                documentsView={documentsView}
+                onSelectResource={selectResource}
+                onSelectProject={selectProject}
+              />
+            </ProjectEditorGuard>
+          </SWRConfigProvider>
+        </SWRConfig>
       </FrameworkScope>
     </div>
   );
 };
 
 type IntelligenceWorkbenchProps = {
+  accountId: string | null;
   selectedProjectId: string | null;
   selectedResourceId: string | null;
   selectedSessionId: string | null;
   workOrderId: string | null;
   newConversation: boolean;
+  documentsView: boolean;
   onSelectResource: (
     projectId: string,
     resourceId: string | null,
@@ -266,6 +336,17 @@ const readPaneWidths = (): Partial<Record<PaneWidthKey, number>> => {
         widths[key] = value;
       }
     }
+    // Both views now share navigation width; retain a legacy Files preference
+    // when no valid Hub preference was saved.
+    const legacyNavigation = saved.documentsNavigation;
+    if (
+      widths.navigation === undefined &&
+      typeof legacyNavigation === 'number' &&
+      Number.isFinite(legacyNavigation) &&
+      legacyNavigation > 0
+    ) {
+      widths.navigation = legacyNavigation;
+    }
     return widths;
   } catch {
     return {};
@@ -273,19 +354,25 @@ const readPaneWidths = (): Partial<Record<PaneWidthKey, number>> => {
 };
 
 const IntelligenceWorkbench = ({
+  accountId,
   selectedProjectId,
   selectedResourceId,
   selectedSessionId,
   workOrderId,
   newConversation,
+  documentsView,
   onSelectResource,
   onSelectProject,
 }: IntelligenceWorkbenchProps) => {
   const t = useI18n();
   const navigate = useNavigate();
+  const confirmUnsaved = useProjectUnsavedConfirmation();
+  const legacyReports = useLegacyProjectReportsEnabled();
+  const reportDeckAvailable = useReportDeckEntryAvailable();
   const [workbenchSearchParams] = useSearchParams();
-  const resourceReturnSessionId =
-    selectedSessionId ?? workbenchSearchParams.get('sessionId');
+  const resourceReturnSessionId = documentsView
+    ? null
+    : (selectedSessionId ?? workbenchSearchParams.get('sessionId'));
   const framework = useFramework();
   const quickSearch = useService(QuickSearchService).quickSearch;
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -371,6 +458,7 @@ const IntelligenceWorkbench = ({
   }, [framework, navigate, quickSearch]);
   useEffect(() => () => quickSearch.hide(), [quickSearch]);
   const graphqlService = useService(GraphQLService);
+  const globalDialogService = useService(GlobalDialogService);
   const { openConfirmModal } = useConfirmModal();
   const [pendingMutationKey, setPendingMutationKey] = useState<string | null>(
     null
@@ -385,6 +473,7 @@ const IntelligenceWorkbench = ({
     useState(false);
   const overviewExpanded =
     relationWorkspaceExpanded &&
+    !documentsView &&
     !selectedProjectId &&
     !workOrderId &&
     !newConversation;
@@ -397,6 +486,15 @@ const IntelligenceWorkbench = ({
   } | null>(null);
   const blockerCreatePending = useRef(false);
   const conversationCards = useConversationCards();
+  const [overviewFilter, setOverviewFilter] = useState('');
+  const filteredConversationCards = useConversationCards({
+    filter: overviewFilter,
+    enabled:
+      !!overviewFilter &&
+      !selectedProjectId &&
+      !workOrderId &&
+      !newConversation,
+  });
   const [loadedWorkOrderState, setLoadedWorkOrderState] = useState<{
     workOrderId: string;
     order: WorkOrder;
@@ -435,11 +533,49 @@ const IntelligenceWorkbench = ({
     conversationCards.progress.items,
     conversationCards.todo.items,
   ]);
-  const selectedConversationCard = selectedSessionId
+  const selectedConversationCard = resourceReturnSessionId
     ? (allConversationCards.find(
-        card => card.sessionId === selectedSessionId
+        card => card.sessionId === resourceReturnSessionId
       ) ?? null)
     : null;
+  // The right card only exists once this conversation has sent work orders.
+  const collaborationGraph = useQuery(
+    { query: copilotCollaborationGraphGetQuery },
+    { suspense: false, shouldRetryOnError: false }
+  );
+  useProjectRefresh(null, 'task', collaborationGraph.mutate);
+  const graphData =
+    collaborationGraph.data?.currentUser?.copilot.myCollaborationGraph;
+  const sessionOrders = useMemo(() => {
+    if (!resourceReturnSessionId || !graphData) return [];
+    const labels = new Map(graphData.nodes.map(node => [node.id, node.label]));
+    return graphData.edges
+      .filter(
+        edge =>
+          edge.ownSessionId === resourceReturnSessionId && edge.kind !== 'draft'
+      )
+      .map(edge => ({
+        id: edge.id,
+        status: edge.status,
+        recipient: labels.get(edge.to) ?? edge.label,
+      }));
+  }, [graphData, resourceReturnSessionId]);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const activeOrder =
+    sessionOrders.find(order => order.id === activeOrderId) ??
+    sessionOrders[0] ??
+    null;
+  const [ordersCollapsed, setOrdersCollapsed] = useState(false);
+  // Sending the first work order from a conversation pops the card open.
+  const orderCount = useRef(sessionOrders.length);
+  useEffect(() => {
+    if (sessionOrders.length > orderCount.current) setOrdersCollapsed(false);
+    orderCount.current = sessionOrders.length;
+  }, [sessionOrders.length]);
+  useEffect(() => {
+    setActiveOrderId(null);
+    orderCount.current = 0;
+  }, [resourceReturnSessionId]);
 
   useEffect(() => {
     if (!mobileNavigationOpen) return;
@@ -491,10 +627,39 @@ const IntelligenceWorkbench = ({
       shouldRetryOnError: false,
     }
   );
-  const allProjects = projectsData?.currentUser?.copilot.contextProjects ?? [];
+  const allProjects = useMemo(
+    () => projectsData?.currentUser?.copilot.contextProjects ?? [],
+    [projectsData]
+  );
   const projects = allProjects.filter(project => project.status === 'active');
   const selectedProject =
     projects.find(project => project.id === selectedProjectId) ?? null;
+  useEffect(() => {
+    if (
+      !overviewFilter ||
+      overviewFilter === 'work_order' ||
+      projectsLoading ||
+      projectsError ||
+      !projectsData ||
+      allProjects.some(
+        project => project.id === overviewFilter && project.status === 'active'
+      )
+    )
+      return;
+    setOverviewFilter('');
+    notify.error({
+      title: t['com.affine.localmind.project-error.unavailable'](),
+    });
+    void conversationCards.refresh().catch(reportProjectError);
+  }, [
+    allProjects,
+    conversationCards,
+    overviewFilter,
+    projectsData,
+    projectsError,
+    projectsLoading,
+    t,
+  ]);
   const resourceQuery = useQuery(
     selectedProjectId && selectedResourceId
       ? {
@@ -523,14 +688,78 @@ const IntelligenceWorkbench = ({
     Promise.all([resourceQuery.mutate(), resourcePath.mutate()])
   );
   const resource = resourceQuery.data?.projectResource;
+  const viewTitle =
+    resource?.title ??
+    (workOrderId
+      ? (loadedWorkOrder?.title ??
+        t['com.affine.localmind.workbench.v9.personalWorkOrder']())
+      : newConversation
+        ? t['com.affine.localmind.workbench.v9.newConversation']()
+        : documentsView
+          ? t['com.affine.localmind.workbench.systemRail.docs']()
+          : (selectedConversationCard?.title ??
+            selectedProject?.name ??
+            t['com.affine.localmind.workbench.v9.overview']()));
   const resourceIsFolder = resource?.kind === 'folder';
   const directoryId = resourceIsFolder
     ? resource.id
     : (resource?.parentId ?? null);
+  const recentFiles = useRecentProjectFiles(accountId);
+  const selectedProjectName = selectedProject?.name ?? '';
+  useEffect(() => {
+    if (
+      !selectedProjectId ||
+      !resource ||
+      resource.id !== selectedResourceId ||
+      resource.kind === 'folder'
+    )
+      return;
+    // Every project file opened in the workbench feeds the documents "Recent".
+    recordRecentProjectFile(accountId, {
+      projectId: selectedProjectId,
+      projectName: selectedProjectName,
+      resourceId: resource.id,
+      parentId: resource.parentId ?? null,
+      title: resource.title,
+      kind: resource.kind,
+    });
+  }, [
+    accountId,
+    resource,
+    selectedProjectId,
+    selectedProjectName,
+    selectedResourceId,
+  ]);
+  const navigateDocuments = useCallback(
+    (location: { projectId: string | null; folderId: string | null }) => {
+      void confirmUnsaved()
+        .then(allowed => {
+          if (allowed)
+            navigate(
+              getProjectDocumentsPath(location.projectId, location.folderId)
+            );
+        })
+        .catch(reportProjectError);
+    },
+    [confirmUnsaved, navigate]
+  );
+  const browserState = useProjectBrowserState({
+    location: documentsView
+      ? {
+          projectId: selectedProjectId,
+          folderId: !selectedResourceId
+            ? null
+            : resource?.id === selectedResourceId
+              ? directoryId
+              : undefined,
+        }
+      : undefined,
+    onNavigate: navigateDocuments,
+  });
 
   useEffect(() => {
     setContextPanel(null);
-  }, [selectedProjectId, selectedSessionId]);
+  }, [selectedProjectId, resourceReturnSessionId]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -545,7 +774,9 @@ const IntelligenceWorkbench = ({
               kind: 'resource',
               resourceId: selectedResourceId,
               openedFrom:
-                current.kind === 'projectTree' ? 'projectTree' : 'context',
+                documentsView || current.kind === 'projectTree'
+                  ? 'projectTree'
+                  : 'context',
               treeOpen: false,
             }
       );
@@ -557,10 +788,20 @@ const IntelligenceWorkbench = ({
     }
     if (!selectedResourceId) {
       setRightPanel(current =>
-        current.kind === 'resource' ? { kind: current.openedFrom } : current
+        documentsView
+          ? { kind: 'projectTree' }
+          : current.kind === 'resource'
+            ? { kind: current.openedFrom }
+            : current
       );
     }
-  }, [resource, resourceIsFolder, selectedProjectId, selectedResourceId]);
+  }, [
+    documentsView,
+    resource,
+    resourceIsFolder,
+    selectedProjectId,
+    selectedResourceId,
+  ]);
   const collaborationProject =
     projects.find(
       project =>
@@ -585,6 +826,18 @@ const IntelligenceWorkbench = ({
   );
   const taskPanel =
     taskPanelData?.currentUser?.copilot.workbenchTaskPanel ?? EMPTY_TASK_PANEL;
+  const sessionRun = useMemo(
+    () =>
+      findSessionRun(
+        [
+          ...taskPanel.todo.items,
+          ...taskPanel.inProgress.items,
+          ...taskPanel.done.items,
+        ],
+        resourceReturnSessionId
+      ),
+    [taskPanel, resourceReturnSessionId]
+  );
 
   useProjectRefresh(null, 'list', refreshProjects);
   useProjectRefresh(selectedProjectId, 'task', refreshTaskPanel);
@@ -1205,8 +1458,14 @@ const IntelligenceWorkbench = ({
   );
 
   const openProjectResource = useCallback(
-    (resourceId: string, openedFrom?: 'context' | 'projectTree') => {
+    async (resourceId: string, openedFrom?: 'context' | 'projectTree') => {
       if (!selectedProject) return;
+      if (
+        rightPanel.kind === 'resource' &&
+        rightPanel.resourceId === resourceId
+      )
+        return;
+      if (!(await confirmUnsaved())) return;
       setRightPanel(current => ({
         kind: 'resource',
         resourceId,
@@ -1217,11 +1476,18 @@ const IntelligenceWorkbench = ({
       }));
       onSelectResource(selectedProject.id, resourceId, resourceReturnSessionId);
     },
-    [onSelectResource, resourceReturnSessionId, selectedProject]
+    [
+      onSelectResource,
+      resourceReturnSessionId,
+      selectedProject,
+      confirmUnsaved,
+      rightPanel,
+    ]
   );
 
-  const closeProjectResource = useCallback(() => {
+  const closeProjectResource = useCallback(async () => {
     if (!selectedProject || rightPanel.kind !== 'resource') return;
+    if (!(await confirmUnsaved())) return;
     const next = rightPanel.openedFrom;
     const resourceId = rightPanel.resourceId;
     setRightPanel({ kind: next });
@@ -1237,7 +1503,9 @@ const IntelligenceWorkbench = ({
             ? 'data-project-resource-id'
             : 'data-project-context-resource-id';
         const opener = Array.from(
-          document.querySelectorAll<HTMLButtonElement>(`button[${attribute}]`)
+          document.querySelectorAll<HTMLElement>(
+            next === 'projectTree' ? `[${attribute}]` : `button[${attribute}]`
+          )
         ).find(element => element.getAttribute(attribute) === resourceId);
         (opener ?? rightPanelTrigger.current?.querySelector('button'))?.focus();
       })
@@ -1248,7 +1516,25 @@ const IntelligenceWorkbench = ({
     resourceReturnSessionId,
     rightPanel,
     selectedProject,
+    confirmUnsaved,
   ]);
+
+  const openBrowserResource = useCallback(
+    (projectId: string, resourceId: string) => {
+      if (projectId === selectedProject?.id) {
+        void openProjectResource(resourceId, 'projectTree').catch(
+          reportProjectError
+        );
+        return;
+      }
+      void confirmUnsaved()
+        .then(allowed => {
+          if (allowed) onSelectResource(projectId, resourceId);
+        })
+        .catch(reportProjectError);
+    },
+    [confirmUnsaved, onSelectResource, openProjectResource, selectedProject]
+  );
 
   const toggleRightPanel = useCallback(() => {
     setRightPanel(current =>
@@ -1266,9 +1552,15 @@ const IntelligenceWorkbench = ({
       ? t['com.affine.localmind.workbench.v9.contextPanel']()
       : t['com.affine.localmind.project-files.title']();
 
-  const paneKind: RightPaneWidthKey = workOrderId
-    ? 'workOrder'
-    : rightPanel.kind;
+  const visiblePanel =
+    rightPanel.kind === 'context' && (!activeOrder || ordersCollapsed)
+      ? 'none'
+      : rightPanel.kind;
+  // The sent work order card shares the received work order pane width.
+  const paneKind: RightPaneWidthKey =
+    workOrderId || rightPanel.kind === 'context'
+      ? 'workOrder'
+      : rightPanel.kind;
   const defaultPaneWidth = {
     context: '260px',
     projectTree: '320px',
@@ -1305,11 +1597,32 @@ const IntelligenceWorkbench = ({
       ref={rootRef}
       className={styles.root}
       style={assignInlineVars({
-        [styles.railWidthVar]: `${paneWidths.navigation ?? 250}px`,
+        [styles.railWidthVar]: `${paneWidths.navigation ?? 240}px`,
       })}
       data-testid="intelligence-workbench"
       data-workspace-expanded={overviewExpanded}
     >
+      {BUILD_CONFIG.isElectron ? (
+        <>
+          <ViewTitle title={viewTitle} />
+          <ViewIcon icon="ai" />
+        </>
+      ) : null}
+      <GlobalRail
+        projectId={selectedProjectId}
+        active={documentsView ? 'docs' : 'projects'}
+        onNavigate={path => {
+          void confirmUnsaved()
+            .then(allowed => {
+              if (allowed) navigate(path);
+            })
+            .catch(reportProjectError);
+        }}
+        onOpenSettings={() => {
+          setCollaborationProjectId(null);
+          setSettingsOpen(true);
+        }}
+      />
       <aside
         id="intelligence-project-navigation"
         hidden={overviewExpanded}
@@ -1318,16 +1631,9 @@ const IntelligenceWorkbench = ({
         aria-label={t['com.affine.localmind.workbench.navigation']()}
       >
         <div className={styles.railHeader}>
-          <button
-            type="button"
-            className={styles.brand}
-            title={t['com.affine.localmind.workbench.returnToWorkspace']()}
-            aria-label={t['com.affine.localmind.workbench.returnToWorkspace']()}
-            onClick={() => navigate('/')}
-          >
-            <LocalMindLogo size={28} />
+          <span className={styles.brand}>
             <span>LOCALMIND</span>
-          </button>
+          </span>
           <span className={styles.mobileRailClose}>
             <IconButton
               size="20"
@@ -1338,74 +1644,134 @@ const IntelligenceWorkbench = ({
           </span>
         </div>
 
-        <ProjectTree
-          projects={allProjects}
-          selectedProjectId={selectedProjectId}
-          selectedSessionId={
-            selectedSessionId ?? loadedWorkOrder?.ownSessionId ?? null
-          }
-          conversations={allConversationCards}
-          loading={projectsLoading}
-          error={projectsError ? projectErrorMessage(projectsError) : undefined}
-          conversationsLoading={
-            conversationCards.todo.loading ||
-            conversationCards.progress.loading ||
-            conversationCards.done.loading
-          }
-          conversationsLoadingMore={
-            conversationCards.todo.loadingMore ||
-            conversationCards.progress.loadingMore ||
-            conversationCards.done.loadingMore
-          }
-          conversationsError={
-            conversationCards.todo.error ||
-            conversationCards.progress.error ||
-            conversationCards.done.error
-              ? projectErrorMessage(
-                  conversationCards.todo.error ??
-                    conversationCards.progress.error ??
-                    conversationCards.done.error
+        {documentsView ? (
+          <ProjectBrowserSidebar
+            projects={allProjects}
+            selectedProjectId={selectedProject?.id ?? null}
+            loading={projectsLoading}
+            error={
+              projectsError ? projectErrorMessage(projectsError) : undefined
+            }
+            onRetry={() => void refreshProjects().catch(reportProjectError)}
+            onSelectProject={projectId => {
+              browserState.setTrash(false);
+              browserState.setSearch('');
+              navigateDocuments({ projectId, folderId: null });
+              setMobileNavigationOpen(false);
+            }}
+            recent={recentFiles}
+            onOpenRecent={entry => {
+              browserState.setSearch('');
+              openBrowserResource(entry.projectId, entry.resourceId);
+              setMobileNavigationOpen(false);
+            }}
+            trash={browserState.trash}
+            onOpenTrash={() => {
+              browserState.setSearch('');
+              browserState.setTrash(true);
+              if (selectedProject && rightPanel.kind === 'resource')
+                void closeProjectResource().catch(reportProjectError);
+              setMobileNavigationOpen(false);
+            }}
+            onRestoreProject={project =>
+              void restoreProject(project).catch(reportProjectError)
+            }
+          />
+        ) : (
+          <ProjectTree
+            projects={allProjects}
+            selectedProjectId={selectedProjectId}
+            selectedSessionId={
+              resourceReturnSessionId ?? loadedWorkOrder?.ownSessionId ?? null
+            }
+            conversations={allConversationCards}
+            loading={projectsLoading}
+            error={
+              projectsError ? projectErrorMessage(projectsError) : undefined
+            }
+            conversationsLoading={
+              conversationCards.todo.loading ||
+              conversationCards.progress.loading ||
+              conversationCards.done.loading
+            }
+            conversationsLoadingMore={
+              conversationCards.todo.loadingMore ||
+              conversationCards.progress.loadingMore ||
+              conversationCards.done.loadingMore
+            }
+            conversationsError={
+              conversationCards.todo.error ||
+              conversationCards.progress.error ||
+              conversationCards.done.error
+                ? projectErrorMessage(
+                    conversationCards.todo.error ??
+                      conversationCards.progress.error ??
+                      conversationCards.done.error
+                  )
+                : undefined
+            }
+            conversationsHasMore={
+              conversationCards.todo.hasNextPage ||
+              conversationCards.progress.hasNextPage ||
+              conversationCards.done.hasNextPage
+            }
+            mutationsPending={pendingMutationKey !== null}
+            onRefresh={() => void refreshProjects()}
+            onRefreshConversations={() => void conversationCards.refresh()}
+            onLoadMoreConversations={() => {
+              Promise.all([
+                conversationCards.todo.loadMore(),
+                conversationCards.progress.loadMore(),
+                conversationCards.done.loadMore(),
+              ]).catch(caught =>
+                reportMutationError(
+                  caught,
+                  t[
+                    'com.affine.localmind.workbench.v9.loadMoreConversationsFailed'
+                  ]()
                 )
-              : undefined
-          }
-          conversationsHasMore={
-            conversationCards.todo.hasNextPage ||
-            conversationCards.progress.hasNextPage ||
-            conversationCards.done.hasNextPage
-          }
-          mutationsPending={pendingMutationKey !== null}
-          onRefresh={() => void refreshProjects()}
-          onRefreshConversations={() => void conversationCards.refresh()}
-          onLoadMoreConversations={() => {
-            Promise.all([
-              conversationCards.todo.loadMore(),
-              conversationCards.progress.loadMore(),
-              conversationCards.done.loadMore(),
-            ]).catch(caught =>
-              reportMutationError(
-                caught,
-                t[
-                  'com.affine.localmind.workbench.v9.loadMoreConversationsFailed'
-                ]()
-              )
-            );
-          }}
-          onSelectProject={projectId => {
-            onSelectProject(projectId);
-            setMobileNavigationOpen(false);
-          }}
-          onOpenConversation={openConversationCard}
-          onNewConversation={() => navigate(PROJECT_NEW_CONVERSATION_PATH)}
-          onRenameConversation={renameConversation}
-          onCreate={createProject}
-          onRename={renameProject}
-          onArchive={archiveProject}
-          onRestore={restoreProject}
-          onManageCollaboration={project => {
-            setCollaborationProjectId(project.id);
-            setSettingsOpen(true);
-          }}
-        />
+              );
+            }}
+            onSelectProject={projectId => {
+              onSelectProject(projectId);
+              setMobileNavigationOpen(false);
+            }}
+            onOpenConversation={openConversationCard}
+            onNewConversation={() => navigate(PROJECT_NEW_CONVERSATION_PATH)}
+            onRenameConversation={renameConversation}
+            onCreate={createProject}
+            onRename={renameProject}
+            onArchive={archiveProject}
+            onRestore={restoreProject}
+            onOpenReports={
+              legacyReports || reportDeckAvailable
+                ? project => {
+                    void confirmUnsaved()
+                      .then(allowed => {
+                        if (!allowed) return;
+                        navigate(
+                          legacyReports
+                            ? getProjectReportPath(project.id)
+                            : stashDeckSources([
+                                {
+                                  scopeKind: 'project',
+                                  scopeId: project.id,
+                                  kind: 'project_all',
+                                  title: project.name,
+                                },
+                              ])
+                        );
+                      })
+                      .catch(reportProjectError);
+                  }
+                : undefined
+            }
+            onManageCollaboration={project => {
+              setCollaborationProjectId(project.id);
+              setSettingsOpen(true);
+            }}
+          />
+        )}
         <PaneResizeHandle
           label={`${t['com.affine.localmind.workbench.navigation']()} · ${t['com.affine.rootAppSidebar.resize-handle.tooltip.drag']()}`}
           testId="project-navigation-resize"
@@ -1419,6 +1785,8 @@ const IntelligenceWorkbench = ({
         type="button"
         className={styles.railScrim}
         data-mobile-open={mobileNavigationOpen}
+        aria-hidden={!mobileNavigationOpen}
+        tabIndex={mobileNavigationOpen ? 0 : -1}
         aria-label={t['com.affine.sidebarSwitch.collapse']()}
         onClick={() => setMobileNavigationOpen(false)}
       />
@@ -1443,13 +1811,17 @@ const IntelligenceWorkbench = ({
           >
             <button
               onClick={() => {
-                if (!selectedProject) return;
-                setRightPanel({ kind: 'projectTree' });
-                onSelectResource(
-                  selectedProject.id,
-                  null,
-                  resourceReturnSessionId
-                );
+                void confirmUnsaved()
+                  .then(allowed => {
+                    if (!selectedProject || !allowed) return;
+                    setRightPanel({ kind: 'projectTree' });
+                    onSelectResource(
+                      selectedProject.id,
+                      null,
+                      resourceReturnSessionId
+                    );
+                  })
+                  .catch(reportProjectError);
               }}
             >
               {workOrderId
@@ -1457,8 +1829,10 @@ const IntelligenceWorkbench = ({
                   t['com.affine.localmind.workbench.v9.personalWorkOrder']())
                 : newConversation
                   ? t['com.affine.localmind.workbench.v9.newConversation']()
-                  : (selectedProject?.name ??
-                    t['com.affine.localmind.workbench.projects.all']())}
+                  : documentsView && !selectedProject
+                    ? t['com.affine.localmind.workbench.systemRail.docs']()
+                    : (selectedProject?.name ??
+                      t['com.affine.localmind.workbench.projects.all']())}
             </button>
             {resourcePath.data?.projectResourcePath.map(part => (
               <button
@@ -1466,9 +1840,11 @@ const IntelligenceWorkbench = ({
                 aria-current={
                   part.id === selectedResourceId ? 'page' : undefined
                 }
-                onClick={() =>
-                  selectedProject && openProjectResource(part.id, 'projectTree')
-                }
+                onClick={() => {
+                  void openProjectResource(part.id, 'projectTree').catch(
+                    reportProjectError
+                  );
+                }}
               >
                 {part.title}
               </button>
@@ -1481,7 +1857,8 @@ const IntelligenceWorkbench = ({
               projectName={selectedProject.name}
             />
           ) : null}
-          {selectedProject ? (
+          {selectedProject &&
+          (!documentsView || rightPanel.kind === 'resource') ? (
             <div ref={rightPanelTrigger} className={styles.rightPanelTrigger}>
               <IconButton
                 size="20"
@@ -1490,14 +1867,22 @@ const IntelligenceWorkbench = ({
                   rightPanel.kind === 'resource'
                     ? t['com.affine.localmind.workbench.v9.toggleFileTree']()
                     : rightPanel.kind === 'projectTree'
-                      ? t['com.affine.localmind.workbench.v9.showContext']()
+                      ? activeOrder && !ordersCollapsed
+                        ? t['com.affine.localmind.workbench.v9.showContext']()
+                        : t[
+                            'com.affine.localmind.workbench.v9.toggleFileTree'
+                          ]()
                       : t['com.affine.localmind.workbench.v9.showFileTree']()
                 }
                 aria-label={
                   rightPanel.kind === 'resource'
                     ? t['com.affine.localmind.workbench.v9.toggleFileTree']()
                     : rightPanel.kind === 'projectTree'
-                      ? t['com.affine.localmind.workbench.v9.showContext']()
+                      ? activeOrder && !ordersCollapsed
+                        ? t['com.affine.localmind.workbench.v9.showContext']()
+                        : t[
+                            'com.affine.localmind.workbench.v9.toggleFileTree'
+                          ]()
                       : t['com.affine.localmind.workbench.v9.showFileTree']()
                 }
                 aria-pressed={
@@ -1508,7 +1893,7 @@ const IntelligenceWorkbench = ({
               />
             </div>
           ) : null}
-          {selectedProject || workOrderId ? (
+          {!documentsView && (selectedProject || workOrderId) ? (
             <div role="tablist" className={styles.mobileViewTabs}>
               <IconButton
                 role="tab"
@@ -1549,17 +1934,7 @@ const IntelligenceWorkbench = ({
               onClick={openSearch}
             />
             <NotificationButton iconOnly />
-            <IconButton
-              size="20"
-              icon={<SettingsIcon />}
-              tooltip={t['com.affine.settingSidebar.title']()}
-              aria-label={t['com.affine.settingSidebar.title']()}
-              onClick={() => {
-                setCollaborationProjectId(null);
-                setSettingsOpen(true);
-              }}
-            />
-            <UserInfo />
+            <UserInfo className={compactUserInfo} />
           </div>
         </header>
         <div
@@ -1570,22 +1945,59 @@ const IntelligenceWorkbench = ({
               ? `${paneWidths[paneKind]}px`
               : defaultPaneWidth,
           })}
-          data-project={!!selectedProject || !!workOrderId}
+          data-project={!documentsView && (!!selectedProject || !!workOrderId)}
           data-work-order={!!workOrderId}
           data-work-order-collapsed={workOrderPanelCollapsed}
-          data-panel={rightPanel.kind}
+          data-panel={visiblePanel}
           data-fullscreen={fullscreen}
-          data-view={mobileView}
+          data-view={documentsView ? 'files' : mobileView}
         >
-          {!selectedProjectId && !workOrderId && !newConversation ? (
+          {documentsView ? (
+            <div
+              className={styles.filesPane}
+              hidden={!!selectedProject && rightPanel.kind === 'resource'}
+            >
+              <ProjectBrowser
+                projects={projects}
+                projectsLoading={
+                  projectsLoading || (!projectsData && !projectsError)
+                }
+                projectsError={
+                  projectsError ? projectErrorMessage(projectsError) : undefined
+                }
+                onRetryProjects={() =>
+                  void refreshProjects().catch(reportProjectError)
+                }
+                projectId={selectedProjectId}
+                folderId={
+                  !selectedResourceId
+                    ? null
+                    : resource?.id === selectedResourceId
+                      ? directoryId
+                      : undefined
+                }
+                state={browserState}
+                onOpen={openBrowserResource}
+              />
+            </div>
+          ) : null}
+          {!documentsView &&
+          !selectedProjectId &&
+          !workOrderId &&
+          !newConversation ? (
             <ConversationBoard
               workspaceExpanded={overviewExpanded}
               onWorkspaceExpandedChange={setRelationWorkspaceExpanded}
               cards={conversationCards}
+              filter={overviewFilter}
+              onFilterChange={setOverviewFilter}
+              filteredCards={filteredConversationCards}
               projects={projects}
+              projectsResolved={!!projectsData && !projectsError}
               onOpenCard={openConversationCard}
               onOpenRelation={openRelation}
               onNewConversation={() => navigate(PROJECT_NEW_CONVERSATION_PATH)}
+              onSignIn={() => globalDialogService.open('sign-in', {})}
             />
           ) : null}
           {newConversation ? (
@@ -1602,7 +2014,7 @@ const IntelligenceWorkbench = ({
               }
             />
           ) : null}
-          {selectedProject ? (
+          {selectedProject && !documentsView ? (
             <div
               ref={conversationPaneRef}
               className={styles.conversationPane}
@@ -1620,15 +2032,35 @@ const IntelligenceWorkbench = ({
                     ? officeContext
                     : undefined
                 }
-                onOpenResource={resourceId => openProjectResource(resourceId)}
+                onOpenResource={resourceId => {
+                  void openProjectResource(resourceId).catch(
+                    reportProjectError
+                  );
+                }}
                 onContextPanelChange={setContextPanel}
                 onConfirmBlockerSuggestion={confirmBlockerSuggestion}
-                selectedSessionId={selectedSessionId ?? undefined}
+                selectedSessionId={resourceReturnSessionId ?? undefined}
                 selectedCard={selectedConversationCard ?? undefined}
                 onCompleteConversation={completeConversation}
                 onPinChanged={() =>
                   void conversationCards.refresh().catch(reportProjectError)
                 }
+                headerActions={
+                  activeOrder ? (
+                    <WorkOrderPanelToggle
+                      direction="sent"
+                      expanded={!ordersCollapsed}
+                      attention={
+                        ordersCollapsed &&
+                        sessionOrders.some(order =>
+                          ['waiting_sender', 'delivered'].includes(order.status)
+                        )
+                      }
+                      onToggle={() => setOrdersCollapsed(value => !value)}
+                    />
+                  ) : null
+                }
+                banner={<ExecutionPath run={sessionRun} />}
                 onSessionCreated={sessionId =>
                   navigate(
                     getProjectConversationPath(selectedProject.id, sessionId),
@@ -1636,28 +2068,65 @@ const IntelligenceWorkbench = ({
                   )
                 }
               />
-              <PaneResizeHandle
-                label={`${t['com.affine.localmind.project-files.chat']()} / ${secondaryViewLabel} · ${t['com.affine.rootAppSidebar.resize-handle.tooltip.drag']()}`}
-                testId="project-content-resize"
-                direction={-1}
-                getWidth={getPaneWidth}
-                getBounds={getPaneBounds}
-                onChange={width => setPaneWidth(paneKind, width)}
-                onReset={() => resetPaneWidth(paneKind)}
-              />
+              {visiblePanel !== 'none' ? (
+                <PaneResizeHandle
+                  label={`${t['com.affine.localmind.project-files.chat']()} / ${secondaryViewLabel} · ${t['com.affine.rootAppSidebar.resize-handle.tooltip.drag']()}`}
+                  testId="project-content-resize"
+                  direction={-1}
+                  getWidth={getPaneWidth}
+                  getBounds={getPaneBounds}
+                  onChange={width => setPaneWidth(paneKind, width)}
+                  onReset={() => resetPaneWidth(paneKind)}
+                />
+              ) : null}
             </div>
           ) : null}
-          {selectedProject ? (
+          {selectedProject &&
+          visiblePanel !== 'none' &&
+          (!documentsView || rightPanel.kind === 'resource') ? (
             <div className={styles.resourcePane}>
               {rightPanel.kind === 'context' ? (
-                <ProjectContextPanel
-                  projectId={selectedProject.id}
-                  sessionId={selectedSessionId}
-                  state={contextPanel}
-                  onOpenResource={resourceId =>
-                    openProjectResource(resourceId, 'context')
-                  }
-                />
+                activeOrder ? (
+                  <div className={styles.orderCard}>
+                    {sessionOrders.length > 1 ? (
+                      <div
+                        role="tablist"
+                        className={styles.orderSwitch}
+                        aria-label={t[
+                          'com.affine.localmind.workbench.orders.switch'
+                        ]()}
+                      >
+                        {sessionOrders.map(order => (
+                          <button
+                            key={order.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={order.id === activeOrder.id}
+                            onClick={() => setActiveOrderId(order.id)}
+                          >
+                            {order.recipient}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div
+                      id="work-order-details"
+                      className={styles.orderCardBody}
+                    >
+                      <WorkOrderPanel
+                        key={activeOrder.id}
+                        workOrderId={activeOrder.id}
+                        onChanged={() =>
+                          Promise.all([
+                            conversationCards.refresh(),
+                            collaborationGraph.mutate(),
+                          ])
+                        }
+                        onCollapse={() => setOrdersCollapsed(true)}
+                      />
+                    </div>
+                  </div>
+                ) : null
               ) : rightPanel.kind === 'projectTree' ? (
                 <div className={styles.filesPane}>
                   <ProjectFiles
@@ -1665,9 +2134,11 @@ const IntelligenceWorkbench = ({
                     projectId={selectedProject.id}
                     parentId={directoryId}
                     selectedResourceId={selectedResourceId}
-                    onOpen={resourceId =>
-                      openProjectResource(resourceId, 'projectTree')
-                    }
+                    onOpen={resourceId => {
+                      void openProjectResource(resourceId, 'projectTree').catch(
+                        reportProjectError
+                      );
+                    }}
                   />
                 </div>
               ) : (
@@ -1686,9 +2157,12 @@ const IntelligenceWorkbench = ({
                         projectId={selectedProject.id}
                         parentId={directoryId}
                         selectedResourceId={rightPanel.resourceId}
-                        onOpen={resourceId =>
-                          openProjectResource(resourceId, rightPanel.openedFrom)
-                        }
+                        onOpen={resourceId => {
+                          void openProjectResource(
+                            resourceId,
+                            rightPanel.openedFrom
+                          ).catch(reportProjectError);
+                        }}
                       />
                       <PaneResizeHandle
                         label={`${t['com.affine.localmind.project-files.title']()} / ${t['com.affine.localmind.workbench.documentPreview']()} · ${t['com.affine.rootAppSidebar.resize-handle.tooltip.drag']()}`}
@@ -1719,7 +2193,9 @@ const IntelligenceWorkbench = ({
                             )
                         : undefined
                     }
-                    onClose={closeProjectResource}
+                    onClose={() => {
+                      void closeProjectResource().catch(reportProjectError);
+                    }}
                   />
                 </div>
               )}
@@ -1744,10 +2220,39 @@ const IntelligenceWorkbench = ({
                       workOrderDraftState.blocked
                     }
                     onChanged={conversationCards.refresh}
+                    headerActions={
+                      <WorkOrderPanelToggle
+                        direction="received"
+                        expanded={!workOrderPanelCollapsed}
+                        attention={
+                          workOrderPanelCollapsed &&
+                          loadedWorkOrder.status === 'open'
+                        }
+                        onToggle={() =>
+                          setWorkOrderPanelCollapsed(value => !value)
+                        }
+                      />
+                    }
                   />
                 ) : (
                   <div className={styles.workOrderSenderState}>
-                    {t['com.affine.localmind.workbench.v9.senderUsesSource']()}
+                    {loadedWorkOrder ? (
+                      t['com.affine.localmind.workbench.v9.senderUsesSource']()
+                    ) : (
+                      <>
+                        {t['Loading']()}
+                        <Button
+                          onClick={() => {
+                            setMobileView('files');
+                            setWorkOrderPanelCollapsed(false);
+                          }}
+                        >
+                          {t[
+                            'com.affine.localmind.workbench.fusion.orderTab'
+                          ]()}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
                 {!workOrderPanelCollapsed ? (
@@ -1763,18 +2268,6 @@ const IntelligenceWorkbench = ({
                 ) : null}
               </div>
               <div className={`${styles.resourcePane} ${styles.workOrderPane}`}>
-                <div className={styles.workOrderCollapsedRail}>
-                  <IconButton
-                    size="20"
-                    icon={<SidebarIcon />}
-                    aria-label={t[
-                      'com.affine.localmind.workbench.v9.expandWorkOrderPanel'
-                    ]()}
-                    aria-controls="work-order-details"
-                    aria-expanded={false}
-                    onClick={() => setWorkOrderPanelCollapsed(false)}
-                  />
-                </div>
                 <div
                   id="work-order-details"
                   className={styles.workOrderPanelContent}

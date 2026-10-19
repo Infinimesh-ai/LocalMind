@@ -44,10 +44,12 @@ import { ObservabilityModule } from './core/observability';
 import { OfficeModule } from './core/office';
 import { PermissionModule } from './core/permission';
 import { ProjectModule } from './core/project';
+import { ProjectReportModule } from './core/project-report';
 import { ProjectTransferModule } from './core/project-transfer';
 import { QueueDashboardModule } from './core/queue-dashboard';
 import { QuotaModule } from './core/quota';
 import { RealtimeModule } from './core/realtime';
+import { ReportDeckModule } from './core/report-deck';
 import { SelfhostModule } from './core/selfhost';
 import { StaticFileModule } from './core/static-files';
 import { StorageModule } from './core/storage';
@@ -219,6 +221,8 @@ export function buildAppModule(env: Env) {
       CommentModule,
       OfficeModule,
       ProjectModule,
+      ProjectReportModule,
+      ReportDeckModule,
       ProjectTransferModule,
       QueueDashboardModule
     )

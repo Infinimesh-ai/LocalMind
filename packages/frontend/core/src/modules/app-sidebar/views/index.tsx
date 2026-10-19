@@ -2,6 +2,10 @@ import { type DropTargetGetFeedback, Skeleton } from '@affine/component';
 import { ResizePanel } from '@affine/component/resize-panel';
 import { useAppSettingHelper } from '@affine/core/components/hooks/affine/use-app-setting-helper';
 import { NavigateContext } from '@affine/core/components/hooks/use-navigate-helper';
+import {
+  LocalmindBrandRow,
+  useLocalmindShell,
+} from '@affine/core/components/localmind-theme';
 import { WorkspaceNavigator } from '@affine/core/components/workspace-selector';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { useI18n } from '@affine/i18n';
@@ -35,6 +39,21 @@ export type History = {
 
 const MAX_WIDTH = 480;
 const MIN_WIDTH = 248;
+// Project hub navigation column: 240px by default, resizable down to 192px.
+const SHELL_WIDTH = 240;
+const SHELL_MIN_WIDTH = 192;
+
+/** Sidebar width; the LocalMind shell defaults to the Project hub's 240px. */
+function useSidebarWidth() {
+  const appSidebarService = useService(AppSidebarService).sidebar;
+  const shell = useLocalmindShell();
+  const storedWidth = useLiveData(appSidebarService.storedWidth$);
+  const defaultWidth = useLiveData(appSidebarService.width$);
+  return {
+    shell,
+    width: shell ? (storedWidth ?? SHELL_WIDTH) : defaultWidth,
+  };
+}
 const isMacosDesktop = BUILD_CONFIG.isElectron && environment.isMacOs;
 
 export function AppSidebar({ children }: PropsWithChildren) {
@@ -46,7 +65,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const workbenchService = useService(WorkbenchService).workbench;
 
   const open = useLiveData(appSidebarService.open$);
-  const width = useLiveData(appSidebarService.width$);
+  const { shell, width } = useSidebarWidth();
   const smallScreenMode = useLiveData(appSidebarService.smallScreenMode$);
   const hovering = useLiveData(appSidebarService.hovering$) && open !== true;
   const resizing = useLiveData(appSidebarService.resizing$);
@@ -101,7 +120,12 @@ export function AppSidebar({ children }: PropsWithChildren) {
         return;
       }
 
-      if (e.clientX > width + 20) {
+      // The floating panel may be offset by the global rail on its left.
+      const right =
+        document
+          .querySelector('[data-testid="app-sidebar-wrapper"]')
+          ?.getBoundingClientRect().right ?? width;
+      if (e.clientX > Math.max(right, width) + 20) {
         appSidebarService.setHovering(false);
       }
     };
@@ -146,7 +170,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
         open={sidebarState !== 'close'}
         resizing={resizing}
         maxWidth={MAX_WIDTH}
-        minWidth={MIN_WIDTH}
+        minWidth={shell ? SHELL_MIN_WIDTH : MIN_WIDTH}
         width={width}
         resizeHandlePos="right"
         onOpen={handleOpenChange}
@@ -283,8 +307,8 @@ const FallbackBody = () => {
 };
 
 export const AppSidebarFallback = (): ReactElement | null => {
-  const appSidebarService = useService(AppSidebarService).sidebar;
-  const width = useLiveData(appSidebarService.width$);
+  // Match the loaded sidebar so the shell does not jump when it mounts.
+  const { shell, width } = useSidebarWidth();
   const { appSettings } = useAppSettingHelper();
   const clientBorder = appSettings.clientBorder;
 
@@ -297,6 +321,7 @@ export const AppSidebarFallback = (): ReactElement | null => {
     >
       <nav className={navStyle}>
         <div className={navBodyStyle}>
+          {shell && <LocalmindBrandRow />}
           <div className={styles.fallback}>
             <FallbackHeaderWithWorkspaceNavigator />
             <FallbackBody />

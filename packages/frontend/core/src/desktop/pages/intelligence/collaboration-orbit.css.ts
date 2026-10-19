@@ -1,6 +1,8 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
 
+import { workbenchTokens as wb } from './workbench-tokens.css';
+
 const text = cssVarV2('text/primary');
 const secondary = cssVarV2('text/secondary');
 const border = cssVarV2('layer/insideBorder/border');
@@ -19,9 +21,8 @@ export const board = style({
   flex: 1,
   minWidth: 0,
   minHeight: 560,
-  height: 'min(78vh, 900px)',
   overflow: 'hidden',
-  background,
+  background: wb.paper,
   color: text,
 });
 globalStyle(`[data-theme="dark"] ${board}`, {
@@ -42,8 +43,8 @@ export const heading = style({
   flexWrap: 'wrap',
   gap: 12,
   minHeight: 72,
-  padding: '14px 24px',
-  background,
+  padding: '14px 40px',
+  background: wb.paper,
 });
 export const headingTitle = style({ margin: 0, fontSize: 21, fontWeight: 650 });
 export const headingMeta = style({ color: secondary, fontSize: 12 });
@@ -92,13 +93,14 @@ export const notice = style({
 export const world = style({
   position: 'relative',
   flex: 1,
+  minWidth: 0,
   minHeight: 0,
   overflow: 'hidden',
 });
 export const legend = style({
   position: 'absolute',
   top: 10,
-  left: 24,
+  left: 40,
   zIndex: 5,
   display: 'flex',
   alignItems: 'center',
@@ -450,14 +452,6 @@ globalStyle(`${popover} h4`, { margin: '14px 0 6px', fontSize: 12 });
 globalStyle(`${popover} p`, { margin: '6px 0' });
 globalStyle(`${popover} ul`, { margin: '6px 0', paddingLeft: 20 });
 
-globalStyle(`${board}`, {
-  '@media': {
-    'screen and (max-width: 760px)': {
-      minHeight: 540,
-      height: 'calc(100dvh - 180px)',
-    },
-  },
-});
 globalStyle(`${heading}`, {
   '@media': {
     'screen and (max-width: 760px)': {

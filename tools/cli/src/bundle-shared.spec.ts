@@ -1,6 +1,29 @@
 import { describe, expect, test } from 'vitest';
 
-import { rewriteDevProxyOrigin } from './bundle-shared';
+import { prioritizeDevProxies, rewriteDevProxyOrigin } from './bundle-shared';
+
+test('proxies API requests before waiting on compilation while retaining guards and error handling', () => {
+  const names = [
+    'check-host-header',
+    'set-headers',
+    '@rspack/dev-middleware',
+    'http-proxy-middleware',
+    'http-proxy-middleware-error-handler',
+    '@rspack/dev-middleware',
+    'history-api-fallback',
+  ];
+  expect(
+    prioritizeDevProxies(names.map(name => ({ name }))).map(item => item.name)
+  ).toEqual([
+    'check-host-header',
+    'set-headers',
+    'http-proxy-middleware',
+    'http-proxy-middleware-error-handler',
+    '@rspack/dev-middleware',
+    '@rspack/dev-middleware',
+    'history-api-fallback',
+  ]);
+});
 
 describe('local development proxy origin', () => {
   test('represents the local frontend with the local API target origin', () => {

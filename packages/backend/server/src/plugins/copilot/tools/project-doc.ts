@@ -45,6 +45,10 @@ export const PROJECT_NATIVE_TOOL_NAMES = new Set([
   'project_office_command_request',
   'project_office_command_batch_request',
   'project_publication_prepare',
+  'project_report_list',
+  'project_report_read',
+  'project_report_rewrite',
+  'project_report_refresh',
 ]);
 
 const PROJECT_READ_TOOLS = new Set([

@@ -1,0 +1,3 @@
+query reportDeckPreflight($input: JSONObject!) {
+  reportDeckPreflight(input: $input)
+}

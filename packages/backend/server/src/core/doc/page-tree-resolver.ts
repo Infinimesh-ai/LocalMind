@@ -61,6 +61,7 @@ class WorkspacePageTreePage {
   @Field() canCreatePage!: boolean;
   @Field(() => Int) revision!: number;
   @Field() authorizationRevision!: string;
+  @Field(() => String, { nullable: true }) snapshotRevision!: string | null;
   @Field(() => WorkspacePageTreeItem, { nullable: true })
   parent!: WorkspacePageTreeItem | null;
   @Field(() => [WorkspacePageTreeItem]) ancestors!: WorkspacePageTreeItem[];

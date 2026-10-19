@@ -1,4 +1,5 @@
 import { RadioGroup, type RadioItem } from '@affine/component';
+import { useLocalmindShell } from '@affine/core/components/localmind-theme';
 import track from '@affine/track';
 import { useCallback } from 'react';
 
@@ -33,6 +34,8 @@ export const ViewToggle = ({
   view: DocListItemView;
   onViewChange: (view: DocListItemView) => void;
 }) => {
+  // Project hub header: a 34px bordered segment like the header tools.
+  const shell = useLocalmindShell();
   const handleViewChange = useCallback(
     (view: DocListItemView) => {
       track.allDocs.header.viewMode.editDisplayMenu({
@@ -45,14 +48,14 @@ export const ViewToggle = ({
 
   return (
     <RadioGroup
-      itemHeight={24}
-      gap={8}
-      padding={0}
+      itemHeight={shell ? 26 : 24}
+      gap={shell ? 2 : 8}
+      padding={shell ? 3 : 0}
       items={views}
       value={view}
       onChange={handleViewChange}
       className={styles.viewToggle}
-      borderRadius={4}
+      borderRadius={shell ? 11 : 4}
       indicatorClassName={styles.viewToggleIndicator}
     />
   );

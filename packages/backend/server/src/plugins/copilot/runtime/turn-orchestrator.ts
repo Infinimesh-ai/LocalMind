@@ -1,6 +1,8 @@
 import {
   nativeFileFormatsForMimeTypes,
   type OfficeAiContext,
+  parseProjectReportAiContext,
+  type ProjectReportAiContext,
 } from '@localmind/office';
 import { Injectable, Optional } from '@nestjs/common';
 
@@ -18,6 +20,7 @@ import {
 } from '../providers/types';
 import { ChatSession } from '../session';
 import { PROJECT_COLLABORATION_POLICY } from '../tools/project-file-request';
+import { projectReportPolicy } from '../tools/project-report';
 import { WORK_ORDER_DRAFT_POLICY } from '../tools/work-order';
 import { WORK_ORDER_DELIVERY_POLICY } from '../tools/work-order-file-create';
 import { ChatQuerySchema } from '../types';
@@ -73,6 +76,57 @@ export class TurnOrchestrator {
       actorId: session.config.userId,
       context: latestTurn.metadata.officeContext,
     });
+  }
+
+  private async resolveReportContext(
+    latestTurn: Turn | undefined,
+    session: ChatSession
+  ): Promise<{
+    context: ProjectReportAiContext;
+    title: string;
+    revisionSequence: number;
+  } | null> {
+    if (!latestTurn || !Object.hasOwn(latestTurn.metadata, 'reportContext')) {
+      return null;
+    }
+    const projectId = session.config.selectedContextProjectId;
+    if (
+      session.config.scopeType !== 'project' ||
+      session.config.workspaceId ||
+      !projectId
+    ) {
+      throw new BadRequest(
+        'Report context requires a native Project conversation.'
+      );
+    }
+    if (!this.models) {
+      throw new BadRequest('Project report context is unavailable.');
+    }
+    let context: ProjectReportAiContext;
+    try {
+      context = parseProjectReportAiContext(latestTurn.metadata.reportContext);
+    } catch {
+      throw new BadRequest('Report context is invalid.');
+    }
+    if (context.projectId !== projectId) {
+      throw new BadRequest('Report context belongs to another Project.');
+    }
+    const actor = {
+      projectId,
+      actorId: session.config.userId,
+      reportId: context.reportId,
+    };
+    // Both calls re-check Project membership and report visibility.
+    const report = await this.models.projectReport.get(actor);
+    const revision = await this.models.projectReport.revision({
+      ...actor,
+      revisionId: context.revisionId,
+    });
+    return {
+      context,
+      title: report.title,
+      revisionSequence: revision.sequence,
+    };
   }
 
   private async materializeWorkOrderContext(session: ChatSession) {
@@ -220,6 +274,20 @@ export class TurnOrchestrator {
       prepared.latestTurn,
       prepared.session
     );
+    const report = await this.resolveReportContext(
+      prepared.latestTurn,
+      prepared.session
+    );
+    if (report && office) {
+      throw new BadRequest(
+        'Office and report AI contexts cannot be used in the same turn.'
+      );
+    }
+    if (report && selection.responseMode === 'image') {
+      throw new BadRequest(
+        'Report AI context does not support image generation'
+      );
+    }
     if (office && selection.responseMode === 'image') {
       throw new BadRequest(
         'Office AI context does not support image generation'
@@ -242,6 +310,7 @@ export class TurnOrchestrator {
         ? false
         : prepared.quotaBackedRoutesAllowed,
       officeContext: office?.context,
+      reportContext: report?.context,
       featureKind:
         selection.responseMode === 'image'
           ? 'image'
@@ -292,7 +361,12 @@ export class TurnOrchestrator {
     );
     const messagesWithOfficePolicy = office
       ? this.appendOfficePlannerPolicy(renderedMessages, office)
-      : renderedMessages;
+      : report
+        ? appendChatSystemPolicy(renderedMessages, {
+            role: 'system',
+            content: projectReportPolicy(report),
+          })
+        : renderedMessages;
     const managementPolicy: PromptMessage = {
       role: 'system',
       content:

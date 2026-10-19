@@ -28,6 +28,7 @@ import {
   type WorkOrderProposalActions,
 } from '../ai-chat-messages';
 import { isToolError } from '../ai-tools/tool-result-utils';
+import { projectReportToolResultView } from './report-tool-view';
 
 export function isLegacyResourceToolName(name: string) {
   return /^(doc_(create|copy|creation_status|read|update|update_meta|keyword_search|semantic_search|trash|restore|delete_permanently)|office_(read|command_request|command_batch_request)|blob_read|conditional_noop_complete|project_doc_(update_request|add))$/.test(
@@ -901,6 +902,30 @@ export class ChatContentStreamObjects extends WithDisposable(
     ></tool-result-card>`;
   }
 
+  private renderProjectReportToolResult(streamObject: StreamObject) {
+    if (streamObject.type !== 'tool-result') return nothing;
+    const view = projectReportToolResultView(
+      streamObject.toolName,
+      streamObject.result,
+      streamObject.isError === true
+    );
+    if (view.status === 'error') {
+      return html`<tool-call-failed
+        .name=${view.name}
+        .icon=${PageIcon()}
+      ></tool-call-failed>`;
+    }
+    return html`<tool-result-card
+      .name=${view.name}
+      .icon=${view.kind === 'read' ? ViewIcon() : PageIcon()}
+      .width=${this.width}
+      .results=${view.results.map(result => ({
+        ...result,
+        icon: PageIcon(),
+      }))}
+    ></tool-result-card>`;
+  }
+
   private renderToolCall(streamObject: StreamObject) {
     if (streamObject.type !== 'tool-call') {
       return nothing;
@@ -986,6 +1011,16 @@ export class ChatContentStreamObjects extends WithDisposable(
       case 'project_office_command_batch_request':
       case 'workspace_office_command_batch_request':
         return this.renderOfficeToolCall(streamObject);
+      case 'project_report_list':
+      case 'project_report_read':
+      case 'project_report_rewrite':
+      case 'project_report_refresh':
+        return html`<tool-call-card
+          .name=${getOrCreateI18n().t(
+            'com.affine.localmind.report-tool.calling'
+          )}
+          .width=${this.width}
+        ></tool-call-card>`;
       case 'workspace_doc_create':
       case 'workspace_doc_update':
       case 'workspace_doc_update_meta':
@@ -1128,6 +1163,11 @@ export class ChatContentStreamObjects extends WithDisposable(
       case 'project_office_command_batch_request':
       case 'workspace_office_command_batch_request':
         return this.renderOfficeToolResult(streamObject);
+      case 'project_report_list':
+      case 'project_report_read':
+      case 'project_report_rewrite':
+      case 'project_report_refresh':
+        return this.renderProjectReportToolResult(streamObject);
       case 'blocker_suggest': {
         const suggestion = this.renderBlockerSuggestion(streamObject);
         if (suggestion) return suggestion;

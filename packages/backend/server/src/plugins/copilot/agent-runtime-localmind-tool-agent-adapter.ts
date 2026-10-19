@@ -55,8 +55,12 @@ import { ToolRuntime } from './runtime/tool-runtime';
 export const AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW =
   'agent_runtime_localmind_tool_agent';
 
+// Project report tools are bound to native Project conversations. Keep them out
+// of Workspace delegation so persisted allowed-tool snapshots stay stable.
 export const LOCALMIND_DELEGATION_AI_TOOLS =
-  COPILOT_CHAT_TOOL_CATEGORIES satisfies readonly CopilotChatTools[];
+  COPILOT_CHAT_TOOL_CATEGORIES.filter(
+    (tool): tool is Exclude<CopilotChatTools, 'report'> => tool !== 'report'
+  ) satisfies readonly CopilotChatTools[];
 
 const LOCALMIND_TOOL_AGENT_REQUEST_VERSION = 'localmind-tool-agent-request/v1';
 const LOCALMIND_TOOL_AGENT_REQUEST_PREVIOUS_VERSION =

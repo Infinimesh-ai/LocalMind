@@ -17,6 +17,7 @@ import {
   MentionNotificationCreate,
   Models,
   NotificationType,
+  ProjectReportNotificationBody,
   UnionNotificationBody,
   Workspace,
 } from '../../models';
@@ -707,6 +708,12 @@ export class NotificationService {
             ? workspaceInfos.get(n.body.workspaceId)
             : undefined,
           createdByUser: userInfos.get(n.body.createdByUserId),
+          ...(n.type === NotificationType.ProjectReport
+            ? await this.models.notification.presentReportNotification(
+                n.body as ProjectReportNotificationBody,
+                userId
+              )
+            : {}),
           ...(n.type === NotificationType.ProjectInvitation &&
           'invitationId' in n.body &&
           typeof n.body.invitationId === 'string'

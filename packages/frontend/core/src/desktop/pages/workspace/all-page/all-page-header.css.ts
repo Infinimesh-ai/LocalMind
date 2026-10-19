@@ -1,6 +1,8 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
+import { localmindShell } from '../../../../components/localmind-theme/shell';
+
 export const header = style({
   width: '100%',
   height: '100%',
@@ -13,6 +15,8 @@ export const actions = style({
   display: 'flex',
   alignItems: 'center',
   gap: 16,
+  // Project hub header tools sit 8px apart.
+  selectors: { [`${localmindShell} &`]: { gap: 8 } },
 });
 
 export const viewToggle = style({

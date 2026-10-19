@@ -1,6 +1,7 @@
 import { type ComponentType, createElement } from 'react';
 
 import { Comment, CommentMention, Mention } from './docs';
+import ProjectReportReady from './project-report';
 import { render } from './render';
 import {
   TeamBecomeAdmin,
@@ -61,6 +62,7 @@ function make<T extends ComponentType<any>>(
 }
 
 export const Renderers = {
+  ProjectReportReady: make(ProjectReportReady, props => props.title),
   //#region Test
   TestMail: make(TestMail, 'Test Email from LocalMind'),
   //#endregion

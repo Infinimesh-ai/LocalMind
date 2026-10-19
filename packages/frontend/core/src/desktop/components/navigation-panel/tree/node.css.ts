@@ -1,6 +1,13 @@
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { createVar, keyframes, style } from '@vanilla-extract/css';
+
+import { selectedItem } from '../../../../components/localmind-theme/recipes';
+import { localmindShell } from '../../../../components/localmind-theme/shell';
+import { workbenchTokens as wb } from '../../../../components/localmind-theme/tokens.css';
+
+// Workspace sidebar rows follow the Project hub item metrics.
+const shellSidebar = `${localmindShell} [data-testid="app-sidebar"]`;
 export const levelIndent = createVar();
 export const linkItemRoot = style({
   color: 'inherit',
@@ -34,6 +41,13 @@ export const itemRoot = style({
     '&[data-dragging="true"]': {
       opacity: 0.5,
     },
+    [`${shellSidebar} &`]: {
+      minHeight: wb.sidebarItemHeight,
+      borderRadius: wb.sidebarItemRadius,
+      fontSize: wb.sidebarItemFontSize,
+      lineHeight: wb.sidebarItemLineHeight,
+    },
+    [`${shellSidebar} &[data-active="true"]`]: selectedItem,
   },
 });
 export const itemMain = style({

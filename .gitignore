@@ -100,6 +100,8 @@ storageState.json
 /.understand-anything
 
 # local test/browser artifacts
+/.codex-artifacts/
+/.docker/dev/backups/
 /.playwright-browsers/
 /.chart-data-*/
 /backups/

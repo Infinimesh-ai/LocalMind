@@ -1,4 +1,7 @@
-import type { OfficeAiContext } from '@localmind/office';
+import type {
+  OfficeAiContext,
+  ProjectReportAiContext,
+} from '@localmind/office';
 import { Injectable } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 
@@ -28,6 +31,7 @@ export type ChatSelectionOptions = {
   featureKind?: CopilotProviderRoutePolicyFeatureKind;
   quotaBackedRoutesAllowed?: boolean;
   officeContext?: OfficeAiContext;
+  reportContext?: ProjectReportAiContext;
 };
 
 type ResolvePolicyModelInput = ResolveModelInput & {
@@ -206,12 +210,26 @@ export class CapabilityPolicyHost {
       session.config.promptConfig?.tools,
       options.toolsConfig
     );
-    // Native Project collaboration is a product capability, including for legacy prompts without tools.
-    const projectTools =
+    // Native Project collaboration and report reading are product capabilities,
+    // including for legacy prompts without tools.
+    const projectSession =
       session.config.workspaceId === null &&
-      session.config.selectedContextProjectId
-        ? [...new Set([...(promptTools ?? []), 'blocker' as const])]
-        : promptTools;
+      !!session.config.selectedContextProjectId;
+    const projectTools = projectSession
+      ? [
+          ...new Set([
+            ...(promptTools ?? []),
+            'blocker' as const,
+            'report' as const,
+          ]),
+        ]
+      : promptTools;
+    const reportContext =
+      projectSession &&
+      options.reportContext?.projectId ===
+        session.config.selectedContextProjectId
+        ? options.reportContext
+        : undefined;
     const tools =
       session.config.scopeType === 'work_order'
         ? (['workOrder'] as const)
@@ -231,6 +249,7 @@ export class CapabilityPolicyHost {
         featureKind: routeContext.featureKind,
         quotaBackedRoutesAllowed,
         officeContext: options.officeContext,
+        ...(reportContext && !options.officeContext ? { reportContext } : {}),
         reasoning: options.reasoning,
         webSearch: options.webSearch,
         chatSurface: options.chatSurface,

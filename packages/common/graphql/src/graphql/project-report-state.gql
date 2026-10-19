@@ -1,0 +1,3 @@
+query projectReportState($projectId: ID!, $reportId: ID, $scheduleId: ID, $revisionId: ID, $view: String, $cursor: String, $limit: Int, $search: String, $lifecycle: String) {
+  projectReportState(projectId: $projectId, reportId: $reportId, scheduleId: $scheduleId, revisionId: $revisionId, view: $view, cursor: $cursor, limit: $limit, search: $search, lifecycle: $lifecycle)
+}

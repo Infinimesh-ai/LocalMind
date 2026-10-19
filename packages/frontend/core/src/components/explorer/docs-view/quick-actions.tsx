@@ -19,7 +19,7 @@ import {
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { memo, useCallback, useContext } from 'react';
+import { memo, useCallback, useContext, useEffect, useState } from 'react';
 
 import { useBlockSuiteMetaHelper } from '../../hooks/affine/use-block-suite-meta-helper';
 import { IsFavoriteIcon } from '../../pure/icons';
@@ -38,7 +38,29 @@ export const QuickFavorite = memo(function QuickFavorite({
   const quickFavorite = useLiveData(contextValue.quickFavorite$);
 
   const favAdapter = useService(CompatibleFavoriteItemsAdapter);
-  const favourite = useLiveData(favAdapter.isFavorite$(doc.id, 'doc'));
+  const [favoriteSource, setFavoriteSource] = useState<{
+    adapter: CompatibleFavoriteItemsAdapter;
+    docId: string;
+    value$: ReturnType<CompatibleFavoriteItemsAdapter['isFavorite$']>;
+  }>();
+  useEffect(() => {
+    if (!quickFavorite) {
+      setFavoriteSource(undefined);
+      return;
+    }
+    setFavoriteSource({
+      adapter: favAdapter,
+      docId: doc.id,
+      value$: favAdapter.isFavorite$(doc.id, 'doc'),
+    });
+  }, [doc.id, favAdapter, quickFavorite]);
+  const favourite = useLiveData(
+    favoriteSource?.adapter === favAdapter &&
+      favoriteSource.docId === doc.id &&
+      quickFavorite
+      ? favoriteSource.value$
+      : undefined
+  );
 
   const toggleFavorite = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {

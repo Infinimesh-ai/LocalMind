@@ -4,6 +4,11 @@ export type RealtimeTopicName = keyof RealtimeTopicMap;
 export const WORKSPACE_MEMBERS_REQUEST_TAKE_MAX = 100;
 
 export interface RealtimeRequestMap {
+  'project.report.get': {
+    input: { projectId: string };
+    output: { revision: string };
+  };
+
   'project.lease.get': {
     input: { projectId: string };
     output: {
@@ -281,6 +286,11 @@ export type WorkspaceEmbeddingProgressReason =
   | 'resync';
 
 export interface RealtimeTopicMap {
+  'project.report.changed': {
+    input: { projectId: string };
+    event: { changed: true; reason: string; reportId?: string };
+  };
+
   'workspace.nativeResources.changed': {
     input: { workspaceId: string };
     event: { changed: true };

@@ -19,6 +19,7 @@ import {
   createHTMLPlugins,
 } from '../rspack-shared/html-plugin.js';
 import { desktopContextAliases } from './desktop-context-aliases.js';
+import { diMinimizerOptions } from './di-minimizer-options.js';
 
 const require = createRequire(import.meta.url);
 
@@ -364,11 +365,7 @@ export function createHTMLTargetConfig(
       minimizer: [
         new rspack.SwcJsMinimizerRspackPlugin({
           extractComments: true,
-          minimizerOptions: {
-            ecma: 2020,
-            compress: { unused: true },
-            mangle: { keep_classnames: true },
-          },
+          minimizerOptions: diMinimizerOptions,
         }),
       ],
       removeEmptyChunks: true,
@@ -527,11 +524,7 @@ export function createWorkerTargetConfig(
       minimizer: [
         new rspack.SwcJsMinimizerRspackPlugin({
           extractComments: true,
-          minimizerOptions: {
-            ecma: 2020,
-            compress: { unused: true },
-            mangle: { keep_classnames: true },
-          },
+          minimizerOptions: diMinimizerOptions,
         }),
       ],
       removeEmptyChunks: true,
@@ -691,11 +684,7 @@ export function createNodeTargetConfig(
       minimizer: [
         new rspack.SwcJsMinimizerRspackPlugin({
           extractComments: true,
-          minimizerOptions: {
-            ecma: 2020,
-            compress: { unused: true },
-            mangle: { keep_classnames: true },
-          },
+          minimizerOptions: diMinimizerOptions,
         }),
       ],
     },

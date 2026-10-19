@@ -1,6 +1,9 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
 
+import { localmindShell } from '../localmind-theme/shell';
+import { workbenchTokens as wb } from '../localmind-theme/tokens.css';
+
 export const root = style({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
@@ -65,6 +68,7 @@ export const row = style({
   minWidth: 0,
   borderRadius: 6,
   selectors: {
+    [`${localmindShell} &`]: { borderRadius: wb.radiusSmall },
     '&:hover': { backgroundColor: cssVarV2('layer/background/hoverOverlay') },
     '&[data-selected="true"]': {
       backgroundColor: cssVarV2('layer/background/hoverOverlay'),

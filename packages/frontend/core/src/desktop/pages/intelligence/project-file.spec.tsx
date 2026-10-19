@@ -1,4 +1,5 @@
 /** @vitest-environment happy-dom */
+import type { ProjectEditGuard } from '@affine/core/modules/project-resources/edit-guard';
 import { GraphQLError } from '@affine/error';
 import { projectResourceQuery, saveProjectFileMutation } from '@affine/graphql';
 import {
@@ -18,6 +19,7 @@ const state = vi.hoisted(() => ({
   revoke: vi.fn(),
   gql: vi.fn(),
   refresh: () => undefined as unknown,
+  guard: null as ProjectEditGuard | null,
 }));
 vi.mock('@affine/core/modules/cloud', () => ({
   FetchService: class {},
@@ -36,7 +38,9 @@ vi.mock('@affine/core/modules/office', () => ({
   downloadOfficePackage: vi.fn(),
 }));
 vi.mock('@affine/core/modules/project-resources/edit-guard', () => ({
-  useProjectEditGuard: () => {},
+  useProjectEditGuard: (guard: ProjectEditGuard) => {
+    state.guard = guard;
+  },
 }));
 vi.mock('@affine/core/modules/project-resources/edit-lease', () => ({
   useProjectEditLease: () => ({ proof: { tabId: 'tab', leaseId: 'lease' } }),
@@ -82,6 +86,38 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+test('the edit guard observes save and discard synchronously before React commits', async () => {
+  state.fetch.mockImplementation(() =>
+    Promise.resolve(
+      new Response('initial', {
+        headers: {
+          'content-type': 'text/plain',
+          'x-project-content-version': '1',
+        },
+      })
+    )
+  );
+  state.gql.mockResolvedValue({ saveProjectFile: { sequence: 2 } });
+  render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  const editor = await screen.findByRole('textbox', { name: 'test.txt' });
+  fireEvent.change(editor, { target: { value: 'saved content' } });
+  expect(state.guard?.hasUnsavedChanges).toBe(true);
+  await act(async () => {
+    await state.guard!.save();
+    // The departure guard checks immediately after save, before a render.
+    expect(state.guard!.hasUnsavedChanges).toBe(false);
+  });
+  fireEvent.change(await screen.findByRole('textbox', { name: 'test.txt' }), {
+    target: { value: 'discarded content' },
+  });
+  expect(state.guard?.hasUnsavedChanges).toBe(true);
+  await act(async () => {
+    await state.guard!.discard();
+    expect(state.guard!.hasUnsavedChanges).toBe(false);
+  });
 });
 test('uses the Project authenticated file endpoint and renders text without interpreting HTML', async () => {
   state.fetch.mockResolvedValue(

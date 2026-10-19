@@ -484,13 +484,14 @@ function PublicationDetail({
               data-target-resource-id={target.data.resourceId}
             >
               {(preview.success && preview.data.workspaceName) ||
-                target.data.workspaceId}{' '}
+                t['com.affine.localmind.workbench.v9.unavailable']()}{' '}
               /{' '}
               {preview.success
                 ? preview.data.targetPath.map(part => part.name).join(' / ') ||
                   t['com.affine.localmind.publications.root']()
-                : (target.data.folderId ??
-                  t['com.affine.localmind.publications.root']())}
+                : target.data.folderId
+                  ? t['com.affine.localmind.workbench.v9.unavailable']()
+                  : t['com.affine.localmind.publications.root']()}
               <br />
               {(preview.success && preview.data.targetTitle) || record.title}
               {preview.success && preview.data.targetSequence ? (

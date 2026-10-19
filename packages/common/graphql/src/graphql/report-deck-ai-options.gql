@@ -1,0 +1,3 @@
+query reportDeckAiOptions($input: JSONObject!) {
+  reportDeckAiOptions(input: $input)
+}

@@ -1,6 +1,10 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
+import { sectionLabel } from '../../localmind-theme/recipes';
+import { localmindShell } from '../../localmind-theme/shell';
+import { workbenchTokens as wb } from '../../localmind-theme/tokens.css';
+
 export const groupHeader = style({
   width: '100%',
   height: '100%',
@@ -13,6 +17,7 @@ export const groupHeader = style({
   ':hover': {
     background: cssVarV2.layer.background.hoverOverlay,
   },
+  selectors: { [`${localmindShell} &`]: { borderRadius: wb.radiusSmall } },
 });
 export const space = style({
   width: 0,
@@ -85,6 +90,8 @@ export const content = style({
   fontSize: 15,
   lineHeight: '24px',
   color: cssVarV2.text.secondary,
+  // Project hub section label instead of a body-sized grey heading.
+  selectors: { [`${localmindShell} &`]: sectionLabel },
 });
 
 export const selectAllButton = style([

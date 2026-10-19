@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 
 import { CopilotByokNotConfigured } from '../../../base';
 import { ServerFeature, ServerService } from '../../../core';
+import { Models } from '../../../models';
 import type { RegistryRevisionPublishEventRecord } from '../../../models/copilot-registry-revision-publish-event';
 import { type CopilotAccessContext, CopilotAccessPolicy } from '../access';
 import type {
@@ -585,7 +586,8 @@ export class CopilotProviderFactory {
   constructor(
     private readonly server: ServerService,
     private readonly registries: CopilotProviderRegistryService,
-    private readonly access: CopilotAccessPolicy
+    private readonly access: CopilotAccessPolicy,
+    @Optional() private readonly reportModels?: Models
   ) {}
 
   private readonly logger = new Logger(CopilotProviderFactory.name);
@@ -1550,9 +1552,44 @@ export class CopilotProviderFactory {
     outputType?: ModelOutputType
   ): Promise<EffectiveProviderRegistry> {
     const instanceManaged = isInstanceManagedOutputType(outputType);
-    const byokProfiles = instanceManaged
+    let byokProfiles = instanceManaged
       ? []
       : (await this.access.resolveRouteAccess(context)).byokProfiles;
+    if (context.reportImageInput) {
+      if (!this.reportModels)
+        throw new Error('Report image permit cannot be validated');
+      const modelId =
+        await this.reportModels.reportDeckDesign.authorizeImageInput(
+          context.reportImageInput,
+          context
+        );
+      // A request-local protocol descriptor permits the bounded visual probe/review.
+      // It neither changes registered model capabilities nor grants another route.
+      byokProfiles = byokProfiles.map(profile => ({
+        ...profile,
+        modelDefinitions: profile.modelDefinitions?.map(definition =>
+          (definition.rawModelId ?? definition.id) === modelId
+            ? {
+                ...definition,
+                capabilities: definition.capabilities.map(capability => ({
+                  ...capability,
+                  input: [...new Set([...capability.input, 'image' as const])],
+                  attachments: {
+                    kinds: ['image' as const],
+                    sourceKinds: ['data' as const],
+                    allowRemoteUrls: false,
+                  },
+                  structuredAttachments: {
+                    kinds: ['image' as const],
+                    sourceKinds: ['data' as const],
+                    allowRemoteUrls: false,
+                  },
+                })),
+              }
+            : definition
+        ),
+      }));
+    }
     const quotaBackedRegistry =
       await this.registries.getRegistryWithModelRevisions(
         instanceManaged ||
@@ -1578,9 +1615,11 @@ export class CopilotProviderFactory {
       | CopilotImageOptions
   ): CopilotAccessContext {
     return {
+      reportImageInput: options?.reportImageInput,
       userId: options?.user,
       sessionId: options?.session,
       workspaceId: options?.workspace,
+      projectId: options?.projectId,
       byokLeaseId: options?.byokLeaseId,
       featureKind: options?.featureKind,
       quotaBackedRoutesAllowed: options?.quotaBackedRoutesAllowed,

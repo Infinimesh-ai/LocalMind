@@ -1,5 +1,12 @@
 import { cssVar } from '@toeverything/theme';
 import { globalStyle, style } from '@vanilla-extract/css';
+
+import { localmindShell } from '../../../../components/localmind-theme/shell';
+import { workbenchTokens as wb } from '../../../../components/localmind-theme/tokens.css';
+
+// Project hub navigation inset (12px on both sides).
+const shell = `${localmindShell} &`;
+
 export const baseContainer = style({
   padding: '4px 14px',
   display: 'flex',
@@ -7,6 +14,7 @@ export const baseContainer = style({
   ':empty': {
     display: 'none',
   },
+  selectors: { [shell]: { paddingInline: wb.sidebarInset } },
 });
 export const scrollableContainerRoot = style({
   flex: '1 1 auto',
@@ -48,6 +56,7 @@ export const scrollableContainer = style([
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
+    selectors: { [shell]: { paddingInline: wb.sidebarInset } },
   },
 ]);
 export const scrollbar = style({

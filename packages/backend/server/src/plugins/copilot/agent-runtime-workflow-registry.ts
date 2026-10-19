@@ -60,6 +60,7 @@ export interface CopilotAgentRuntimeWorkflowAdapter {
 }
 
 export interface ProjectAgentRuntimeWorkflowAdapter {
+  readonly preparationTimeoutMs?: number;
   readonly workflow: string;
   readonly capabilities: CopilotAgentRuntimeWorkflowAdapterCapabilities;
   execute(run: ProjectAgentRun): Promise<Prisma.InputJsonObject>;
@@ -293,6 +294,13 @@ export class CopilotAgentRuntimeWorkflowRegistry {
   }
 
   registerProject(adapter: ProjectAgentRuntimeWorkflowAdapter) {
+    if (
+      adapter.preparationTimeoutMs !== undefined &&
+      (!Number.isSafeInteger(adapter.preparationTimeoutMs) ||
+        adapter.preparationTimeoutMs < 1000 ||
+        adapter.preparationTimeoutMs > 3600000)
+    )
+      throw new Error('Invalid Project adapter preparation timeout');
     this.register({
       workflow: adapter.workflow,
       capabilities: adapter.capabilities,

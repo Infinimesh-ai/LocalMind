@@ -71,6 +71,16 @@ Workspace / Project AI 会话授权、项目级共享 Memory（个人会话与�
 P0—P4 源码实现及隔离验证、P5 未完成的真实模型/浏览器/恢复/部署关卡见
 [`workspace-project-context-session-remediation.execution.zh-CN.md`](workspace-project-context-session-remediation.execution.zh-CN.md)。
 
+Project 项目汇报的完整开发目标见
+[`project-report-workbench-development.zh-CN.md`](project-report-workbench-development.zh-CN.md)：
+成员详细进度以项目文档为准，未明确的负责人默认是汇报创建人；覆盖模板、协作编辑、
+历史版本、双屏及离线演示、原生导出、受控分享、周期生成与明确授权分发。
+W01—W09 已接入源码，真实 Project BYOK、Linux、浏览器、原生导出、416 迁移与恢复的
+逐项证据及 A01—A60 追踪见
+[`project-report-workbench.execution.zh-CN.md`](project-report-workbench.execution.zh-CN.md)。
+本地热启动开发实例已在后续报错修复中备份并同步，未发布生产镜像；
+整体类型检查的既有测试基线和 Office 兼容边界在执行记录中单独说明。
+
 ## Track Documents
 
 The implemented [Project Native Resources](tracks/project-native-resources.md)

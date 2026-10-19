@@ -282,6 +282,184 @@ async function fixture() {
   };
 }
 
+test.serial(
+  'conversation card paging applies scope and column before limits and keeps actor counts',
+  async t => {
+    const { db, sender, outsider, project } = await fixture();
+    const otherProject = await db.aiContextProject.create({
+      data: {
+        name: 'Other card scope',
+        createdByUserId: sender.id,
+        members: { create: { userId: sender.id, role: 'owner' } },
+      },
+    });
+    for (let index = 0; index < 31; index++)
+      await db.aiSession.create({
+        data: {
+          userId: sender.id,
+          scopeType: 'project',
+          selectedContextProjectId: otherProject.id,
+          promptName: 'Chat With LocalMind AI',
+          promptAction: '',
+          title: 'Recent unrelated ' + index,
+          workState: {
+            create: {
+              ownerUserId: sender.id,
+              lastBusinessAt: new Date(Date.now() + index * 1000),
+            },
+          },
+        },
+      });
+    const todoIds: string[] = [];
+    for (let index = 0; index < 9; index++) {
+      const session = await db.aiSession.create({
+        data: {
+          userId: sender.id,
+          scopeType: 'project',
+          selectedContextProjectId: project.id,
+          promptName: 'Chat With LocalMind AI',
+          promptAction: '',
+          title: 'Older actionable ' + index,
+          pinned: index === 8,
+          workState: {
+            create: {
+              ownerUserId: sender.id,
+              lastBusinessAt: new Date(Date.now() - 100000 - index * 1000),
+            },
+          },
+          attentions: {
+            create: {
+              actorId: sender.id,
+              reason: 'work_order_delivery_required',
+              sourceType: 'work_order',
+              sourceId: randomUUID(),
+            },
+          },
+        },
+      });
+      todoIds.push(session.id);
+    }
+    for (let index = 0; index < 2; index++)
+      await db.aiSession.create({
+        data: {
+          userId: sender.id,
+          scopeType: 'project',
+          selectedContextProjectId: project.id,
+          promptName: 'Chat With LocalMind AI',
+          promptAction: '',
+          title: 'Completed ' + index,
+          workState: {
+            create: {
+              ownerUserId: sender.id,
+              completedAt: new Date(),
+              completionReason: 'manual',
+              completionRequestKey: 'fusion-completed-' + index,
+            },
+          },
+        },
+      });
+    const model = app.models.copilotWorkOrder;
+    const globalTodo = await model.listCards({
+      actorId: sender.id,
+      column: 'todo',
+      first: 3,
+    });
+    t.is(globalTodo.items.length, 3);
+    t.is(globalTodo.items[0].sessionId, todoIds[8]);
+    t.true(globalTodo.items.every(item => item.column === 'todo'));
+    t.is(globalTodo.counts.todo, 9);
+    await t.throwsAsync(() =>
+      model.listCards({
+        actorId: sender.id,
+        projectId: project.id,
+        column: 'todo',
+        after: globalTodo.pageInfo.endCursor,
+      })
+    );
+    const ids: string[] = [];
+    let cursor: string | null | undefined;
+    do {
+      const page = await model.listCards({
+        actorId: sender.id,
+        projectId: project.id,
+        column: 'todo',
+        first: 3,
+        after: cursor,
+      });
+      t.true(page.items.length > 0);
+      t.deepEqual(page.counts, { todo: 9, progress: 1, done: 2 });
+      ids.push(...page.items.map(item => item.sessionId));
+      cursor = page.pageInfo.endCursor;
+    } while (cursor);
+    t.is(new Set(ids).size, 9);
+    t.is(ids.length, 9);
+    const completed = await model.listCards({
+      actorId: sender.id,
+      projectId: project.id,
+      column: 'done',
+      first: 1,
+    });
+    t.is(completed.items.length, 1);
+    t.true(completed.pageInfo.hasNextPage);
+    const privateCards = await model.listCards({
+      actorId: outsider.id,
+      projectId: project.id,
+    });
+    t.deepEqual(privateCards.items, []);
+    t.deepEqual(privateCards.counts, { todo: 0, progress: 0, done: 0 });
+    const workOrders = await model.listCards({
+      actorId: sender.id,
+      scopeType: 'work_order',
+    });
+    t.deepEqual(workOrders.items, []);
+    t.deepEqual(workOrders.counts, { todo: 0, progress: 0, done: 0 });
+    await t.throwsAsync(() =>
+      model.listCards({
+        actorId: sender.id,
+        projectId: project.id,
+        scopeType: 'workspace',
+      })
+    );
+    await db.aiSession.update({
+      where: { id: todoIds[0] },
+      data: { deletedAt: new Date() },
+    });
+    t.is(
+      (await model.listCards({ actorId: sender.id, projectId: project.id }))
+        .counts.todo,
+      8
+    );
+    await db.aiContextProjectMember.create({
+      data: { projectId: project.id, userId: outsider.id, role: 'member' },
+    });
+    await db.aiSession.create({
+      data: {
+        userId: outsider.id,
+        scopeType: 'project',
+        selectedContextProjectId: project.id,
+        promptName: 'Chat With LocalMind AI',
+        promptAction: '',
+        title: 'Former member conversation',
+        workState: { create: { ownerUserId: outsider.id } },
+      },
+    });
+    t.is(
+      (await model.listCards({ actorId: outsider.id, projectId: project.id }))
+        .counts.progress,
+      1
+    );
+    await db.aiContextProjectMember.deleteMany({
+      where: { projectId: project.id, userId: outsider.id },
+    });
+    const revoked = await model.listCards({
+      actorId: outsider.id,
+      projectId: project.id,
+    });
+    t.deepEqual(revoked.items, []);
+    t.deepEqual(revoked.counts, { todo: 0, progress: 0, done: 0 });
+  }
+);
+
 async function markdownWorkOrder() {
   const context = await fixture();
   const prepared = await app.models.copilotWorkOrder.prepareDispatch({

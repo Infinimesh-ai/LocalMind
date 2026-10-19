@@ -838,7 +838,7 @@ type Copilot {
   """List available models for a prompt, with human-readable names"""
   models(promptName: String!): CopilotModelsType!
   myCollaborationGraph: CollaborationGraphType!
-  myConversationCards(after: String, column: String, first: Int = 30): ConversationCardsType!
+  myConversationCards(after: String, column: String, first: Int = 30, projectId: ID, scopeType: String): ConversationCardsType!
   myWorkOrder(workOrderId: ID!): WorkOrderType!
   myWorkOrderAiModel(workOrderId: ID!): WorkOrderAiModelType!
   myWorkOrderChat(workOrderId: ID!): CopilotHistories!
@@ -5704,6 +5704,7 @@ type Mutation {
   previewCopilotPromptRegistryBodyEdit(input: CopilotPromptRegistryBodyEditPreviewInput!): CopilotPromptRegistryBodyEditPreviewType!
   previewLicense(license: Upload!): AdminLicensePreview!
   previewProjectPublication(expectedRevision: Int!, folderId: String, pageTree: ProjectPublicationPageTreeTargetInput, projectId: String!, publicationId: String!, targetKind: String, targetResourceId: String, workspaceId: String!): ProjectPublicationType!
+  projectReportCommand(input: ProjectReportCommandInput!): JSONObject!
 
   """
   Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
@@ -5784,6 +5785,7 @@ type Mutation {
   Queue a fresh replay for a dead-lettered support bundle transfer forwarding event without mutating terminal evidence.
   """
   replayCopilotSupportBundleTransferForwardingEvent(input: CopilotSupportBundleTransferForwardingReplayInput!): CopilotSupportBundleTransferForwardingEventType!
+  reportDeckCommand(input: JSONObject!): JSONObject!
 
   """Request to apply the subscription in advance"""
   requestApplySubscription(transactionId: String!): [SubscriptionType!]!
@@ -6004,6 +6006,7 @@ enum NotificationType {
   Mention
   ProjectFileRequest
   ProjectInvitation
+  ProjectReport
   WorkOrder
 }
 
@@ -6637,6 +6640,33 @@ type ProjectPublicationType {
   title: String!
 }
 
+input ProjectReportCommandInput {
+  command: JSONObject!
+  editLease: JSONObject
+  expectedVersion: Int
+  projectId: ID!
+  reportId: ID
+  requestKey: String!
+}
+
+type ProjectReportNotificationBodyType {
+  """
+  The user who created the notification, maybe null when user is deleted or sent by system
+  """
+  createdByUser: PublicUserType
+  projectId: ID!
+  reportId: ID
+  revisionId: ID
+  scheduleId: ID
+  status: String!
+  title: String!
+
+  """The type of the notification"""
+  type: NotificationType!
+  url: String!
+  workspace: NotificationWorkspaceType
+}
+
 enum ProjectResourceKind {
   document
   edgeless
@@ -6848,6 +6878,7 @@ type Query {
   projectPublication(projectId: String!, publicationId: String!): ProjectPublicationType!
   projectPublicationCandidates(cursor: String, parentId: String, projectId: String!, query: String, resourceId: String!, workspaceId: String!): ProjectPublicationCandidatesType!
   projectPublications(cursor: String, limit: Int, projectId: String!, resourceId: String): ProjectPublicationPageType!
+  projectReportState(cursor: String, lifecycle: String, limit: Int, projectId: ID!, reportId: ID, revisionId: ID, scheduleId: ID, search: String, view: String): JSONObject!
   projectResource(projectId: String!, resourceId: String!): ProjectResourceType!
   projectResourceEditLease(input: ProjectEditLeaseInput!): ProjectEditLeaseType
   projectResourceHistory(before: Int, limit: Int, projectId: String!, resourceId: String!): [ProjectContentHistoryType!]!
@@ -6867,6 +6898,10 @@ type Query {
 
   """query workspace embedding status"""
   queryWorkspaceEmbeddingStatus(workspaceId: String!): ContextWorkspaceEmbeddingStatus! @deprecated(reason: "Use realtime subscription \"workspace.embedding.progress.changed\" instead.")
+  reportDeck(deckId: ID!): JSONObject!
+  reportDeckAiOptions(input: JSONObject!): JSONObject!
+  reportDeckPreflight(input: JSONObject!): JSONObject!
+  reportDecks(cursor: String, limit: Int): JSONObject!
   searchProjectResources(cursor: String, limit: Int, projectId: String!, query: String!): ProjectSearchPageType!
 
   """server config"""
@@ -7507,7 +7542,7 @@ input TransferCopilotProjectOwnershipInput {
   projectId: ID!
 }
 
-union UnionNotificationBodyType = AccessRequestNotificationBodyType | InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType | ProjectFileRequestNotificationBodyType | ProjectInvitationNotificationBodyType | WorkOrderNotificationBodyType
+union UnionNotificationBodyType = AccessRequestNotificationBodyType | InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType | ProjectFileRequestNotificationBodyType | ProjectInvitationNotificationBodyType | ProjectReportNotificationBodyType | WorkOrderNotificationBodyType
 
 type UnknownOauthProviderDataType {
   name: String!
@@ -8423,6 +8458,7 @@ type WorkspacePageTreePage {
   nextCursor: String
   parent: WorkspacePageTreeItem
   revision: Int!
+  snapshotRevision: String
 }
 
 type WorkspacePageTreeReceipt {

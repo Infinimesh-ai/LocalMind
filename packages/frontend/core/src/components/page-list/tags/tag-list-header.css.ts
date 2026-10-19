@@ -1,5 +1,9 @@
 import { cssVar } from '@toeverything/theme';
 import { style } from '@vanilla-extract/css';
+
+import { sectionLabel } from '../../localmind-theme/recipes';
+import { localmindShell } from '../../localmind-theme/shell';
+import { workbenchTokens as wb } from '../../localmind-theme/tokens.css';
 export const tagListHeader = style({
   height: 100,
   alignItems: 'center',
@@ -8,6 +12,10 @@ export const tagListHeader = style({
   display: 'flex',
   justifyContent: 'space-between',
   background: cssVar('backgroundPrimaryColor'),
+  // Inside the explorer card the page hero already carries the title.
+  selectors: {
+    [`${localmindShell} &`]: { height: 56, padding: '12px 16px 12px 24px' },
+  },
 });
 export const tagListHeaderTitle = style({
   fontSize: cssVar('fontH5'),
@@ -17,6 +25,7 @@ export const tagListHeaderTitle = style({
   alignItems: 'center',
   gap: 8,
   userSelect: 'none',
+  selectors: { [`${localmindShell} &`]: sectionLabel },
 });
 export const newTagButton = style({
   padding: '6px 10px',
@@ -25,4 +34,10 @@ export const newTagButton = style({
   fontSize: cssVar('fontXs'),
   fontWeight: 500,
   height: '28px',
+  selectors: {
+    [`${localmindShell} &`]: {
+      borderColor: wb.line,
+      borderRadius: wb.radiusSmall,
+    },
+  },
 });

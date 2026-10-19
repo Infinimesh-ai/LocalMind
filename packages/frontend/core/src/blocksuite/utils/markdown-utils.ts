@@ -114,7 +114,7 @@ function processTextInSnapshot(snapshot: SliceSnapshot, host: EditorHost) {
 export async function getContentFromSlice(
   host: EditorHost,
   slice: Slice,
-  type: 'markdown' | 'plain-text' = 'markdown'
+  type: 'markdown' | 'plain-text' | 'ai-context' = 'markdown'
 ) {
   const transformer = host.std.store.getTransformer([
     titleMiddleware(host.std.store.workspace.meta.docMetas),
@@ -126,9 +126,11 @@ export async function getContentFromSlice(
   }
   processTextInSnapshot(snapshot, host);
   const adapter =
-    type === 'markdown'
-      ? new MarkdownAdapter(transformer, host.std.store.provider)
-      : new PlainTextAdapter(transformer, host.std.store.provider);
+    type === 'plain-text'
+      ? new PlainTextAdapter(transformer, host.std.store.provider)
+      : new MarkdownAdapter(transformer, host.std.store.provider, {
+          preserveText: type === 'ai-context',
+        });
   const content = await adapter.fromSliceSnapshot({
     snapshot,
     assets: transformer.assetsManager,

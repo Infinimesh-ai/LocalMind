@@ -65,19 +65,24 @@ export class CodeBlockHighlighter extends LifeCycleWatcher {
     }
 
     if (!CodeBlockHighlighter._highlighterPromise) {
-      CodeBlockHighlighter._highlighterPromise = Promise.all([
-        import('shiki'),
-        import('shiki/wasm'),
-      ]).then(([shiki, wasm]) => {
-        CodeBlockHighlighter._bundledLanguagesInfo = shiki.bundledLanguagesInfo;
-        return shiki
-          .createHighlighterCore({
-            engine: shiki.createOnigurumaEngine(() => wasm.default),
-          })
-          .then(highlighter => {
-            CodeBlockHighlighter._sharedHighlighter = highlighter;
-            return highlighter;
-          });
+      const promise = Promise.all([import('shiki'), import('shiki/wasm')]).then(
+        ([shiki, wasm]) => {
+          CodeBlockHighlighter._bundledLanguagesInfo =
+            shiki.bundledLanguagesInfo;
+          return shiki
+            .createHighlighterCore({
+              engine: shiki.createOnigurumaEngine(() => wasm.default),
+            })
+            .then(highlighter => {
+              CodeBlockHighlighter._sharedHighlighter = highlighter;
+              return highlighter;
+            });
+        }
+      );
+      CodeBlockHighlighter._highlighterPromise = promise;
+      promise.catch(() => {
+        if (CodeBlockHighlighter._highlighterPromise === promise)
+          CodeBlockHighlighter._highlighterPromise = null;
       });
     }
 

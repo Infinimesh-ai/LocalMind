@@ -25,6 +25,10 @@ import {
   WorkOrderFileRow,
 } from './work-order-file-input';
 import * as styles from './work-order-panel.css';
+import {
+  workOrderRelationLabel,
+  workOrderStatusLabel,
+} from './workbench-labels';
 
 export type WorkOrder = NonNullable<
   CopilotWorkOrderGetQuery['currentUser']
@@ -349,7 +353,9 @@ export function WorkOrderPanel({
           <h2 id="work-order-title">{order.title}</h2>
         </div>
         <div className={styles.headerActions}>
-          <span className={styles.status}>{order.status}</span>
+          <span className={styles.status}>
+            {workOrderStatusLabel(order.status, t, recipient)}
+          </span>
           {onCollapse ? (
             <IconButton
               size="20"
@@ -371,7 +377,7 @@ export function WorkOrderPanel({
           <dl className={styles.meta}>
             <div>
               <dt>{t['com.affine.localmind.workbench.v9.relationKind']()}</dt>
-              <dd>{order.relationKind}</dd>
+              <dd>{workOrderRelationLabel(order.relationKind, t)}</dd>
             </div>
             <div>
               <dt>{t['com.affine.localmind.workbench.v9.version']()}</dt>

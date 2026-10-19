@@ -364,7 +364,7 @@ export class ProjectWorkspaceImportService {
             : 'page';
         title =
           meta.title ||
-          this.reader.parseDocContent(doc.bin)?.title ||
+          (await this.reader.parseDocContent(doc.bin))?.title ||
           'Untitled';
       } catch {
         return null;

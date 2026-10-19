@@ -11,7 +11,7 @@ import {
 } from '@affine/graphql';
 import { LiveData, Service } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
-import { of, switchMap } from 'rxjs';
+import { distinctUntilChanged, of, switchMap } from 'rxjs';
 
 import type { WorkspaceServerService } from '../../cloud';
 import type { WorkspaceDBService } from '../../db';
@@ -128,7 +128,17 @@ export class WorkspacePageTreeService extends Service {
       return;
     }
     const subscription = serverService.server$
-      .pipe(switchMap(server => server?.account$ ?? of(null)))
+      .pipe(
+        switchMap(server =>
+          server
+            ? server.account$.pipe(
+                distinctUntilChanged(
+                  (previous, next) => previous?.id === next?.id
+                )
+              )
+            : of(null)
+        )
+      )
       .subscribe(() => {
         this.generation++;
         for (const controller of this.controllers.values()) controller.abort();
@@ -199,8 +209,9 @@ export class WorkspacePageTreeService extends Service {
     entry.count++;
     // Mounting another consumer (or reopening a branch) can reuse a fresh layer.
     if (
+      !this.unchangedSinceRoot(key) &&
       Date.now() - (this.loadedAt.get(this.resolveKey(key)) ?? -Infinity) >=
-      freshness
+        freshness
     )
       void this.query(key, query).catch(console.error);
     return () => {
@@ -453,17 +464,42 @@ export class WorkspacePageTreeService extends Service {
     }
     return queries;
   }
+  private unchangedSinceRoot(key: string) {
+    key = this.resolveKey(key);
+    if (key === rootKey) return false;
+    const root = this.layers$.value.get(rootKey);
+    const layer = this.layers$.value.get(key);
+    return (
+      !root?.error &&
+      !layer?.error &&
+      !!root?.page?.snapshotRevision &&
+      root.page.snapshotRevision === layer?.page?.snapshotRevision &&
+      Date.now() - (this.loadedAt.get(rootKey) ?? -Infinity) < freshness
+    );
+  }
   private async poll() {
     if (Date.now() < this.rateLimitedUntil) return;
     this.polling = true;
     const generation = this.generation;
     try {
+      // Read the complete snapshot version first. An unchanged root proves that
+      // cached child layers (including their titles and rights) remain current.
+      // Legacy/local responses without a snapshot version retain normal polling.
+      let budget = pollBatchSize;
+      if (
+        Date.now() >= (this.failures.get(rootKey)?.retryAt ?? 0) &&
+        Date.now() - (this.loadedAt.get(rootKey) ?? -Infinity) >= freshness
+      ) {
+        await this.query(rootKey, { parentNodeId: null });
+        budget--;
+      }
       // Bound background traffic even when many branches are open. Oldest layers
       // go first, so every visible layer eventually refreshes without a burst.
       const queries = [...this.activeQueries()]
         .filter(
           ([key]) =>
             !this.inFlight.has(key) &&
+            !this.unchangedSinceRoot(key) &&
             Date.now() >= (this.failures.get(key)?.retryAt ?? 0) &&
             Date.now() - (this.loadedAt.get(key) ?? -Infinity) >= freshness
         )
@@ -471,7 +507,7 @@ export class WorkspacePageTreeService extends Service {
           ([a], [b]) =>
             (this.attemptedAt.get(a) ?? 0) - (this.attemptedAt.get(b) ?? 0)
         )
-        .slice(0, pollBatchSize);
+        .slice(0, budget);
       for (const [key, query] of queries) {
         if (
           this.stopped ||

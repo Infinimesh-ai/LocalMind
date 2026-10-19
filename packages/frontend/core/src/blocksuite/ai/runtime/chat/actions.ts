@@ -1,5 +1,8 @@
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
-import type { OfficeAiContext } from '@localmind/office';
+import type {
+  OfficeAiContext,
+  ProjectReportAiContext,
+} from '@localmind/office';
 
 import type { AIChatContextItem, AIChatScope } from './state';
 
@@ -7,6 +10,7 @@ export type AIChatSendOptions = {
   input?: string;
   promptName?: string;
   contexts?: {
+    selectionContext?: string;
     docs?: unknown;
     files?: unknown;
     selectedSnapshot?: unknown;
@@ -22,6 +26,7 @@ export type AIChatSendOptions = {
   toolsConfig?: unknown;
   modelId?: string;
   officeContext?: OfficeAiContext;
+  reportContext?: ProjectReportAiContext;
   userInfo?: {
     userId?: string;
     userName?: string;

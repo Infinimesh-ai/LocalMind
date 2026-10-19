@@ -190,10 +190,22 @@ export class WorkOrderNotificationBodyType extends BaseNotificationBodyType {
   @Field(() => ID, { nullable: true }) sourceProjectId?: string | null;
 }
 
+@ObjectType()
+export class ProjectReportNotificationBodyType extends BaseNotificationBodyType {
+  @Field(() => ID) projectId!: string;
+  @Field(() => ID, { nullable: true }) reportId?: string;
+  @Field(() => ID, { nullable: true }) revisionId?: string;
+  @Field(() => ID, { nullable: true }) scheduleId?: string;
+  @Field() status!: string;
+  @Field() title!: string;
+  @Field() url!: string;
+}
+
 export const UnionNotificationBodyType = createUnionType({
   name: 'UnionNotificationBodyType',
   types: () =>
     [
+      ProjectReportNotificationBodyType,
       ProjectInvitationNotificationBodyType,
       ProjectFileRequestNotificationBodyType,
       WorkOrderNotificationBodyType,

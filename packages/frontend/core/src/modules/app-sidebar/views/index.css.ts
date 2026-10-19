@@ -1,6 +1,11 @@
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
+
+import { affinePaletteBridge } from '../../../components/localmind-theme/recipes';
+import { localmindShell } from '../../../components/localmind-theme/shell';
+import { workbenchTokens as wb } from '../../../components/localmind-theme/tokens.css';
+
 export const navWrapperStyle = style({
   '@media': {
     print: {
@@ -16,6 +21,13 @@ export const navWrapperStyle = style({
     '&[data-is-floating="true"], &[data-is-electron="false"]': {
       backgroundColor: cssVarV2('layer/background/primary'),
     },
+    // Project hub sidebar: grey surface, workbench inks and a solid divider.
+    [`${localmindShell} &`]: {
+      vars: affinePaletteBridge,
+      backgroundColor: wb.sidebar,
+      borderRight: `1px solid ${wb.line}`,
+      paddingBottom: 0,
+    },
   },
 });
 export const hoverNavWrapperStyle = style({
@@ -27,6 +39,11 @@ export const hoverNavWrapperStyle = style({
       marginLeft: '4px',
       boxShadow: cssVar('--affine-popover-shadow'),
       borderRadius: '6px',
+    },
+    [`${localmindShell} &[data-is-floating="true"]`]: {
+      backgroundColor: wb.sidebar,
+      borderRadius: wb.radius,
+      boxShadow: wb.shadowRaised,
     },
     '&[data-is-floating="true"][data-is-electron="true"]': {
       height: '100%',

@@ -390,7 +390,10 @@ export class WorkOrderResolver {
     column?: 'todo' | 'progress' | 'done',
     @Args('first', { type: () => Int, nullable: true, defaultValue: 30 })
     first?: number,
-    @Args('after', { type: () => String, nullable: true }) after?: string
+    @Args('after', { type: () => String, nullable: true }) after?: string,
+    @Args('projectId', { type: () => ID, nullable: true }) projectId?: string,
+    @Args('scopeType', { type: () => String, nullable: true })
+    scopeType?: 'project' | 'workspace' | 'work_order'
   ) {
     this.assertUserScope(copilot);
     const page = await this.models.copilotWorkOrder.listCards({
@@ -398,6 +401,8 @@ export class WorkOrderResolver {
       column,
       first,
       after,
+      projectId,
+      scopeType,
     });
     return {
       ...page,

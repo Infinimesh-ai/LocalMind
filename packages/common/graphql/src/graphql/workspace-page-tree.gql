@@ -7,6 +7,7 @@ query workspacePageTree($workspaceId: ID!, $parentNodeId: ID, $after: String, $t
     enabled
     revision
     authorizationRevision
+    snapshotRevision
     nextCursor
     parent { ...WorkspacePageTreeNode }
     ancestors { ...WorkspacePageTreeNode }

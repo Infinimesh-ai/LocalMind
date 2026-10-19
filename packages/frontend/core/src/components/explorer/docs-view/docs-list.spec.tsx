@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type * as Infra from '@toeverything/infra';
-import { type ComponentType, useState } from 'react';
+import { type ComponentType, type ReactNode, useState } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 
 vi.mock('@affine/component', () => ({
@@ -24,17 +24,48 @@ vi.mock('@affine/component', () => ({
     ),
 }));
 vi.mock('@affine/core/modules/doc', () => ({ DocsService: class {} }));
+vi.mock('@affine/core/modules/workspace', () => ({
+  WorkspaceService: class {},
+}));
+const deck = vi.hoisted(() => ({ available: false, open: vi.fn() }));
+vi.mock('../../report-deck-entry', () => ({
+  useReportDeckEntryAvailable: () => deck.available,
+  useOpenReportDeck: () => deck.open,
+}));
 vi.mock('@affine/core/modules/workspace-property', () => ({
   WorkspacePropertyService: class {},
 }));
-vi.mock('@toeverything/infra', async importOriginal => ({
-  ...(await importOriginal<typeof Infra>()),
-  useService: () => ({ list: {} }),
+vi.mock('@toeverything/infra', async importOriginal => {
+  const infra = await importOriginal<typeof Infra>();
+  return {
+    ...infra,
+    useService: () => ({
+      list: {
+        // eslint-disable-next-line rxjs/finnish -- Mirrors the DocsService API.
+        doc$: (id: string) =>
+          new infra.LiveData({ title$: new infra.LiveData(`Title ${id}`) }),
+      },
+    }),
+    useServiceOptional: () => ({ workspace: { id: 'workspace-1' } }),
+  };
+});
+vi.mock('@affine/i18n', () => ({
+  useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
+  Trans: () => null,
 }));
-vi.mock('@affine/i18n', () => ({ useI18n: () => ({}), Trans: () => null }));
 vi.mock('../../affine/empty', () => ({ EmptyDocs: () => null }));
 vi.mock('../../page-list/components/list-floating-toolbar', () => ({
-  ListFloatingToolbar: () => null,
+  ListFloatingToolbar: ({ actions }: { actions?: ReactNode }) =>
+    actions ?? null,
+}));
+vi.mock('../../page-list/components/floating-toolbar', () => ({
+  FloatingToolbar: {
+    Button: ({ label, onClick }: { label: ReactNode; onClick: () => void }) => (
+      <button type="button" onClick={onClick}>
+        {label}
+      </button>
+    ),
+  },
 }));
 vi.mock('../../system-property-types', () => ({ SystemPropertyTypes: {} }));
 vi.mock('../../workspace-property-types', () => ({
@@ -45,7 +76,11 @@ vi.mock('./doc-list-item', () => ({ DocListItem: () => null }));
 import { createDocExplorerContext, DocExplorerContext } from '../context';
 import { DocsExplorer } from './docs-list';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  deck.available = false;
+  deck.open.mockReset();
+});
 
 test('catalog reconciliation preserves an open row action and its unsaved input', () => {
   const context = createDocExplorerContext();
@@ -80,4 +115,61 @@ test('catalog reconciliation preserves an open row action and its unsaved input'
     'Unsaved rename'
   );
   expect(screen.getByText('After refresh')).toBeTruthy();
+});
+
+test('the floating toolbar presents the selected documents as a report deck', () => {
+  const context = createDocExplorerContext();
+  context.groups$.next([{ key: 'today', items: ['doc-a', 'doc-b'] }]);
+  context.selectMode$?.next(true);
+  context.selectedDocIds$.next(['doc-a', 'doc-b']);
+  const view = () => (
+    <DocExplorerContext.Provider value={context}>
+      <DocsExplorer />
+    </DocExplorerContext.Provider>
+  );
+  const result = render(view());
+  expect(
+    screen.queryByRole('button', {
+      name: 'com.affine.localmind.reportDeck.entry',
+    })
+  ).toBeNull();
+  deck.available = true;
+  result.rerender(view());
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.reportDeck.entry',
+    })
+  );
+  expect(deck.open).toHaveBeenCalledExactlyOnceWith([
+    {
+      scopeKind: 'workspace',
+      scopeId: 'workspace-1',
+      kind: 'doc',
+      resourceId: 'doc-a',
+      title: 'Title doc-a',
+    },
+    {
+      scopeKind: 'workspace',
+      scopeId: 'workspace-1',
+      kind: 'doc',
+      resourceId: 'doc-b',
+      title: 'Title doc-b',
+    },
+  ]);
+});
+
+test('the deck entry is not offered from trash', () => {
+  deck.available = true;
+  const context = createDocExplorerContext();
+  context.groups$.next([{ key: 'today', items: ['doc-a'] }]);
+  render(
+    <DocExplorerContext.Provider value={context}>
+      <DocsExplorer onRestore={vi.fn()} />
+    </DocExplorerContext.Provider>
+  );
+  expect(
+    screen.queryByRole('button', {
+      name: 'com.affine.localmind.reportDeck.entry',
+    })
+  ).toBeNull();
 });

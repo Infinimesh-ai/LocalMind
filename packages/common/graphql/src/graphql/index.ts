@@ -8826,10 +8826,16 @@ export const renameConversationMutation = {
 export const copilotWorkbenchConversationsGetQuery = {
   id: 'copilotWorkbenchConversationsGetQuery' as const,
   op: 'copilotWorkbenchConversationsGet',
-  query: `query copilotWorkbenchConversationsGet($column: String, $first: Int = 30, $after: String) {
+  query: `query copilotWorkbenchConversationsGet($column: String, $first: Int = 30, $after: String, $projectId: ID, $scopeType: String) {
   currentUser {
     copilot {
-      myConversationCards(column: $column, first: $first, after: $after) {
+      myConversationCards(
+        column: $column
+        first: $first
+        after: $after
+        projectId: $projectId
+        scopeType: $scopeType
+      ) {
         items {
           sessionId
           scopeType
@@ -11398,6 +11404,32 @@ export const projectPublicationsQuery = {
 ${projectPublicationFieldsFragment}`,
 };
 
+export const projectReportCommandMutation = {
+  id: 'projectReportCommandMutation' as const,
+  op: 'projectReportCommand',
+  query: `mutation projectReportCommand($input: ProjectReportCommandInput!) {
+  projectReportCommand(input: $input)
+}`,
+};
+
+export const projectReportStateQuery = {
+  id: 'projectReportStateQuery' as const,
+  op: 'projectReportState',
+  query: `query projectReportState($projectId: ID!, $reportId: ID, $scheduleId: ID, $revisionId: ID, $view: String, $cursor: String, $limit: Int, $search: String, $lifecycle: String) {
+  projectReportState(
+    projectId: $projectId
+    reportId: $reportId
+    scheduleId: $scheduleId
+    revisionId: $revisionId
+    view: $view
+    cursor: $cursor
+    limit: $limit
+    search: $search
+    lifecycle: $lifecycle
+  )
+}`,
+};
+
 export const projectResourceEditLeaseQuery = {
   id: 'projectResourceEditLeaseQuery' as const,
   op: 'projectResourceEditLease',
@@ -11717,6 +11749,46 @@ export const renewProjectResourceEditLeaseMutation = {
 ${projectEditLeaseFieldsFragment}`,
 };
 
+export const reportDeckAiOptionsQuery = {
+  id: 'reportDeckAiOptionsQuery' as const,
+  op: 'reportDeckAiOptions',
+  query: `query reportDeckAiOptions($input: JSONObject!) {
+  reportDeckAiOptions(input: $input)
+}`,
+};
+
+export const reportDeckCommandMutation = {
+  id: 'reportDeckCommandMutation' as const,
+  op: 'reportDeckCommand',
+  query: `mutation reportDeckCommand($input: JSONObject!) {
+  reportDeckCommand(input: $input)
+}`,
+};
+
+export const reportDeckPreflightQuery = {
+  id: 'reportDeckPreflightQuery' as const,
+  op: 'reportDeckPreflight',
+  query: `query reportDeckPreflight($input: JSONObject!) {
+  reportDeckPreflight(input: $input)
+}`,
+};
+
+export const reportDeckQuery = {
+  id: 'reportDeckQuery' as const,
+  op: 'reportDeck',
+  query: `query reportDeck($deckId: ID!) {
+  reportDeck(deckId: $deckId)
+}`,
+};
+
+export const reportDecksQuery = {
+  id: 'reportDecksQuery' as const,
+  op: 'reportDecks',
+  query: `query reportDecks($cursor: String, $limit: Int) {
+  reportDecks(cursor: $cursor, limit: $limit)
+}`,
+};
+
 export const requestProjectImportPermissionMutation = {
   id: 'requestProjectImportPermissionMutation' as const,
   op: 'requestProjectImportPermission',
@@ -12006,6 +12078,22 @@ export const subscriptionQuery = {
   }
 }`,
   deprecations: ["'id' is deprecated: removed"],
+};
+
+export const undoCopilotProjectContextMemoryEventMutation = {
+  id: 'undoCopilotProjectContextMemoryEventMutation' as const,
+  op: 'undoCopilotProjectContextMemoryEvent',
+  query: `mutation undoCopilotProjectContextMemoryEvent($projectId: String!, $eventId: ID!) {
+  undoCopilotProjectContextMemoryEvent(projectId: $projectId, eventId: $eventId) {
+    id
+    operation
+    memoryId
+    previousMemoryId
+    undoneAt
+    canUndo
+    createdAt
+  }
+}`,
 };
 
 export const updateDocDefaultRoleMutation = {
@@ -12733,6 +12821,7 @@ export const workspacePageTreeQuery = {
     enabled
     revision
     authorizationRevision
+    snapshotRevision
     nextCursor
     parent {
       ...WorkspacePageTreeNode

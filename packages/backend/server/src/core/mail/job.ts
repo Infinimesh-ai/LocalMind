@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { getStreamAsBuffer } from 'get-stream';
 
@@ -8,6 +9,10 @@ import { Config, metrics, OnEvent } from '../../base';
 import { type MailName, Renderers } from '../../mails';
 import { UserProps, WorkspaceProps } from '../../mails/components';
 import { MailDeliveryRow, Models } from '../../models';
+import {
+  REPORT_MAIL_AUTHORIZER,
+  type ReportMailAuthorizer,
+} from '../../models/project-report-schedule-contract';
 import { containsUrlOrDomain } from '../content-policy';
 import { DocReader } from '../doc/reader';
 import { WorkspaceBlobStorage } from '../storage';
@@ -29,7 +34,8 @@ export class MailJob {
     private readonly doc: DocReader,
     private readonly workspaceBlob: WorkspaceBlobStorage,
     private readonly models: Models,
-    private readonly config: Config
+    private readonly config: Config,
+    private readonly ref?: ModuleRef
   ) {}
 
   @OnEvent('user.deleted')
@@ -124,6 +130,26 @@ export class MailJob {
       return;
     }
 
+    let reportOptions: Partial<SendOptions> = {};
+    if (payload.name === 'ProjectReportReady') {
+      try {
+        const props = payload.props as { deliveryId?: string };
+        if (!props.deliveryId) throw new Error('Missing report delivery');
+        if (!this.ref)
+          throw new Error('Report authorization service unavailable');
+        reportOptions = await this.ref
+          .get<ReportMailAuthorizer>(REPORT_MAIL_AUTHORIZER, { strict: false })
+          .authorizeMailDelivery(props.deliveryId, row.recipientEmail);
+      } catch {
+        await this.models.mailDelivery.markSkipped(
+          row.id,
+          this.workerId,
+          'report_authorization_changed'
+        );
+        return;
+      }
+    }
+
     const attempt = await this.models.mailDelivery.markAttemptStarted(
       row.id,
       this.workerId
@@ -136,6 +162,7 @@ export class MailJob {
       to: row.recipientEmail,
       ...rendered.options,
       ...rendered.content,
+      ...reportOptions,
     });
 
     if (result.status === 'accepted') {

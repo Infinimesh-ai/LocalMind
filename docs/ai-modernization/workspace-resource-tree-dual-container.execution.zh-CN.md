@@ -257,3 +257,69 @@ docker exec -w /workspace localmind_hot_web yarn node .codex-artifacts/page-tree
 证据位于 `.codex-artifacts/page-tree-drag-fix-20261012/`，包括测试／类型／格式日志、浏览器移动及撤销截图、DOM 层级和持久操作回执。开发后端热重载曾内存不足，重启现有 `localmind_hot_backend` 后恢复；未改变其配置。浏览器验证期间原有读取限流仍造成短时缓存显示延迟，自动恢复后完成核对，本轮没有扩大限流策略。未验证真实触屏拖动；移动端既有树行测试通过。
 
 没有重建镜像或删除 volume。验证后的 Docker 状态约为 Images 31.1 GB、Local Volumes 23.94 GB、Build Cache 4.514 GB。本轮没有 commit、push、PR 或远端发布。
+
+## 2026-10-13：重复读取与示例文档同步循环修复
+
+本地排查确认两条放大链：示例迁移把已经迁移的 `Visit LocalMind` 再次写入，
+同步状态回到 ready 后又触发迁移；页面树则在内容未变时仍轮询每个挂载分支，
+正文子页面块还会因任意层缓存更新而额外调用 `locate`。目录三个实时订阅的 ready
+信号及同账号资料更新会重复取消并重启读取。诊断确认实际触发的仍是原有
+`120 / 60000ms` 限制，本轮没有改变限流配置、超时或轮询间隔。
+
+- 示例迁移比较完整文本 delta，合并同 Workspace 的并发迁移，并只在初始化首次
+  ready 时运行。已经迁移的内容连续执行十次不产生写事务。
+- 账号身份按 id 去重；三个目录订阅就绪信号合并为一次补读。真实权限变更仍立即
+  清空旧结果，隐藏页面停止目录轮询。
+- GraphQL 增加可空 `snapshotRevision`，由 actor、树版本及权威 root／目录／属性、
+  原生资源清单与 ACL 快照推导；正文标题变更和 Yjs 纯删除同样改变该版本。
+  客户端先检查根快照，相同快照的子层直接复用；版本变化、请求失败或缺少快照
+  字段时继续正常重验。原有写后定向刷新、分页、账号切换及授权门禁保留。
+- 正文子页面块改为观察对应资源层，复用页面树的合并请求、缓存与退避；交互写入
+  仍执行实时定位与服务端权限校验。
+- 承接已有的解析 worker 修复，补齐 Yjs subdocument 的可传输快照以及正文同步时
+  的权威 root 读取和解析缓存；资源删除或存储读取失败仍拒绝同步。
+
+### 聚焦验证
+
+复用 `localmind_hot_web`、`localmind_hot_backend`（固定
+`localmind-affine:dev-base`）的 Linux 环境，没有重建镜像。源码 bind mount、nodemon
+和 Rspack 已加载当前改动；没有复制散落文件、执行数据库迁移或修改业务库 schema。
+服务端 schema 与共享 GraphQL client 均由既有生成流程更新。
+
+- 69 项不同的前端测试通过：页面树 32、本地树 8、目录 23、示例迁移 6。
+- 9 项后端测试通过：真实 Yjs 快照版本、嵌套标题、纯删除、授权拒绝、subdocument
+  解析、删除后的正文同步拒绝和解析 worker 的既有回归。
+- 9 个前端文件及 3 个后端文件的定向类型检查、共享 GraphQL declaration build、
+  定向 oxlint／Prettier 及 `git diff --check` 通过；没有宣称全仓类型检查通过。
+- 假时钟测试中，8 个展开分支静置 3 分钟只读取根快照 6 次；标题或权限快照改变后
+  会刷新子层，根读取失败不会让旧缓存被错误标记为有效。
+
+```sh
+docker --context colima exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn vitest run --maxWorkers=1 packages/frontend/core/src/utils/__tests__/showcase-migration.spec.ts packages/frontend/core/src/modules/organize/services/page-tree.spec.ts packages/frontend/core/src/modules/organize/stores/directory-access.spec.ts'
+docker --context colima exec -w /workspace localmind_hot_web sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn vitest run --maxWorkers=1 packages/frontend/core/src/modules/organize/services/page-tree.spec.ts packages/frontend/core/src/modules/organize/services/page-tree-local.spec.ts'
+docker --context colima exec -w /workspace localmind_hot_backend sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn workspace @affine/server test src/core/doc/__tests__/page-tree-snapshot.spec.ts src/core/doc/__tests__/snapshot-worker-subdoc.spec.ts src/__tests__/core/snapshot-parser.spec.ts'
+docker --context colima exec -w /workspace localmind_hot_web yarn workspace @affine/graphql exec gql-gen --errors-only
+docker --context colima exec -w /workspace localmind_hot_web yarn tsc -b packages/common/graphql
+node .codex-artifacts/page-tree-sync-fix-20261013/typecheck.mjs packages/frontend/core
+node .codex-artifacts/page-tree-sync-fix-20261013/typecheck.mjs packages/backend/server
+```
+
+真实浏览器验证完成新建页面、输入正文、刷新后内容保留、通过正文命令新建子页面、
+子页面重命名后父页面入口自动更新，以及连续展开／收起十次。页面显示“已保存到本地
+并完成同步”。截图与最终日志摘要位于
+`.codex-artifacts/page-tree-sync-fix-20261013/`。
+
+最终静置窗口为 `2026-10-14T04:40:40Z` 至 `04:43:44Z`，期间保留父页面正文的
+子页面块及多个展开分支，没有重启服务或热更新代码。整个本地后端记录页面树读取
+67 次（P50 95 ms、P95 290 ms、最大 457 ms）、目录读取 72 次（P95 118 ms）；
+限流、其他错误、CORS 告警和文档／工作区写入事件均为 0。页面持续显示同步完成。
+该统计包含实例上的其他打开页面，不是单标签页请求数。验证前另有 AI provider
+未配置的既有错误，不属于本次页面树修复范围；最终静置窗口未出现这些错误。
+
+临时父页面和子页面已通过 UI 的两项影响预览一并移至回收站，未永久删除；原有
+业务资源没有改写。清理后再连续切换正常页面和文件夹六次，耗时 330—838 ms，
+页面均显示同步完成，目录内容正常，没有限流提示。
+
+本轮未验证生产规模多用户／大目录压力，不构成完整 B01—B40 重验或生产部署验收。
+没有 commit、push、PR、远端发布、永久删除或 volume 清理。Docker 状态为 Images
+26.23 GB、Local Volumes 17.86 GB、Build Cache 13.21 GB；宿主机剩余约 26 GiB。

@@ -1,0 +1,3 @@
+query reportDeck($deckId: ID!) {
+  reportDeck(deckId: $deckId)
+}

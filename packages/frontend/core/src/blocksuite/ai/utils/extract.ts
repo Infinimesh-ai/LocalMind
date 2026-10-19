@@ -73,7 +73,8 @@ async function extractEdgelessSelected(
     const transformer = host.store.getTransformer();
     const markdownAdapter = new MarkdownAdapter(
       transformer,
-      host.store.provider
+      host.store.provider,
+      { preserveText: true }
     );
     const collection = new WorkspaceImpl({
       id: 'AI_EXTRACT',
@@ -167,7 +168,7 @@ async function extractPageSelected(
   const hasImages = images.length > 0;
 
   if (hasText && !hasImages) {
-    const markdown = await getSelectedTextContent(host, 'markdown');
+    const markdown = await getSelectedTextContent(host, 'ai-context');
     return {
       quote: text,
       markdown: markdown,
@@ -186,8 +187,7 @@ async function extractPageSelected(
       images,
     };
   } else {
-    const markdown =
-      (await getSelectedTextContent(host, 'markdown')).trim() || '';
+    const markdown = await getSelectedTextContent(host, 'ai-context');
     return {
       quote: text,
       markdown,

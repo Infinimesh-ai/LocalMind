@@ -1188,34 +1188,74 @@ test('paragraph indent and delete in line start', async ({
   );
 
   await pressBackspace(page, 2);
-  await setSelection(page, 5, 1, 5, 1);
-  // abcfg
+  // abc
+  // |fg
   //   hij
-  //   k|lm
+  //   klm
   //   nop
+  await assertRichTexts(page, ['abc', 'fg', 'hij', 'klm', 'nop']);
+  await assertBlockChildrenIds(page, '1', ['2', '3']);
+  await assertBlockChildrenIds(page, '2', []);
+  await assertBlockChildrenIds(page, '3', ['4', '5', '6']);
+  await assertRichTextInlineRange(page, 1, 0, 0);
 
-  expect(await getPageSnapshot(page, true)).toMatchSnapshot(
-    `${testInfo.title}_after_press_backspace.json`
-  );
-
+  await setSelection(page, 5, 1, 5, 1);
   await pressBackspace(page, 2);
+  // abc
+  // fg
+  //   hij
+  // |lm
+  //   nop
+  await assertRichTexts(page, ['abc', 'fg', 'hij', 'lm', 'nop']);
+  await assertBlockChildrenIds(page, '1', ['2', '3', '5']);
+  await assertBlockChildrenIds(page, '3', ['4']);
+  await assertBlockChildrenIds(page, '5', ['6']);
+  await assertRichTextInlineRange(page, 3, 0, 0);
+
   await setSelection(page, 6, 1, 6, 1);
-  // abcfg
-  //   hijlm
-  //   n|op
-
-  expect(await getPageSnapshot(page, true)).toMatchSnapshot(
-    `${testInfo.title}_after_press_backspace_2.json`
-  );
-
   await pressBackspace(page, 2);
-  // abcfg
-  //   hijlm
+  // abc
+  // fg
+  //   hij
+  // lm
   // |op
+  await assertRichTexts(page, ['abc', 'fg', 'hij', 'lm', 'op']);
+  await assertBlockChildrenIds(page, '1', ['2', '3', '5', '6']);
+  await assertBlockChildrenIds(page, '5', []);
+  await assertRichTextInlineRange(page, 4, 0, 0);
+});
 
-  expect(await getPageSnapshot(page, true)).toMatchSnapshot(
-    `${testInfo.title}_after_press_backspace_3.json`
-  );
+test('Backspace keeps the new paragraph after Enter before a nested sibling', async ({
+  page,
+}) => {
+  await enterPlaygroundRoom(page);
+  await initEmptyParagraphState(page);
+  await focusRichText(page);
+  await type(page, 'A');
+  await pressEnter(page);
+  await pressTab(page);
+  await type(page, 'B');
+  await pressEnter(page);
+  await type(page, 'C');
+  await focusRichTextEnd(page, 1);
+  await pressEnter(page);
+  await captureHistory(page);
+  await assertRichTexts(page, ['A', 'B', '', 'C']);
+  await assertBlockChildrenIds(page, '2', ['3', '5', '4']);
+
+  await pressBackspace(page);
+  await assertRichTexts(page, ['A', 'B', '', 'C']);
+  await assertBlockChildrenIds(page, '1', ['2', '5']);
+  await assertBlockChildrenIds(page, '2', ['3']);
+  await assertBlockChildrenIds(page, '5', ['4']);
+  await assertRichTextInlineRange(page, 2, 0, 0);
+
+  await undoByKeyboard(page);
+  await assertBlockChildrenIds(page, '2', ['3', '5', '4']);
+  await assertRichTexts(page, ['A', 'B', '', 'C']);
+  await redoByKeyboard(page);
+  await assertBlockChildrenIds(page, '1', ['2', '5']);
+  await assertRichTextInlineRange(page, 2, 0, 0);
 });
 
 test('delete at the start of paragraph (multiple notes)', async ({ page }) => {

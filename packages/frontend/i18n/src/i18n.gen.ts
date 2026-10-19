@@ -155,6 +155,59 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.office-tool.preview"](): string;
     /**
+      * `Working on the project report…`
+      */
+    ["com.affine.localmind.report-tool.calling"](): string;
+    /**
+      * `Read {{count}} project reports`
+      */
+    ["com.affine.localmind.report-tool.list"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Read report: {{title}}, {{count}} chapters`
+      */
+    ["com.affine.localmind.report-tool.read"](options: Readonly<{
+        title: string;
+        count: string;
+    }>): string;
+    /**
+      * `The project report could not be read.`
+      */
+    ["com.affine.localmind.report-tool.readFailed"](): string;
+    /**
+      * `The report change could not be submitted.`
+      */
+    ["com.affine.localmind.report-tool.requestFailed"](): string;
+    /**
+      * `Rewrite submitted`
+      */
+    ["com.affine.localmind.report-tool.rewriteQueued"](): string;
+    /**
+      * `Whole-report refresh submitted`
+      */
+    ["com.affine.localmind.report-tool.refreshQueued"](): string;
+    /**
+      * `Scope: {{scope}}`
+      */
+    ["com.affine.localmind.report-tool.scope"](options: {
+        readonly scope: string;
+    }): string;
+    /**
+      * `Whole report`
+      */
+    ["com.affine.localmind.report-tool.wholeReport"](): string;
+    /**
+      * `Generating a candidate. Review it in the canvas on the right when it is ready.`
+      */
+    ["com.affine.localmind.report-tool.review"](): string;
+    /**
+      * `Run status: {{status}}`
+      */
+    ["com.affine.localmind.report-tool.runStatus"](options: {
+        readonly status: string;
+    }): string;
+    /**
       * `Local drafts ({{count}})`
       */
     ["com.affine.localmind.project-draft.local"](options: {
@@ -21836,6 +21889,18 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.resources.documentFilter"](): string;
     /**
+      * `Pages, whiteboards and files in this workspace.`
+      */
+    ["com.affine.localmind.shell.docs.subtitle"](): string;
+    /**
+      * `Saved views that gather docs by rules.`
+      */
+    ["com.affine.localmind.shell.collections.subtitle"](): string;
+    /**
+      * `Organize docs across the workspace with tags.`
+      */
+    ["com.affine.localmind.shell.tags.subtitle"](): string;
+    /**
       * `File type`
       */
     ["com.affine.localmind.resources.type"](): string;
@@ -22579,6 +22644,3482 @@ export function useAFFiNEI18N(): {
       * `Some resources could not be updated. Retry the failed resources below.`
       */
     ["com.affine.localmind.resources.tagsRetryFailed"](): string;
+    /**
+      * `Needs your attention`
+      */
+    ["com.affine.localmind.workbench.fusion.needsAttention"](): string;
+    /**
+      * `Complete the required returns`
+      */
+    ["com.affine.localmind.workbench.fusion.deliveryRequired"](): string;
+    /**
+      * `Confirm your delivery`
+      */
+    ["com.affine.localmind.workbench.fusion.deliveryReady"](): string;
+    /**
+      * `Reply to a question`
+      */
+    ["com.affine.localmind.workbench.fusion.questionReceived"](): string;
+    /**
+      * `Answer received`
+      */
+    ["com.affine.localmind.workbench.fusion.answerReceived"](): string;
+    /**
+      * `Work order refused`
+      */
+    ["com.affine.localmind.workbench.fusion.orderRefused"](): string;
+    /**
+      * `Work order cancelled`
+      */
+    ["com.affine.localmind.workbench.fusion.orderCancelled"](): string;
+    /**
+      * `Execution approval required`
+      */
+    ["com.affine.localmind.workbench.fusion.approvalRequired"](): string;
+    /**
+      * `Original work order`
+      */
+    ["com.affine.localmind.workbench.fusion.originalOrder"](): string;
+    /**
+      * `Supplementary work order`
+      */
+    ["com.affine.localmind.workbench.fusion.supplementOrder"](): string;
+    /**
+      * `Replacement work order`
+      */
+    ["com.affine.localmind.workbench.fusion.replacementOrder"](): string;
+    /**
+      * `Status unavailable`
+      */
+    ["com.affine.localmind.workbench.fusion.unknownStatus"](): string;
+    /**
+      * `Current conversation references`
+      */
+    ["com.affine.localmind.workbench.fusion.currentReferences"](): string;
+    /**
+      * `Private attachments`
+      */
+    ["com.affine.localmind.workbench.fusion.privateAttachments"](): string;
+    /**
+      * `Used only in this private conversation; not part of project files.`
+      */
+    ["com.affine.localmind.workbench.fusion.privateAttachmentsHint"](): string;
+    /**
+      * `Could not load conversation context. Your input has been kept.`
+      */
+    ["com.affine.localmind.workbench.fusion.contextFailed"](): string;
+    /**
+      * `Reference unavailable. Remove it or select it again.`
+      */
+    ["com.affine.localmind.workbench.fusion.referenceUnavailable"](): string;
+    /**
+      * `Refresh all reference versions`
+      */
+    ["com.affine.localmind.workbench.fusion.refreshReferences"](): string;
+    /**
+      * `Shared project information`
+      */
+    ["com.affine.localmind.workbench.fusion.projectInformation"](): string;
+    /**
+      * `Project publication history`
+      */
+    ["com.affine.localmind.workbench.fusion.projectPublicationHistory"](): string;
+    /**
+      * `Search project resources…`
+      */
+    ["com.affine.localmind.workbench.fusion.fileSearch"](): string;
+    /**
+      * `No matching project resources.`
+      */
+    ["com.affine.localmind.workbench.fusion.fileSearchEmpty"](): string;
+    /**
+      * `Select resources`
+      */
+    ["com.affine.localmind.workbench.fusion.selectResources"](): string;
+    /**
+      * `{{count}} selected`
+      */
+    ["com.affine.localmind.workbench.fusion.selectedResources"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Move selected resources`
+      */
+    ["com.affine.localmind.workbench.fusion.batchMove"](): string;
+    /**
+      * `Move to trash`
+      */
+    ["com.affine.localmind.workbench.fusion.batchTrash"](): string;
+    /**
+      * `{{success}} succeeded, {{failed}} failed. Failed items remain selected.`
+      */
+    ["com.affine.localmind.workbench.fusion.batchResult"](options: Readonly<{
+        success: string;
+        failed: string;
+    }>): string;
+    /**
+      * `Requirements and delivery`
+      */
+    ["com.affine.localmind.workbench.fusion.orderTab"](): string;
+    /**
+      * `Continue your conversations and personal work orders. To do means it is your turn to act.`
+      */
+    ["com.affine.localmind.workbench.fusion.overviewDescription"](): string;
+    /**
+      * `Sign in to view your projects, conversations, and personal work orders.`
+      */
+    ["com.affine.localmind.workbench.fusion.signInRequired"](): string;
+    /**
+      * `Sign in`
+      */
+    ["com.affine.localmind.workbench.fusion.signIn"](): string;
+    /**
+      * `Attachment: {{name}}`
+      */
+    ["com.affine.localmind.workbench.fusion.contextAttachment"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Could not load more. Previously loaded items are still available.`
+      */
+    ["com.affine.localmind.workbench.fusion.loadMoreFailed"](): string;
+    /**
+      * `Shared memory contribution history`
+      */
+    ["com.affine.localmind.workbench.fusion.contributionHistory"](): string;
+    /**
+      * `Undo this contribution`
+      */
+    ["com.affine.localmind.workbench.fusion.undoContribution"](): string;
+    /**
+      * `Undo checks the current revision and contributions; it will not revert other members’ changes.`
+      */
+    ["com.affine.localmind.workbench.fusion.undoContributionConfirm"](): string;
+    /**
+      * `Active shared record`
+      */
+    ["com.affine.localmind.workbench.fusion.memoryActive"](): string;
+    /**
+      * `Currently inactive`
+      */
+    ["com.affine.localmind.workbench.fusion.memoryInactive"](): string;
+    /**
+      * `Contribution undone`
+      */
+    ["com.affine.localmind.workbench.fusion.contributionUndone"](): string;
+    /**
+      * `Contribution recorded`
+      */
+    ["com.affine.localmind.workbench.fusion.contributionRecorded"](): string;
+    /**
+      * `Participant information unavailable`
+      */
+    ["com.affine.localmind.workbench.fusion.identityUnavailable"](): string;
+    /**
+      * `Type unavailable`
+      */
+    ["com.affine.localmind.workbench.fusion.unknownType"](): string;
+    /**
+      * `Size unavailable`
+      */
+    ["com.affine.localmind.workbench.fusion.sizeUnavailable"](): string;
+    /**
+      * `Replaced by a later revision`
+      */
+    ["com.affine.localmind.workbench.fusion.memorySuperseded"](): string;
+    /**
+      * `Deleted`
+      */
+    ["com.affine.localmind.workbench.fusion.memoryDeleted"](): string;
+    /**
+      * `Awaiting conflict resolution`
+      */
+    ["com.affine.localmind.workbench.fusion.memoryConflict"](): string;
+    /**
+      * `Shared fact added`
+      */
+    ["com.affine.localmind.workbench.fusion.eventAdded"](): string;
+    /**
+      * `Shared fact updated`
+      */
+    ["com.affine.localmind.workbench.fusion.eventUpdated"](): string;
+    /**
+      * `Shared record removed`
+      */
+    ["com.affine.localmind.workbench.fusion.eventDeleted"](): string;
+    /**
+      * `Contribution withdrawn`
+      */
+    ["com.affine.localmind.workbench.fusion.eventWithdrawn"](): string;
+    /**
+      * `No new change`
+      */
+    ["com.affine.localmind.workbench.fusion.eventNoChange"](): string;
+    /**
+      * `Shows the most recent returned contributions, up to 100.`
+      */
+    ["com.affine.localmind.workbench.fusion.recentContributions"](): string;
+    /**
+      * `Project reports`
+      */
+    ["com.affine.localmind.reports.reports"](): string;
+    /**
+      * `Templates`
+      */
+    ["com.affine.localmind.reports.templates"](): string;
+    /**
+      * `Schedules`
+      */
+    ["com.affine.localmind.reports.schedules"](): string;
+    /**
+      * `Back to project`
+      */
+    ["com.affine.localmind.reports.backToProject"](): string;
+    /**
+      * `Report navigation`
+      */
+    ["com.affine.localmind.reports.navigation"](): string;
+    /**
+      * `Create report`
+      */
+    ["com.affine.localmind.reports.createReport"](): string;
+    /**
+      * `Your project, ready to present`
+      */
+    ["com.affine.localmind.reports.emptyTitle"](): string;
+    /**
+      * `Choose a template to summarize project documents, review the evidence, and present a fixed version.`
+      */
+    ["com.affine.localmind.reports.emptyDescription"](): string;
+    /**
+      * `Custom`
+      */
+    ["com.affine.localmind.reports.home.customTemplate"](): string;
+    /**
+      * `Source`
+      */
+    ["com.affine.localmind.reports.home.templateSource"](): string;
+    /**
+      * `Import template`
+      */
+    ["com.affine.localmind.reports.import.action"](): string;
+    /**
+      * `Reading…`
+      */
+    ["com.affine.localmind.reports.import.reading"](): string;
+    /**
+      * `Import a PowerPoint template`
+      */
+    ["com.affine.localmind.reports.import.title"](): string;
+    /**
+      * `Colors, aspect ratio, background art and slide titles were extracted. Body text from the file is not kept.`
+      */
+    ["com.affine.localmind.reports.import.extracted"](): string;
+    /**
+      * `When to use`
+      */
+    ["com.affine.localmind.reports.import.description"](): string;
+    /**
+      * `Remove`
+      */
+    ["com.affine.localmind.reports.import.removeChapter"](): string;
+    /**
+      * `Source`
+      */
+    ["com.affine.localmind.reports.import.source"](): string;
+    /**
+      * `License`
+      */
+    ["com.affine.localmind.reports.import.license"](): string;
+    /**
+      * `I confirm I have the right to use and share this template in this project.`
+      */
+    ["com.affine.localmind.reports.import.rights"](): string;
+    /**
+      * `Save as template`
+      */
+    ["com.affine.localmind.reports.import.save"](): string;
+    /**
+      * `The file is larger than 100 MB.`
+      */
+    ["com.affine.localmind.reports.import.tooLarge"](): string;
+    /**
+      * `This file could not be read. Choose a .pptx or .potx presentation.`
+      */
+    ["com.affine.localmind.reports.import.unreadable"](): string;
+    /**
+      * `The template could not be saved. Try again.`
+      */
+    ["com.affine.localmind.reports.import.saveFailed"](): string;
+    /**
+      * `Overview`
+      */
+    ["com.affine.localmind.reports.import.defaultChapter"](): string;
+    /**
+      * `Start from a template`
+      */
+    ["com.affine.localmind.reports.home.templatesTitle"](): string;
+    /**
+      * `AI follows the template chapters to draft an editable report from this project.`
+      */
+    ["com.affine.localmind.reports.home.templatesHint"](): string;
+    /**
+      * `Manage templates`
+      */
+    ["com.affine.localmind.reports.home.manageTemplates"](): string;
+    /**
+      * `My reports`
+      */
+    ["com.affine.localmind.reports.home.myReports"](): string;
+    /**
+      * `No reports yet. Pick a template and AI will draft one from this project’s documents and work orders.`
+      */
+    ["com.affine.localmind.reports.home.emptyList"](): string;
+    /**
+      * `No matching reports.`
+      */
+    ["com.affine.localmind.reports.home.noMatches"](): string;
+    /**
+      * `Available sources`
+      */
+    ["com.affine.localmind.reports.home.sourcesTitle"](): string;
+    /**
+      * `Narrow the scope under Advanced when creating a report.`
+      */
+    ["com.affine.localmind.reports.home.sourcesHint"](): string;
+    /**
+      * `Project documents`
+      */
+    ["com.affine.localmind.reports.home.documents"](): string;
+    /**
+      * `Project members`
+      */
+    ["com.affine.localmind.reports.home.members"](): string;
+    /**
+      * `Work orders (participants only)`
+      */
+    ["com.affine.localmind.reports.home.workOrders"](): string;
+    /**
+      * `Shared memory`
+      */
+    ["com.affine.localmind.reports.home.memory"](): string;
+    /**
+      * `chapters`
+      */
+    ["com.affine.localmind.reports.home.chapterUnit"](): string;
+    /**
+      * `Search reports`
+      */
+    ["com.affine.localmind.reports.home.searchPlaceholder"](): string;
+    /**
+      * `Templates and project sources could not be loaded. Your reports are still available.`
+      */
+    ["com.affine.localmind.reports.home.optionsFailed"](): string;
+    /**
+      * `No active templates. Open Manage templates to add one.`
+      */
+    ["com.affine.localmind.reports.home.noTemplates"](): string;
+    /**
+      * `Included`
+      */
+    ["com.affine.localmind.reports.home.included"](): string;
+    /**
+      * `Detailed progress comes only from project documents. Private conversations and attachments are excluded.`
+      */
+    ["com.affine.localmind.reports.documentsOnly"](): string;
+    /**
+      * `Drafts are visible to current project members.`
+      */
+    ["com.affine.localmind.reports.draftVisibility"](): string;
+    /**
+      * `Default to this report’s creator`
+      */
+    ["com.affine.localmind.reports.creatorDefault"](): string;
+    /**
+      * `Default`
+      */
+    ["com.affine.localmind.reports.default"](): string;
+    /**
+      * `Assigned explicitly in the source document`
+      */
+    ["com.affine.localmind.reports.documentAssignment"](): string;
+    /**
+      * `Responsible person`
+      */
+    ["com.affine.localmind.reports.responsible"](): string;
+    /**
+      * `Named external person`
+      */
+    ["com.affine.localmind.reports.externalPerson"](): string;
+    /**
+      * `Name`
+      */
+    ["com.affine.localmind.reports.name"](): string;
+    /**
+      * `Title`
+      */
+    ["com.affine.localmind.reports.title"](): string;
+    /**
+      * `Template`
+      */
+    ["com.affine.localmind.reports.template"](): string;
+    /**
+      * `Template name`
+      */
+    ["com.affine.localmind.reports.templateName"](): string;
+    /**
+      * `Period start`
+      */
+    ["com.affine.localmind.reports.periodStart"](): string;
+    /**
+      * `Period end (exclusive)`
+      */
+    ["com.affine.localmind.reports.periodEndExclusive"](): string;
+    /**
+      * `Time zone`
+      */
+    ["com.affine.localmind.reports.timeZone"](): string;
+    /**
+      * `Additional requirements`
+      */
+    ["com.affine.localmind.reports.instructions"](): string;
+    /**
+      * `Advanced options`
+      */
+    ["com.affine.localmind.reports.advanced"](): string;
+    /**
+      * `Create blank report`
+      */
+    ["com.affine.localmind.reports.createBlank"](): string;
+    /**
+      * `Generate with AI`
+      */
+    ["com.affine.localmind.reports.generate"](): string;
+    /**
+      * `Could not create the report. Check the period, selected sources and project AI configuration, then retry.`
+      */
+    ["com.affine.localmind.reports.createFailed"](): string;
+    /**
+      * `Source scope`
+      */
+    ["com.affine.localmind.reports.sourceScope"](): string;
+    /**
+      * `All project documents`
+      */
+    ["com.affine.localmind.reports.all"](): string;
+    /**
+      * `Selected folders`
+      */
+    ["com.affine.localmind.reports.folders"](): string;
+    /**
+      * `Selected documents`
+      */
+    ["com.affine.localmind.reports.resources"](): string;
+    /**
+      * `Select sources`
+      */
+    ["com.affine.localmind.reports.selectedSources"](): string;
+    /**
+      * `Search reports`
+      */
+    ["com.affine.localmind.reports.search"](): string;
+    /**
+      * `Status filter`
+      */
+    ["com.affine.localmind.reports.lifecycle"](): string;
+    /**
+      * `Active`
+      */
+    ["com.affine.localmind.reports.active"](): string;
+    /**
+      * `Archived`
+      */
+    ["com.affine.localmind.reports.archived"](): string;
+    /**
+      * `In trash`
+      */
+    ["com.affine.localmind.reports.trashed"](): string;
+    /**
+      * `Draft`
+      */
+    ["com.affine.localmind.reports.draft"](): string;
+    /**
+      * `Final`
+      */
+    ["com.affine.localmind.reports.final"](): string;
+    /**
+      * `Fixed preview`
+      */
+    ["com.affine.localmind.reports.preview"](): string;
+    /**
+      * `Archive`
+      */
+    ["com.affine.localmind.reports.archive"](): string;
+    /**
+      * `Restore`
+      */
+    ["com.affine.localmind.reports.restore"](): string;
+    /**
+      * `Move to trash`
+      */
+    ["com.affine.localmind.reports.trash"](): string;
+    /**
+      * `Move this report to trash?`
+      */
+    ["com.affine.localmind.reports.trashReport"](): string;
+    /**
+      * `Active runs and schedules stop and external links are revoked. Restoring does not reactivate old links.`
+      */
+    ["com.affine.localmind.reports.trashConsequences"](): string;
+    /**
+      * `Copy`
+      */
+    ["com.affine.localmind.reports.copy"](): string;
+    /**
+      * `Duplicate`
+      */
+    ["com.affine.localmind.reports.duplicate"](): string;
+    /**
+      * `Based on this report`
+      */
+    ["com.affine.localmind.reports.fromPrevious"](): string;
+    /**
+      * `Next period`
+      */
+    ["com.affine.localmind.reports.nextPeriod"](): string;
+    /**
+      * `First page`
+      */
+    ["com.affine.localmind.reports.firstPage"](): string;
+    /**
+      * `Next page`
+      */
+    ["com.affine.localmind.reports.nextPage"](): string;
+    /**
+      * `Previous page`
+      */
+    ["com.affine.localmind.reports.previousPage"](): string;
+    /**
+      * `Back`
+      */
+    ["com.affine.localmind.reports.back"](): string;
+    /**
+      * `Save`
+      */
+    ["com.affine.localmind.reports.save"](): string;
+    /**
+      * `Saving…`
+      */
+    ["com.affine.localmind.reports.saving"](): string;
+    /**
+      * `Saved`
+      */
+    ["com.affine.localmind.reports.saved"](): string;
+    /**
+      * `Unsaved changes`
+      */
+    ["com.affine.localmind.reports.unsaved"](): string;
+    /**
+      * `Finalize version`
+      */
+    ["com.affine.localmind.reports.finalize"](): string;
+    /**
+      * `Present`
+      */
+    ["com.affine.localmind.reports.present"](): string;
+    /**
+      * `Presenter view`
+      */
+    ["com.affine.localmind.reports.presenter"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.reports.retry"](): string;
+    /**
+      * `Dismiss`
+      */
+    ["com.affine.localmind.reports.dismiss"](): string;
+    /**
+      * `Close`
+      */
+    ["com.affine.localmind.reports.close"](): string;
+    /**
+      * `Read only`
+      */
+    ["com.affine.localmind.reports.readOnly"](): string;
+    /**
+      * `Being edited by`
+      */
+    ["com.affine.localmind.reports.heldBy"](): string;
+    /**
+      * `Start editing`
+      */
+    ["com.affine.localmind.reports.acquireLease"](): string;
+    /**
+      * `Version changed`
+      */
+    ["com.affine.localmind.reports.versionConflict"](): string;
+    /**
+      * `A newer revision exists. Compare it before choosing which local changes to keep.`
+      */
+    ["com.affine.localmind.reports.versionConflictHelp"](): string;
+    /**
+      * `Use server version`
+      */
+    ["com.affine.localmind.reports.useServerVersion"](): string;
+    /**
+      * `Keep local edits for review`
+      */
+    ["com.affine.localmind.reports.keepLocalForMerge"](): string;
+    /**
+      * `Some content is incomplete or invalid. Check image selection, data shape and source references before saving.`
+      */
+    ["com.affine.localmind.reports.invalidDocument"](): string;
+    /**
+      * `The fixed preview could not be created.`
+      */
+    ["com.affine.localmind.reports.snapshotUnavailable"](): string;
+    /**
+      * `Chapters`
+      */
+    ["com.affine.localmind.reports.chapters"](): string;
+    /**
+      * `Chapter title`
+      */
+    ["com.affine.localmind.reports.chapterTitle"](): string;
+    /**
+      * `New chapter`
+      */
+    ["com.affine.localmind.reports.newChapter"](): string;
+    /**
+      * `Add chapter`
+      */
+    ["com.affine.localmind.reports.addChapter"](): string;
+    /**
+      * `Remove chapter`
+      */
+    ["com.affine.localmind.reports.removeChapter"](): string;
+    /**
+      * `Select a chapter to edit.`
+      */
+    ["com.affine.localmind.reports.selectChapter"](): string;
+    /**
+      * `Move up`
+      */
+    ["com.affine.localmind.reports.moveUp"](): string;
+    /**
+      * `Move down`
+      */
+    ["com.affine.localmind.reports.moveDown"](): string;
+    /**
+      * `Hidden`
+      */
+    ["com.affine.localmind.reports.hidden"](): string;
+    /**
+      * `Locked`
+      */
+    ["com.affine.localmind.reports.locked"](): string;
+    /**
+      * `Undo`
+      */
+    ["com.affine.localmind.reports.undo"](): string;
+    /**
+      * `Redo`
+      */
+    ["com.affine.localmind.reports.redo"](): string;
+    /**
+      * `Side panel`
+      */
+    ["com.affine.localmind.reports.panel"](): string;
+    /**
+      * `Sources`
+      */
+    ["com.affine.localmind.reports.sources"](): string;
+    /**
+      * `AI editing`
+      */
+    ["com.affine.localmind.reports.ai"](): string;
+    /**
+      * `Comments and review`
+      */
+    ["com.affine.localmind.reports.comments"](): string;
+    /**
+      * `Version history`
+      */
+    ["com.affine.localmind.reports.history"](): string;
+    /**
+      * `Style and metadata`
+      */
+    ["com.affine.localmind.reports.style"](): string;
+    /**
+      * `Export and share`
+      */
+    ["com.affine.localmind.reports.outputs"](): string;
+    /**
+      * `Content type`
+      */
+    ["com.affine.localmind.reports.nodeType"](): string;
+    /**
+      * `Add content`
+      */
+    ["com.affine.localmind.reports.addContent"](): string;
+    /**
+      * `Heading`
+      */
+    ["com.affine.localmind.reports.heading"](): string;
+    /**
+      * `Paragraph`
+      */
+    ["com.affine.localmind.reports.paragraph"](): string;
+    /**
+      * `List`
+      */
+    ["com.affine.localmind.reports.list"](): string;
+    /**
+      * `Table`
+      */
+    ["com.affine.localmind.reports.table"](): string;
+    /**
+      * `Metric`
+      */
+    ["com.affine.localmind.reports.metric"](): string;
+    /**
+      * `Timeline`
+      */
+    ["com.affine.localmind.reports.timeline"](): string;
+    /**
+      * `Image`
+      */
+    ["com.affine.localmind.reports.image"](): string;
+    /**
+      * `Chart`
+      */
+    ["com.affine.localmind.reports.chart"](): string;
+    /**
+      * `Callout`
+      */
+    ["com.affine.localmind.reports.callout"](): string;
+    /**
+      * `Page break`
+      */
+    ["com.affine.localmind.reports.pageBreak"](): string;
+    /**
+      * `Heading level`
+      */
+    ["com.affine.localmind.reports.headingLevel"](): string;
+    /**
+      * `Content`
+      */
+    ["com.affine.localmind.reports.content"](): string;
+    /**
+      * `Emphasis`
+      */
+    ["com.affine.localmind.reports.tone"](): string;
+    /**
+      * `Information`
+      */
+    ["com.affine.localmind.reports.info"](): string;
+    /**
+      * `Risk`
+      */
+    ["com.affine.localmind.reports.risk"](): string;
+    /**
+      * `Decision`
+      */
+    ["com.affine.localmind.reports.decision"](): string;
+    /**
+      * `One item per line`
+      */
+    ["com.affine.localmind.reports.oneItemPerLine"](): string;
+    /**
+      * `Numbered list`
+      */
+    ["com.affine.localmind.reports.ordered"](): string;
+    /**
+      * `Column`
+      */
+    ["com.affine.localmind.reports.column"](): string;
+    /**
+      * `Row`
+      */
+    ["com.affine.localmind.reports.row"](): string;
+    /**
+      * `Add column`
+      */
+    ["com.affine.localmind.reports.addColumn"](): string;
+    /**
+      * `Remove column`
+      */
+    ["com.affine.localmind.reports.removeColumn"](): string;
+    /**
+      * `Add row`
+      */
+    ["com.affine.localmind.reports.addRow"](): string;
+    /**
+      * `Remove row`
+      */
+    ["com.affine.localmind.reports.removeRow"](): string;
+    /**
+      * `Label`
+      */
+    ["com.affine.localmind.reports.label"](): string;
+    /**
+      * `Value (blank means missing)`
+      */
+    ["com.affine.localmind.reports.value"](): string;
+    /**
+      * `Unit`
+      */
+    ["com.affine.localmind.reports.unit"](): string;
+    /**
+      * `Formula`
+      */
+    ["com.affine.localmind.reports.formula"](): string;
+    /**
+      * `Exclusions`
+      */
+    ["com.affine.localmind.reports.exclusions"](): string;
+    /**
+      * `Date`
+      */
+    ["com.affine.localmind.reports.date"](): string;
+    /**
+      * `Status`
+      */
+    ["com.affine.localmind.reports.status"](): string;
+    /**
+      * `Details`
+      */
+    ["com.affine.localmind.reports.detail"](): string;
+    /**
+      * `Remove`
+      */
+    ["com.affine.localmind.reports.remove"](): string;
+    /**
+      * `Add entry`
+      */
+    ["com.affine.localmind.reports.addEntry"](): string;
+    /**
+      * `Planned`
+      */
+    ["com.affine.localmind.reports.planned"](): string;
+    /**
+      * `In progress`
+      */
+    ["com.affine.localmind.reports.in_progress"](): string;
+    /**
+      * `Completed`
+      */
+    ["com.affine.localmind.reports.completed"](): string;
+    /**
+      * `Blocked`
+      */
+    ["com.affine.localmind.reports.blocked"](): string;
+    /**
+      * `Result unknown`
+      */
+    ["com.affine.localmind.reports.unknown"](): string;
+    /**
+      * `Select an uploaded image`
+      */
+    ["com.affine.localmind.reports.selectImage"](): string;
+    /**
+      * `Image description`
+      */
+    ["com.affine.localmind.reports.altText"](): string;
+    /**
+      * `Caption`
+      */
+    ["com.affine.localmind.reports.caption"](): string;
+    /**
+      * `Chart type`
+      */
+    ["com.affine.localmind.reports.chartType"](): string;
+    /**
+      * `Bar chart`
+      */
+    ["com.affine.localmind.reports.bar"](): string;
+    /**
+      * `Line chart`
+      */
+    ["com.affine.localmind.reports.line"](): string;
+    /**
+      * `Pie chart`
+      */
+    ["com.affine.localmind.reports.pie"](): string;
+    /**
+      * `Donut chart`
+      */
+    ["com.affine.localmind.reports.donut"](): string;
+    /**
+      * `Target comparison`
+      */
+    ["com.affine.localmind.reports.target"](): string;
+    /**
+      * `Categories, one per line`
+      */
+    ["com.affine.localmind.reports.categories"](): string;
+    /**
+      * `Series name`
+      */
+    ["com.affine.localmind.reports.series"](): string;
+    /**
+      * `Comma-separated values; blank means missing`
+      */
+    ["com.affine.localmind.reports.seriesValues"](): string;
+    /**
+      * `Add series`
+      */
+    ["com.affine.localmind.reports.addSeries"](): string;
+    /**
+      * `Remove last series`
+      */
+    ["com.affine.localmind.reports.removeSeries"](): string;
+    /**
+      * `Calculation method and scope`
+      */
+    ["com.affine.localmind.reports.methodology"](): string;
+    /**
+      * `Document statement`
+      */
+    ["com.affine.localmind.reports.document"](): string;
+    /**
+      * `Verified business status`
+      */
+    ["com.affine.localmind.reports.business_state"](): string;
+    /**
+      * `Calculated value`
+      */
+    ["com.affine.localmind.reports.calculation"](): string;
+    /**
+      * `AI inference`
+      */
+    ["com.affine.localmind.reports.inference"](): string;
+    /**
+      * `Manual content`
+      */
+    ["com.affine.localmind.reports.manual"](): string;
+    /**
+      * `Speaker notes`
+      */
+    ["com.affine.localmind.reports.speakerNotes"](): string;
+    /**
+      * `Parsed documents`
+      */
+    ["com.affine.localmind.reports.coverage"](): string;
+    /**
+      * `Sources captured at`
+      */
+    ["com.affine.localmind.reports.cutoff"](): string;
+    /**
+      * `Parsed`
+      */
+    ["com.affine.localmind.reports.parsed"](): string;
+    /**
+      * `Read`
+      */
+    ["com.affine.localmind.reports.read"](): string;
+    /**
+      * `Failed`
+      */
+    ["com.affine.localmind.reports.failed"](): string;
+    /**
+      * `Not covered`
+      */
+    ["com.affine.localmind.reports.omitted"](): string;
+    /**
+      * `Conflict`
+      */
+    ["com.affine.localmind.reports.conflict"](): string;
+    /**
+      * `Time difference`
+      */
+    ["com.affine.localmind.reports.time_gap"](): string;
+    /**
+      * `Missing fact`
+      */
+    ["com.affine.localmind.reports.missing_fact"](): string;
+    /**
+      * `Invalid reference`
+      */
+    ["com.affine.localmind.reports.invalid_reference"](): string;
+    /**
+      * `Missing asset`
+      */
+    ["com.affine.localmind.reports.missing_asset"](): string;
+    /**
+      * `Resolution or uncertainty explanation`
+      */
+    ["com.affine.localmind.reports.resolution"](): string;
+    /**
+      * `Describe the requested change`
+      */
+    ["com.affine.localmind.reports.aiInstructions"](): string;
+    /**
+      * `Rewrite selected chapter`
+      */
+    ["com.affine.localmind.reports.rewriteChapter"](): string;
+    /**
+      * `Update from documents`
+      */
+    ["com.affine.localmind.reports.refreshReport"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.localmind.reports.queued"](): string;
+    /**
+      * `Running`
+      */
+    ["com.affine.localmind.reports.running"](): string;
+    /**
+      * `Waiting for approval`
+      */
+    ["com.affine.localmind.reports.waiting_approval"](): string;
+    /**
+      * `Waiting for editor`
+      */
+    ["com.affine.localmind.reports.waiting_for_lease"](): string;
+    /**
+      * `Cancelling`
+      */
+    ["com.affine.localmind.reports.cancel_requested"](): string;
+    /**
+      * `Cancelled`
+      */
+    ["com.affine.localmind.reports.cancelled"](): string;
+    /**
+      * `Succeeded`
+      */
+    ["com.affine.localmind.reports.succeeded"](): string;
+    /**
+      * `Generation failed. The saved report is unchanged; retry after checking the project AI configuration.`
+      */
+    ["com.affine.localmind.reports.generationFailed"](): string;
+    /**
+      * `Cancel`
+      */
+    ["com.affine.localmind.reports.cancel"](): string;
+    /**
+      * `Proposed changes`
+      */
+    ["com.affine.localmind.reports.candidate"](): string;
+    /**
+      * `Compare`
+      */
+    ["com.affine.localmind.reports.compare"](): string;
+    /**
+      * `Changes between versions`
+      */
+    ["com.affine.localmind.reports.comparison"](): string;
+    /**
+      * `Choose`
+      */
+    ["com.affine.localmind.reports.choose"](): string;
+    /**
+      * `Keep current content`
+      */
+    ["com.affine.localmind.reports.keepCurrent"](): string;
+    /**
+      * `Use proposed content`
+      */
+    ["com.affine.localmind.reports.useCandidate"](): string;
+    /**
+      * `Apply selected changes`
+      */
+    ["com.affine.localmind.reports.apply"](): string;
+    /**
+      * `Added`
+      */
+    ["com.affine.localmind.reports.added"](): string;
+    /**
+      * `Removed`
+      */
+    ["com.affine.localmind.reports.removed"](): string;
+    /**
+      * `Changed`
+      */
+    ["com.affine.localmind.reports.changed"](): string;
+    /**
+      * `Comment`
+      */
+    ["com.affine.localmind.reports.comment"](): string;
+    /**
+      * `Reply`
+      */
+    ["com.affine.localmind.reports.reply"](): string;
+    /**
+      * `Post comment`
+      */
+    ["com.affine.localmind.reports.sendComment"](): string;
+    /**
+      * `The referenced content has changed.`
+      */
+    ["com.affine.localmind.reports.anchorChanged"](): string;
+    /**
+      * `Resolve`
+      */
+    ["com.affine.localmind.reports.resolve"](): string;
+    /**
+      * `Reopen`
+      */
+    ["com.affine.localmind.reports.reopen"](): string;
+    /**
+      * `Reviewer`
+      */
+    ["com.affine.localmind.reports.reviewer"](): string;
+    /**
+      * `Request review`
+      */
+    ["com.affine.localmind.reports.requestReview"](): string;
+    /**
+      * `Approve this version`
+      */
+    ["com.affine.localmind.reports.approveReview"](): string;
+    /**
+      * `Request changes`
+      */
+    ["com.affine.localmind.reports.requestChanges"](): string;
+    /**
+      * `This review refers to an older version.`
+      */
+    ["com.affine.localmind.reports.reviewStale"](): string;
+    /**
+      * `Approved`
+      */
+    ["com.affine.localmind.reports.approved"](): string;
+    /**
+      * `Changes requested`
+      */
+    ["com.affine.localmind.reports.changes_requested"](): string;
+    /**
+      * `Pending`
+      */
+    ["com.affine.localmind.reports.pending"](): string;
+    /**
+      * `Open`
+      */
+    ["com.affine.localmind.reports.open"](): string;
+    /**
+      * `Restore as new draft`
+      */
+    ["com.affine.localmind.reports.restoreAsDraft"](): string;
+    /**
+      * `Upload image`
+      */
+    ["com.affine.localmind.reports.uploadImage"](): string;
+    /**
+      * `Logo`
+      */
+    ["com.affine.localmind.reports.logo"](): string;
+    /**
+      * `None`
+      */
+    ["com.affine.localmind.reports.none"](): string;
+    /**
+      * `Save structure as template`
+      */
+    ["com.affine.localmind.reports.saveAsTemplate"](): string;
+    /**
+      * `Theme name`
+      */
+    ["com.affine.localmind.reports.themeName"](): string;
+    /**
+      * `Page ratio`
+      */
+    ["com.affine.localmind.reports.aspectRatio"](): string;
+    /**
+      * `Background`
+      */
+    ["com.affine.localmind.reports.background"](): string;
+    /**
+      * `Text color`
+      */
+    ["com.affine.localmind.reports.foreground"](): string;
+    /**
+      * `Accent color`
+      */
+    ["com.affine.localmind.reports.accent"](): string;
+    /**
+      * `Font`
+      */
+    ["com.affine.localmind.reports.font"](): string;
+    /**
+      * `Sans serif`
+      */
+    ["com.affine.localmind.reports.sans"](): string;
+    /**
+      * `Serif`
+      */
+    ["com.affine.localmind.reports.serif"](): string;
+    /**
+      * `Audience`
+      */
+    ["com.affine.localmind.reports.audience"](): string;
+    /**
+      * `Management`
+      */
+    ["com.affine.localmind.reports.management"](): string;
+    /**
+      * `Customer`
+      */
+    ["com.affine.localmind.reports.customer"](): string;
+    /**
+      * `Project team`
+      */
+    ["com.affine.localmind.reports.team"](): string;
+    /**
+      * `Language`
+      */
+    ["com.affine.localmind.reports.language"](): string;
+    /**
+      * `Presentation length (minutes)`
+      */
+    ["com.affine.localmind.reports.durationMinutes"](): string;
+    /**
+      * `Default instructions`
+      */
+    ["com.affine.localmind.reports.defaultPrompt"](): string;
+    /**
+      * `Questions to address`
+      */
+    ["com.affine.localmind.reports.requiredQuestion"](): string;
+    /**
+      * `Layout`
+      */
+    ["com.affine.localmind.reports.layout"](): string;
+    /**
+      * `Cover`
+      */
+    ["com.affine.localmind.reports.cover"](): string;
+    /**
+      * `Gallery`
+      */
+    ["com.affine.localmind.reports.gallery"](): string;
+    /**
+      * `Built-in`
+      */
+    ["com.affine.localmind.reports.builtin"](): string;
+    /**
+      * `Project template`
+      */
+    ["com.affine.localmind.reports.custom"](): string;
+    /**
+      * `Publish template version`
+      */
+    ["com.affine.localmind.reports.publishTemplate"](): string;
+    /**
+      * `Open a template or duplicate one to customize it.`
+      */
+    ["com.affine.localmind.reports.selectTemplate"](): string;
+    /**
+      * `New schedule`
+      */
+    ["com.affine.localmind.reports.newSchedule"](): string;
+    /**
+      * `Scheduled runs create drafts by default. Execution uses the delegated member’s current permission and the project AI configuration.`
+      */
+    ["com.affine.localmind.reports.scheduleExplanation"](): string;
+    /**
+      * `Pause`
+      */
+    ["com.affine.localmind.reports.pause"](): string;
+    /**
+      * `Paused`
+      */
+    ["com.affine.localmind.reports.paused"](): string;
+    /**
+      * `Resume`
+      */
+    ["com.affine.localmind.reports.resume"](): string;
+    /**
+      * `Run now`
+      */
+    ["com.affine.localmind.reports.runNow"](): string;
+    /**
+      * `Remove this schedule?`
+      */
+    ["com.affine.localmind.reports.removeSchedule"](): string;
+    /**
+      * `Future executions stop; previous delivery receipts remain.`
+      */
+    ["com.affine.localmind.reports.keepDeliveryHistory"](): string;
+    /**
+      * `Run and delivery history`
+      */
+    ["com.affine.localmind.reports.runHistory"](): string;
+    /**
+      * `Generate selected past period`
+      */
+    ["com.affine.localmind.reports.backfill"](): string;
+    /**
+      * `Frequency`
+      */
+    ["com.affine.localmind.reports.frequency"](): string;
+    /**
+      * `Weekly`
+      */
+    ["com.affine.localmind.reports.weekly"](): string;
+    /**
+      * `Monthly`
+      */
+    ["com.affine.localmind.reports.monthly"](): string;
+    /**
+      * `Week day (0 Sunday – 6 Saturday)`
+      */
+    ["com.affine.localmind.reports.weekDay"](): string;
+    /**
+      * `Day of month`
+      */
+    ["com.affine.localmind.reports.monthDay"](): string;
+    /**
+      * `Local execution time`
+      */
+    ["com.affine.localmind.reports.runTime"](): string;
+    /**
+      * `Automatically finalize eligible reports`
+      */
+    ["com.affine.localmind.reports.autoFinalize"](): string;
+    /**
+      * `Incomplete coverage, unresolved issues, and invalid references prevent automatic finalization.`
+      */
+    ["com.affine.localmind.reports.autoFinalizeGate"](): string;
+    /**
+      * `Enable explicitly authorized delivery`
+      */
+    ["com.affine.localmind.reports.automaticDelivery"](): string;
+    /**
+      * `Delivery channel`
+      */
+    ["com.affine.localmind.reports.channel"](): string;
+    /**
+      * `In-app notification`
+      */
+    ["com.affine.localmind.reports.notification"](): string;
+    /**
+      * `Email`
+      */
+    ["com.affine.localmind.reports.email"](): string;
+    /**
+      * `Recipients, one per line`
+      */
+    ["com.affine.localmind.reports.recipients"](): string;
+    /**
+      * `Link lifetime (days)`
+      */
+    ["com.affine.localmind.reports.expiresDays"](): string;
+    /**
+      * `Explicitly include the export as an attachment`
+      */
+    ["com.affine.localmind.reports.includeAttachment"](): string;
+    /**
+      * `Reauthorize execution as my account`
+      */
+    ["com.affine.localmind.reports.rebindToMe"](): string;
+    /**
+      * `Confirm delivery authorization`
+      */
+    ["com.affine.localmind.reports.confirmAuthorization"](): string;
+    /**
+      * `Confirm the recipients, channel, visible chapters, attachments, and link expiry shown here.`
+      */
+    ["com.affine.localmind.reports.deliveryAuthorization"](): string;
+    /**
+      * `Confirm and save`
+      */
+    ["com.affine.localmind.reports.confirmAndSave"](): string;
+    /**
+      * `Save schedule`
+      */
+    ["com.affine.localmind.reports.saveSchedule"](): string;
+    /**
+      * `Fixed version`
+      */
+    ["com.affine.localmind.reports.fixedVersion"](): string;
+    /**
+      * `Choose a final or preview version`
+      */
+    ["com.affine.localmind.reports.chooseVersion"](): string;
+    /**
+      * `Create fixed preview`
+      */
+    ["com.affine.localmind.reports.createSnapshot"](): string;
+    /**
+      * `Visible chapters`
+      */
+    ["com.affine.localmind.reports.visibleChapters"](): string;
+    /**
+      * `Format`
+      */
+    ["com.affine.localmind.reports.format"](): string;
+    /**
+      * `PDF`
+      */
+    ["com.affine.localmind.reports.pdf"](): string;
+    /**
+      * `Editable PowerPoint`
+      */
+    ["com.affine.localmind.reports.pptx"](): string;
+    /**
+      * `Offline presentation ZIP`
+      */
+    ["com.affine.localmind.reports.offline"](): string;
+    /**
+      * `Include notes in this internal export`
+      */
+    ["com.affine.localmind.reports.includeNotes"](): string;
+    /**
+      * `Include source labels`
+      */
+    ["com.affine.localmind.reports.includeSources"](): string;
+    /**
+      * `Generate export`
+      */
+    ["com.affine.localmind.reports.generateExport"](): string;
+    /**
+      * `Downloaded copies cannot be recalled by revoking online access.`
+      */
+    ["com.affine.localmind.reports.offlineBoundary"](): string;
+    /**
+      * `Download`
+      */
+    ["com.affine.localmind.reports.download"](): string;
+    /**
+      * `Download failed. Recheck access and retry.`
+      */
+    ["com.affine.localmind.reports.downloadFailed"](): string;
+    /**
+      * `Save to project files`
+      */
+    ["com.affine.localmind.reports.saveToProject"](): string;
+    /**
+      * `Saved to project`
+      */
+    ["com.affine.localmind.reports.savedToProject"](): string;
+    /**
+      * `External sharing`
+      */
+    ["com.affine.localmind.reports.share"](): string;
+    /**
+      * `Only the selected final version and visible chapters are shared. Comments, notes, hidden content, and internal source links are excluded.`
+      */
+    ["com.affine.localmind.reports.shareExplanation"](): string;
+    /**
+      * `Access mode`
+      */
+    ["com.affine.localmind.reports.accessMode"](): string;
+    /**
+      * `Specific accounts`
+      */
+    ["com.affine.localmind.reports.specificAccounts"](): string;
+    /**
+      * `Link access`
+      */
+    ["com.affine.localmind.reports.passwordLink"](): string;
+    /**
+      * `Allowed account IDs, one per line`
+      */
+    ["com.affine.localmind.reports.accountIds"](): string;
+    /**
+      * `Password`
+      */
+    ["com.affine.localmind.reports.password"](): string;
+    /**
+      * `Expires at`
+      */
+    ["com.affine.localmind.reports.expiresAt"](): string;
+    /**
+      * `Allow downloads`
+      */
+    ["com.affine.localmind.reports.allowDownload"](): string;
+    /**
+      * `Confirm shared content`
+      */
+    ["com.affine.localmind.reports.confirmShare"](): string;
+    /**
+      * `Create controlled link`
+      */
+    ["com.affine.localmind.reports.createShare"](): string;
+    /**
+      * `Finalize a version before sharing externally.`
+      */
+    ["com.affine.localmind.reports.finalRequired"](): string;
+    /**
+      * `Share link`
+      */
+    ["com.affine.localmind.reports.shareUrl"](): string;
+    /**
+      * `Copy link`
+      */
+    ["com.affine.localmind.reports.copyLink"](): string;
+    /**
+      * `Link copied`
+      */
+    ["com.affine.localmind.reports.copied"](): string;
+    /**
+      * `Could not copy. Select and copy the link manually.`
+      */
+    ["com.affine.localmind.reports.copyFailed"](): string;
+    /**
+      * `Revoke this link?`
+      */
+    ["com.affine.localmind.reports.revokeShare"](): string;
+    /**
+      * `Future online access and downloads stop. Already downloaded files remain outside this control.`
+      */
+    ["com.affine.localmind.reports.revokeExplanation"](): string;
+    /**
+      * `Revoke`
+      */
+    ["com.affine.localmind.reports.revoke"](): string;
+    /**
+      * `Revoked`
+      */
+    ["com.affine.localmind.reports.revoked"](): string;
+    /**
+      * `Account access`
+      */
+    ["com.affine.localmind.reports.accounts"](): string;
+    /**
+      * `Link access`
+      */
+    ["com.affine.localmind.reports.link"](): string;
+    /**
+      * `Operation completed`
+      */
+    ["com.affine.localmind.reports.operationComplete"](): string;
+    /**
+      * `View chart data`
+      */
+    ["com.affine.localmind.reports.dataTable"](): string;
+    /**
+      * `Not recorded`
+      */
+    ["com.affine.localmind.reports.notRecorded"](): string;
+    /**
+      * `Image unavailable`
+      */
+    ["com.affine.localmind.reports.imageUnavailable"](): string;
+    /**
+      * `Suggested attention (AI inference)`
+      */
+    ["com.affine.localmind.reports.suggestedAttention"](): string;
+    /**
+      * `Exit presentation`
+      */
+    ["com.affine.localmind.reports.exit"](): string;
+    /**
+      * `Full screen`
+      */
+    ["com.affine.localmind.reports.fullscreen"](): string;
+    /**
+      * `Open audience window`
+      */
+    ["com.affine.localmind.reports.openAudience"](): string;
+    /**
+      * `Black screen`
+      */
+    ["com.affine.localmind.reports.blackScreen"](): string;
+    /**
+      * `Pointer`
+      */
+    ["com.affine.localmind.reports.pointer"](): string;
+    /**
+      * `The extra window or full screen was blocked. Allow it in your browser or continue on this screen.`
+      */
+    ["com.affine.localmind.reports.windowBlocked"](): string;
+    /**
+      * `This fixed version is unavailable or your access has changed.`
+      */
+    ["com.affine.localmind.reports.presentationUnavailable"](): string;
+    /**
+      * `Elapsed`
+      */
+    ["com.affine.localmind.reports.elapsed"](): string;
+    /**
+      * `minutes`
+      */
+    ["com.affine.localmind.reports.minutes"](): string;
+    /**
+      * `No speaker notes`
+      */
+    ["com.affine.localmind.reports.noNotes"](): string;
+    /**
+      * `This report has no visible pages.`
+      */
+    ["com.affine.localmind.reports.emptyReport"](): string;
+    /**
+      * `Jump to page`
+      */
+    ["com.affine.localmind.reports.jumpTo"](): string;
+    /**
+      * `Presentation progress`
+      */
+    ["com.affine.localmind.reports.presentationProgress"](): string;
+    /**
+      * `Shared project report`
+      */
+    ["com.affine.localmind.reports.sharedReport"](): string;
+    /**
+      * `This share is unavailable, has expired, or requires authentication. Check that you are signed in to an allowed account.`
+      */
+    ["com.affine.localmind.reports.shareUnavailable"](): string;
+    /**
+      * `Enter the password to open this report.`
+      */
+    ["com.affine.localmind.reports.shareAuthentication"](): string;
+    /**
+      * `Discovering documents`
+      */
+    ["com.affine.localmind.reports.discover"](): string;
+    /**
+      * `Capturing source versions`
+      */
+    ["com.affine.localmind.reports.capture"](): string;
+    /**
+      * `Extracting facts`
+      */
+    ["com.affine.localmind.reports.extract"](): string;
+    /**
+      * `Reconciling evidence`
+      */
+    ["com.affine.localmind.reports.reconcile"](): string;
+    /**
+      * `Composing report`
+      */
+    ["com.affine.localmind.reports.compose"](): string;
+    /**
+      * `Validating report`
+      */
+    ["com.affine.localmind.reports.validate"](): string;
+    /**
+      * `Saving result`
+      */
+    ["com.affine.localmind.reports.persist"](): string;
+    /**
+      * `Sending`
+      */
+    ["com.affine.localmind.reports.sending"](): string;
+    /**
+      * `Sent`
+      */
+    ["com.affine.localmind.reports.sent"](): string;
+    /**
+      * `Permanently delete`
+      */
+    ["com.affine.localmind.reports.permanentlyDelete"](): string;
+    /**
+      * `Permanently remove this report and its derived files. This cannot be undone.`
+      */
+    ["com.affine.localmind.reports.permanentlyDeleteDescription"](): string;
+    /**
+      * `Verification evidence`
+      */
+    ["com.affine.localmind.reports.deliveryResolutionNote"](): string;
+    /**
+      * `Confirmed sent`
+      */
+    ["com.affine.localmind.reports.confirmSent"](): string;
+    /**
+      * `Confirmed not sent · retry`
+      */
+    ["com.affine.localmind.reports.confirmNotSentRetry"](): string;
+    /**
+      * `Check delivery with the recipient or mail provider before recording the result. Confirming not sent explicitly retries delivery.`
+      */
+    ["com.affine.localmind.reports.deliveryResolutionDescription"](): string;
+    /**
+      * `Confirm`
+      */
+    ["com.affine.localmind.reports.confirm"](): string;
+    /**
+      * `Continue editing latest draft`
+      */
+    ["com.affine.localmind.reports.continueEditing"](): string;
+    /**
+      * `Apply reviewed merge`
+      */
+    ["com.affine.localmind.reports.applyMerge"](): string;
+    /**
+      * `Existing export to update`
+      */
+    ["com.affine.localmind.reports.updateExportTarget"](): string;
+    /**
+      * `Update existing export`
+      */
+    ["com.affine.localmind.reports.updateExistingExport"](): string;
+    /**
+      * `Replace the selected resource with this export as a new revision. Concurrent edits are checked before saving.`
+      */
+    ["com.affine.localmind.reports.updateExistingExportDescription"](): string;
+    /**
+      * `Update failed. Check the target format and whether another member is editing it.`
+      */
+    ["com.affine.localmind.reports.updateExportFailed"](): string;
+    /**
+      * `Preview recipient view`
+      */
+    ["com.affine.localmind.reports.previewExternal"](): string;
+    /**
+      * `Update share link`
+      */
+    ["com.affine.localmind.reports.updateShare"](): string;
+    /**
+      * `Confirm the new recipients and settings above. Updating permanently invalidates the old link.`
+      */
+    ["com.affine.localmind.reports.updateShareExplanation"](): string;
+    /**
+      * `Update`
+      */
+    ["com.affine.localmind.reports.update"](): string;
+    /**
+      * `Create template`
+      */
+    ["com.affine.localmind.reports.newTemplate"](): string;
+    /**
+      * `Custom template`
+      */
+    ["com.affine.localmind.reports.customTemplate"](): string;
+    /**
+      * `Image upload failed`
+      */
+    ["com.affine.localmind.reports.uploadFailed"](): string;
+    /**
+      * `Select this block`
+      */
+    ["com.affine.localmind.reports.selectNode"](): string;
+    /**
+      * `Move to chapter`
+      */
+    ["com.affine.localmind.reports.moveToChapter"](): string;
+    /**
+      * `Rewrite selected block`
+      */
+    ["com.affine.localmind.reports.rewriteNode"](): string;
+    /**
+      * `Show commented content`
+      */
+    ["com.affine.localmind.reports.jumpToAnchor"](): string;
+    /**
+      * `Updated source documents`
+      */
+    ["com.affine.localmind.reports.sourceChanges"](): string;
+    /**
+      * `Unavailable sources`
+      */
+    ["com.affine.localmind.reports.sourceRemoved"](): string;
+    /**
+      * `Review new progress`
+      */
+    ["com.affine.localmind.reports.reviewUpdates"](): string;
+    /**
+      * `The audience window has closed. Open it again to continue presenting.`
+      */
+    ["com.affine.localmind.reports.audienceClosed"](): string;
+    /**
+      * `Edit`
+      */
+    ["com.affine.localmind.reports.edit"](): string;
+    /**
+      * `Could not load history. Please try again.`
+      */
+    ["com.affine.localmind.reports.loadFailed"](): string;
+    /**
+      * `Load more`
+      */
+    ["com.affine.localmind.reports.loadMore"](): string;
+    /**
+      * `More exports`
+      */
+    ["com.affine.localmind.reports.moreExports"](): string;
+    /**
+      * `More reviews`
+      */
+    ["com.affine.localmind.reports.moreReviews"](): string;
+    /**
+      * `More shares`
+      */
+    ["com.affine.localmind.reports.moreShares"](): string;
+    /**
+      * `More versions`
+      */
+    ["com.affine.localmind.reports.moreVersions"](): string;
+    /**
+      * `This report is unavailable`
+      */
+    ["com.affine.localmind.reports.reportUnavailable"](): string;
+    /**
+      * `Configuration history`
+      */
+    ["com.affine.localmind.reports.configurationHistory"](): string;
+    /**
+      * `Version`
+      */
+    ["com.affine.localmind.reports.version"](): string;
+    /**
+      * `Delivery`
+      */
+    ["com.affine.localmind.reports.delivery"](): string;
+    /**
+      * `Previous week`
+      */
+    ["com.affine.localmind.reports.previous_week"](): string;
+    /**
+      * `Previous month`
+      */
+    ["com.affine.localmind.reports.previous_month"](): string;
+    /**
+      * `Project members`
+      */
+    ["com.affine.localmind.reports.memberRecipients"](): string;
+    /**
+      * `External or unavailable account`
+      */
+    ["com.affine.localmind.reports.externalAccount"](): string;
+    /**
+      * `Registered account emails, one per line`
+      */
+    ["com.affine.localmind.reports.registeredAccountEmails"](): string;
+    /**
+      * `Additional email recipients, one per line`
+      */
+    ["com.affine.localmind.reports.recipientEmails"](): string;
+    /**
+      * `This picker shows up to 1,000 resources. Choose all project documents to enumerate the full scope; generation reports any coverage limit.`
+      */
+    ["com.affine.localmind.reports.sourceListLimited"](): string;
+    /**
+      * `No longer in this project`
+      */
+    ["com.affine.localmind.reports.formerMember"](): string;
+    /**
+      * `Execution path`
+      */
+    ["com.affine.localmind.workbench.executionPath.title"](): string;
+    /**
+      * `Done`
+      */
+    ["com.affine.localmind.workbench.executionPath.completed"](): string;
+    /**
+      * `Running`
+      */
+    ["com.affine.localmind.workbench.executionPath.running"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.localmind.workbench.executionPath.pending"](): string;
+    /**
+      * `Needs confirmation`
+      */
+    ["com.affine.localmind.workbench.executionPath.waitingApproval"](): string;
+    /**
+      * `Failed`
+      */
+    ["com.affine.localmind.workbench.executionPath.failed"](): string;
+    /**
+      * `Skipped`
+      */
+    ["com.affine.localmind.workbench.executionPath.skipped"](): string;
+    /**
+      * `More actions`
+      */
+    ["com.affine.localmind.reports.moreActions"](): string;
+    /**
+      * `Resolved`
+      */
+    ["com.affine.localmind.reports.resolved"](): string;
+    /**
+      * `Shared memory`
+      */
+    ["com.affine.localmind.reports.shared-background"](): string;
+    /**
+      * `Work orders`
+      */
+    ["com.affine.localmind.reports.work-orders"](): string;
+    /**
+      * `AI tasks`
+      */
+    ["com.affine.localmind.reports.studio.aiTasks"](): string;
+    /**
+      * `Report assistant`
+      */
+    ["com.affine.localmind.reports.studio.assistant"](): string;
+    /**
+      * `Project AI · documents, work orders, shared memory`
+      */
+    ["com.affine.localmind.reports.studio.assistantHint"](): string;
+    /**
+      * `Back to chapter`
+      */
+    ["com.affine.localmind.reports.studio.backToChapter"](): string;
+    /**
+      * `AI prepared changes. Compare them on the canvas, then apply or keep editing.`
+      */
+    ["com.affine.localmind.reports.studio.candidateHelp"](): string;
+    /**
+      * `{count} AI change set(s) are ready for review.`
+      */
+    ["com.affine.localmind.reports.studio.candidatesReady"](): string;
+    /**
+      * `Chapter`
+      */
+    ["com.affine.localmind.reports.studio.chapterInspector"](): string;
+    /**
+      * `Clear scope`
+      */
+    ["com.affine.localmind.reports.studio.clearScope"](): string;
+    /**
+      * `Commenting on`
+      */
+    ["com.affine.localmind.reports.studio.commentAnchor"](): string;
+    /**
+      * `Red is removed, green is added.`
+      */
+    ["com.affine.localmind.reports.studio.compareHint"](): string;
+    /**
+      * `Empty chapter — ask the assistant to write it, or add content in Edit mode.`
+      */
+    ["com.affine.localmind.reports.studio.emptyChapter"](): string;
+    /**
+      * `AI is working on this report`
+      */
+    ["com.affine.localmind.reports.studio.generating"](): string;
+    /**
+      * `Items to check`
+      */
+    ["com.affine.localmind.reports.studio.issues"](): string;
+    /**
+      * `Generated from project documents, work orders and shared memory.`
+      */
+    ["com.affine.localmind.reports.studio.listHint"](): string;
+    /**
+      * `Needs review`
+      */
+    ["com.affine.localmind.reports.studio.needsReview"](): string;
+    /**
+      * `No comments yet.`
+      */
+    ["com.affine.localmind.reports.studio.noComments"](): string;
+    /**
+      * `No sources captured yet.`
+      */
+    ["com.affine.localmind.reports.studio.noSources"](): string;
+    /**
+      * `Content`
+      */
+    ["com.affine.localmind.reports.studio.nodeInspector"](): string;
+    /**
+      * `Open source`
+      */
+    ["com.affine.localmind.reports.studio.openSource"](): string;
+    /**
+      * `Click a chapter title or a block on the canvas to edit it.`
+      */
+    ["com.affine.localmind.reports.studio.pickSomething"](): string;
+    /**
+      * `Present full screen`
+      */
+    ["com.affine.localmind.reports.studio.presentFullscreen"](): string;
+    /**
+      * `Quick AI task`
+      */
+    ["com.affine.localmind.reports.studio.quickTask"](): string;
+    /**
+      * `Rewrite the selected chapter or refresh the whole report from sources without chatting.`
+      */
+    ["com.affine.localmind.reports.studio.quickTaskHelp"](): string;
+    /**
+      * `Review`
+      */
+    ["com.affine.localmind.reports.studio.review"](): string;
+    /**
+      * `Scope`
+      */
+    ["com.affine.localmind.reports.studio.scope"](): string;
+    /**
+      * `Share & export`
+      */
+    ["com.affine.localmind.reports.studio.shareExport"](): string;
+    /**
+      * `Update from sources`
+      */
+    ["com.affine.localmind.reports.studio.updateFromSources"](): string;
+    /**
+      * `View progress`
+      */
+    ["com.affine.localmind.reports.studio.viewProgress"](): string;
+    /**
+      * `Viewing history`
+      */
+    ["com.affine.localmind.reports.studio.viewingRevision"](): string;
+    /**
+      * `Whole report`
+      */
+    ["com.affine.localmind.reports.studio.wholeReport"](): string;
+    /**
+      * `Zoom`
+      */
+    ["com.affine.localmind.reports.studio.zoom"](): string;
+    /**
+      * `Zoom in`
+      */
+    ["com.affine.localmind.reports.studio.zoomIn"](): string;
+    /**
+      * `Zoom out`
+      */
+    ["com.affine.localmind.reports.studio.zoomOut"](): string;
+    /**
+      * `Show assistant`
+      */
+    ["com.affine.localmind.reports.studio.showChat"](): string;
+    /**
+      * `Hide assistant (focus mode)`
+      */
+    ["com.affine.localmind.reports.studio.hideChat"](): string;
+    /**
+      * `Select`
+      */
+    ["com.affine.localmind.reports.studio.mode.select"](): string;
+    /**
+      * `Comment`
+      */
+    ["com.affine.localmind.reports.studio.mode.comment"](): string;
+    /**
+      * `Edit`
+      */
+    ["com.affine.localmind.reports.studio.mode.edit"](): string;
+    /**
+      * `Page`
+      */
+    ["com.affine.localmind.reports.sourceKind.page"](): string;
+    /**
+      * `Whiteboard`
+      */
+    ["com.affine.localmind.reports.sourceKind.edgeless"](): string;
+    /**
+      * `Document`
+      */
+    ["com.affine.localmind.reports.sourceKind.document"](): string;
+    /**
+      * `Spreadsheet`
+      */
+    ["com.affine.localmind.reports.sourceKind.workbook"](): string;
+    /**
+      * `Slides`
+      */
+    ["com.affine.localmind.reports.sourceKind.presentation"](): string;
+    /**
+      * `PDF`
+      */
+    ["com.affine.localmind.reports.sourceKind.pdf"](): string;
+    /**
+      * `File`
+      */
+    ["com.affine.localmind.reports.sourceKind.file"](): string;
+    /**
+      * `Shared memory`
+      */
+    ["com.affine.localmind.reports.sourceKind.memory"](): string;
+    /**
+      * `Work order`
+      */
+    ["com.affine.localmind.reports.sourceKind.work_order"](): string;
+    /**
+      * `App navigation`
+      */
+    ["com.affine.localmind.workbench.systemRail.label"](): string;
+    /**
+      * `Workspace`
+      */
+    ["com.affine.localmind.workbench.systemRail.workspace"](): string;
+    /**
+      * `Project hub`
+      */
+    ["com.affine.localmind.workbench.systemRail.projects"](): string;
+    /**
+      * `Project documents`
+      */
+    ["com.affine.localmind.workbench.systemRail.docs"](): string;
+    /**
+      * `Reports`
+      */
+    ["com.affine.localmind.workbench.systemRail.reports"](): string;
+    /**
+      * `Tasks`
+      */
+    ["com.affine.localmind.workbench.systemRail.tasks"](): string;
+    /**
+      * `Present`
+      */
+    ["com.affine.localmind.reportDeck.entry"](): string;
+    /**
+      * `AI conversations`
+      */
+    ["com.affine.localmind.workbench.overview.conversations"](): string;
+    /**
+      * `Current handoffs`
+      */
+    ["com.affine.localmind.workbench.orbit.handoffs"](): string;
+    /**
+      * `Your turn first, then waiting on others`
+      */
+    ["com.affine.localmind.workbench.orbit.handoffsHint"](): string;
+    /**
+      * `No open handoffs`
+      */
+    ["com.affine.localmind.workbench.orbit.handoffsEmpty"](): string;
+    /**
+      * `You`
+      */
+    ["com.affine.localmind.workbench.orbit.you"](): string;
+    /**
+      * `LocalMind AI`
+      */
+    ["com.affine.localmind.workbench.conversation.aiName"](): string;
+    /**
+      * `Current status`
+      */
+    ["com.affine.localmind.workbench.context.currentStatus"](): string;
+    /**
+      * `Delivers`
+      */
+    ["com.affine.localmind.workbench.context.deliverer"](): string;
+    /**
+      * `Requested`
+      */
+    ["com.affine.localmind.workbench.context.requester"](): string;
+    /**
+      * `Reads sources and drafts`
+      */
+    ["com.affine.localmind.workbench.context.aiRole"](): string;
+    /**
+      * `Collapse context`
+      */
+    ["com.affine.localmind.workbench.context.collapse"](): string;
+    /**
+      * `Expand context`
+      */
+    ["com.affine.localmind.workbench.context.expand"](): string;
+    /**
+      * `Work order`
+      */
+    ["com.affine.localmind.workbench.orders.toggle"](): string;
+    /**
+      * `Switch work order`
+      */
+    ["com.affine.localmind.workbench.orders.switch"](): string;
+    /**
+      * `Untitled deck`
+      */
+    ["com.affine.localmind.reportDeck.untitled"](): string;
+    /**
+      * `Deck in progress`
+      */
+    ["com.affine.localmind.reportDeck.untitledGenerating"](): string;
+    /**
+      * `, `
+      */
+    ["com.affine.localmind.reportDeck.listSeparator"](): string;
+    /**
+      * `Workspace`
+      */
+    ["com.affine.localmind.reportDeck.scope.workspace"](): string;
+    /**
+      * `Project`
+      */
+    ["com.affine.localmind.reportDeck.scope.project"](): string;
+    /**
+      * `Back to reports`
+      */
+    ["com.affine.localmind.reportDeck.action.backHome"](): string;
+    /**
+      * `Cancel`
+      */
+    ["com.affine.localmind.reportDeck.action.cancel"](): string;
+    /**
+      * `Cancel generation`
+      */
+    ["com.affine.localmind.reportDeck.action.cancelGeneration"](): string;
+    /**
+      * `Close`
+      */
+    ["com.affine.localmind.reportDeck.action.close"](): string;
+    /**
+      * `Delete`
+      */
+    ["com.affine.localmind.reportDeck.action.delete"](): string;
+    /**
+      * `Download HTML`
+      */
+    ["com.affine.localmind.reportDeck.action.download"](): string;
+    /**
+      * `Exit presentation`
+      */
+    ["com.affine.localmind.reportDeck.action.exitPresent"](): string;
+    /**
+      * `Present`
+      */
+    ["com.affine.localmind.reportDeck.action.present"](): string;
+    /**
+      * `Reconfigure`
+      */
+    ["com.affine.localmind.reportDeck.action.reconfigure"](): string;
+    /**
+      * `Regenerate`
+      */
+    ["com.affine.localmind.reportDeck.action.regenerate"](): string;
+    /**
+      * `Regenerate with same settings`
+      */
+    ["com.affine.localmind.reportDeck.action.regenerateSame"](): string;
+    /**
+      * `Remove`
+      */
+    ["com.affine.localmind.reportDeck.action.remove"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.reportDeck.action.retry"](): string;
+    /**
+      * `Share`
+      */
+    ["com.affine.localmind.reportDeck.action.share"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.localmind.reportDeck.status.queued"](): string;
+    /**
+      * `Generating`
+      */
+    ["com.affine.localmind.reportDeck.status.generating"](): string;
+    /**
+      * `Generating {{percent}}%`
+      */
+    ["com.affine.localmind.reportDeck.status.generatingPercent"](options: {
+        readonly percent: string;
+    }): string;
+    /**
+      * `Ready`
+      */
+    ["com.affine.localmind.reportDeck.status.ready"](): string;
+    /**
+      * `Failed`
+      */
+    ["com.affine.localmind.reportDeck.status.failed"](): string;
+    /**
+      * `Cancelled`
+      */
+    ["com.affine.localmind.reportDeck.status.cancelled"](): string;
+    /**
+      * `None of the sources could be read. Check access and reconfigure.`
+      */
+    ["com.affine.localmind.reportDeck.error.no_sources"](): string;
+    /**
+      * `The selected AI is unavailable (its key may be disabled or you lost access). Choose another AI and try again.`
+      */
+    ["com.affine.localmind.reportDeck.error.provider_unavailable"](): string;
+    /**
+      * `The model returned content that could not be laid out. Retry, or adjust the instructions and reconfigure.`
+      */
+    ["com.affine.localmind.reportDeck.error.model_invalid_output"](): string;
+    /**
+      * `The sources exceed this generation budget. Remove some sources and reconfigure.`
+      */
+    ["com.affine.localmind.reportDeck.error.budget_exceeded"](): string;
+    /**
+      * `Generation timed out. Try again later.`
+      */
+    ["com.affine.localmind.reportDeck.error.timeout"](): string;
+    /**
+      * `Generation was cancelled.`
+      */
+    ["com.affine.localmind.reportDeck.error.cancelled"](): string;
+    /**
+      * `Something went wrong while generating. Try again.`
+      */
+    ["com.affine.localmind.reportDeck.error.internal"](): string;
+    /**
+      * `The action failed. Try again later.`
+      */
+    ["com.affine.localmind.reportDeck.error.commandFailed"](): string;
+    /**
+      * `Could not start generating. Try again later.`
+      */
+    ["com.affine.localmind.reportDeck.error.createFailed"](): string;
+    /**
+      * `Delete this deck?`
+      */
+    ["com.affine.localmind.reportDeck.delete.title"](): string;
+    /**
+      * `"{{title}}" will be deleted and all of its share links stop working immediately.`
+      */
+    ["com.affine.localmind.reportDeck.delete.description"](options: {
+        readonly title: string;
+    }): string;
+    /**
+      * `LocalMind Reports`
+      */
+    ["com.affine.localmind.reportDeck.home.eyebrow"](): string;
+    /**
+      * `Reports`
+      */
+    ["com.affine.localmind.reportDeck.home.title"](): string;
+    /**
+      * `Turn documents and project progress into an editorial web report, ready to read or present.`
+      */
+    ["com.affine.localmind.reportDeck.home.subtitle"](): string;
+    /**
+      * `New deck`
+      */
+    ["com.affine.localmind.reportDeck.home.create"](): string;
+    /**
+      * `History`
+      */
+    ["com.affine.localmind.reportDeck.history.title"](): string;
+    /**
+      * `Only you can see these; use share links for others`
+      */
+    ["com.affine.localmind.reportDeck.history.hint"](): string;
+    /**
+      * `No decks yet`
+      */
+    ["com.affine.localmind.reportDeck.history.emptyTitle"](): string;
+    /**
+      * `Choose documents or a project to create a designed, readable web report.`
+      */
+    ["com.affine.localmind.reportDeck.history.emptyDescription"](): string;
+    /**
+      * `Could not load history`
+      */
+    ["com.affine.localmind.reportDeck.history.loadFailed"](): string;
+    /**
+      * `Load more`
+      */
+    ["com.affine.localmind.reportDeck.history.loadMore"](): string;
+    /**
+      * `Loading…`
+      */
+    ["com.affine.localmind.reportDeck.history.loadingMore"](): string;
+    /**
+      * `{{count}} chapters`
+      */
+    ["com.affine.localmind.reportDeck.history.slides"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `{{count}} sources`
+      */
+    ["com.affine.localmind.reportDeck.history.sources"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `{{count}} sources · {{excluded}} excluded`
+      */
+    ["com.affine.localmind.reportDeck.history.sourcesExcluded"](options: Readonly<{
+        count: string;
+        excluded: string;
+    }>): string;
+    /**
+      * `Template`
+      */
+    ["com.affine.localmind.reportDeck.mode.template"](): string;
+    /**
+      * `Structured content with preset motion`
+      */
+    ["com.affine.localmind.reportDeck.mode.templateHint"](): string;
+    /**
+      * `Custom`
+      */
+    ["com.affine.localmind.reportDeck.mode.custom"](): string;
+    /**
+      * `AI designs the layout from your brief`
+      */
+    ["com.affine.localmind.reportDeck.mode.customHint"](): string;
+    /**
+      * `Templates`
+      */
+    ["com.affine.localmind.reportDeck.gallery.title"](): string;
+    /**
+      * `{{count}} templates`
+      */
+    ["com.affine.localmind.reportDeck.gallery.count"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Preview`
+      */
+    ["com.affine.localmind.reportDeck.gallery.preview"](): string;
+    /**
+      * `Preview "{{name}}"`
+      */
+    ["com.affine.localmind.reportDeck.gallery.previewNamed"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `{{name}} template preview`
+      */
+    ["com.affine.localmind.reportDeck.gallery.previewTitle"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Scroll to read. Use the bottom controls to choose a chapter, present, or enter fullscreen.`
+      */
+    ["com.affine.localmind.reportDeck.gallery.previewHint"](): string;
+    /**
+      * `Use this template`
+      */
+    ["com.affine.localmind.reportDeck.gallery.use"](): string;
+    /**
+      * `New deck with the "{{name}}" template`
+      */
+    ["com.affine.localmind.reportDeck.gallery.useNamed"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `New deck`
+      */
+    ["com.affine.localmind.reportDeck.config.title"](): string;
+    /**
+      * `One shot: confirm the sources and style and generate. For a different result, regenerate with the same settings.`
+      */
+    ["com.affine.localmind.reportDeck.config.subtitle"](): string;
+    /**
+      * `Sources`
+      */
+    ["com.affine.localmind.reportDeck.config.sources"](): string;
+    /**
+      * `Mix workspace docs, project files, folders and whole projects. Sources you cannot read are greyed out.`
+      */
+    ["com.affine.localmind.reportDeck.config.sourcesHint"](): string;
+    /**
+      * `No sources yet. Add documents, files or a whole project.`
+      */
+    ["com.affine.localmind.reportDeck.config.noSources"](): string;
+    /**
+      * `Add sources`
+      */
+    ["com.affine.localmind.reportDeck.config.addSource"](): string;
+    /**
+      * `{{included}} usable · {{excluded}} excluded · {{chars}}`
+      */
+    ["com.affine.localmind.reportDeck.config.sourceSummary"](options: Readonly<{
+        included: string;
+        excluded: string;
+        chars: string;
+    }>): string;
+    /**
+      * `Style`
+      */
+    ["com.affine.localmind.reportDeck.config.mode"](): string;
+    /**
+      * `Templates are polished and consistent; custom is freer.`
+      */
+    ["com.affine.localmind.reportDeck.config.modeHint"](): string;
+    /**
+      * `Choose a template`
+      */
+    ["com.affine.localmind.reportDeck.config.template"](): string;
+    /**
+      * `Style brief`
+      */
+    ["com.affine.localmind.reportDeck.config.customStyle"](): string;
+    /**
+      * `For example: dark tech look, neon blue, large numbers`
+      */
+    ["com.affine.localmind.reportDeck.config.customStylePlaceholder"](): string;
+    /**
+      * `Describe colours, typography and layout preferences`
+      */
+    ["com.affine.localmind.reportDeck.config.customStyleHint"](): string;
+    /**
+      * `Style examples`
+      */
+    ["com.affine.localmind.reportDeck.config.styleChips"](): string;
+    /**
+      * `Accent colour`
+      */
+    ["com.affine.localmind.reportDeck.config.accent"](): string;
+    /**
+      * `Accent colour (optional, overrides the template)`
+      */
+    ["com.affine.localmind.reportDeck.config.accentOverride"](): string;
+    /**
+      * `Default accent`
+      */
+    ["com.affine.localmind.reportDeck.config.accentDefault"](): string;
+    /**
+      * `Reset`
+      */
+    ["com.affine.localmind.reportDeck.config.accentReset"](): string;
+    /**
+      * `Content`
+      */
+    ["com.affine.localmind.reportDeck.config.content"](): string;
+    /**
+      * `Set the structure, wording and depth.`
+      */
+    ["com.affine.localmind.reportDeck.config.contentHint"](): string;
+    /**
+      * `Purpose`
+      */
+    ["com.affine.localmind.reportDeck.config.purpose"](): string;
+    /**
+      * `Audience`
+      */
+    ["com.affine.localmind.reportDeck.config.audience"](): string;
+    /**
+      * `Content depth`
+      */
+    ["com.affine.localmind.reportDeck.config.length"](): string;
+    /**
+      * `Language`
+      */
+    ["com.affine.localmind.reportDeck.config.language"](): string;
+    /**
+      * `Tone`
+      */
+    ["com.affine.localmind.reportDeck.config.tone"](): string;
+    /**
+      * `Additional instructions`
+      */
+    ["com.affine.localmind.reportDeck.config.instructions"](): string;
+    /**
+      * `For example: focus on Q3 risks and next steps; do not mention customer names`
+      */
+    ["com.affine.localmind.reportDeck.config.instructionsPlaceholder"](): string;
+    /**
+      * `This is the only guidance; there is no follow-up chat`
+      */
+    ["com.affine.localmind.reportDeck.config.instructionsHint"](): string;
+    /**
+      * `Title (optional)`
+      */
+    ["com.affine.localmind.reportDeck.config.deckTitle"](): string;
+    /**
+      * `Leave empty to let AI write one`
+      */
+    ["com.affine.localmind.reportDeck.config.deckTitlePlaceholder"](): string;
+    /**
+      * `AI used`
+      */
+    ["com.affine.localmind.reportDeck.config.ai"](): string;
+    /**
+      * `Defaults to the AI of the first source's scope.`
+      */
+    ["com.affine.localmind.reportDeck.config.aiHint"](): string;
+    /**
+      * `{{count}} of your decks are generating (up to {{max}} at a time).`
+      */
+    ["com.affine.localmind.reportDeck.config.activeNotice"](options: Readonly<{
+        count: string;
+        max: string;
+    }>): string;
+    /**
+      * `{{count}} sources · about {{minutes}} min`
+      */
+    ["com.affine.localmind.reportDeck.config.summary"](options: Readonly<{
+        count: string;
+        minutes: string;
+    }>): string;
+    /**
+      * `{{mode}} · Read / Present`
+      */
+    ["com.affine.localmind.reportDeck.config.summaryDetail"](options: {
+        readonly mode: string;
+    }): string;
+    /**
+      * `Generate deck`
+      */
+    ["com.affine.localmind.reportDeck.config.submit"](): string;
+    /**
+      * `Submitting…`
+      */
+    ["com.affine.localmind.reportDeck.config.submitting"](): string;
+    /**
+      * `Add at least one source`
+      */
+    ["com.affine.localmind.reportDeck.block.noSources"](): string;
+    /**
+      * `Checking sources…`
+      */
+    ["com.affine.localmind.reportDeck.block.checking"](): string;
+    /**
+      * `Could not check the sources. Try again later.`
+      */
+    ["com.affine.localmind.reportDeck.block.preflightFailed"](): string;
+    /**
+      * `None of the sources can be read`
+      */
+    ["com.affine.localmind.reportDeck.block.noIncluded"](): string;
+    /**
+      * `Choose a template`
+      */
+    ["com.affine.localmind.reportDeck.block.noTemplate"](): string;
+    /**
+      * `The settings are incomplete or over the limits`
+      */
+    ["com.affine.localmind.reportDeck.block.invalid"](): string;
+    /**
+      * `{{max}} decks are already generating; wait for one to finish`
+      */
+    ["com.affine.localmind.reportDeck.block.tooManyActive"](options: {
+        readonly max: string;
+    }): string;
+    /**
+      * `Loading available AI…`
+      */
+    ["com.affine.localmind.reportDeck.block.ai.loading"](): string;
+    /**
+      * `Could not load the available AI`
+      */
+    ["com.affine.localmind.reportDeck.block.ai.loadFailed"](): string;
+    /**
+      * `No source scope has a usable AI; choose another one`
+      */
+    ["com.affine.localmind.reportDeck.block.ai.noneAvailable"](): string;
+    /**
+      * `The selected AI is unavailable; choose another one`
+      */
+    ["com.affine.localmind.reportDeck.block.ai.selectedUnavailable"](): string;
+    /**
+      * `Periodic report`
+      */
+    ["com.affine.localmind.reportDeck.purpose.periodic"](): string;
+    /**
+      * `Progress update`
+      */
+    ["com.affine.localmind.reportDeck.purpose.progress"](): string;
+    /**
+      * `Customer briefing`
+      */
+    ["com.affine.localmind.reportDeck.purpose.customer"](): string;
+    /**
+      * `Decision review`
+      */
+    ["com.affine.localmind.reportDeck.purpose.decision"](): string;
+    /**
+      * `Retrospective`
+      */
+    ["com.affine.localmind.reportDeck.purpose.retrospective"](): string;
+    /**
+      * `Training`
+      */
+    ["com.affine.localmind.reportDeck.purpose.training"](): string;
+    /**
+      * `Other`
+      */
+    ["com.affine.localmind.reportDeck.purpose.other"](): string;
+    /**
+      * `Team`
+      */
+    ["com.affine.localmind.reportDeck.audience.team"](): string;
+    /**
+      * `Management`
+      */
+    ["com.affine.localmind.reportDeck.audience.management"](): string;
+    /**
+      * `Customers`
+      */
+    ["com.affine.localmind.reportDeck.audience.customer"](): string;
+    /**
+      * `Public`
+      */
+    ["com.affine.localmind.reportDeck.audience.public"](): string;
+    /**
+      * `Concise`
+      */
+    ["com.affine.localmind.reportDeck.length.short"](): string;
+    /**
+      * `Standard`
+      */
+    ["com.affine.localmind.reportDeck.length.standard"](): string;
+    /**
+      * `In depth`
+      */
+    ["com.affine.localmind.reportDeck.length.long"](): string;
+    /**
+      * `{{name}}`
+      */
+    ["com.affine.localmind.reportDeck.length.option"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Chinese`
+      */
+    ["com.affine.localmind.reportDeck.language.zh-CN"](): string;
+    /**
+      * `English`
+      */
+    ["com.affine.localmind.reportDeck.language.en"](): string;
+    /**
+      * `Formal`
+      */
+    ["com.affine.localmind.reportDeck.tone.formal"](): string;
+    /**
+      * `Concise`
+      */
+    ["com.affine.localmind.reportDeck.tone.concise"](): string;
+    /**
+      * `Vivid`
+      */
+    ["com.affine.localmind.reportDeck.tone.vivid"](): string;
+    /**
+      * `Charts`
+      */
+    ["com.affine.localmind.reportDeck.preference.charts"](): string;
+    /**
+      * `Show numbers as charts`
+      */
+    ["com.affine.localmind.reportDeck.preference.chartsHint"](): string;
+    /**
+      * `Citations`
+      */
+    ["com.affine.localmind.reportDeck.preference.citations"](): string;
+    /**
+      * `Note which source each slide uses`
+      */
+    ["com.affine.localmind.reportDeck.preference.citationsHint"](): string;
+    /**
+      * `Conclusion first`
+      */
+    ["com.affine.localmind.reportDeck.preference.conclusionFirst"](): string;
+    /**
+      * `Lead with conclusions, then evidence`
+      */
+    ["com.affine.localmind.reportDeck.preference.conclusionFirstHint"](): string;
+    /**
+      * `Dark tech`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.tech.label"](): string;
+    /**
+      * `Dark tech look, near-black navy background, neon blue accents, large key numbers, geometric line decoration`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.tech.text"](): string;
+    /**
+      * `Minimal`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.minimal.label"](): string;
+    /**
+      * `Minimal black and white, generous whitespace, hairline dividers, restrained accent, short large titles`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.minimal.text"](): string;
+    /**
+      * `Editorial`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.editorial.label"](): string;
+    /**
+      * `Magazine layout, large serif headlines, staggered columns, warm off-white paper`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.editorial.text"](): string;
+    /**
+      * `Business`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.business.label"](): string;
+    /**
+      * `Calm business style, navy and light grey, tidy grid, clear data cards`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.business.text"](): string;
+    /**
+      * `Vivid`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.vivid.label"](): string;
+    /**
+      * `Bold colour clash, bright orange-to-purple gradients, rounded cards, playful illustrative feel`
+      */
+    ["com.affine.localmind.reportDeck.styleChip.vivid.text"](): string;
+    /**
+      * `Readable`
+      */
+    ["com.affine.localmind.reportDeck.source.included"](): string;
+    /**
+      * `Checking…`
+      */
+    ["com.affine.localmind.reportDeck.source.checking"](): string;
+    /**
+      * `Pending`
+      */
+    ["com.affine.localmind.reportDeck.source.pending"](): string;
+    /**
+      * `Over the size limit, partly truncated`
+      */
+    ["com.affine.localmind.reportDeck.source.truncated"](): string;
+    /**
+      * `About {{count}} chars`
+      */
+    ["com.affine.localmind.reportDeck.source.chars"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Whole project`
+      */
+    ["com.affine.localmind.reportDeck.source.wholeProject"](): string;
+    /**
+      * `Whole project: {{name}}`
+      */
+    ["com.affine.localmind.reportDeck.source.wholeProjectNamed"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Remove source "{{title}}"`
+      */
+    ["com.affine.localmind.reportDeck.source.remove"](options: {
+        readonly title: string;
+    }): string;
+    /**
+      * `No access`
+      */
+    ["com.affine.localmind.reportDeck.source.reason.no_permission"](): string;
+    /**
+      * `Not found`
+      */
+    ["com.affine.localmind.reportDeck.source.reason.not_found"](): string;
+    /**
+      * `Empty`
+      */
+    ["com.affine.localmind.reportDeck.source.reason.empty"](): string;
+    /**
+      * `Unsupported format`
+      */
+    ["com.affine.localmind.reportDeck.source.reason.unsupported"](): string;
+    /**
+      * `Over the source budget`
+      */
+    ["com.affine.localmind.reportDeck.source.reason.over_budget"](): string;
+    /**
+      * `Duplicate, merged`
+      */
+    ["com.affine.localmind.reportDeck.source.reason.duplicate"](): string;
+    /**
+      * `AI scope`
+      */
+    ["com.affine.localmind.reportDeck.ai.label"](): string;
+    /**
+      * `Loading available AI…`
+      */
+    ["com.affine.localmind.reportDeck.ai.loading"](): string;
+    /**
+      * `Could not load the available AI. Try again later.`
+      */
+    ["com.affine.localmind.reportDeck.ai.loadFailed"](): string;
+    /**
+      * `Source scopes`
+      */
+    ["com.affine.localmind.reportDeck.ai.groupSources"](): string;
+    /**
+      * `Other`
+      */
+    ["com.affine.localmind.reportDeck.ai.groupOther"](): string;
+    /**
+      * `(default)`
+      */
+    ["com.affine.localmind.reportDeck.ai.defaultMark"](): string;
+    /**
+      * `No AI available`
+      */
+    ["com.affine.localmind.reportDeck.ai.noneAvailable"](): string;
+    /**
+      * `Model`
+      */
+    ["com.affine.localmind.reportDeck.ai.model"](): string;
+    /**
+      * `Provider: {{provider}}`
+      */
+    ["com.affine.localmind.reportDeck.ai.provider"](options: {
+        readonly provider: string;
+    }): string;
+    /**
+      * `Model: {{model}}`
+      */
+    ["com.affine.localmind.reportDeck.ai.modelValue"](options: {
+        readonly model: string;
+    }): string;
+    /**
+      * `Project AI is configured by the administrator; the model cannot be changed`
+      */
+    ["com.affine.localmind.reportDeck.ai.modelLocked"](): string;
+    /**
+      * `unknown provider`
+      */
+    ["com.affine.localmind.reportDeck.ai.unknownProvider"](): string;
+    /**
+      * `{{from}} has no usable AI, so the AI of {{to}} is used instead.`
+      */
+    ["com.affine.localmind.reportDeck.ai.fallback"](options: Readonly<{
+        from: string;
+        to: string;
+    }>): string;
+    /**
+      * `Content from {{sources}} will be sent to the model provider configured for {{target}} ({{provider}}).`
+      */
+    ["com.affine.localmind.reportDeck.ai.crossScope"](options: Readonly<{
+        sources: string;
+        target: string;
+        provider: string;
+    }>): string;
+    /**
+      * `No access`
+      */
+    ["com.affine.localmind.reportDeck.ai.reason.no_permission"](): string;
+    /**
+      * `No AI configured`
+      */
+    ["com.affine.localmind.reportDeck.ai.reason.not_configured"](): string;
+    /**
+      * `Local keys only; background generation unavailable`
+      */
+    ["com.affine.localmind.reportDeck.ai.reason.local_keys_only"](): string;
+    /**
+      * `Blocked by privacy policy`
+      */
+    ["com.affine.localmind.reportDeck.ai.reason.blocked_by_policy"](): string;
+    /**
+      * `Add sources`
+      */
+    ["com.affine.localmind.reportDeck.picker.title"](): string;
+    /**
+      * `Choose content from a workspace or project.`
+      */
+    ["com.affine.localmind.reportDeck.picker.description"](): string;
+    /**
+      * `Workspaces`
+      */
+    ["com.affine.localmind.reportDeck.picker.tab.workspace"](): string;
+    /**
+      * `Projects`
+      */
+    ["com.affine.localmind.reportDeck.picker.tab.project"](): string;
+    /**
+      * `Search titles`
+      */
+    ["com.affine.localmind.reportDeck.picker.search"](): string;
+    /**
+      * `Loading…`
+      */
+    ["com.affine.localmind.reportDeck.picker.loading"](): string;
+    /**
+      * `Could not load`
+      */
+    ["com.affine.localmind.reportDeck.picker.loadFailed"](): string;
+    /**
+      * `Nothing to choose here`
+      */
+    ["com.affine.localmind.reportDeck.picker.empty"](): string;
+    /**
+      * `No cloud workspaces`
+      */
+    ["com.affine.localmind.reportDeck.picker.noWorkspaces"](): string;
+    /**
+      * `No projects`
+      */
+    ["com.affine.localmind.reportDeck.picker.noProjects"](): string;
+    /**
+      * `Untitled doc`
+      */
+    ["com.affine.localmind.reportDeck.picker.untitledDoc"](): string;
+    /**
+      * `Select the whole project "{{name}}"`
+      */
+    ["com.affine.localmind.reportDeck.picker.wholeProject"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Open folder "{{name}}"`
+      */
+    ["com.affine.localmind.reportDeck.picker.openFolder"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Workspace: {{name}}`
+      */
+    ["com.affine.localmind.reportDeck.picker.scopeHint"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Add {{count}} sources`
+      */
+    ["com.affine.localmind.reportDeck.picker.add"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.localmind.reportDeck.viewer.queued"](): string;
+    /**
+      * `Generating`
+      */
+    ["com.affine.localmind.reportDeck.viewer.generating"](): string;
+    /**
+      * `You can leave this page; the deck appears in History when done.`
+      */
+    ["com.affine.localmind.reportDeck.viewer.generatingHint"](): string;
+    /**
+      * `Reading sources`
+      */
+    ["com.affine.localmind.reportDeck.viewer.step.sources"](): string;
+    /**
+      * `Extracting key points`
+      */
+    ["com.affine.localmind.reportDeck.viewer.step.extract"](): string;
+    /**
+      * `Writing content`
+      */
+    ["com.affine.localmind.reportDeck.viewer.step.compose"](): string;
+    /**
+      * `Laying out slides`
+      */
+    ["com.affine.localmind.reportDeck.viewer.step.render"](): string;
+    /**
+      * `This generation was cancelled. Regenerate with the same settings or reconfigure.`
+      */
+    ["com.affine.localmind.reportDeck.viewer.cancelledDescription"](): string;
+    /**
+      * `Could not load the deck`
+      */
+    ["com.affine.localmind.reportDeck.viewer.htmlFailed"](): string;
+    /**
+      * `Could not load the deck`
+      */
+    ["com.affine.localmind.reportDeck.viewer.loadFailed"](): string;
+    /**
+      * `The server could not be reached. Try again in a moment.`
+      */
+    ["com.affine.localmind.reportDeck.viewer.loadFailedDescription"](): string;
+    /**
+      * `Deck not found`
+      */
+    ["com.affine.localmind.reportDeck.viewer.notFound"](): string;
+    /**
+      * `It may have been deleted or belongs to another account.`
+      */
+    ["com.affine.localmind.reportDeck.viewer.notFoundDescription"](): string;
+    /**
+      * `This deck cannot be presented right now`
+      */
+    ["com.affine.localmind.reportDeck.viewer.presentUnavailable"](): string;
+    /**
+      * `Sources`
+      */
+    ["com.affine.localmind.reportDeck.viewer.sources"](): string;
+    /**
+      * `Details`
+      */
+    ["com.affine.localmind.reportDeck.viewer.details"](): string;
+    /**
+      * `Sources ({{count}})`
+      */
+    ["com.affine.localmind.reportDeck.viewer.sourcesCount"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `AI used: {{scope}} · {{model}}`
+      */
+    ["com.affine.localmind.reportDeck.viewer.aiUsed"](options: Readonly<{
+        scope: string;
+        model: string;
+    }>): string;
+    /**
+      * `Created {{time}}`
+      */
+    ["com.affine.localmind.reportDeck.viewer.createdAt"](options: {
+        readonly time: string;
+    }): string;
+    /**
+      * `Share deck`
+      */
+    ["com.affine.localmind.reportDeck.share.title"](): string;
+    /**
+      * `Anyone with the link can see this deck, including information from {{scopes}}.`
+      */
+    ["com.affine.localmind.reportDeck.share.scopeWarning"](options: {
+        readonly scopes: string;
+    }): string;
+    /**
+      * `Anyone with the link can see the whole deck.`
+      */
+    ["com.affine.localmind.reportDeck.share.scopeWarningGeneric"](): string;
+    /**
+      * `Expires after`
+      */
+    ["com.affine.localmind.reportDeck.share.expiry"](): string;
+    /**
+      * `{{count}} days`
+      */
+    ["com.affine.localmind.reportDeck.share.days"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Require a password`
+      */
+    ["com.affine.localmind.reportDeck.share.password"](): string;
+    /**
+      * `Visitors must enter it to open the link`
+      */
+    ["com.affine.localmind.reportDeck.share.passwordHint"](): string;
+    /**
+      * `Password (at least 4 characters)`
+      */
+    ["com.affine.localmind.reportDeck.share.passwordLabel"](): string;
+    /**
+      * `Allow download`
+      */
+    ["com.affine.localmind.reportDeck.share.allowDownload"](): string;
+    /**
+      * `Visitors can download the HTML file`
+      */
+    ["com.affine.localmind.reportDeck.share.allowDownloadHint"](): string;
+    /**
+      * `Create link`
+      */
+    ["com.affine.localmind.reportDeck.share.create"](): string;
+    /**
+      * `Could not create the link. Try again later.`
+      */
+    ["com.affine.localmind.reportDeck.share.createFailed"](): string;
+    /**
+      * `Share link`
+      */
+    ["com.affine.localmind.reportDeck.share.link"](): string;
+    /**
+      * `Copy link`
+      */
+    ["com.affine.localmind.reportDeck.share.copy"](): string;
+    /**
+      * `Link copied`
+      */
+    ["com.affine.localmind.reportDeck.share.copied"](): string;
+    /**
+      * `Copy failed; copy it manually`
+      */
+    ["com.affine.localmind.reportDeck.share.copyFailed"](): string;
+    /**
+      * `Existing links`
+      */
+    ["com.affine.localmind.reportDeck.share.existing"](): string;
+    /**
+      * `Active`
+      */
+    ["com.affine.localmind.reportDeck.share.state.active"](): string;
+    /**
+      * `Expired`
+      */
+    ["com.affine.localmind.reportDeck.share.state.expired"](): string;
+    /**
+      * `Revoked`
+      */
+    ["com.affine.localmind.reportDeck.share.state.revoked"](): string;
+    /**
+      * `Expires {{time}}`
+      */
+    ["com.affine.localmind.reportDeck.share.expiresAt"](options: {
+        readonly time: string;
+    }): string;
+    /**
+      * `Password`
+      */
+    ["com.affine.localmind.reportDeck.share.hasPassword"](): string;
+    /**
+      * `Downloadable`
+      */
+    ["com.affine.localmind.reportDeck.share.downloadable"](): string;
+    /**
+      * `Revoke`
+      */
+    ["com.affine.localmind.reportDeck.share.revoke"](): string;
+    /**
+      * `Shared deck`
+      */
+    ["com.affine.localmind.reportDeck.shared.title"](): string;
+    /**
+      * `Opening…`
+      */
+    ["com.affine.localmind.reportDeck.shared.opening"](): string;
+    /**
+      * `Open deck`
+      */
+    ["com.affine.localmind.reportDeck.shared.open"](): string;
+    /**
+      * `Password required`
+      */
+    ["com.affine.localmind.reportDeck.shared.passwordTitle"](): string;
+    /**
+      * `The owner protected this deck with a password.`
+      */
+    ["com.affine.localmind.reportDeck.shared.passwordDescription"](): string;
+    /**
+      * `Incorrect password`
+      */
+    ["com.affine.localmind.reportDeck.shared.invalidPassword"](): string;
+    /**
+      * `Invalid link`
+      */
+    ["com.affine.localmind.reportDeck.shared.invalid_token.title"](): string;
+    /**
+      * `The link is incomplete or no longer valid. Ask the owner for a new one.`
+      */
+    ["com.affine.localmind.reportDeck.shared.invalid_token.description"](): string;
+    /**
+      * `Link expired`
+      */
+    ["com.affine.localmind.reportDeck.shared.expired.title"](): string;
+    /**
+      * `This share link has expired. Contact the owner.`
+      */
+    ["com.affine.localmind.reportDeck.shared.expired.description"](): string;
+    /**
+      * `Link revoked`
+      */
+    ["com.affine.localmind.reportDeck.shared.revoked.title"](): string;
+    /**
+      * `The owner revoked this link.`
+      */
+    ["com.affine.localmind.reportDeck.shared.revoked.description"](): string;
+    /**
+      * `Cannot open right now`
+      */
+    ["com.affine.localmind.reportDeck.shared.error.title"](): string;
+    /**
+      * `Check your connection and reload.`
+      */
+    ["com.affine.localmind.reportDeck.shared.error.description"](): string;
+    /**
+      * `Sign in to continue`
+      */
+    ["com.affine.localmind.reportDeck.signIn.title"](): string;
+    /**
+      * `Decks are visible only to their creator. Sign in to view or create one.`
+      */
+    ["com.affine.localmind.reportDeck.signIn.description"](): string;
+    /**
+      * `Sign in`
+      */
+    ["com.affine.localmind.reportDeck.signIn.action"](): string;
+    /**
+      * `Project browser`
+      */
+    ["com.affine.localmind.project-browser.label"](): string;
+    /**
+      * `All projects`
+      */
+    ["com.affine.localmind.project-browser.allProjects"](): string;
+    /**
+      * `Back`
+      */
+    ["com.affine.localmind.project-browser.back"](): string;
+    /**
+      * `Forward`
+      */
+    ["com.affine.localmind.project-browser.forward"](): string;
+    /**
+      * `Location`
+      */
+    ["com.affine.localmind.project-browser.path"](): string;
+    /**
+      * `Quick look`
+      */
+    ["com.affine.localmind.project-browser.quickLook"](): string;
+    /**
+      * `Locations`
+      */
+    ["com.affine.localmind.project-browser.sidebar.label"](): string;
+    /**
+      * `Recent`
+      */
+    ["com.affine.localmind.project-browser.sidebar.recent"](): string;
+    /**
+      * `Files you open appear here.`
+      */
+    ["com.affine.localmind.project-browser.sidebar.recentEmpty"](): string;
+    /**
+      * `Show all ({{count}})`
+      */
+    ["com.affine.localmind.project-browser.sidebar.showAll"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Show less`
+      */
+    ["com.affine.localmind.project-browser.sidebar.showLess"](): string;
+    /**
+      * `Projects`
+      */
+    ["com.affine.localmind.project-browser.sidebar.projects"](): string;
+    /**
+      * `Archived`
+      */
+    ["com.affine.localmind.project-browser.sidebar.archived"](): string;
+    /**
+      * `Trash`
+      */
+    ["com.affine.localmind.project-browser.sidebar.trash"](): string;
+    /**
+      * `Select a project to view its trash.`
+      */
+    ["com.affine.localmind.project-browser.sidebar.trashHint"](): string;
+    /**
+      * `View`
+      */
+    ["com.affine.localmind.project-browser.view.label"](): string;
+    /**
+      * `Icons`
+      */
+    ["com.affine.localmind.project-browser.view.icons"](): string;
+    /**
+      * `List`
+      */
+    ["com.affine.localmind.project-browser.view.list"](): string;
+    /**
+      * `Columns`
+      */
+    ["com.affine.localmind.project-browser.view.columns"](): string;
+    /**
+      * `Gallery`
+      */
+    ["com.affine.localmind.project-browser.view.gallery"](): string;
+    /**
+      * `Sort`
+      */
+    ["com.affine.localmind.project-browser.sort.label"](): string;
+    /**
+      * `Manual order`
+      */
+    ["com.affine.localmind.project-browser.sort.manual"](): string;
+    /**
+      * `Name`
+      */
+    ["com.affine.localmind.project-browser.sort.name"](): string;
+    /**
+      * `Kind`
+      */
+    ["com.affine.localmind.project-browser.sort.kind"](): string;
+    /**
+      * `Date modified`
+      */
+    ["com.affine.localmind.project-browser.sort.modified"](): string;
+    /**
+      * `Ascending`
+      */
+    ["com.affine.localmind.project-browser.sort.asc"](): string;
+    /**
+      * `Descending`
+      */
+    ["com.affine.localmind.project-browser.sort.desc"](): string;
+    /**
+      * `Folder`
+      */
+    ["com.affine.localmind.project-browser.kind.folder"](): string;
+    /**
+      * `Document`
+      */
+    ["com.affine.localmind.project-browser.kind.page"](): string;
+    /**
+      * `Canvas`
+      */
+    ["com.affine.localmind.project-browser.kind.edgeless"](): string;
+    /**
+      * `Word document`
+      */
+    ["com.affine.localmind.project-browser.kind.document"](): string;
+    /**
+      * `Spreadsheet`
+      */
+    ["com.affine.localmind.project-browser.kind.workbook"](): string;
+    /**
+      * `Presentation`
+      */
+    ["com.affine.localmind.project-browser.kind.presentation"](): string;
+    /**
+      * `PDF`
+      */
+    ["com.affine.localmind.project-browser.kind.pdf"](): string;
+    /**
+      * `File`
+      */
+    ["com.affine.localmind.project-browser.kind.file"](): string;
+    /**
+      * `Created`
+      */
+    ["com.affine.localmind.project-browser.meta.created"](): string;
+    /**
+      * `Select a file to preview it.`
+      */
+    ["com.affine.localmind.project-browser.preview.select"](): string;
+    /**
+      * `Search files`
+      */
+    ["com.affine.localmind.project-browser.search.placeholder"](): string;
+    /**
+      * `Search scope`
+      */
+    ["com.affine.localmind.project-browser.search.scope"](): string;
+    /**
+      * `All projects`
+      */
+    ["com.affine.localmind.project-browser.search.allProjects"](): string;
+    /**
+      * `Current project`
+      */
+    ["com.affine.localmind.project-browser.search.currentProject"](): string;
+    /**
+      * `Searching…`
+      */
+    ["com.affine.localmind.project-browser.search.searching"](): string;
+    /**
+      * `{{count}} results`
+      */
+    ["com.affine.localmind.project-browser.search.count"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Reading sources`
+      */
+    ["com.affine.localmind.reportDeck.viewer.subphase.reading"](): string;
+    /**
+      * `Verifying facts`
+      */
+    ["com.affine.localmind.reportDeck.viewer.subphase.grounding"](): string;
+    /**
+      * `Planning the report`
+      */
+    ["com.affine.localmind.reportDeck.viewer.subphase.planning"](): string;
+    /**
+      * `Building the pages`
+      */
+    ["com.affine.localmind.reportDeck.viewer.subphase.building"](): string;
+    /**
+      * `Checking page layout`
+      */
+    ["com.affine.localmind.reportDeck.viewer.subphase.checking"](): string;
+    /**
+      * `Reviewing the rendered pages`
+      */
+    ["com.affine.localmind.reportDeck.viewer.subphase.reviewing"](): string;
+    /**
+      * `Refining page layout`
+      */
+    ["com.affine.localmind.reportDeck.viewer.subphase.repairing"](): string;
+    /**
+      * `Some source material was not included. Review the source coverage when using this report.`
+      */
+    ["com.affine.localmind.reportDeck.quality.source_coverage"](): string;
+    /**
+      * `The report is ready; visual review was unavailable.`
+      */
+    ["com.affine.localmind.reportDeck.quality.visual_unavailable"](): string;
+    /**
+      * `The report is ready; visual review did not cover every chapter and screen size.`
+      */
+    ["com.affine.localmind.reportDeck.quality.visual_partial"](): string;
+    /**
+      * `The report passed basic checks; some layout refinements remain.`
+      */
+    ["com.affine.localmind.reportDeck.quality.design_warnings"](): string;
+    /**
+      * `Page rendering checks failed. Retry or ask an administrator to check the browser runtime.`
+      */
+    ["com.affine.localmind.reportDeck.error.render_failed"](): string;
+    /**
+      * `The report still has content or layout errors and could not be completed. Please retry.`
+      */
+    ["com.affine.localmind.reportDeck.error.quality_failed"](): string;
     /**
       * `An internal error occurred.`
       */

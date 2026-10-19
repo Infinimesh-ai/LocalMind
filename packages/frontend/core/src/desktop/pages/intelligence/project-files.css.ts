@@ -1,5 +1,6 @@
-import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
+
+import { workbenchTokens as wb } from './workbench-tokens.css';
 
 export const selectionCheckbox = style({
   appearance: 'auto',
@@ -15,7 +16,7 @@ export const root = style({
   display: 'flex',
   flexDirection: 'column',
   padding: 0,
-  background: cssVarV2('layer/background/secondary'),
+  background: wb.sidebar,
 });
 export const fileScroll = style({
   flex: 1,
@@ -29,6 +30,40 @@ export const uploads = style({
   listStyle: 'none',
   maxHeight: 160,
   overflow: 'auto',
+});
+
+export const searchToolbar = style({ padding: '10px 16px' });
+export const selectionToolbar = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 8,
+  padding: '8px 16px',
+  fontSize: 12,
+  background: wb.paper,
+});
+export const batchMessage = style({
+  margin: 0,
+  padding: '8px 16px',
+  fontSize: 12,
+  color: wb.ink2,
+});
+export const searchCopy = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  gap: 4,
+  overflowWrap: 'anywhere',
+});
+globalStyle(searchCopy + ' strong', {
+  fontSize: 13,
+  fontWeight: 500,
+  lineHeight: 1.5,
+});
+globalStyle(searchCopy + ' small', {
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: wb.ink3,
 });
 export const uploadRow = style({
   display: 'flex',
@@ -47,18 +82,30 @@ export const toolbar = style({
   gap: 6,
   minHeight: 64,
   padding: '10px 18px',
-  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
-  background: cssVarV2('layer/background/primary'),
+  borderBottom: `1px solid ${wb.line}`,
+  background: wb.paper,
   '@media': { print: { display: 'none' } },
 });
 export const heading = style({
-  flex: 1,
+  flex: '1 0 auto',
   minWidth: 0,
   margin: 0,
-  fontSize: 13,
+  color: wb.ink,
+  fontSize: 14,
   fontWeight: 650,
-  overflowWrap: 'anywhere',
+  whiteSpace: 'nowrap',
 });
+export const resourceHeading = style([
+  heading,
+  {
+    flex: 1,
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+    '@container': {
+      'project-editor (max-width: 700px)': { flexBasis: '100%' },
+    },
+  },
+]);
 export const list = style({
   margin: 0,
   padding: 0,
@@ -73,17 +120,17 @@ export const row = style({
   minHeight: 44,
   borderRadius: 7,
   selectors: {
-    '&:hover': { background: cssVarV2('layer/background/hoverOverlay') },
+    '&:hover': { background: wb.sidebarHover },
     '&[data-dragging="true"]': { opacity: 0.45 },
     '&[data-drop="make-child"]': {
-      background: cssVarV2('layer/background/hoverOverlay'),
-      outline: `1px solid ${cssVarV2('button/primary')}`,
+      background: wb.sidebarHover,
+      outline: `1px solid ${wb.signal}`,
     },
     '&[data-drop="reorder-above"]': {
-      boxShadow: `inset 0 2px ${cssVarV2('button/primary')}`,
+      boxShadow: `inset 0 2px ${wb.signal}`,
     },
     '&[data-drop="reorder-below"]': {
-      boxShadow: `inset 0 -2px ${cssVarV2('button/primary')}`,
+      boxShadow: `inset 0 -2px ${wb.signal}`,
     },
   },
 });
@@ -99,17 +146,17 @@ export const open = style({
   borderRadius: 7,
   textAlign: 'left',
   background: 'transparent',
-  color: cssVarV2('text/primary'),
+  color: wb.ink,
   cursor: 'pointer',
   fontSize: 12,
   selectors: {
     '&:focus-visible': {
-      outline: `2px solid ${cssVarV2('button/primary')}`,
+      outline: `2px solid ${wb.signal}`,
       outlineOffset: -2,
     },
     '&[aria-current="true"]': {
-      background: cssVarV2('layer/background/primary'),
-      boxShadow: `inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
+      background: wb.paper,
+      boxShadow: `inset 0 0 0 1px ${wb.line}`,
     },
   },
 });
@@ -127,7 +174,7 @@ export const state = style({
   alignItems: 'center',
   gap: 8,
   padding: '16px 8px',
-  color: cssVarV2('text/secondary'),
+  color: wb.ink2,
   fontSize: 12,
   overflowWrap: 'anywhere',
 });
@@ -153,7 +200,7 @@ export const breadcrumbs = style({
 export const picker = style({
   height: 280,
   overflow: 'auto',
-  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  border: `1px solid ${wb.line}`,
   borderRadius: 4,
 });
 export const preview = style({
@@ -163,7 +210,7 @@ export const preview = style({
   minHeight: 0,
   height: '100%',
   overflow: 'hidden',
-  background: cssVarV2('layer/background/primary'),
+  background: wb.paper,
 });
 export const content = style({
   minWidth: 0,
@@ -224,7 +271,7 @@ export const officeChat = style({
   flexDirection: 'column',
   minWidth: 0,
   minHeight: 0,
-  borderLeft: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderLeft: `1px solid ${wb.line}`,
 });
 export const officeConversation = style({ flex: 1, minWidth: 0, minHeight: 0 });
 
@@ -270,9 +317,24 @@ globalStyle(`textarea.${fileText}`, {
   minHeight: 240,
   padding: 12,
   resize: 'vertical',
-  color: 'var(--affine-text-primary-color)',
-  background: 'var(--affine-background-primary-color)',
-  border: '1px solid var(--affine-border-color)',
+  color: wb.ink,
+  background: wb.paper,
+  border: `1px solid ${wb.line}`,
   borderRadius: 6,
   boxSizing: 'border-box',
+});
+
+// v10 preview header: quiet bordered tools beside the document title.
+globalStyle(`${preview} > ${toolbar} button`, {
+  minHeight: 30,
+  border: `1px solid ${wb.line}`,
+  borderRadius: 10,
+  background: wb.paper,
+  color: wb.ink2,
+  boxShadow: '0 1px 2px rgba(82, 92, 102, 0.07)',
+});
+globalStyle(`${preview} > ${toolbar} button:hover:not(:disabled)`, {
+  background: wb.panel,
+  borderColor: wb.lineStrong,
+  color: wb.ink,
 });

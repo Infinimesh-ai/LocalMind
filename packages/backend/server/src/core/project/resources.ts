@@ -93,7 +93,9 @@ export class ProjectBlobStorage {
     );
   }
 
-  async read(input: ProjectActor & { key: string }) {
+  async read(
+    input: ProjectActor & { key: string; allowArchivedRead?: boolean }
+  ) {
     const blob = await this.models.projectResource.getBlob(input);
     const stored = await this.runtime.getObject(
       'blob',
@@ -117,7 +119,11 @@ export class ProjectBlobStorage {
       createHash('sha256').update(bytes).digest('hex') !== blob.fingerprint
     )
       throw new BadRequest('Project Blob content does not match');
-    await this.models.projectResource.assertMember(input);
+    await this.models.projectResource.assertMember(
+      input,
+      false,
+      input.allowArchivedRead
+    );
     return { blob, bytes };
   }
 

@@ -54,7 +54,29 @@ Project 个人工单的现行交互契约见
 统一模板草拟，由发单人确认；接单人从通知和“我的项目”进入独立私人对话，AI 将
 候选文字与文件逐项绑定冻结要求，全部通过服务端检查后提示收件人确认完成并发回。
 模型判断、聊天回答或暂存文件均不等于交付；收件人确认后才生成不可变回执并将工单
-标为成功完成。当前源码尚未实现对话内统一交付草稿及确认卡片，不得将目标当作现状。
+标为成功完成。当前源码已接入统一交付草稿、服务端检查与对话确认卡片，执行证据见
+`docs/ai-modernization/project-work-order-ai-delivery.execution.zh-CN.md`；仍须区分
+已接入路径、本轮验证结果与生产环境状态。
+
+Project 项目汇报的完整开发契约见
+`docs/ai-modernization/project-report-workbench-development.zh-CN.md`。汇报来源为项目文档、
+工单（仅参与方可见元数据，作为业务状态证据）和公开共享项目 Memory，不读取私人聊天或
+新增材料池；入口在左侧项目列表，编辑页为左侧项目 AI 会话加右侧画布的汇报工作室；未明确的负责人默认绑定本份汇报创建人，
+保留默认来源，不改写原文档或工单指派。模板、编辑审阅、不可变定稿、双屏与离线演示、
+PDF/可编辑 PPTX、受控分享、周期生成和明确授权分发均属完整范围。W01—W09 已接入源码，
+真实模型、Linux、浏览器、导出及 A01—A60 的逐项证据见
+`docs/ai-modernization/project-report-workbench.execution.zh-CN.md`。本地热启动开发实例已同步，
+尚未发布生产镜像；
+整体类型检查的既有基线和导出兼容边界须与任务验证分开；Project 权限、全局 BYOK、
+原生 Office 和旧 MCP 能力边界继续适用。
+
+独立「汇报总结」的现行交互以 `docs/localmind-report-deck-redesign.zh-CN.md` 的
+2026-10-16 契约为准：默认生成自由滚动的响应式网页，同一 HTML 支持按章节全屏演示；
+模板与自定义均不再采用固定 16:9 内容画布。仅图库缩略图保留固定尺寸。旧汇报只在读取时
+兼容展示，不覆盖原始存储；来源授权、分享限制、沙箱和一次性生成边界继续适用。
+自定义 HTML v3 的技能适配、联合生成、浏览器截图修正、租约检查点与部署证据见
+`docs/localmind-report-deck-custom-design.execution.zh-CN.md`。新任务按版本路由，旧 HTML 不改写；
+运行镜像需包含 Chromium 和中文字体，不能以缺少视觉能力为由跳过确定性浏览器检查。
 
 新增 LocalMind AI 能力通常至少应落到以下一项：
 
@@ -192,8 +214,8 @@ LocalMind AI 的关键不变量：
     旧个人化迁移分支与验收要求见
     `docs/ai-modernization/workspace-project-context-session-remediation.zh-CN.md`。
     当前源码已实现共享身份、贡献/冲突、会话绑定、删除任务、不可变 checkpoint，
-    以及带租约、重试、取消和严格 CAS 的持久化上下文整理任务基础；结构化摘要模型、
-    整理时间线/手动 UI、生产迁移、长期归档及完整 A01—A40 验收仍须单独执行。不能仅
+    以及带租约、重试、取消和严格 CAS 的持久化上下文整理任务基础与手动整理、取消、
+    重试 UI；结构化摘要模型、生产迁移、长期归档及完整 A01—A40 验收仍须单独执行。不能仅
     取消用户过滤就把实际按私人契约保存的旧记录公开。
 
 ---
@@ -354,6 +376,13 @@ yarn localmind:sync:all
 和 `LOCALMIND_DATABASE_BACKUP`（非空本地备份文件）执行同步。该路径一并同步迁移、
 Prisma Client 和 native addon。同步只更新容器，不更新镜像；重建部署仍走固定
 `localmind-affine:local` 镜像流程。
+
+源码 bind mount 的热启动实例使用同一脚本的 `LOCALMIND_RUNTIME_MODE=source`，
+并指定 `LOCALMIND_CONTAINER` 与同数据库网络的独立
+`LOCALMIND_RUNTIME_MIGRATION_CONTAINER`。该模式仍要求已验证的 Linux 源容器和备份，
+同步前检查数据库身份、schema 和 native；暂停后端 worker 后统一更新迁移、Client
+与 addon，并通过 Compose 重建容器以重新绑定 native 文件，不重建镜像或删除数据卷。
+同步完成必须验证真实 GraphQL 就绪，不能仅以 Web HTML 可访问判断后端成功。
 
 ---
 

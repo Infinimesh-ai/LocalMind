@@ -13,6 +13,7 @@ import { merge } from 'lodash-es';
 import {
   assertRspackSupportedPackageName,
   DEFAULT_DEV_SERVER_CONFIG,
+  prioritizeDevProxies,
 } from './bundle-shared';
 import { Option, PackageCommand } from './command';
 import {
@@ -188,6 +189,8 @@ function getRspackBundleConfigs(pkg: Package): MultiRspackOptions {
           ...config,
           entry: {
             main: pkg.srcPath.join('index.ts').value,
+            'snapshot-worker': pkg.srcPath.join('core/doc/snapshot-worker.ts')
+              .value,
             'retire-tool-contracts': pkg.srcPath.join(
               '../scripts/retire-tool-contracts.ts'
             ).value,
@@ -330,6 +333,11 @@ export class BundleCommand extends PackageCommand {
     if (devServerConfig?.proxy) {
       serverConfig.proxy = devServerConfig.proxy;
     }
+    const setupMiddlewares = serverConfig.setupMiddlewares;
+    serverConfig.setupMiddlewares = (middlewares, server) =>
+      prioritizeDevProxies(
+        setupMiddlewares?.(middlewares, server) ?? middlewares
+      );
 
     const devServer = new RspackDevServer(serverConfig, compiler);
 

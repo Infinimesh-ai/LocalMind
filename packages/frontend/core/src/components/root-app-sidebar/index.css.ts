@@ -1,6 +1,12 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
+import { sectionLabel, selectedItem } from '../localmind-theme/recipes';
+import { localmindShell } from '../localmind-theme/shell';
+import { workbenchTokens as wb } from '../localmind-theme/tokens.css';
+
+const shell = `${localmindShell} &`;
+
 export const workspaceAndUserWrapper = style({
   display: 'flex',
   alignItems: 'center',
@@ -10,6 +16,7 @@ export const workspaceAndUserWrapper = style({
   height: 42,
   paddingRight: 6,
   alignSelf: 'center',
+  selectors: { [shell]: { width: '100%', paddingRight: 0 } },
 });
 export const shortcuts = style({
   display: 'flex',
@@ -37,6 +44,14 @@ export const shortcut = style({
       outline: `2px solid ${cssVarV2('button/primary')}`,
       outlineOffset: 2,
     },
+    [shell]: {
+      width: 34,
+      height: 34,
+      borderRadius: wb.radiusSmall,
+      color: wb.ink3,
+    },
+    [`${localmindShell} &:hover, ${localmindShell} &[aria-current="page"], ${localmindShell} &[data-active="true"]`]:
+      { background: wb.sidebarHover, color: wb.ink },
   },
 });
 
@@ -56,6 +71,14 @@ export const workspacesHeading = style({
   padding: '8px 6px 4px',
   fontSize: 12,
   color: cssVarV2('text/secondary'),
+  selectors: {
+    [shell]: {
+      ...sectionLabel,
+      minHeight: 30,
+      marginTop: 10,
+      padding: '0 4px 4px 10px',
+    },
+  },
 });
 
 export const workspaceRow = style({
@@ -68,6 +91,13 @@ export const workspaceRow = style({
     '&[data-active="true"]': {
       background: cssVarV2('layer/background/hoverOverlay'),
     },
+    [shell]: {
+      borderRadius: wb.sidebarItemRadius,
+      color: wb.ink2,
+      fontWeight: 400,
+    },
+    [`${localmindShell} &:hover`]: { background: wb.sidebarHover },
+    [`${localmindShell} &[data-active="true"]`]: selectedItem,
   },
 });
 
@@ -92,6 +122,16 @@ export const workspaceButton = style({
     '&:hover': { background: cssVarV2('layer/background/hoverOverlay') },
     '&:focus-visible': { outline: `2px solid ${cssVarV2('button/primary')}` },
     '&:disabled': { cursor: 'wait' },
+    [shell]: {
+      minHeight: wb.sidebarItemHeight,
+      padding: '0 6px 0 10px',
+      borderRadius: wb.sidebarItemRadius,
+      color: 'inherit',
+      fontSize: wb.sidebarItemFontSize,
+      lineHeight: wb.sidebarItemLineHeight,
+      fontWeight: 'inherit',
+    },
+    [`${localmindShell} &:hover`]: { background: 'transparent' },
   },
 });
 

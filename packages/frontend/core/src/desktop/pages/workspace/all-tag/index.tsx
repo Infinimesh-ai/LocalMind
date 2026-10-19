@@ -1,4 +1,9 @@
+import { ExplorerPageHero } from '@affine/core/components/explorer/header/page-hero';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import {
+  explorerCard,
+  explorerSurface,
+} from '@affine/core/components/localmind-theme/surface.css';
 import {
   TagListHeader,
   VirtualizedTagList,
@@ -8,6 +13,7 @@ import type { TagMeta } from '@affine/core/components/page-list/types';
 import { TagService, useDeleteTagConfirmModal } from '@affine/core/modules/tag';
 import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
+import clsx from 'clsx';
 import { useCallback, useState } from 'react';
 
 import {
@@ -61,16 +67,23 @@ export const AllTag = () => {
         <AllTagHeader />
       </ViewHeader>
       <ViewBody>
-        <div className={styles.body}>
-          {tags.length > 0 ? (
-            <VirtualizedTagList
-              tags={tags}
-              tagMetas={tagMetas}
-              onTagDelete={onTagDelete}
-            />
-          ) : (
-            <EmptyTagList heading={<EmptyTagListHeader />} />
-          )}
+        <div className={clsx(styles.body, explorerSurface)}>
+          <ExplorerPageHero
+            section={t['com.affine.editor.at-menu.tags']()}
+            title={t['com.affine.editor.at-menu.tags']()}
+            subtitle={t['com.affine.localmind.shell.tags.subtitle']()}
+          />
+          <div className={clsx(styles.list, explorerCard)}>
+            {tags.length > 0 ? (
+              <VirtualizedTagList
+                tags={tags}
+                tagMetas={tagMetas}
+                onTagDelete={onTagDelete}
+              />
+            ) : (
+              <EmptyTagList heading={<EmptyTagListHeader />} />
+            )}
+          </div>
         </div>
       </ViewBody>
       <AllDocSidebarTabs />

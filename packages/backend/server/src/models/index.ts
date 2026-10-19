@@ -71,10 +71,19 @@ import {
 } from './permission-write';
 import { ProjectFileRequestModel } from './project-file-request';
 import { ProjectPublicationModel } from './project-publication';
+import { ProjectReportModel } from './project-report';
+import { ProjectReportCollaborationModel } from './project-report-collaboration';
+import { ProjectReportExportModel } from './project-report-export';
+import { ProjectReportGenerationModel } from './project-report-generation';
+import { ProjectReportLifecycleModel } from './project-report-lifecycle';
+import { ProjectReportScheduleModel } from './project-report-schedule';
+import { ProjectReportShareModel } from './project-report-share';
 import { ProjectResourceModel } from './project-resource';
 import { ProjectResourceEditLeaseModel } from './project-resource-edit-lease';
 import { ProjectWorkspaceImportModel } from './project-workspace-import';
 import { MODELS_SYMBOL } from './provider';
+import { ReportDeckModel } from './report-deck';
+import { ReportDeckDesignModel } from './report-deck-design';
 import { SessionModel } from './session';
 import { UserModel } from './user';
 import { UserDocModel } from './user-doc';
@@ -117,6 +126,15 @@ const MODELS = {
   officeComment: OfficeCommentModel,
   officeCommandRequest: OfficeCommandRequestModel,
   projectResource: ProjectResourceModel,
+  projectReport: ProjectReportModel,
+  projectReportExport: ProjectReportExportModel,
+  projectReportLifecycle: ProjectReportLifecycleModel,
+  projectReportShare: ProjectReportShareModel,
+  projectReportGeneration: ProjectReportGenerationModel,
+  projectReportSchedule: ProjectReportScheduleModel,
+  projectReportCollaboration: ProjectReportCollaborationModel,
+  reportDeck: ReportDeckModel,
+  reportDeckDesign: ReportDeckDesignModel,
   projectWorkspaceImport: ProjectWorkspaceImportModel,
   projectResourceEditLease: ProjectResourceEditLeaseModel,
   projectFileRequest: ProjectFileRequestModel,
@@ -272,6 +290,7 @@ export * from './notification';
 export * from './office-artifact';
 export * from './office-command-request';
 export * from './permission-write';
+export * from './report-deck';
 export * from './session';
 export * from './user';
 export * from './user-doc';

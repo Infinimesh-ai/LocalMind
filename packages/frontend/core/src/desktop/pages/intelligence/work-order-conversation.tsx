@@ -40,10 +40,18 @@ import { PageIcon } from '@blocksuite/icons/lit';
 import { signal } from '@preact/signals-core';
 import { useFramework, useLiveData, useService } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { WorkOrderGenerationStatus } from './work-order-generation-status';
 import * as styles from './workbench-conversation.css';
+import { workOrderStatusLabel } from './workbench-labels';
 
 type WorkOrderConversationProps = {
   workOrderId: string;
@@ -52,6 +60,7 @@ type WorkOrderConversationProps = {
   status: string;
   deliveryDraftBlocked: boolean;
   onChanged?: () => Promise<unknown> | unknown;
+  headerActions?: ReactNode;
 };
 
 function useWorkOrderChatConfig() {
@@ -98,6 +107,7 @@ export function WorkOrderConversation({
   status,
   deliveryDraftBlocked,
   onChanged,
+  headerActions,
 }: WorkOrderConversationProps) {
   const t = useI18n();
   const framework = useFramework();
@@ -278,10 +288,13 @@ export function WorkOrderConversation({
     >
       <header className={styles.header}>
         <div className={styles.conversationIdentity}>
-          <strong>{title}</strong>
-          <span>{status}</span>
+          <strong title={title}>{title}</strong>
+          <span>{workOrderStatusLabel(status, t)}</span>
         </div>
-        <div className={styles.tools} ref={setToolbar} />
+        <div className={styles.tools}>
+          {headerActions}
+          <div ref={setToolbar} />
+        </div>
       </header>
       {configuration === 'missing' || configuration === 'error' ? (
         <div role="status" className={styles.configuration}>

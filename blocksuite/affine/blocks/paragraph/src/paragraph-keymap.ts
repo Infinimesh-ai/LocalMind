@@ -59,16 +59,18 @@ export const ParagraphKeymapExtension = KeymapExtension(
           return true;
         }
 
-        const merged = mergeWithPrev(std.host, model);
-        if (merged) {
-          return true;
-        }
-
-        std.command
+        // At a nested paragraph's start, preserve the block and outdent first,
+        // just like Shift-Tab, regardless of whether more siblings follow it.
+        const [dedented] = std.command
           .chain()
           .pipe(canDedentParagraphCommand)
           .pipe(dedentParagraphCommand)
           .run();
+        if (dedented) {
+          return true;
+        }
+
+        mergeWithPrev(std.host, model);
         return true;
       },
       'Mod-Enter': ctx => {

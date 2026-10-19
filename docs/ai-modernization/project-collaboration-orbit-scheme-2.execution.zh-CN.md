@@ -100,3 +100,16 @@ corepack yarn localmind:sync:all
 - 主机绑定目录恢复因 macOS/Colima 文件所有权映射在建索引时失败，改在不联网的独立 Docker 数据卷 `localmind_orbit2_restore_validation_data` 再试。`pg_restore --exit-on-error --no-owner --no-acl -U affine -d affine /backup.dump` **退出 0**；恢复库和源库均有 4 个 Workspace、405 条 Prisma 迁移记录。恢复演练容器已停止，备份与测试数据保留。此证据证明热开发库逻辑备份可恢复；仍未执行正式运行容器同步。
 - 隔离前端完整 Linux TypeScript build 因 Node 默认约 2 GB 堆上限触发内存不足；随后在隔离工作树以 `NODE_OPTIONS=--max-old-space-size=6144 corepack yarn tsc -p packages/frontend/core/tsconfig.json --noEmit --pretty false` 通过。旧 `project-tree.spec.tsx` 的 `WorkbenchConversationCard` fixture 补齐已有生成类型要求的两个可空字段，该改动仅在隔离工作树，主工作区原本已有同样字段。Linux 前端用现有依赖卷运行方案二 4 文件、21/21 测试通过；Web、Mobile、Admin 单独打包和同步脚本再次打包通过。
 - 默认目标 `localmind_affine_postgres` 的 `pg_dump` 在 `workspaces` 表报告 MultiXact 错误；其部分文件已标为 `.dump.failed`，不能作为备份。该目标在本轮开始前即不可用。运行中的热开发数据库恢复及可靠备份，是继续 A19 的前提。
+
+### 星图滚轮直接缩放（2026-10-14）
+
+- 按用户要求，星图内普通滚轮直接以视图中心缩放，不再平移；空白拖拽、空格拖拽、键盘与触屏手势沿用原实现。共享相机增加 `wheelBehavior` 参数，由 `collaboration-orbit.tsx` 显式选择缩放，旧关系图保留其原交互。
+- `collaboration-orbit-board.spec.tsx` 新增普通滚轮双向缩放、中心不漂移、阻止页面默认滚动及横向滚轮不平移的回归检查。复用 `localmind_report_validation`（`localmind-affine:dev-base`）运行下列命令，3 个文件、36 项测试通过，包含既有拖拽、双指缩放与相机边界覆盖：
+
+  ```sh
+  docker exec -w /workspace localmind_report_validation yarn vitest run packages/frontend/core/src/desktop/pages/intelligence/collaboration-orbit-board.spec.tsx packages/frontend/core/src/desktop/pages/intelligence/collaboration-graph.spec.tsx packages/frontend/core/src/desktop/pages/intelligence/collaboration-graph-camera.spec.ts --maxWorkers=1
+  ```
+
+- 改动文件的 oxlint、Prettier、`git diff --check` 通过；Impeccable 检查无发现。本轮未运行全仓类型检查或完整构建。
+- 本机 `localhost:3011/project` 由 `localmind_hot_web` 直接挂载当前源码并热更新，无需复制文件或执行打包同步。真实浏览器无修饰键滚轮实测 `17% → 37% → 17%`，拖拽后保持 `37%` 且视角变换平移 30px。页面保留供用户操作；没有重建镜像或修改数据库。
+- 本轮只调整滚轮行为；此前观察到的窄窗口初始缩放过小问题仍待另行修复。

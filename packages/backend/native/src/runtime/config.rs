@@ -135,6 +135,7 @@ fn default_mail_class_mapping() -> BTreeMap<String, String> {
     ("VerifyChangeEmail", "auth"),
     ("EmailChanged", "auth"),
     ("MemberInvitation", "workspace_invitation"),
+    ("ProjectReportReady", "collaboration_notice"),
     ("Mention", "collaboration_notice"),
     ("Comment", "collaboration_notice"),
     ("CommentMention", "collaboration_notice"),

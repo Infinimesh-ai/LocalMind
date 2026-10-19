@@ -179,7 +179,7 @@ export class CopilotProjectAgentRuntimeWorker {
           const deadline = setTimeout(() => {
             stopped = true;
             abort(new Error('Project task preparation timed out'));
-          }, 300000);
+          }, adapter.preparationTimeoutMs ?? 300000);
           const timer = setInterval(() => {
             if (stopped || heartbeat) return;
             heartbeat = this.models.copilotProjectAgentRuntime

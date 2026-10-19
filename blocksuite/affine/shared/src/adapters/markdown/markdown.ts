@@ -53,6 +53,12 @@ type MarkdownToSliceSnapshotPayload = {
   pageId: string;
 };
 
+export type MarkdownAdapterOptions = {
+  // For text consumers such as AI context: retain source text verbatim within
+  // the Markdown structure instead of escaping it for Markdown round trips.
+  preserveText?: boolean;
+};
+
 export class MarkdownAdapter extends BaseAdapter<Markdown> {
   private readonly _traverseMarkdown = (
     markdown: MarkdownAST,
@@ -178,7 +184,11 @@ export class MarkdownAdapter extends BaseAdapter<Markdown> {
 
   readonly blockMatchers: BlockMarkdownAdapterMatcher[];
 
-  constructor(job: Transformer, provider: ServiceProvider) {
+  constructor(
+    job: Transformer,
+    provider: ServiceProvider,
+    private readonly options: MarkdownAdapterOptions = {}
+  ) {
     super(job, provider);
     const blockMatchers = Array.from(
       provider.getAll(BlockMarkdownAdapterMatcherIdentifier).values()
@@ -212,14 +222,22 @@ export class MarkdownAdapter extends BaseAdapter<Markdown> {
   }
 
   private _astToMarkdown(ast: Root) {
-    return unified()
+    const markdown = unified()
       .use(remarkGfm)
       .use(remarkStringify, {
         resourceLink: true,
+        ...(this.options.preserveText
+          ? { handlers: { text: (node: { value: string }) => node.value } }
+          : {}),
       })
       .use(remarkMath)
-      .stringify(ast)
-      .replace(/&#x20;\n/g, ' \n');
+      .stringify(ast);
+    if (this.options.preserveText) {
+      // A standalone empty paragraph otherwise serializes to an empty string,
+      // losing blank blocks when a selection is serialized slice by slice.
+      return markdown || (ast.children.length ? '\n' : '');
+    }
+    return markdown.replace(/&#x20;\n/g, ' \n');
   }
 
   private _markdownToAst(markdown: Markdown) {
@@ -287,7 +305,9 @@ export class MarkdownAdapter extends BaseAdapter<Markdown> {
       buffer += this._astToMarkdown(ast);
     }
     const markdown =
-      buffer.match(/\n/g)?.length === 1 ? buffer.trimEnd() : buffer;
+      !this.options.preserveText && buffer.match(/\n/g)?.length === 1
+        ? buffer.trimEnd()
+        : buffer;
     return {
       file: markdown,
       assetsIds: sliceAssetsIds,

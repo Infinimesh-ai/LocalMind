@@ -137,6 +137,7 @@ mod tests {
     for (name, class) in [
       ("SignIn", MailClass::Auth),
       ("MemberInvitation", MailClass::WorkspaceInvitation),
+      ("ProjectReportReady", MailClass::CollaborationNotice),
       ("CommentMention", MailClass::CollaborationNotice),
       ("TeamWorkspaceExpired", MailClass::WorkspaceLifecycle),
       ("TeamLicense", MailClass::BillingLicense),
