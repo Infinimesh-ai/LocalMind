@@ -232,7 +232,7 @@ export const DeckSubphaseSchema = z.enum([
 export type DeckSubphase = z.infer<typeof DeckSubphaseSchema>;
 export const DeckQualitySchema = z
   .object({
-    version: z.literal(REPORT_WEB_VERSION),
+    version: z.enum([REPORT_WEB_VERSION, 'report-web-v4']),
     artifactHash: hash,
     visual: z.enum(['complete', 'partial', 'unavailable']),
     warnings: z
@@ -242,12 +242,24 @@ export const DeckQualitySchema = z
           'visual_unavailable',
           'visual_partial',
           'design_warnings',
+          'motion_degraded',
+          'interaction_degraded',
         ])
       )
-      .max(4),
+      .max(6),
     checkedCaptures: z.number().int().min(0).max(300),
     totalCaptures: z.number().int().min(0).max(300),
     repairs: z.number().int().min(0).max(2),
+    /** v4: verified behaviour and motion evidence for the delivered page. */
+    experience: z
+      .object({
+        behaviorsDeclared: z.number().int().min(0).max(500),
+        behaviorsVerified: z.number().int().min(0).max(500),
+        motion: z.enum(['verified', 'degraded', 'none']),
+        charts: z.number().int().min(0).max(60),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type DeckQuality = z.infer<typeof DeckQualitySchema>;

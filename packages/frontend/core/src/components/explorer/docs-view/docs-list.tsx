@@ -199,14 +199,29 @@ export const DocsExplorer = ({
   const workspaceId = useServiceOptional(WorkspaceService)?.workspace.id;
   const reportDeckAvailable = useReportDeckEntryAvailable();
   const openReportDeck = useOpenReportDeck();
-  const [resourceHeights, setResourceHeights] = useState(
-    () => new Map<string, number>()
+  // List rows and masonry cards have different natural heights. Never reuse
+  // measurements from the previous view while its new items are being measured.
+  const [resourceHeights, setResourceHeights] = useState(() => ({
+    view,
+    values: new Map<string, number>(),
+  }));
+  const onHeightChange = useCallback(
+    (id: string, height: number) => {
+      setResourceHeights(current =>
+        current.view === view && current.values.get(id) === height
+          ? current
+          : {
+              view,
+              values: new Map(current.view === view ? current.values : []).set(
+                id,
+                height
+              ),
+            }
+      );
+    },
+    [view]
   );
-  const onHeightChange = useCallback((id: string, height: number) => {
-    setResourceHeights(current =>
-      current.get(id) === height ? current : new Map(current).set(id, height)
-    );
-  }, []);
+  const compactResourceList = measureResourceItems && view === 'list';
   const resourceItems = useMemo(
     () => ({
       renderItem,
@@ -221,7 +236,7 @@ export const DocsExplorer = ({
       return {
         id: group.key,
         Component: groupBy ? GroupHeader : undefined,
-        height: groupBy ? (measureResourceItems ? 28 : 24) : 0,
+        height: groupBy ? (compactResourceList ? 28 : 24) : 0,
         className: styles.groupHeader,
         items: group.items.map((docId: string) => {
           if (view === 'list' || resourceItemHeight !== undefined) {
@@ -229,8 +244,8 @@ export const DocsExplorer = ({
               id: docId,
               Component: ItemComponent,
               height:
-                (measureResourceItems
-                  ? resourceHeights.get(docId)
+                (measureResourceItems && resourceHeights.view === view
+                  ? resourceHeights.values.get(docId)
                   : undefined) ??
                 resourceItemHeight ??
                 42,
@@ -252,6 +267,7 @@ export const DocsExplorer = ({
     ItemComponent,
     resourceItemHeight,
     measureResourceItems,
+    compactResourceList,
     resourceHeights,
   ]);
 
@@ -382,7 +398,7 @@ export const DocsExplorer = ({
           className={className}
           items={masonryItems}
           gapY={
-            measureResourceItems
+            compactResourceList
               ? 0
               : BUILD_CONFIG.isMobileEdition
                 ? 12
@@ -391,8 +407,8 @@ export const DocsExplorer = ({
                   : 24
           }
           gapX={BUILD_CONFIG.isMobileEdition ? 12 : 24}
-          groupsGap={measureResourceItems ? 8 : 12}
-          groupHeaderGapWithItems={measureResourceItems ? 0 : 12}
+          groupsGap={compactResourceList ? 8 : 12}
+          groupHeaderGapWithItems={compactResourceList ? 0 : 12}
           columns={view === 'list' ? 1 : undefined}
           itemWidthMin={masonryItemWidthMin ?? 220}
           preloadHeight={100}
@@ -401,7 +417,7 @@ export const DocsExplorer = ({
           collapsedGroups={collapsedGroups}
           paddingY={BUILD_CONFIG.isMobileEdition ? 12 : 0}
           paddingX={
-            measureResourceItems || BUILD_CONFIG.isMobileEdition
+            compactResourceList || BUILD_CONFIG.isMobileEdition
               ? 16
               : responsivePaddingX
           }

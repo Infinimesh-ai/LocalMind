@@ -6,6 +6,7 @@ import {
 } from '@affine/core/components/global-rail';
 import { compactUserInfo } from '@affine/core/components/global-rail/global-rail.css';
 import { useQuery } from '@affine/core/components/hooks/use-query';
+import { getNavigationWidthBounds } from '@affine/core/components/localmind-theme/navigation-width';
 import { ProjectFileRequestModal } from '@affine/core/components/project-file-request/detail';
 import { SWRConfigProvider } from '@affine/core/components/providers/swr-config-provider';
 import {
@@ -1569,10 +1570,7 @@ const IntelligenceWorkbench = ({
   }[paneKind];
   const getNavigationBounds = () => {
     const width = rootRef.current?.clientWidth ?? window.innerWidth;
-    return {
-      min: 192,
-      max: Math.max(192, Math.min(420, width - (width > 1040 ? 760 : 400))),
-    };
+    return getNavigationWidthBounds(width);
   };
   const getPaneBounds = () => {
     const width = conversationAndPeekRef.current?.clientWidth ?? 1200;

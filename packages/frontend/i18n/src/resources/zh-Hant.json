@@ -2918,6 +2918,8 @@
   "com.affine.localmind.reportDeck.quality.visual_unavailable": "頁面已完成，未完成視覺複核。",
   "com.affine.localmind.reportDeck.quality.visual_partial": "頁面已完成，部分章節或螢幕尺寸未完成視覺複核。",
   "com.affine.localmind.reportDeck.quality.design_warnings": "頁面已通過基本檢查，部分排版仍有改善空間。",
+  "com.affine.localmind.reportDeck.quality.motion_degraded": "頁面已完成；部分動效未通過檢查，相關內容以靜態方式呈現。",
+  "com.affine.localmind.reportDeck.quality.interaction_degraded": "頁面已完成；部分互動未通過檢查，可能以靜態內容呈現。",
   "com.affine.localmind.reportDeck.error.render_failed": "頁面渲染檢查失敗，請重試或聯絡管理員檢查瀏覽器環境。",
   "com.affine.localmind.reportDeck.error.quality_failed": "頁面仍有內容或排版問題，未生成可交付結果。請重試。",
   "com.affine.localmind.shell.docs.subtitle": "本工作區的頁面、白板與檔案。",

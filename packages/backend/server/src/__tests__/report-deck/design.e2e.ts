@@ -16,8 +16,12 @@ import { Models } from '../../models';
 import { reportHash, reportJson } from '../../models/report-deck-design';
 import type { ReportDeckAiService } from '../../plugins/copilot/report-deck-ai';
 import { ReportWebGenerationService } from '../../plugins/copilot/report-web-design/generation';
-import { REPORT_DESIGN_PROMPTS } from '../../plugins/copilot/report-web-design/prompts';
+import {
+  REPORT_DESIGN_PROMPTS,
+  REPORT_DESIGN_SKILL,
+} from '../../plugins/copilot/report-web-design/prompts';
 import { ReportWebRenderer } from '../../plugins/copilot/report-web-design/renderer';
+import { ensurePromptResponseSchemaHash } from '../../plugins/copilot/runtime/contracts/structured-output-contract';
 import type { PromptRuntime } from '../../plugins/copilot/runtime/prompt-runtime';
 import { createTestingApp, type TestingApp } from '../utils';
 
@@ -397,6 +401,46 @@ for (const chapterCount of [3, 8]) {
         settings,
         {} as JobQueue
       );
+      // New runs use the v4 engine; an in-flight run with a frozen v3
+      // snapshot must still complete on the original engine.
+      const prompts: Record<string, unknown> = {};
+      const promptHashes: Record<string, string> = {};
+      for (const seed of REPORT_DESIGN_PROMPTS) {
+        prompts[seed.name] = await (
+          runtime as unknown as { snapshot: (n: string) => Promise<unknown> }
+        ).snapshot(seed.name);
+        promptHashes[seed.name] = ensurePromptResponseSchemaHash({
+          value: reportJson(prompts[seed.name]),
+        })!;
+      }
+      const legacy = await models.reportDeckDesign.claim(
+        deck.id,
+        0,
+        reportJson({
+          version: 'report-web-v3',
+          config: DeckConfigSchema.parse({
+            ...config,
+            length: chapterCount > 6 ? 'long' : 'short',
+          }),
+          choice: { scopeKind: 'workspace', scopeId: deck.aiScopeId },
+          capabilities: {
+            modelId: 'fixture',
+            vision: true,
+            structured: true,
+            contextWindow: 128000,
+          },
+          skill: REPORT_DESIGN_SKILL,
+          prompts,
+          promptHashes,
+          limits: { maxCalls: 40, maxHtmlBytes: 5 * 1024 * 1024 },
+        }),
+        15 * 60000
+      );
+      t.truthy(legacy);
+      await db.reportDeckRun.update({
+        where: { id: legacy!.id },
+        data: { leaseExpiresAt: new Date(0) },
+      });
       const complete = models.reportDeckDesign.complete.bind(
         models.reportDeckDesign
       );

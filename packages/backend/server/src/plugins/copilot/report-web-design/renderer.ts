@@ -17,6 +17,7 @@ import {
 } from '../../../models/report-deck-design';
 import { awaitReportCall } from './bounds';
 import { REPORT_BROWSER_PROBE } from './browser-probe';
+import { inspectWebReport, type WebBrowserReport } from './renderer-v4';
 
 export type ReportCapture = {
   id: string;
@@ -98,6 +99,35 @@ export class ReportWebRenderer {
       entered = true;
       signal.throwIfAborted();
       return await this.render(html, expectedChapterIds, signal);
+    } finally {
+      if (entered) release();
+      else void before.then(release, release);
+    }
+  }
+
+  /** v4: static, behaviour, motion and no-script inspection in one browser. */
+  async inspectWeb(
+    html: string,
+    input: Parameters<typeof inspectWebReport>[2],
+    signal: AbortSignal
+  ): Promise<WebBrowserReport> {
+    const before = this.tail;
+    let release!: () => void;
+    this.tail = new Promise(resolve => {
+      release = resolve;
+    });
+    let entered = false;
+    try {
+      await awaitReportCall(before, signal);
+      entered = true;
+      signal.throwIfAborted();
+      await this.available();
+      return await inspectWebReport(
+        this.config.reportDecks.rendererExecutablePath || undefined,
+        html,
+        input,
+        signal
+      );
     } finally {
       if (entered) release();
       else void before.then(release, release);

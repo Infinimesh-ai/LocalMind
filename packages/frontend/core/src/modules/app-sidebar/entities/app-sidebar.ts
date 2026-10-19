@@ -31,12 +31,6 @@ export class AppSidebar extends Entity {
     this.appSidebarState.get<number>(APP_SIDEBAR_STATE.WIDTH) ?? 248
   );
 
-  /** The width the user resized to; undefined while the default applies. */
-  storedWidth$ = LiveData.from(
-    this.appSidebarState.watch<number>(APP_SIDEBAR_STATE.WIDTH),
-    this.appSidebarState.get<number>(APP_SIDEBAR_STATE.WIDTH)
-  );
-
   /**
    * hovering can show the floating sidebar, without open it
    */

@@ -58,11 +58,37 @@ export type ReportRenderResult = {
 };
 
 /** Validate and scope model CSS using parsers; no regex prefixing of selectors. */
+export type ScopeCssOptions = {
+  /** Root attribute value, e.g. `rd-custom-v3`. */
+  rootValue?: string;
+  atRules?: readonly string[];
+  /** v4: keyframes may only animate compositor-friendly properties. */
+  motionRules?: boolean;
+};
+
+const MOTION_PROPS =
+  /^(opacity|transform|translate|scale|rotate|clip-path|filter|stroke-dashoffset|stroke-dasharray|color|background-color|fill|stroke|offset-distance|letter-spacing)$/;
+
 export function scopeReportCss(
   css: string,
   chapterId: string | null,
-  issues: ReportIssue[]
+  issues: ReportIssue[],
+  options: ScopeCssOptions = {}
 ) {
+  const rootValue = options.rootValue ?? 'rd-custom-v3';
+  const atRules = options.atRules ?? ['media', 'supports', 'keyframes'];
+  const warn = (evidence: string) =>
+    issues.push({
+      id: `css-${issues.length}`,
+      category: 'composition',
+      severity: 'warning',
+      chapterId: chapterId ?? '',
+      viewport: '',
+      elementId: '',
+      evidence,
+      suggestedFix:
+        'Animate only opacity/transform/clip-path/filter/stroke properties, finitely.',
+    });
   const issue = (evidence: string) =>
     issues.push({
       id: `css-${issues.length}`,
@@ -88,7 +114,7 @@ export function scopeReportCss(
     issue('CSS could not be parsed.');
     return '';
   }
-  const scope = REPORT_WEB_ROOT;
+  const scope = `[data-content-root="${rootValue}"]`;
   const animations = new Map<string, string>();
   if (chapterId)
     root.walkAtRules('keyframes', rule => {
@@ -96,7 +122,7 @@ export function scopeReportCss(
     });
   root.walkAtRules(rule => {
     if (
-      !['media', 'supports', 'keyframes'].includes(rule.name.toLowerCase()) ||
+      !atRules.includes(rule.name.toLowerCase()) ||
       (rule.name === 'keyframes' && !/^rd-[a-z0-9-]+$/.test(rule.params))
     ) {
       issue(`Unsupported CSS at-rule: ${rule.name.slice(0, 30)}.`);
@@ -107,6 +133,25 @@ export function scopeReportCss(
     rule.params = animations.get(rule.params) ?? rule.params;
   });
   root.walkDecls(decl => {
+    if (options.motionRules) {
+      const inKeyframes =
+        decl.parent?.parent?.type === 'atrule' &&
+        (decl.parent.parent as postcss.AtRule).name === 'keyframes';
+      if (inKeyframes && !MOTION_PROPS.test(decl.prop.toLowerCase())) {
+        warn(
+          `Keyframes may not animate layout property ${decl.prop.slice(0, 40)}.`
+        );
+        decl.remove();
+        return;
+      }
+      if (
+        /^animation(-iteration-count)?$/.test(decl.prop) &&
+        /\binfinite\b/i.test(decl.value)
+      ) {
+        warn('Infinite animation replaced by a single iteration.');
+        decl.value = decl.value.replace(/\binfinite\b/gi, '1');
+      }
+    }
     if (/^(animation|animation-name)$/.test(decl.prop))
       decl.value = decl.value.replace(
         /\brd-[a-z0-9-]+\b/g,
@@ -147,8 +192,7 @@ export function scopeReportCss(
             selector.first?.type === 'attribute' &&
             selector.first.attribute === 'data-content-root'
           ) {
-            if (selector.first.value !== 'rd-custom-v3')
-              throw new Error('root');
+            if (selector.first.value !== rootValue) throw new Error('root');
             selector.first.remove();
             if (
               selector.nodes[0]?.type === 'combinator' &&

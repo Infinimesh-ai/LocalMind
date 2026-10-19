@@ -244,3 +244,51 @@ test('the independent children index retains its existing selection and row oper
   fireEvent.click(screen.getByRole('button', { name: 'Child' }));
   expect(open).toHaveBeenCalledOnce();
 });
+
+test.each(['masonry', 'grid'] as const)(
+  '%s supports selecting mixed resources and retains selection across view changes',
+  view => {
+    const context = createDocExplorerContext({ view });
+    const open = vi.fn();
+    render(
+      <DocExplorerContext.Provider value={context}>
+        <ResourceSelectionModeContext.Provider value={true}>
+          {[
+            { id: 'doc', title: 'Page' },
+            { id: 'native:workspace:office:file', title: 'Long file.docx' },
+          ].map(resource => (
+            <ResourceRowShell
+              key={resource.id}
+              {...resource}
+              icon={null}
+              onOpen={open}
+              actions={<button>Resource actions</button>}
+            >
+              {null}
+            </ResourceRowShell>
+          ))}
+        </ResourceSelectionModeContext.Provider>
+      </DocExplorerContext.Provider>
+    );
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    act(() => context.selectMode$?.next(true));
+    const checkbox = (title: string) =>
+      screen.getByRole('checkbox', { name: title }).querySelector('input')!;
+    fireEvent.click(checkbox('Long file.docx'));
+    fireEvent.click(screen.getByRole('button', { name: 'Page' }));
+    expect(context.selectedDocIds$.value).toEqual([
+      'native:workspace:office:file',
+      'doc',
+    ]);
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.queryByText('Resource actions')).toBeNull();
+    for (const nextView of ['list', 'grid', 'masonry'] as const) {
+      act(() => context.displayPreference$.next({ view: nextView }));
+      expect(checkbox('Page').checked).toBe(true);
+      expect(checkbox('Long file.docx').checked).toBe(true);
+    }
+    fireEvent.click(checkbox('Long file.docx'));
+    expect(context.selectedDocIds$.value).toEqual(['doc']);
+    expect(checkbox('Page').checked).toBe(true);
+  }
+);

@@ -110,7 +110,10 @@ const DesktopLayout = ({
         ) : (
           isInWorkspace && <RootAppSidebar />
         )}
-        <MainContainer>{children}</MainContainer>
+        <MainContainer>
+          <div className={styles.shellFallbackHeader} />
+          {children}
+        </MainContainer>
       </div>
     </div>
   );
@@ -128,7 +131,10 @@ const BrowserLayout = ({
       <OpenInAppCard />
       <WorkspaceGlobalRail show={fallback || isInWorkspace} />
       {fallback ? <AppSidebarFallback /> : isInWorkspace && <RootAppSidebar />}
-      <MainContainer>{children}</MainContainer>
+      <MainContainer>
+        <div className={styles.shellFallbackHeader} />
+        {children}
+      </MainContainer>
     </div>
   );
 };

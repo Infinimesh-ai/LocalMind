@@ -76,9 +76,30 @@ const SVG_TAGS = new Set([
   'title',
 ]);
 
+/** Additional semantic elements and attributes for v4 web reports. */
+const WEB_V4_TAGS = new Set([
+  'dl',
+  'dt',
+  'dd',
+  'caption',
+  'sup',
+  'sub',
+  'mark',
+  'time',
+  'abbr',
+  'header',
+  'footer',
+  'aside',
+  'article',
+]);
+const WEB_V4_ATTRS = new Set(['open', 'datetime']);
+export type DeckSanitizeProfile = 'deck' | 'web-v4';
+
 /** Derived from the actual sanitizer, never a second prompt-only allowlist. */
-export const deckMarkupCapabilities = () => ({
-  html: [...HTML_TAGS],
+export const deckMarkupCapabilities = (
+  profile: DeckSanitizeProfile = 'deck'
+) => ({
+  html: [...HTML_TAGS, ...(profile === 'web-v4' ? WEB_V4_TAGS : [])],
   svg: [...SVG_TAGS],
   script: false,
   externalResources: false,
@@ -293,7 +314,11 @@ function setChildren(parent: ParentNode, children: ChildNode[]) {
   });
 }
 
-type State = { removed: number };
+type State = {
+  removed: number;
+  profile: DeckSanitizeProfile;
+  names: Set<string>;
+};
 
 function sanitizeAttrs(element: Element, svg: boolean, state: State) {
   const tag = element.tagName.toLowerCase();
@@ -309,7 +334,10 @@ function sanitizeAttrs(element: Element, svg: boolean, state: State) {
     else if (/^aria-[a-z]+$/.test(name)) ok = true;
     else if (svg) ok = SVG_ATTRS.has(name);
     else if (tag === 'img' && name === 'src') ok = IMG_SRC.test(attr.value);
-    else ok = HTML_ATTRS.has(name);
+    else
+      ok =
+        HTML_ATTRS.has(name) ||
+        (state.profile === 'web-v4' && WEB_V4_ATTRS.has(name));
     if (ok && name === 'id' && RESERVED_ID.test(attr.value)) ok = false;
     if (ok && name === 'style') {
       const clean = sanitizeDeckCss(attr.value);
@@ -322,7 +350,10 @@ function sanitizeAttrs(element: Element, svg: boolean, state: State) {
       const value = attr.value.replace(/url\(\s*#[A-Za-z_][\w-]*\s*\)/g, '');
       if (DANGEROUS_VALUE.test(value) || /url\s*\(/i.test(value)) ok = false;
     }
-    if (!ok) state.removed++;
+    if (!ok) {
+      state.removed++;
+      state.names.add(`${tag}[${name}]`);
+    }
     return ok;
   });
 }
@@ -342,10 +373,14 @@ function sanitizeChildren(parent: ParentNode, state: State) {
     const tag = child.tagName.toLowerCase();
     const svg = child.namespaceURI === NS.SVG;
     const allowed =
-      (child.namespaceURI === NS.HTML && HTML_TAGS.has(tag) && tag !== 'svg') ||
+      (child.namespaceURI === NS.HTML &&
+        (HTML_TAGS.has(tag) ||
+          (state.profile === 'web-v4' && WEB_V4_TAGS.has(tag))) &&
+        tag !== 'svg') ||
       (svg && SVG_TAGS.has(tag));
     if (DROP_TAGS.has(tag) && !allowed) {
       state.removed++;
+      state.names.add(`<${tag}>`);
       continue;
     }
     if (child.namespaceURI === NS.MATHML) {
@@ -355,6 +390,7 @@ function sanitizeChildren(parent: ParentNode, state: State) {
     if (!allowed) {
       // Unknown but harmless wrapper (a, font, center, …): keep its content.
       state.removed++;
+      state.names.add(`<${tag}>`);
       sanitizeChildren(child, state);
       for (const grandchild of child.childNodes) {
         grandchild.parentNode = parent;
@@ -412,6 +448,8 @@ export type SanitizedDeckFragment = {
   html: string;
   slideCount: number;
   removed: number;
+  /** What was removed, e.g. `<article>` or `div[onclick]` (bounded). */
+  removedNames?: string[];
 };
 
 /**
@@ -419,16 +457,31 @@ export type SanitizedDeckFragment = {
  * `<section class="slide" data-slide>` elements; stray top-level content is
  * wrapped into a section, extra slides beyond the deck limit are dropped.
  */
-export function sanitizeDeckFragment(htmlInput: string): SanitizedDeckFragment {
-  const first = sanitizeOnce(String(htmlInput ?? ''));
+export function sanitizeDeckFragment(
+  htmlInput: string,
+  profile: DeckSanitizeProfile = 'deck'
+): SanitizedDeckFragment {
+  const first = sanitizeOnce(String(htmlInput ?? ''), profile);
   // Re-parse the serialized output: a second pass must be a no-op, which
   // guards against parser round-trip (mutation XSS) surprises.
-  const second = sanitizeOnce(first.html);
-  return { ...second, removed: first.removed + second.removed };
+  const second = sanitizeOnce(first.html, profile);
+  return {
+    ...second,
+    removed: first.removed + second.removed,
+    removedNames: [
+      ...new Set([
+        ...(first.removedNames ?? []),
+        ...(second.removedNames ?? []),
+      ]),
+    ].slice(0, 12),
+  };
 }
 
-function sanitizeOnce(htmlInput: string): SanitizedDeckFragment {
-  const state: State = { removed: 0 };
+function sanitizeOnce(
+  htmlInput: string,
+  profile: DeckSanitizeProfile
+): SanitizedDeckFragment {
+  const state: State = { removed: 0, profile, names: new Set() };
   const fragment = parseFragment(htmlInput);
   sanitizeChildren(fragment, state);
 
@@ -484,6 +537,7 @@ function sanitizeOnce(htmlInput: string): SanitizedDeckFragment {
     html: slides.map(slide => serializeOuter(slide)).join('\n'),
     slideCount: slides.length,
     removed: state.removed,
+    removedNames: [...state.names],
   };
 }
 

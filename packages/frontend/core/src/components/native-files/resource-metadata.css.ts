@@ -77,6 +77,7 @@ export const row = style({
       border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
       padding: 16,
     },
+    '&[data-view="masonry"]': { height: 'auto' },
     '&[data-card="false"]': {
       display: 'grid',
       columnGap: 8,
@@ -94,11 +95,13 @@ export const header = style({
   gap: 8,
   minWidth: 0,
   minHeight: 32,
+  flexShrink: 0,
   selectors: { [`${row}[data-card="false"] &`]: { display: 'contents' } },
 });
 export const selection = style({
   display: 'flex',
   alignItems: 'center',
+  flexShrink: 0,
   gridColumn: 'selection',
   gridRow: 1,
 });
@@ -129,6 +132,7 @@ export const title = style({
 });
 export const details = style({
   minWidth: 0,
+  flexShrink: 0,
   selectors: {
     '&:empty': { display: 'none' },
     [`${row}[data-card="false"] &`]: { display: 'contents' },
@@ -155,9 +159,18 @@ export const preview = style({
   height: 32,
   overflow: 'hidden',
   fontSize: 12,
+  flexShrink: 0,
   color: cssVarV2('text/secondary'),
   selectors: {
     '&:empty': { display: 'none' },
+    [`${row}[data-view="masonry"] &`]: {
+      height: 'auto',
+      lineHeight: '20px',
+      display: '-webkit-box',
+      WebkitBoxOrient: 'vertical',
+      WebkitLineClamp: 6,
+      overflowWrap: 'anywhere',
+    },
     [`${row}[data-card="false"] &`]: {
       gridColumn: 'title / end',
       gridRow: 2,

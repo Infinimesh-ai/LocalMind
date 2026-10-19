@@ -56,6 +56,7 @@ export function ResourceRowShell({
           : undefined
       }
       data-card={preference.view !== 'list'}
+      data-view={preference.view}
       data-selected={selected.includes(id)}
       data-show-icon={!!preference.showDocIcon}
       data-select-mode={selectMode}

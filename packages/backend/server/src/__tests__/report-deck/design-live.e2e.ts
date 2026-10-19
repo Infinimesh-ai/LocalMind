@@ -13,15 +13,27 @@ import { z } from 'zod';
 import { CryptoHelper } from '../../base';
 import { ProjectResourceService } from '../../core/project';
 import { ReportDeckService } from '../../core/report-deck/service';
+import { Models } from '../../models';
+import { reportJson } from '../../models/report-deck-design';
+import { ReportDeckAiService } from '../../plugins/copilot/report-deck-ai';
 import { ReportWebGenerationService } from '../../plugins/copilot/report-web-design/generation';
+import {
+  REPORT_DESIGN_PROMPTS,
+  REPORT_DESIGN_SKILL,
+} from '../../plugins/copilot/report-web-design/prompts';
+import { ensurePromptResponseSchemaHash } from '../../plugins/copilot/runtime/contracts/structured-output-contract';
 import { PromptRuntime } from '../../plugins/copilot/runtime/prompt-runtime';
 import { createTestingApp } from '../utils';
+import { LIVE_CASES } from './live-cases';
 
 const file = process.env.LOCALMIND_REPORT_DESIGN_BYOK_FILE;
+const liveCase =
+  LIVE_CASES.find(c => c.key === process.env.LOCALMIND_REPORT_DESIGN_CASE) ??
+  LIVE_CASES[0];
 (file ? test.serial : test.skip)(
   'actual selected BYOK: one-submit Chinese custom design and screenshot repair',
   async t => {
-    t.timeout(960000);
+    t.timeout(2700000);
     assert(file);
     assert.equal(process.env.LOCALMIND_REPORT_DESIGN_ISOLATED, 'yes');
     assert(process.env.DATABASE_URL?.includes('localmind_report_v3_postgres'));
@@ -83,9 +95,8 @@ const file = process.env.LOCALMIND_REPORT_DESIGN_BYOK_FILE;
             projectId: project.id,
             actorId: owner.id,
             requestKey: 'source',
-            title: 'Atlas 验证资料（全部虚构）',
-            markdown:
-              '# Atlas 原型验证\n以下全部为虚构测试材料，不涉及真实业务或个人。\n## 已完成\n2026 年 10 月的原型验收共有 12 项检查，其中 9 项通过，3 项仍待修复。\n文档模块已经完成离线预览验证。\n同步模块已经完成断网重连验证。\n## 风险\n移动端长表格仍有溢出风险。\n中文字体回退还需要在 Linux 环境完成验证。\n## 下一步\n下一阶段计划修复剩余 3 项检查，然后再讨论发布。\n发布时间尚未确定，负责人未指定，不要补写。',
+            title: liveCase.title,
+            markdown: liveCase.markdown,
           })
         );
       const result = await app.get(ReportDeckService).command(owner.id, {
@@ -96,20 +107,68 @@ const file = process.env.LOCALMIND_REPORT_DESIGN_BYOK_FILE;
         ],
         config: DeckConfigSchema.parse({
           mode: 'custom',
-          length: process.env.LOCALMIND_REPORT_DESIGN_LONG ? 'long' : 'short',
+          length: process.env.LOCALMIND_REPORT_DESIGN_LONG
+            ? 'long'
+            : liveCase.length,
           language: 'zh-CN',
-          customStyle: process.env.LOCALMIND_REPORT_DESIGN_BOLDER
-            ? '有强烈视觉冲击力的技术发布简报。沿用暖白、深墨绿和橙色，允许深墨绿大面积底色与橙色重点图形。首屏像数据海报，有鲜明主视觉、不对称构图、清晰字体对比；证据章用真正的图形编码呈现数量与状态。各章有构图和明暗节奏，避免每章都是大标题加段落，避免散乱装饰。'
-            : '现代编辑式技术简报。暖白与墨绿为主，橙色只突出待决事项。大标题、清晰留白、非卡片堆砌。',
-          instructions:
-            '用清晰的证据图解区分已完成、风险和下一步，不虚构指标、负责人或截止日期。' +
-            (process.env.LOCALMIND_REPORT_DESIGN_LONG
-              ? '本次验证输出恰好 8 个章节。'
-              : ''),
+          purpose: liveCase.purpose,
+          audience: liveCase.audience,
+          customStyle: liveCase.customStyle,
+          instructions: liveCase.instructions,
         }),
       });
       assert('deck' in result && result.deck);
       const runtime = app.get(PromptRuntime);
+      if (process.env.LOCALMIND_REPORT_DESIGN_ENGINE === 'v3') {
+        // Baseline: freeze the pre-v4 (v3.1) prompts into the run snapshot so
+        // the same material, model and request run on the previous engine.
+        const deck = result.deck;
+        const models = app.get(Models);
+        const row = await db.reportDeck.findUniqueOrThrow({
+          where: { id: deck.id },
+        });
+        const choice = {
+          scopeKind: row.aiScopeKind as 'project' | 'workspace',
+          scopeId: row.aiScopeId,
+        };
+        const prompts: Record<string, unknown> = {};
+        const promptHashes: Record<string, string> = {};
+        for (const seed of REPORT_DESIGN_PROMPTS) {
+          await models.projectReportGeneration.seedPrompt(seed);
+          prompts[seed.name] = await runtime.snapshot(seed.name);
+          promptHashes[seed.name] = ensurePromptResponseSchemaHash({
+            value: reportJson(prompts[seed.name]),
+          }) as string;
+        }
+        const capabilities = await app
+          .get(ReportDeckAiService)
+          .designCapabilities(owner.id, choice);
+        const claimed = await models.reportDeckDesign.claim(
+          deck.id,
+          0,
+          reportJson({
+            version: 'report-web-v3',
+            config: DeckConfigSchema.parse(row.config),
+            choice,
+            capabilities: {
+              modelId: capabilities.modelId,
+              vision: capabilities.vision,
+              structured: capabilities.structured,
+              contextWindow: capabilities.contextWindow,
+            },
+            skill: REPORT_DESIGN_SKILL,
+            prompts,
+            promptHashes,
+            limits: { maxCalls: 40, maxHtmlBytes: 5 * 1024 * 1024 },
+          }),
+          15 * 60000
+        );
+        assert(claimed);
+        await db.reportDeckRun.update({
+          where: { id: claimed.id },
+          data: { leaseExpiresAt: new Date(0) },
+        });
+      }
       const originalStructured = runtime.runStructured.bind(runtime);
       runtime.runStructured = async (...args) => {
         if (
@@ -158,12 +217,7 @@ const file = process.env.LOCALMIND_REPORT_DESIGN_BYOK_FILE;
         where: { deckId_attempt: { deckId: row.id, attempt: 0 } },
         include: { steps: true, artifacts: true },
       });
-      const directory =
-        (process.env.LOCALMIND_REPORT_DESIGN_BOLDER
-          ? '/workspace/.codex-artifacts/report-custom-v31/'
-          : '/workspace/.codex-artifacts/report-custom-v3/') +
-        (process.env.LOCALMIND_REPORT_DESIGN_PROBE_ONLY ? 'probe' : 'live') +
-        (process.env.LOCALMIND_REPORT_DESIGN_LONG ? '-long' : '');
+      const directory = `/workspace/.codex-artifacts/report-web-v4/${process.env.LOCALMIND_REPORT_DESIGN_ENGINE === 'v3' ? 'v3-' : ''}${liveCase.key}${process.env.LOCALMIND_REPORT_DESIGN_RUN ? `-${process.env.LOCALMIND_REPORT_DESIGN_RUN}` : ''}`;
       await mkdir(directory, { recursive: true });
       await writeFile(
         `${directory}/result.json`,
@@ -174,6 +228,8 @@ const file = process.env.LOCALMIND_REPORT_DESIGN_BYOK_FILE;
             model: row.modelId,
             elapsedMs: Date.now() - started,
             quality: row.quality,
+            usage: row.usage,
+            slideCount: row.slideCount,
             calls: run.calls,
             repairs: run.repairs,
             steps: run.steps.map(s => ({
@@ -209,26 +265,16 @@ const file = process.env.LOCALMIND_REPORT_DESIGN_BYOK_FILE;
         return;
       }
       t.is(row.status, 'ready', row.errorCode ?? '');
-      const accepted = run.artifacts.find(
-        a =>
-          a.key.startsWith('candidate-') &&
-          a.inputHash ===
-            (row.quality as { artifactHash?: string } | null)?.artifactHash
-      );
-      t.truthy(accepted);
-      if (accepted) {
-        const claims = JSON.parse(gunzipSync(accepted.payload).toString())
-          .artifact.chapters.flatMap(
-            (ch: { claims: Array<{ text: string }> }) =>
-              ch.claims.map(c => c.text)
-          )
-          .join(' ');
+      const html = row.htmlGzip ? gunzipSync(row.htmlGzip).toString() : '';
+      const visible = html.replace(/<[^>]+>/g, ' ').replace(/[,，]/g, '');
+      for (const value of liveCase.mustInclude)
         t.true(
-          claims.includes('12'),
-          'The grounded quantitative result must remain visible in the accepted artifact'
+          visible.includes(value),
+          `Grounded value ${value} must remain visible`
         );
-      }
-      t.is((row.quality as { visual?: string } | null)?.visual, 'complete');
+      // The fast path has no model visual review by design.
+      if ((row.usage as { mode?: string } | null)?.mode !== 'fast')
+        t.is((row.quality as { visual?: string } | null)?.visual, 'complete');
       t.log({
         elapsedMs: Date.now() - started,
         calls: run.calls,

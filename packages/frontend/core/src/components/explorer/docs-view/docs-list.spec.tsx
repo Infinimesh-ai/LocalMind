@@ -1,5 +1,11 @@
 /** @vitest-environment happy-dom */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import type * as Infra from '@toeverything/infra';
 import { type ComponentType, type ReactNode, useState } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
@@ -13,13 +19,16 @@ vi.mock('@affine/component', () => ({
       id: string;
       items: {
         id: string;
+        height?: number;
         Component: ComponentType<{ itemId: string; groupId: string }>;
       }[];
     }[];
   }) =>
     items.map(group =>
       group.items.map(item => (
-        <item.Component key={item.id} itemId={item.id} groupId={group.id} />
+        <div key={item.id} data-testid={item.id} data-height={item.height}>
+          <item.Component itemId={item.id} groupId={group.id} />
+        </div>
       ))
     ),
 }));
@@ -78,8 +87,80 @@ import { DocsExplorer } from './docs-list';
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   deck.available = false;
   deck.open.mockReset();
+});
+
+test('masonry measures content, grid keeps equal heights, and switching views discards stale measurements', () => {
+  const observers = new Map<Element, ResizeObserverCallback>();
+  vi.stubGlobal(
+    'ResizeObserver',
+    class implements ResizeObserver {
+      private element?: Element;
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(element: Element) {
+        this.element = element;
+        observers.set(element, this.callback);
+      }
+      unobserve(element: Element) {
+        observers.delete(element);
+      }
+      disconnect() {
+        if (this.element) observers.delete(this.element);
+      }
+    }
+  );
+  const resize = (title: string, height: number) => {
+    const element = screen.getByText(title).parentElement!;
+    const callback = observers.get(element)!;
+    act(() =>
+      callback(
+        [
+          {
+            target: element,
+            contentRect: new DOMRect(0, 0, 240, height),
+            borderBoxSize: [],
+            contentBoxSize: [],
+            devicePixelContentBoxSize: [],
+          },
+        ],
+        {} as ResizeObserver
+      )
+    );
+  };
+  const context = createDocExplorerContext({ view: 'masonry' });
+  context.groups$.next([{ key: 'all', items: ['page', 'file'] }]);
+  const view = (mode: 'masonry' | 'grid' | 'list') => (
+    <DocExplorerContext.Provider value={context}>
+      <DocsExplorer
+        toolbar={null}
+        renderItem={id => <span>{id}</span>}
+        measureResourceItems={mode !== 'grid'}
+        resourceItemHeight={mode === 'list' ? 44 : 320}
+      />
+    </DocExplorerContext.Provider>
+  );
+  const result = render(view('masonry'));
+  resize('page', 280);
+  resize('file', 180);
+  expect(screen.getByTestId('page').dataset.height).toBe('280');
+  expect(screen.getByTestId('file').dataset.height).toBe('180');
+
+  act(() => context.displayPreference$.next({ view: 'grid' }));
+  result.rerender(view('grid'));
+  expect(screen.getByTestId('page').dataset.height).toBe('320');
+  expect(screen.getByTestId('file').dataset.height).toBe('320');
+
+  act(() => context.displayPreference$.next({ view: 'list' }));
+  result.rerender(view('list'));
+  expect(screen.getByTestId('page').dataset.height).toBe('44');
+  resize('page', 64);
+  act(() => context.displayPreference$.next({ view: 'masonry' }));
+  result.rerender(view('masonry'));
+  expect(screen.getByTestId('page').dataset.height).toBe('320');
+  resize('page', 280);
+  expect(screen.getByTestId('page').dataset.height).toBe('280');
 });
 
 test('catalog reconciliation preserves an open row action and its unsaved input', () => {

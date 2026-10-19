@@ -3,9 +3,16 @@ import { ResizePanel } from '@affine/component/resize-panel';
 import { useAppSettingHelper } from '@affine/core/components/hooks/affine/use-app-setting-helper';
 import { NavigateContext } from '@affine/core/components/hooks/use-navigate-helper';
 import {
+  DEFAULT_NAVIGATION_WIDTH,
   LocalmindBrandRow,
+  readNavigationWidth,
   useLocalmindShell,
+  writeNavigationWidth,
 } from '@affine/core/components/localmind-theme';
+import {
+  getNavigationWidthBounds,
+  MIN_NAVIGATION_WIDTH,
+} from '@affine/core/components/localmind-theme/navigation-width';
 import { WorkspaceNavigator } from '@affine/core/components/workspace-selector';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { useI18n } from '@affine/i18n';
@@ -16,7 +23,14 @@ import {
 } from '@toeverything/infra';
 import clsx from 'clsx';
 import type { PropsWithChildren, ReactElement } from 'react';
-import { useCallback, useContext, useEffect, useMemo } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { WorkbenchService } from '../../workbench';
 import { allowedSplitViewEntityTypes } from '../../workbench/view/split-view/types';
@@ -39,19 +53,45 @@ export type History = {
 
 const MAX_WIDTH = 480;
 const MIN_WIDTH = 248;
-// Project hub navigation column: 240px by default, resizable down to 192px.
-const SHELL_WIDTH = 240;
-const SHELL_MIN_WIDTH = 192;
 
-/** Sidebar width; the LocalMind shell defaults to the Project hub's 240px. */
+const subscribeViewport = (onResize: () => void) => {
+  window.addEventListener('resize', onResize);
+  return () => window.removeEventListener('resize', onResize);
+};
+const getViewportWidth = () => window.innerWidth;
+
+/**
+ * Sidebar width. In the LocalMind shell it is the Project hub navigation
+ * width, so the divider stays put when switching between the two.
+ */
 function useSidebarWidth() {
   const appSidebarService = useService(AppSidebarService).sidebar;
   const shell = useLocalmindShell();
-  const storedWidth = useLiveData(appSidebarService.storedWidth$);
   const defaultWidth = useLiveData(appSidebarService.width$);
+  const [shellWidth, setShellWidth] = useState(readNavigationWidth);
+  const viewportWidth = useSyncExternalStore(
+    subscribeViewport,
+    getViewportWidth
+  );
+  const bounds = getNavigationWidthBounds(viewportWidth);
+  const setWidth = useCallback(
+    (width: number) => {
+      if (!shell) return appSidebarService.setWidth(width);
+      setShellWidth(width);
+      writeNavigationWidth(width);
+    },
+    [appSidebarService, shell]
+  );
   return {
     shell,
-    width: shell ? (storedWidth ?? SHELL_WIDTH) : defaultWidth,
+    width: shell
+      ? Math.min(
+          bounds.max,
+          Math.max(bounds.min, shellWidth ?? DEFAULT_NAVIGATION_WIDTH)
+        )
+      : defaultWidth,
+    maxWidth: shell ? bounds.max : MAX_WIDTH,
+    setWidth,
   };
 }
 const isMacosDesktop = BUILD_CONFIG.isElectron && environment.isMacOs;
@@ -65,7 +105,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const workbenchService = useService(WorkbenchService).workbench;
 
   const open = useLiveData(appSidebarService.open$);
-  const { shell, width } = useSidebarWidth();
+  const { shell, width, maxWidth, setWidth } = useSidebarWidth();
   const smallScreenMode = useLiveData(appSidebarService.smallScreenMode$);
   const hovering = useLiveData(appSidebarService.hovering$) && open !== true;
   const resizing = useLiveData(appSidebarService.resizing$);
@@ -98,9 +138,9 @@ export function AppSidebar({ children }: PropsWithChildren) {
 
   const handleWidthChange = useCallback(
     (width: number) => {
-      appSidebarService.setWidth(width);
+      setWidth(width);
     },
-    [appSidebarService]
+    [setWidth]
   );
 
   const handleClose = useCallback(() => {
@@ -169,8 +209,8 @@ export function AppSidebar({ children }: PropsWithChildren) {
         }
         open={sidebarState !== 'close'}
         resizing={resizing}
-        maxWidth={MAX_WIDTH}
-        minWidth={shell ? SHELL_MIN_WIDTH : MIN_WIDTH}
+        maxWidth={maxWidth}
+        minWidth={shell ? MIN_NAVIGATION_WIDTH : MIN_WIDTH}
         width={width}
         resizeHandlePos="right"
         onOpen={handleOpenChange}

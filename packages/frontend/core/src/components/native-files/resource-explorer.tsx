@@ -1424,7 +1424,7 @@ export function WorkspaceResourceExplorer({
                   <DocsExplorer
                     renderItem={renderItem}
                     measureResourceItems={
-                      !trash && resourceDisplay && preference.view === 'list'
+                      !trash && resourceDisplay && preference.view !== 'grid'
                     }
                     resourceItemHeight={
                       !trash && preference.resourceProperties

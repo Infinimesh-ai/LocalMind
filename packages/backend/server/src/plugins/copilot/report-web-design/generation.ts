@@ -56,7 +56,15 @@ import {
   DesignFactSchema,
   groundDesignFacts,
 } from './facts';
-import { REPORT_DESIGN_PROMPTS, REPORT_DESIGN_SKILL } from './prompts';
+import {
+  REPORT_WEB_V4_MAX_MS,
+  ReportWebV4Pipeline,
+  type ReportWebV4Run,
+  reportWebV4Skill,
+  type ReportWebV4Snapshot,
+  ReportWebV4SnapshotSchema,
+} from './generation-v4';
+import { REPORT_WEB_V4_PROMPTS } from './prompts-v4';
 import {
   type BrowserReport,
   type ReportCapture,
@@ -235,6 +243,7 @@ export function assertDesignArtifact(
 @Injectable()
 export class ReportWebGenerationService {
   private readonly logger = new Logger(ReportWebGenerationService.name);
+  private readonly v4: ReportWebV4Pipeline;
   constructor(
     private readonly models: Models,
     private readonly sources: ReportDeckSourceService,
@@ -243,7 +252,46 @@ export class ReportWebGenerationService {
     private readonly renderer: ReportWebRenderer,
     private readonly config: Config,
     private readonly queue: JobQueue
-  ) {}
+  ) {
+    this.v4 = new ReportWebV4Pipeline(models, sources, ai, prompts, renderer);
+  }
+
+  /** New runs use the v4 engine; existing v3 snapshots keep their engine. */
+  private async createSnapshot(
+    deck: NonNullable<Awaited<ReturnType<Models['reportDeck']['getForRun']>>>
+  ): Promise<ReportWebV4Snapshot> {
+    const config = DeckConfigSchema.parse(deck.config);
+    const choice: DeckAiChoice = {
+      scopeKind: deck.aiScopeKind as DeckAiChoice['scopeKind'],
+      scopeId: deck.aiScopeId,
+      ...(deck.modelId ? { modelId: deck.modelId } : {}),
+    };
+    const capabilities = await this.ai.designCapabilities(
+      deck.ownerUserId,
+      choice
+    );
+    const prompts: Record<string, ResolvedPrompt> = {},
+      promptHashes: Record<string, string> = {};
+    for (const seed of REPORT_WEB_V4_PROMPTS) {
+      await this.models.projectReportGeneration.seedPrompt(seed);
+      prompts[seed.name] = await this.prompts.snapshot(seed.name);
+      promptHashes[seed.name] = hashValue(prompts[seed.name]);
+    }
+    return {
+      version: 'report-web-v4',
+      config,
+      choice,
+      capabilities,
+      skill: reportWebV4Skill(),
+      prompts,
+      promptHashes,
+      limits: {
+        maxCalls: this.config.reportDecks.maxModelCalls,
+        maxHtmlBytes: this.config.reportDecks.maxHtmlBytes,
+      },
+      mode: this.config.reportDecks.webRefine ? 'refine' : 'fast',
+    };
+  }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async recover() {
@@ -278,49 +326,24 @@ export class ReportWebGenerationService {
         deckId,
         attempt
       );
-      let snapshot: Snapshot;
-      if (prior) snapshot = SnapshotSchema.parse(prior.snapshot);
-      else {
-        const config = DeckConfigSchema.parse(deck.config);
-        const choice: DeckAiChoice = {
-          scopeKind: deck.aiScopeKind as DeckAiChoice['scopeKind'],
-          scopeId: deck.aiScopeId,
-          ...(deck.modelId ? { modelId: deck.modelId } : {}),
-        };
-        const capabilities = await this.ai.designCapabilities(
-          deck.ownerUserId,
-          choice
-        );
-        const prompts: Record<string, ResolvedPrompt> = {},
-          promptHashes: Record<string, string> = {};
-        for (const seed of REPORT_DESIGN_PROMPTS) {
-          await this.models.projectReportGeneration.seedPrompt(seed);
-          prompts[seed.name] = await this.prompts.snapshot(seed.name);
-          promptHashes[seed.name] = hashValue(prompts[seed.name]);
-        }
-        snapshot = {
-          version: REPORT_WEB_VERSION,
-          config,
-          choice,
-          capabilities,
-          skill: REPORT_DESIGN_SKILL,
-          prompts,
-          promptHashes,
-          limits: {
-            maxCalls: this.config.reportDecks.maxModelCalls,
-            maxHtmlBytes: this.config.reportDecks.maxHtmlBytes,
-          },
-        };
-      }
+      const priorVersion = (
+        prior?.snapshot as { version?: unknown } | undefined
+      )?.version;
+      let snapshot: Snapshot | ReportWebV4Snapshot;
+      if (prior && priorVersion === 'report-web-v4')
+        snapshot = ReportWebV4SnapshotSchema.parse(prior.snapshot);
+      else if (prior) snapshot = SnapshotSchema.parse(prior.snapshot);
+      else snapshot = await this.createSnapshot(deck);
+      const isV4 = snapshot.version === 'report-web-v4';
       const claimed = await this.models.reportDeckDesign.claim(
         deckId,
         attempt,
         reportJson(snapshot),
-        15 * 60000
+        isV4 ? REPORT_WEB_V4_MAX_MS : 15 * 60000
       );
       if (!claimed) return;
       const controller = new AbortController();
-      run = {
+      const common = {
         lease: {
           id: claimed.id,
           deckId,
@@ -329,12 +352,22 @@ export class ReportWebGenerationService {
           fence: claimed.fence,
         },
         owner: deck.ownerUserId,
-        snapshot,
         deadline: claimed.deadline.getTime(),
         controller,
         sourceCoverage: false,
         vision: snapshot.capabilities.vision,
       };
+      const v4Run: ReportWebV4Run | null = isV4
+        ? {
+            ...common,
+            snapshot: snapshot as ReportWebV4Snapshot,
+            timings: {},
+            started: Date.now(),
+          }
+        : null;
+      run = isV4
+        ? (v4Run as unknown as Run)
+        : { ...common, snapshot: snapshot as Snapshot };
       const current = run;
       let beating = false;
       timer = setInterval(() => {
@@ -352,7 +385,8 @@ export class ReportWebGenerationService {
         Math.max(1, run.deadline - Date.now())
       );
       await this.renderer.available();
-      await this.execute(run, deck.sources);
+      if (v4Run) await this.v4.execute(v4Run, deck.sources);
+      else await this.execute(run, deck.sources);
     } catch (error) {
       const code = run?.controller.signal.aborted
         ? Date.now() >= run.deadline

@@ -6,6 +6,7 @@ declare global {
   interface AppConfigSchema {
     reportDecks: {
       customDesignV3: ConfigItem<boolean>;
+      webRefine: ConfigItem<boolean>;
       rendererExecutablePath: ConfigItem<string>;
       enabled: ConfigItem<boolean>;
       maxSources: ConfigItem<number>;
@@ -24,6 +25,12 @@ defineModuleConfig('reportDecks', {
     desc: 'Use the versioned joint HTML/CSS and browser review pipeline for new custom reports.',
     default: true,
     env: ['LOCALMIND_REPORT_DESIGN_V3', 'boolean'],
+    shape: z.boolean(),
+  },
+  webRefine: {
+    desc: 'Add model visual review, structural repair and blind comparison to new custom reports (slower, about 10–20 minutes). Off: fast path of about 2 minutes with deterministic browser checks.',
+    default: false,
+    env: ['LOCALMIND_REPORT_WEB_REFINE', 'boolean'],
     shape: z.boolean(),
   },
   rendererExecutablePath: {

@@ -253,6 +253,7 @@ export class ReportDeckAiService {
       vision: !!vision,
       structured: !!structured,
       contextWindow: contextWindow ?? 32000,
+      contextKnown: contextWindow != null,
     };
   }
 

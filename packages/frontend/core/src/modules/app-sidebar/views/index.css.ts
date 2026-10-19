@@ -24,6 +24,8 @@ export const navWrapperStyle = style({
     // Project hub sidebar: grey surface, workbench inks and a solid divider.
     [`${localmindShell} &`]: {
       vars: affinePaletteBridge,
+      // 240px including the divider, like the Project hub column.
+      boxSizing: 'border-box',
       backgroundColor: wb.sidebar,
       borderRight: `1px solid ${wb.line}`,
       paddingBottom: 0,

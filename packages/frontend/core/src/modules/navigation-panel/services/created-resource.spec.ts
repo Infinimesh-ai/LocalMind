@@ -1,17 +1,23 @@
+import type { WorkspacePageTreeQuery } from '@affine/graphql';
 import { Framework, LiveData } from '@toeverything/infra';
 import { afterEach, expect, test, vi } from 'vitest';
 
 import { CreatedResourceService } from './created-resource';
 
+type TestTreeItem = Pick<
+  WorkspacePageTreeQuery['workspacePageTree']['items'][number],
+  'kind' | 'resourceId' | 'nodeId' | 'parentNodeId'
+>;
+
 const services: CreatedResourceService[] = [];
 afterEach(() => services.splice(0).forEach(service => service.dispose()));
-const ancestor = {
+const ancestor: TestTreeItem = {
   kind: 'folder',
   resourceId: 'folder-resource',
   nodeId: 'folder-node',
   parentNodeId: null,
 };
-const child = {
+const child: TestTreeItem = {
   kind: 'file',
   resourceId: 'new-file',
   nodeId: 'new-node',
@@ -21,12 +27,12 @@ function setup() {
   const pages = new Map<
     string | null,
     {
-      page?: { items: (typeof child)[]; nextCursor: string | null };
+      page?: { items: TestTreeItem[]; nextCursor: string | null };
       error?: boolean;
     }
   >();
   pages.set(null, {
-    page: { items: [ancestor] as (typeof child)[], nextCursor: null },
+    page: { items: [ancestor], nextCursor: null },
   });
   pages.set('folder-node', { page: { items: [], nextCursor: 'next' } });
   const tree = {
@@ -52,7 +58,7 @@ function setup() {
   });
   const workbench = {
     location$,
-    openTreeResource: vi.fn((item: typeof child) =>
+    openTreeResource: vi.fn((item: TestTreeItem) =>
       location$.next({ pathname: `/${item.resourceId}`, key: 'created' })
     ),
     openAll: vi.fn(() => location$.next({ pathname: '/all', key: 'all' })),

@@ -26113,6 +26113,14 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.reportDeck.quality.design_warnings"](): string;
     /**
+      * `The report is ready; some motion could not be verified, so the page stays static where needed.`
+      */
+    ["com.affine.localmind.reportDeck.quality.motion_degraded"](): string;
+    /**
+      * `The report is ready; some interactions did not pass checks and may behave as static content.`
+      */
+    ["com.affine.localmind.reportDeck.quality.interaction_degraded"](): string;
+    /**
       * `Page rendering checks failed. Retry or ask an administrator to check the browser runtime.`
       */
     ["com.affine.localmind.reportDeck.error.render_failed"](): string;

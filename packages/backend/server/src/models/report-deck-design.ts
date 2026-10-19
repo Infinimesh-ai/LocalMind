@@ -150,7 +150,9 @@ export class ReportDeckDesignModel extends BaseModel {
         ? context.projectId !== deck.aiScopeId
         : context.workspaceId !== deck.aiScopeId) ||
       !step ||
-      !['Vision', 'Review'].includes(step.stage) ||
+      !['Vision', 'Review', 'Critique', 'Motion', 'Repair', 'Compare'].includes(
+        step.stage
+      ) ||
       typeof modelId !== 'string' ||
       !modelId
     )
@@ -347,6 +349,38 @@ export class ReportDeckDesignModel extends BaseModel {
     )
       throw new ReportDesignError('quality_failed');
     return row;
+  }
+
+  async countArtifacts(lease: ReportDesignLease, prefix: string) {
+    return this.db.reportDeckArtifact.count({
+      where: { runId: lease.id, key: { startsWith: prefix } },
+    });
+  }
+
+  /**
+   * Reuses a recent visual-capability proof of the same owner and the same
+   * pinned model/capability declaration; never crosses users.
+   */
+  async priorVision(ownerUserId: string, inputHash: string) {
+    const row = await this.db.reportDeckArtifact.findFirst({
+      where: {
+        key: 'vision-capability',
+        inputHash,
+        mime: 'application/json+gzip',
+        expiresAt: { gt: new Date() },
+        run: { deck: { ownerUserId } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!row || row.hash !== reportHash(row.payload)) return null;
+    try {
+      const value = JSON.parse(gunzipSync(row.payload).toString('utf8')) as {
+        supported?: unknown;
+      };
+      return typeof value.supported === 'boolean' ? value.supported : null;
+    } catch {
+      return null;
+    }
   }
 
   @Transactional()

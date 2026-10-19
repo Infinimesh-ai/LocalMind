@@ -1,6 +1,9 @@
 import { cssVar, lightCssVariables } from '@toeverything/theme';
 import { globalStyle, style } from '@vanilla-extract/css';
 
+import { localmindShell } from '../../../components/localmind-theme/shell';
+import { workbenchTokens as wb } from '../../../components/localmind-theme/tokens.css';
+
 export const appStyle = style({
   width: '100%',
   position: 'relative',
@@ -108,6 +111,29 @@ export const mainContainerStyle = style({
     },
     '&[data-transparent=true]': {
       backgroundColor: 'transparent',
+    },
+  },
+});
+
+/**
+ * The LocalMind shell's 58px header line, painted behind the route content.
+ * It shows only while no route is drawn (workspace loading, lazy routes), so
+ * switching from the Project hub never flashes an empty top edge.
+ */
+export const shellFallbackHeader = style({
+  display: 'none',
+  selectors: {
+    [`${localmindShell} &`]: {
+      display: 'block',
+      position: 'absolute',
+      zIndex: -1,
+      insetInline: 0,
+      top: 0,
+      height: 58,
+      boxSizing: 'border-box',
+      borderBottom: `1px solid ${wb.line}`,
+      background: cssVar('backgroundPrimaryColor'),
+      pointerEvents: 'none',
     },
   },
 });

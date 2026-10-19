@@ -15,6 +15,7 @@
     "./report-render": "./src/report/render.ts",
     "./report-import": "./src/report/import-template.ts",
     "./report-deck": "./src/report/deck/index.ts",
+    "./report-deck/web-v4.fixture": "./src/report/deck/web-v4.fixture.ts",
     "./testing": "./src/testing.ts",
     "./report-font": "./assets/report-fonts/NotoSansCJKsc-Regular.otf",
     "./report-font-license": "./assets/report-fonts/LICENSE.txt"

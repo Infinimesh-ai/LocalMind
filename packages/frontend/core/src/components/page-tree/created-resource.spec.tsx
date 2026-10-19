@@ -27,11 +27,9 @@ function setup() {
     kind: string;
     resourceId: string;
   } | null>({ kind: 'file', resourceId: 'new' });
-  const consumeEditorFocus = vi.fn((kind, id) => {
-    if (
-      editorFocus$.value?.kind !== kind ||
-      editorFocus$.value.resourceId !== id
-    )
+  const consumeEditorFocus = vi.fn((kind: string, id: string) => {
+    const request = editorFocus$.value;
+    if (!request || request.kind !== kind || request.resourceId !== id)
       return false;
     editorFocus$.next(null);
     return true;

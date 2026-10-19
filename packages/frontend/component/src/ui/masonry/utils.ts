@@ -17,7 +17,7 @@ export const calcColumns = (
   columns?: number
 ) => {
   const paddingX = calcPX(_paddingX, totalWidth);
-  const availableWidth = totalWidth - paddingX * 2;
+  const availableWidth = Math.max(0, totalWidth - paddingX * 2);
 
   if (columns) {
     const width = (availableWidth - (columns - 1) * gapX) / columns;
@@ -26,10 +26,10 @@ export const calcColumns = (
 
   if (itemWidth === 'stretch') {
     let columns = 1;
-    while (columns * itemWidthMin + (columns - 1) * gapX < availableWidth) {
+    while (columns * itemWidthMin + (columns - 1) * gapX <= availableWidth) {
       columns++;
     }
-    const finalColumns = columns - 1;
+    const finalColumns = Math.max(1, columns - 1);
     const finalWidth =
       (availableWidth - (finalColumns - 1) * gapX) / finalColumns;
     return {
@@ -38,11 +38,11 @@ export const calcColumns = (
     };
   } else {
     let columns = 1;
-    while (columns * itemWidth + (columns - 1) * gapX < availableWidth) {
+    while (columns * itemWidth + (columns - 1) * gapX <= availableWidth) {
       columns++;
     }
     return {
-      columns: columns - 1,
+      columns: Math.max(1, columns - 1),
       width: itemWidth,
     };
   }

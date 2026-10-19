@@ -75,7 +75,9 @@ PDF/可编辑 PPTX、受控分享、周期生成和明确授权分发均属完�
 模板与自定义均不再采用固定 16:9 内容画布。仅图库缩略图保留固定尺寸。旧汇报只在读取时
 兼容展示，不覆盖原始存储；来源授权、分享限制、沙箱和一次性生成边界继续适用。
 自定义 HTML v3 的技能适配、联合生成、浏览器截图修正、租约检查点与部署证据见
-`docs/localmind-report-deck-custom-design.execution.zh-CN.md`。新任务按版本路由，旧 HTML 不改写；
+`docs/localmind-report-deck-custom-design.execution.zh-CN.md`。新建自定义任务现走 v4 引擎（证据模型、
+体验计划、受信声明式行为运行时、服务端图表组件、行为/动效/回退检查与结构性修正），契约与验收见
+`docs/localmind-report-deck-web-v4.zh-CN.md`；模型仍不输出脚本。新任务按版本路由，旧 HTML 不改写；
 运行镜像需包含 Chromium 和中文字体，不能以缺少视觉能力为由跳过确定性浏览器检查。
 
 新增 LocalMind AI 能力通常至少应落到以下一项：

@@ -6405,6 +6405,8 @@
   "com.affine.localmind.reportDeck.quality.visual_unavailable": "The report is ready; visual review was unavailable.",
   "com.affine.localmind.reportDeck.quality.visual_partial": "The report is ready; visual review did not cover every chapter and screen size.",
   "com.affine.localmind.reportDeck.quality.design_warnings": "The report passed basic checks; some layout refinements remain.",
+  "com.affine.localmind.reportDeck.quality.motion_degraded": "The report is ready; some motion could not be verified, so the page stays static where needed.",
+  "com.affine.localmind.reportDeck.quality.interaction_degraded": "The report is ready; some interactions did not pass checks and may behave as static content.",
   "com.affine.localmind.reportDeck.error.render_failed": "Page rendering checks failed. Retry or ask an administrator to check the browser runtime.",
   "com.affine.localmind.reportDeck.error.quality_failed": "The report still has content or layout errors and could not be completed. Please retry.",
   "error.INTERNAL_SERVER_ERROR": "An internal error occurred.",

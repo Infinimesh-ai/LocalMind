@@ -1,5 +1,10 @@
 export { LocalmindBrandRow } from './brand-row';
 export {
+  DEFAULT_NAVIGATION_WIDTH,
+  readNavigationWidth,
+  writeNavigationWidth,
+} from './navigation-width';
+export {
   affinePaletteBridge,
   sectionLabel,
   selectedItem,

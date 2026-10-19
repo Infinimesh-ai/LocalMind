@@ -1,6 +1,12 @@
 import { escapeReportXml } from '../render-types';
 import { DECK_REDUCED_MOTION_CSS, type DeckTransition } from './motion';
 import { DECK_RESPONSIVE_CSS } from './responsive';
+import {
+  REPORT_RUNTIME_HASH,
+  REPORT_RUNTIME_HEAD_HASH,
+  REPORT_RUNTIME_HEAD_SCRIPT,
+  REPORT_RUNTIME_SCRIPT,
+} from './runtime';
 import { sha256Base64 } from './sha256';
 
 /** Only gallery thumbnails retain a fixed canvas. Reports use the viewport. */
@@ -80,16 +86,24 @@ if(root.hasAttribute('data-static')){root.setAttribute('data-mode','present');sl
 chrome();observe();reveal();root.classList.add('deck-ready');if(window.parent!==window)window.parent.postMessage({type:'localmind-deck-ready'},'*');
 })();`;
 export const DECK_SHELL_SCRIPT_HASH = sha256Base64(DECK_SHELL_SCRIPT);
-export const DECK_CSP = [
-  "default-src 'none'",
-  "style-src 'unsafe-inline'",
-  'img-src data:',
-  'font-src data:',
-  `script-src 'sha256-${DECK_SHELL_SCRIPT_HASH}'`,
-  "connect-src 'none'",
-  "form-action 'none'",
-  "base-uri 'none'",
-].join('; ');
+const deckCsp = (hashes: string[]) =>
+  [
+    "default-src 'none'",
+    "style-src 'unsafe-inline'",
+    'img-src data:',
+    'font-src data:',
+    `script-src ${hashes.map(h => `'sha256-${h}'`).join(' ')}`,
+    "connect-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].join('; ');
+export const DECK_CSP = deckCsp([DECK_SHELL_SCRIPT_HASH]);
+/** v4 web reports add the trusted behaviour runtime; still no model script. */
+export const REPORT_WEB_V4_CSP = deckCsp([
+  DECK_SHELL_SCRIPT_HASH,
+  REPORT_RUNTIME_HEAD_HASH,
+  REPORT_RUNTIME_HASH,
+]);
 
 const SHELL_CSS = `
 *,*::before,*::after{box-sizing:border-box}
@@ -120,7 +134,7 @@ html[data-mode="present"] .deck-stage>[data-slide]{min-height:100svh;scroll-snap
 `;
 
 export type DeckShellInput = {
-  contentVersion?: 'custom-v3';
+  contentVersion?: 'custom-v3' | 'custom-v4';
   title: string;
   lang: string;
   css: string;
@@ -140,6 +154,7 @@ export function wrapDeckHtml(input: DeckShellInput): string {
     ? input.lang
     : 'zh-CN';
   const zh = lang.startsWith('zh');
+  const v4 = input.contentVersion === 'custom-v4';
   const attrs = [
     `lang="${lang}"`,
     `data-deck-version="${input.contentVersion ? '3' : '2'}"`,
@@ -152,13 +167,13 @@ export function wrapDeckHtml(input: DeckShellInput): string {
     .join(' ');
   return `<!DOCTYPE html>
 <html ${attrs}><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="${DECK_CSP}">
+<meta http-equiv="Content-Security-Policy" content="${v4 ? REPORT_WEB_V4_CSP : DECK_CSP}">
 <meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeReportXml(input.title)}</title>
-<style>${input.contentVersion ? customShellCss() : SHELL_CSS}${DECK_REDUCED_MOTION_CSS}</style>
+<style>${v4 ? webV4ShellCss() : input.contentVersion ? customShellCss() : SHELL_CSS}${DECK_REDUCED_MOTION_CSS}</style>
 <style data-deck-content>${safeStyleText(input.css)}</style>
-${input.contentVersion ? '' : `<style>${DECK_RESPONSIVE_CSS}</style>`}</head><body>
-<main id="deck-stage" class="deck-stage"${input.contentVersion ? ' data-content-root="rd-custom-v3"' : ''}>${input.slidesHtml}</main>
+${input.contentVersion ? '' : `<style>${DECK_RESPONSIVE_CSS}</style>`}${v4 ? `<script>${REPORT_RUNTIME_HEAD_SCRIPT}</script>` : ''}</head><body>
+<main id="deck-stage" class="deck-stage"${input.contentVersion ? ` data-content-root="${v4 ? 'rd-custom-v4' : 'rd-custom-v3'}"` : ''}>${input.slidesHtml}</main>
 <div class="deck-chrome"><nav class="deck-nav" id="deck-nav" aria-label="${zh ? '汇报导航' : 'Report navigation'}">
 <button id="deck-prev" data-command="prev" aria-label="${zh ? '上一章' : 'Previous chapter'}">${arrow(false)}</button>
 <select id="deck-chapters" aria-label="${zh ? '选择章节' : 'Choose chapter'}"></select>
@@ -167,7 +182,7 @@ ${input.contentVersion ? '' : `<style>${DECK_RESPONSIVE_CSS}</style>`}</head><bo
 <button id="deck-mode" aria-pressed="false">${zh ? '演示' : 'Present'}</button><button id="deck-fullscreen" data-command="fullscreen">${zh ? '全屏' : 'Fullscreen'}</button>
 <span id="deck-status" class="deck-status" role="status"></span></nav><div class="deck-progress"><i id="deck-bar"></i></div></div>
 <div id="deck-black" class="deck-black" hidden aria-hidden="true"></div>
-<script>${DECK_SHELL_SCRIPT}</script></body></html>`;
+<script>${DECK_SHELL_SCRIPT}</script>${v4 ? `<script>${REPORT_RUNTIME_SCRIPT}</script>` : ''}</body></html>`;
 }
 
 /** Keep navigation identical without imposing a composition on custom content. */
@@ -186,6 +201,42 @@ function customShellCss() {
   :where([data-content-root="rd-custom-v3"] img,[data-content-root="rd-custom-v3"] svg){max-width:100%;height:auto}
   :where([data-content-root="rd-custom-v3"] *){min-width:0}
   `
+  );
+}
+
+const FONT_MONO =
+  '"SF Mono","JetBrains Mono","Cascadia Mono","Noto Sans Mono","DejaVu Sans Mono",ui-monospace,monospace';
+
+/**
+ * v4: navigation rules stay unlayered; content defaults live in `rd-base`
+ * so generated layers (`rd-shared`, `rd-chapter`) can override them.
+ */
+function webV4ShellCss() {
+  return (
+    '@layer rd-base,rd-runtime,rd-shared,rd-chapter;' +
+    SHELL_CSS.replace(
+      '.deck-stage{width:100%;min-width:0;overflow:clip}',
+      '.deck-stage{width:100%;min-width:0;isolation:isolate;padding-bottom:80px}'
+    )
+      .replace(
+        'scroll-snap-align:start;display:flex;flex-direction:column;justify-content:center',
+        'scroll-snap-align:start'
+      )
+      // Chapter height belongs to the generated layout (layered CSS).
+      .replace(
+        'height:auto!important;min-height:0;',
+        'height:auto!important;'
+      ) +
+    `@layer rd-base{
+  [data-content-root="rd-custom-v4"]{--rd-font-sans:${DECK_FONT_SANS};--rd-font-serif:"Songti SC","Noto Serif CJK SC","Source Han Serif SC","STSong","SimSun",serif;--rd-font-mono:${FONT_MONO};font:17px/1.75 var(--rd-font-sans);color:#20252b;background:#fff;text-rendering:optimizeLegibility;font-kerning:normal}
+  [data-content-root="rd-custom-v4"]>section{padding:clamp(24px,5vw,80px)}
+  [data-content-root="rd-custom-v4"] img,[data-content-root="rd-custom-v4"] svg{max-width:100%;height:auto}
+  [data-content-root="rd-custom-v4"] *{min-width:0}
+  [data-content-root="rd-custom-v4"] :is(h1,h2,h3,h4){text-wrap:balance;line-break:strict}
+  [data-content-root="rd-custom-v4"] :is(p,li,dd,figcaption,blockquote){text-wrap:pretty;line-break:strict}
+  [data-content-root="rd-custom-v4"] .rd-nb{white-space:nowrap}
+  [data-content-root="rd-custom-v4"] details>summary{cursor:pointer}
+  }`
   );
 }
 

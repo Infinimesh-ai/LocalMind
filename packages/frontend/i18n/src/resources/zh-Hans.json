@@ -6559,6 +6559,8 @@
   "com.affine.localmind.reportDeck.quality.visual_unavailable": "页面已完成，未完成视觉复核。",
   "com.affine.localmind.reportDeck.quality.visual_partial": "页面已完成，部分章节或屏幕尺寸未完成视觉复核。",
   "com.affine.localmind.reportDeck.quality.design_warnings": "页面已通过基础检查，部分排版仍有优化空间。",
+  "com.affine.localmind.reportDeck.quality.motion_degraded": "页面已完成；部分动效未通过检查，相关内容以静态方式呈现。",
+  "com.affine.localmind.reportDeck.quality.interaction_degraded": "页面已完成；部分交互未通过检查，可能以静态内容呈现。",
   "com.affine.localmind.reportDeck.error.render_failed": "页面渲染检查失败，请重试或联系管理员检查浏览器环境。",
   "com.affine.localmind.reportDeck.error.quality_failed": "页面仍有内容或排版问题，未生成可交付结果。请重试。"
 }
