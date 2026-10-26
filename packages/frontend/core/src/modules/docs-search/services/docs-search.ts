@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 import { normalizeSearchText } from '../../../utils/normalize-search-text';
 import type { DocsService } from '../../doc/services/docs';
+import type { GuardService } from '../../permissions';
 import type { WorkspaceService } from '../../workspace';
 
 const IndexedReferenceSchema = ReferenceParamsSchema.extend({
@@ -77,7 +78,8 @@ const equalReferenceSets = (
 export class DocsSearchService extends Service {
   constructor(
     private readonly workspaceService: WorkspaceService,
-    private readonly docsService: DocsService
+    private readonly docsService: DocsService,
+    private readonly guardService: GuardService
   ) {
     super();
   }
@@ -110,7 +112,12 @@ export class DocsSearchService extends Service {
       .pipe(
         map(({ nodes }) => {
           return nodes.map(node => node.id);
-        })
+        }),
+        switchMap(ids =>
+          this.guardService
+            .readableDocIds$(ids)
+            .pipe(map(readable => ids.filter(id => readable.has(id))))
+        )
       );
   }
 
@@ -225,7 +232,16 @@ export class DocsSearchService extends Service {
           }
 
           return result;
-        })
+        }),
+        switchMap(results =>
+          this.guardService
+            .readableDocIds$(results.map(result => result.docId))
+            .pipe(
+              map(readable =>
+                results.filter(result => readable.has(result.docId))
+              )
+            )
+        )
       );
   }
 

@@ -4,13 +4,14 @@ import test from 'ava';
 import { createModule } from '../../../__tests__/create-module';
 import { Mockers } from '../../../__tests__/mocks';
 import { Models } from '../../../models';
+import { FeatureModule } from '../../features';
 import { AccessControllerBuilder } from '../builder';
 import { DocRole, PermissionModule, WorkspaceRole } from '../index';
 import { PermissionSqlPredicateBuilder } from '../sql-predicate';
 import type { DocAction } from '../types';
 
 const module = await createModule({
-  imports: [PermissionModule],
+  imports: [PermissionModule, FeatureModule],
 });
 
 const builder = module.get(AccessControllerBuilder);
@@ -372,7 +373,7 @@ test('SQL doc predicate suppresses member default when explicit grant exists', a
   t.deepEqual(sqlUpdateAllowed, ['default-manager']);
 });
 
-test('project grants authorize active members without granting document management', async t => {
+test('project grants authorize active members only in the selected project without granting document management', async t => {
   const sourceOwner = await module.create(Mockers.User);
   const projectMember = await module.create(Mockers.User);
   const workspace = await module.create(Mockers.Workspace, {
@@ -444,7 +445,7 @@ test('project grants authorize active members without granting document manageme
           projectId,
           rawPredicate,
         }),
-        projectId === undefined || projectId === project.id
+        projectId === project.id
           ? ['project-read', 'project-write', 'project-only']
           : []
       );
@@ -454,10 +455,12 @@ test('project grants authorize active members without granting document manageme
   const readPermissions = await builder
     .user(projectMember.id)
     .doc(workspace.id, 'project-read')
+    .projectScope(project.id)
     .permissions();
   const writePermissions = await builder
     .user(projectMember.id)
     .doc(workspace.id, 'project-write')
+    .projectScope(project.id)
     .permissions();
   t.is(readPermissions.role, DocRole.Editor);
   t.true(readPermissions.permissions['Doc.Read']);
@@ -468,11 +471,25 @@ test('project grants authorize active members without granting document manageme
   t.true(writePermissions.permissions['Doc.Update']);
   t.false(writePermissions.permissions['Doc.Users.Manage']);
 
+  t.false(
+    await builder
+      .user(projectMember.id)
+      .doc(workspace.id, 'project-only')
+      .can('Doc.Read')
+  );
+  t.false(
+    await builder
+      .user(projectMember.id)
+      .doc(workspace.id, 'project-write')
+      .can('Doc.Update')
+  );
+
   t.deepEqual(
     await sqlReadableDocIds({
       workspaceId: workspace.id,
       userId: projectMember.id,
       docIds: ['project-read', 'project-write'],
+      projectId: project.id,
     }),
     ['project-read', 'project-write']
   );
@@ -482,6 +499,7 @@ test('project grants authorize active members without granting document manageme
       userId: projectMember.id,
       action: 'Doc.Update',
       docIds: ['project-read', 'project-write'],
+      projectId: project.id,
     }),
     ['project-read', 'project-write']
   );
@@ -491,6 +509,7 @@ test('project grants authorize active members without granting document manageme
       userId: projectMember.id,
       action: 'Doc.Users.Manage',
       docIds: ['project-read', 'project-write'],
+      projectId: project.id,
     }),
     []
   );
@@ -510,6 +529,7 @@ test('project grants authorize active members without granting document manageme
     await builder
       .user(projectMember.id)
       .doc(workspace.id, 'project-write')
+      .projectScope(project.id)
       .can('Doc.Read')
   );
 
@@ -521,6 +541,7 @@ test('project grants authorize active members without granting document manageme
     await builder
       .user(projectMember.id)
       .doc(workspace.id, 'project-read')
+      .projectScope(project.id)
       .can('Doc.Read')
   );
   await db.aiContextProject.update({
@@ -540,6 +561,7 @@ test('project grants authorize active members without granting document manageme
     await builder
       .user(projectMember.id)
       .doc(workspace.id, 'project-read')
+      .projectScope(project.id)
       .can('Doc.Read')
   );
 });

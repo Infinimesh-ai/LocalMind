@@ -20,12 +20,21 @@
 
 ## 2. 两种模式
 
-| 模式          | 默认                               | 流程                                                                                                                                                     | 真实耗时（gpt-6.1-sol，单份材料） |
-| ------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| **快速 fast** | 是                                 | 证据（多块并行）→ 计划 + Lint → **各章并行生成**（共享 token 与 rd-kit）→ 轻量浏览器检查（无截图）→ 硬错误章节重生成一次 → 失败动效/交互确定性降级为静态 | 约 1.9–2.8 分钟，6–9 次调用       |
-| 精修 refine   | `LOCALMIND_REPORT_WEB_REFINE=true` | 快速流程之外，增加视觉能力探针、截图与帧序列、Critique/Motion 审查、≤2 轮结构性修正、成对盲比                                                            | 约 13–21 分钟，15–19 次调用       |
+| 模式          | 默认                   | 流程                                                                                                                                                     | 真实耗时（gpt-6.1-sol，单份材料） |
+| ------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| **快速 fast** | 每次新建默认           | 证据（多块并行）→ 计划 + Lint → **各章并行生成**（共享 token 与 rd-kit）→ 轻量浏览器检查（无截图）→ 硬错误章节重生成一次 → 失败动效/交互确定性降级为静态 | 约 1.9–2.8 分钟，6–9 次调用       |
+| 精修 refine   | 用户在自定义配置中选择 | 快速流程之外，增加视觉能力探针、截图与帧序列、Critique/Motion 审查、≤2 轮结构性修正、成对盲比                                                            | 约 13–21 分钟，15–19 次调用       |
 
 模型输出速度约 100 字符/秒，耗时几乎全在模型输出。快速模式通过“压缩输出（事实不重复陈述、不输出 quantities、计划字段极简）+ 章节并行 + 审查移出关键路径”把时间降到约 2 分钟；组件库 rd-kit（`packages/common/office/src/report/deck/kit.ts`）保证并行生成的章节仍是同一个视觉系统，且在明暗面上自动切换图表配色。
+
+### 每次提交的生成模式（2026-10-19）
+
+- 自定义配置提供「快速生成」「精修生成」，每次新建、再次生成或重新配置均默认快速；不保存或继承上次的模式偏好。切换模板/自定义时，本次尚未提交的选择保留，模板请求不携带模式。
+- `config.designMode=fast|refine` 在创建时持久化，运行快照优先使用该选择；恢复和失败重试保持原模式。旧客户端未提供字段时，创建时冻结 `reportDecks.webRefine` 的兼容默认值；旧运行继续遵守已有快照。历史记录无模式证据时不显示推测标签。
+- 历史列表及结果页的再次生成入口先打开配置页。兼容 `regenerate` 命令创建的新任务也默认快速。列表、生成页和结果页显示已保存的模式。
+- AI 选项只展示已有模型声明，文本 BYOK 的默认定义不等于已验证不支持视觉；未知能力提示开始后验证。精修前明确提示：视觉复核不可用时保留通过基础检查的报告，并标记精修未完成；固定 Project 模型提示联系管理员。
+- 快速的 `quality.visual=not_requested`；精修没有任何成功视觉审查时为 `unavailable`，部分成功为 `partial`。结果页分别显示快速完成、精修完成或精修未完成；不得把零成功截图误称部分成功。浏览器不可用及硬错误仍阻断交付。
+- 使用既有 JSON 配置和质量字段，无数据库迁移或 GraphQL 字段变化；公开 MCP、来源 ACL、模型权限和模板生成链路保持原契约。
 
 ## 2.1 精修模式流程
 
@@ -149,3 +158,36 @@ LOCALMIND_REPORT_DESIGN_RUN=r1      # 输出目录后缀
 | atlas   | 历史记录 ready（v3.1，约 10 min，8 章） | —                                                | ready，2.1 min，4 章 |
 
 v3.1 在信息较多的材料上交付失败，原因与第 1 节的结构性问题一致（禁止数字门槛、JSON 字符串整篇输出、单次 120 秒上限）。
+
+### 6.6 每次提交的生成模式：实施与验证（2026-10-19）
+
+前后端已贯通 `config.designMode`：配置页选择、创建时冻结、运行快照路由、历史标签、结果状态、重新配置和失败重试。模式不进入偏好存储，重建表单及复用精修汇报配置均回到快速；模板请求不携带此字段。AI 能力声明只用于提示，不替代运行时视觉验证，也不切换用户选择的模型。
+
+本轮验证复用 `localmind_report_v3_verify`（固定镜像 `localmind-affine:dev-base`）及独立 PostgreSQL/Redis；未重建镜像，未删除数据卷。准备隔离库时通过 `yarn workspace @affine/server prisma migrate deploy` 应用已有的 419 个迁移，本次没有新增迁移。执行命令与结果：
+
+```sh
+# 47 项前端 + 53 项共享协议，共 100 项通过
+# 包括默认值、不记忆、配置复用、提交值、再次生成入口及四种结果状态
+docker exec -w /workspace localmind_report_v3_verify yarn vitest run \
+  packages/frontend/core/src/desktop/pages/report-decks \
+  packages/frontend/core/src/modules/report-decks/api.spec.ts \
+  packages/common/office/src/report/deck/deck.spec.ts
+
+# 18 项通过，使用真实 Chromium 和隔离 PostgreSQL，模型输出为固定测试响应
+docker exec -e LOCALMIND_REPORT_DESIGN_ISOLATED=yes -w /workspace \
+  localmind_report_v3_verify sh -c 'NODE_OPTIONS="--import=/workspace/tools/cli/register.js" yarn workspace @affine/server ava --serial src/__tests__/report-deck/mode.spec.ts src/__tests__/report-deck/ai.spec.ts src/__tests__/report-deck/design-v4.e2e.ts'
+
+# 服务端与前端类型检查通过
+docker exec -w /workspace localmind_report_v3_verify \
+  yarn tsc -b packages/backend/server packages/frontend/core --pretty false
+
+# i18n 使用既有生成流程，未手工改写生成文件
+docker exec -w /workspace localmind_report_v3_verify yarn workspace @affine/i18n build
+```
+
+- 后端覆盖显式选择优先于相反的全局默认、创建幂等、重试保持原模式、权限拒绝、禁用链路拒绝、旧记录兼容、视觉声明提示，以及精修完整/部分/全部失败与快速无视觉审查路径；继续验证 Chromium 修正、盲比与检查点恢复。
+- 最后统一零次视觉审查成功时的 `unavailable` 状态和提示，并单独复跑精修全部失败、部分失败两条浏览器用例。
+- 本轮 20 个 TS/TSX 文件的 oxlint 无警告、无错误；变更文件 Prettier 与 `git diff --check` 通过。
+- 本地热启动页面在 1280×720、390×844 及深色主题下检查；鼠标与方向键切换、按钮/摘要同步、刷新恢复快速均通过。测试后恢复原来的跟随系统主题与浏览器视口。截图和测试日志在 `.codex-artifacts/report-mode-selection/`。
+- Docker 检查结束时：镜像 33.12 GB、容器 1.376 GB、数据卷 21.67 GB、构建缓存 14.19 GB，未新增镜像。验证容器测试后停止，保留原数据卷。
+- 本地热启动实例直接挂载源码，本轮变更已随热更新载入；没有调用同步脚本、提交代码或发布生产镜像。本轮未调用真实外部模型，真实 provider 的视觉兼容性仍以运行时探针和实际审查结果为准；第 6.2 节的真实模型证据属于此前 v4 验证。

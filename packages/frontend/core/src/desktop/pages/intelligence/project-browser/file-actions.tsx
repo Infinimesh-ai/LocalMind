@@ -192,6 +192,7 @@ type Upload = {
   status: 'queued' | 'uploading' | 'processing' | 'completed' | 'failed';
   progress?: ProjectUploadProgress;
   error?: string;
+  blobKey?: string;
 };
 
 /**
@@ -489,25 +490,26 @@ export function useProjectFileActions(props: {
         );
     };
     update({ status: 'uploading', error: undefined, progress: undefined });
-    try {
-      await uploadProjectFile(graphql, {
-        ...input,
-        projectId: props.projectId,
-        signal,
-        uploadBlob: file =>
-          uploadProjectBlobWithProgress({
-            baseUrl: server.serverMetadata.baseUrl,
-            projectId: props.projectId,
-            file,
-            signal,
-            onProgress: progress => update({ progress }),
-          }),
-        onUploaded: () => update({ status: 'processing' }),
-      });
-      update({ status: 'completed' });
-    } catch (caught) {
-      if (!signal.aborted) update({ status: 'failed', error: report(caught) });
-    }
+    await uploadProjectFile(graphql, {
+      ...input,
+      projectId: props.projectId,
+      signal,
+      uploadBlob: async file => {
+        if (input.blobKey) return input.blobKey;
+        const blobKey = await uploadProjectBlobWithProgress({
+          baseUrl: server.serverMetadata.baseUrl,
+          projectId: props.projectId,
+          file,
+          signal,
+          onProgress: progress => update({ progress }),
+        });
+        input.blobKey = blobKey;
+        update({ blobKey });
+        return blobKey;
+      },
+      onUploaded: () => update({ status: 'processing' }),
+    });
+    update({ status: 'completed' });
   };
   const enqueueFiles = (files: File[], directoryId: string | null) => {
     const queue: Upload[] = files.map(file => ({
@@ -526,8 +528,25 @@ export function useProjectFileActions(props: {
   useEffect(() => {
     const queue = new ProjectUploadQueue<Upload>(
       (job, signal) => executeUpload.current(job, signal),
-      (_job, caught) => {
-        reportUpload.current(caught);
+      (job, caught) => {
+        const error = reportUpload.current(caught);
+        setUploads(current =>
+          current.map(item =>
+            item.requestKey === job.requestKey
+              ? { ...item, status: 'failed', error }
+              : item
+          )
+        );
+      },
+      3,
+      job => {
+        setUploads(current =>
+          current.map(item =>
+            item.requestKey === job.requestKey
+              ? { ...item, status: 'queued', error: 'throttled' }
+              : item
+          )
+        );
       }
     );
     uploadQueue.current = queue;
@@ -640,7 +659,9 @@ export function useProjectFileActions(props: {
         <li key={item.requestKey} className={styles.uploadRow}>
           <span className={styles.title}>{item.file.name}</span>
           <span>
-            {t[`com.affine.localmind.project-files.upload.${item.status}`]()}
+            {item.status === 'queued' && item.error === 'throttled'
+              ? t['com.affine.localmind.project-files.upload.waitingForLimit']()
+              : t[`com.affine.localmind.project-files.upload.${item.status}`]()}
           </span>
           {item.status === 'uploading' ? (
             <progress

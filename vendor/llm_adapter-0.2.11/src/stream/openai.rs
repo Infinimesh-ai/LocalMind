@@ -429,9 +429,9 @@ impl OpenaiResponsesStreamParser {
     }
     let call = self.round.call(aliases, id, nonempty(item, "name"))?;
     let arguments = if delta {
-      nonempty(item, "delta").or_else(|| nonempty(item, "arguments_delta"))
+      text_delta(item, "delta").or_else(|| text_delta(item, "arguments_delta"))
     } else {
-      nonempty(item, "arguments")
+      text_delta(item, "arguments")
     };
     if let Some(arguments) = arguments {
       call.arguments(arguments, !delta)?;
@@ -681,6 +681,116 @@ mod tests {
   fn response(parser: &mut OpenaiResponsesStreamParser, value: Value) -> Vec<StreamEvent> {
     parser.push_frame(frame(value)).unwrap()
   }
+
+  #[test]
+  fn responses_tool_arguments_are_invariant_under_fragmentation() {
+    // Include JSON formatting whitespace and whitespace inside document content.
+    let arguments = "{\r\n\t\"content\": \"中文  a　b\\n    code\\tend\", \"n\": 7\n}";
+    let expected: Value = serde_json::from_str(arguments).unwrap();
+    let boundaries: Vec<_> = arguments
+      .char_indices()
+      .map(|(i, _)| i)
+      .chain([arguments.len()])
+      .collect();
+    for field in ["delta", "arguments_delta"] {
+      let mut partitions = vec![vec![arguments]];
+      partitions.push(boundaries.windows(2).map(|pair| &arguments[pair[0]..pair[1]]).collect());
+      for &i in &boundaries {
+        partitions.push(vec![&arguments[..i], &arguments[i..]]);
+      }
+      for chunks in partitions {
+        let mut parser = OpenaiResponsesStreamParser::default();
+        response(
+          &mut parser,
+          json!({"type":"response.output_item.added","output_index":0,
+          "item":{"type":"function_call","id":"item_a","call_id":"call_a","name":"workspace_doc_update","arguments":""}}),
+        );
+        for chunk in chunks {
+          let events = response(
+            &mut parser,
+            json!({"type":"response.function_call_arguments.delta",
+            "item_id":"item_a","output_index":0,field:chunk}),
+          );
+          assert!(events.is_empty(), "arguments must remain buffered");
+        }
+        for _ in 0..2 {
+          assert!(
+            response(
+              &mut parser,
+              json!({"type":"response.function_call_arguments.done",
+            "item_id":"item_a","arguments":arguments})
+            )
+            .is_empty(),
+            "{field}: final snapshot must agree"
+          );
+        }
+        let events = response(
+          &mut parser,
+          json!({"type":"response.completed","response":{"status":"completed",
+          "output":[{"type":"function_call","id":"item_a","call_id":"call_a","name":"workspace_doc_update","arguments":arguments}]}}),
+        );
+        assert_eq!(count(&events), 1);
+        assert!(
+          events
+            .iter()
+            .any(|event| matches!(event, StreamEvent::ToolCall { arguments, .. } if arguments == &expected))
+        );
+        assert!(parser.finish().is_empty());
+      }
+    }
+  }
+
+  #[test]
+  fn responses_whitespace_arguments_obey_size_and_json_validation() {
+    for (arguments, expected_code) in [
+      (" ".repeat(MAX_ARGUMENT_BYTES + 1), "tool_arguments_limit"),
+      (" \t\r\n".to_string(), "invalid_tool_arguments"),
+      ("{broken}".to_string(), "invalid_tool_arguments"),
+    ] {
+      let mut parser = OpenaiResponsesStreamParser::default();
+      response(
+        &mut parser,
+        json!({"type":"response.output_item.added","output_index":0,
+        "item":{"type":"function_call","id":"item_a","call_id":"call_a","name":"echo","arguments":""}}),
+      );
+      let mut events = response(
+        &mut parser,
+        json!({"type":"response.function_call_arguments.delta",
+        "item_id":"item_a","delta":arguments}),
+      );
+      events.extend(response(
+        &mut parser,
+        json!({"type":"response.completed","response":{"status":"completed"}}),
+      ));
+      assert_failed(&events);
+      assert!(
+        events
+          .iter()
+          .any(|event| matches!(event, StreamEvent::Error { code: Some(code), .. }
+        if code == expected_code))
+      );
+    }
+  }
+
+  #[test]
+  fn responses_conflicting_tool_arguments_still_fail_closed() {
+    let mut parser = OpenaiResponsesStreamParser::default();
+    response_call(&mut parser);
+    let events = response(
+      &mut parser,
+      json!({"type":"response.function_call_arguments.done",
+      "item_id":"item_a","arguments":"{\"n\":2}"}),
+    );
+    assert_failed(&events);
+    assert!(
+      events
+        .iter()
+        .any(|event| matches!(event, StreamEvent::Error { code: Some(code), .. }
+      if code == "conflicting_tool_arguments"))
+    );
+    assert!(response(&mut parser, json!({"type":"response.completed"})).is_empty());
+  }
+
   fn response_call(parser: &mut OpenaiResponsesStreamParser) {
     assert_eq!(
       count(&response(

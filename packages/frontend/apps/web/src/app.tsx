@@ -67,7 +67,7 @@ framework.impl(NbstoreProvider, {
   openStore(key, options) {
     return storeManagerClient.open(key, options);
   },
-});
+} satisfies NbstoreProvider);
 framework.impl(PopupWindowProvider, {
   open: (target: string) => {
     const targetUrl = new URL(target);

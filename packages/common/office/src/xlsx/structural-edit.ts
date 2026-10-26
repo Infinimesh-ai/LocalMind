@@ -487,7 +487,12 @@ function appendFormattedStyle(
     if (format.italic !== undefined)
       setToggle(fontChildren, root.prefix, 'i', format.italic);
     if (format.underline !== undefined)
-      setToggle(fontChildren, root.prefix, 'u', format.underline);
+      setValueElement(
+        fontChildren,
+        root.prefix,
+        'u',
+        format.underline ? 'single' : 'none'
+      );
     if (format.textColor !== undefined) {
       let color = findChild(fontChildren, 'color');
       if (!color) {

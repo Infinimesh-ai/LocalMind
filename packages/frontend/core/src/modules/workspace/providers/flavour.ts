@@ -26,6 +26,9 @@ export interface WorkspaceFlavourProvider {
 
   workspaces$: LiveData<WorkspaceMetadata[]>;
 
+  /** Account identity governing in-memory instances; metadata refreshes are not boundaries. */
+  cacheIdentity$?: LiveData<string | null>;
+
   /**
    * means the workspace list is loading. if it's true, the workspace page will show loading spinner.
    */

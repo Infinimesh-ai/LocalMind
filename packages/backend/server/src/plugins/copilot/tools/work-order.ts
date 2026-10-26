@@ -40,13 +40,21 @@ const recipientDraftSchema = z.object({
   relation_kind: z
     .enum(['original', 'supplement', 'replacement'])
     .default('original'),
-  related_work_order_id: z.string().trim().min(1).max(256).optional(),
+  related_work_order_id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(256)
+    .nullish()
+    .describe(
+      'Use null for a new original work order. Only supplement or replacement orders require the exact existing related work-order ID; never invent an ID.'
+    ),
   requirements: z.array(requirementSchema).min(1).max(32),
 });
 
 export const WORK_ORDER_DRAFT_POLICY = [
   'For a personal work order, first call work_order_recipient_resolve with an exact LocalMind account ID or email. Never enumerate or guess accounts.',
-  'Then call work_order_draft once with every recipient and concrete, verifiable text/file requirement for this proposal. Do not repeat an identical draft call. Use exact supported MIME types; use PPTX rather than legacy PPT. A draft is only a proposal for the sender to review and explicitly confirm in the UI.',
+  'Then call work_order_draft once with every recipient and concrete, verifiable text/file requirement for this proposal. For a new original order, set related_work_order_id to null. Do not repeat an identical draft call. Use exact supported MIME types; use PPTX rather than legacy PPT. A draft is only a proposal for the sender to review and explicitly confirm in the UI.',
   'Summarize a successful proposal once. Do not list internal draft IDs or describe duplicate tool executions to the user.',
   'Never claim that a work order, notification, or recipient session exists after drafting. The draft tool has no recipient-visible effect. Do not use project_file_request_create as a substitute for a personal work order.',
 ].join('\n');

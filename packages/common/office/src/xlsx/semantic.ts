@@ -271,14 +271,26 @@ function parseStyles(pkg: OoxmlOpcPackage, part: string | undefined) {
       .filter(node => 'font' in node)
       .map(node => {
         const content = children(node, 'font');
+        const toggle = (name: string) => {
+          const element = child(content, name);
+          return element
+            ? (parseBoolean(getAttribute(element, 'val')) ?? true)
+            : undefined;
+        };
+        const underlineNode = child(content, 'u');
+        const underlineValue = getAttribute(underlineNode ?? {}, 'val');
         return {
           name: getAttribute(child(content, 'name') ?? {}, 'val'),
           sizePt: parseNumber(getAttribute(child(content, 'sz') ?? {}, 'val')),
-          bold: child(content, 'b') ? true : undefined,
-          italic: child(content, 'i') ? true : undefined,
+          bold: toggle('b'),
+          italic: toggle('i'),
           underline:
-            getAttribute(child(content, 'u') ?? {}, 'val') ??
-            (child(content, 'u') ? 'single' : undefined),
+            !underlineNode ||
+            ['none', '0', 'false', 'off'].includes(
+              underlineValue?.toLowerCase() ?? ''
+            )
+              ? undefined
+              : (underlineValue ?? 'single'),
           color: color(child(content, 'color')),
         } satisfies XlsxFont;
       }),

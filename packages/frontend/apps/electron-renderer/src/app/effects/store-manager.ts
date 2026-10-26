@@ -70,5 +70,5 @@ export function setupStoreManager(framework: Framework) {
         },
       };
     },
-  });
+  } satisfies NbstoreProvider);
 }

@@ -17,6 +17,7 @@ import {
   applyXlsxStructuralCommand,
   type XlsxStructuralCommand,
 } from './structural-edit';
+import { validateXlsxCellValue, xlsxRangeContains } from './validation';
 
 export type XlsxCommandResult = {
   packageBytes: Uint8Array;
@@ -296,6 +297,31 @@ export function applyXlsxCommand(
   const outputPackage = openXlsxPackage(packageBytes, pkg.limits);
   const outputState = readXlsxSemanticState(outputPackage);
   verifyResult(outputState, command, address.address);
+  const outputSheet = outputState.sheets.find(item => item.id === sheet.id);
+  const outputCell = outputSheet?.cells.find(
+    item => item.address === address.address
+  );
+  if (!outputSheet || !outputCell)
+    throw new OoxmlPackageError(
+      'XLSX command output is missing its target cell'
+    );
+  if (
+    outputCell.formula &&
+    outputCell.calculationError &&
+    outputSheet.dataValidations.some(rule =>
+      xlsxRangeContains(rule.range, address.address)
+    )
+  ) {
+    throw new OoxmlPackageError('XLSX cell validation invalid');
+  }
+  const validation = validateXlsxCellValue(
+    outputState,
+    outputSheet,
+    address.address,
+    (outputCell.formula ? outputCell.calculatedValue : outputCell.value) ?? null
+  );
+  if (validation)
+    throw new OoxmlPackageError(`XLSX cell validation ${validation}`);
   return {
     packageBytes,
     state: outputState,

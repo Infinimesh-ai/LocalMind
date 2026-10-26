@@ -76,6 +76,10 @@ export type DocFrontendDocState = {
    */
   syncRetrying: boolean;
   /**
+   * a remote peer rejected this doc for permission; local changes stay local
+   */
+  syncPermissionDenied: boolean;
+  /**
    * the error message when syncing with remote peers
    */
   syncErrorMessage: string | null;
@@ -163,6 +167,7 @@ export class DocFrontend {
         synced: sync.synced,
         syncing: sync.syncing,
         syncRetrying: sync.retrying,
+        syncPermissionDenied: sync.permissionDenied,
         syncErrorMessage: sync.errorMessage,
       }))
     );

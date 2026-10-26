@@ -168,6 +168,7 @@ export type WorkOrderProposalActions = {
 const ChatMessageSchema = z.object({
   id: z.string(),
   content: z.string(),
+  params: z.record(z.unknown()).nullish(),
   role: z.union([z.literal('user'), z.literal('assistant')]),
   createdAt: z.string(),
   streamObjects: z.array(StreamObjectSchema).optional(),

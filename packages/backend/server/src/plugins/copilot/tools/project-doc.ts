@@ -60,6 +60,21 @@ const PROJECT_READ_TOOLS = new Set([
   'project_doc_semantic_search',
 ]);
 
+const PROJECT_EDIT_TOOLS = new Set([
+  'project_doc_update',
+  'project_file_update',
+  'project_resource_update_meta',
+  'project_resource_restore_version',
+]);
+
+const editLeaseConflictPolicy = z
+  .enum(['wait', 'fail'])
+  .nullish()
+  .transform(value => value ?? 'wait')
+  .describe(
+    'Use fail when the user says not to wait, not to update if busy, or to leave the resource unchanged on an editing conflict. This permanently stops this request on conflict. Otherwise wait queues one automatic retry after the editor releases the resource; a queued/waiting result is pending and may write later, never report it as a final failure or promise the resource will remain unchanged.'
+  );
+
 export function createProjectResourceTools(
   models: Models,
   resources: ProjectResourceService,
@@ -315,7 +330,15 @@ export function createProjectResourceTools(
       inputSchema: z
         .object({
           doc_id: id,
-          content_version: z.number().int().positive().optional(),
+          content_version: z
+            .number()
+            .int()
+            .positive()
+            .nullish()
+            .transform(value => value ?? undefined)
+            .describe(
+              'Omit or use null to read the latest current file. Never default to version 1. Specify a version only when the user explicitly requests historical content. Before an update, read the latest version.'
+            ),
           start: z.number().int().nonnegative().default(0),
           max_characters: z.number().int().min(1).max(120_000).default(40_000),
         })
@@ -373,6 +396,7 @@ export function createProjectResourceTools(
           doc_id: id,
           expected_content_version: z.number().int().positive(),
           content: z.string().max(1024 * 1024),
+          lease_conflict: editLeaseConflictPolicy,
         })
         .strict(),
       execute: async (
@@ -401,7 +425,15 @@ export function createProjectResourceTools(
       inputSchema: z
         .object({
           resource_id: id,
-          content_version: z.number().int().positive().optional(),
+          content_version: z
+            .number()
+            .int()
+            .positive()
+            .nullish()
+            .transform(value => value ?? undefined)
+            .describe(
+              'Omit or use null to read the latest current file. Never default to version 1. Specify a version only when the user explicitly requests historical content. Before an update, read the latest version.'
+            ),
         })
         .strict(),
       execute: async ({ resource_id, content_version }) => {
@@ -428,6 +460,9 @@ export function createProjectResourceTools(
           text: current.text,
           complete: true,
           contentVersion: current.revision.sequence,
+          currentContentVersion: current.resource.contentVersion,
+          historical:
+            current.revision.sequence !== current.resource.contentVersion,
           byteSize: current.blob.byteSize,
         };
       },
@@ -440,6 +475,7 @@ export function createProjectResourceTools(
           resource_id: id,
           expected_content_version: z.number().int().positive(),
           text: z.string().max(1024 * 1024),
+          lease_conflict: editLeaseConflictPolicy,
         })
         .strict(),
       execute: async (
@@ -490,6 +526,7 @@ export function createProjectResourceTools(
           resource_id: id,
           sequence: z.number().int().positive(),
           expected_content_version: z.number().int().positive(),
+          lease_conflict: editLeaseConflictPolicy,
         })
         .strict(),
       execute: async (
@@ -549,6 +586,7 @@ export function createProjectResourceTools(
           parent_id: id.nullable().optional(),
           before_id: id.nullable().optional(),
           trash: z.boolean().optional(),
+          lease_conflict: editLeaseConflictPolicy,
         })
         .strict(),
       execute: async (
@@ -626,6 +664,12 @@ export function createProjectResourceTools(
                     toolName: name,
                     arguments: args,
                     toolCallId: execute.toolCallId,
+                    ...(PROJECT_EDIT_TOOLS.has(name)
+                      ? {
+                          editLeaseConflictPolicy:
+                            editLeaseConflictPolicy.parse(args.lease_conflict),
+                        }
+                      : {}),
                     options: {
                       user: options.user,
                       session: options.session,
@@ -707,6 +751,9 @@ export function createProjectResourceTools(
                       status: 'queued',
                       runId: run.id,
                       owner: { kind: 'project', projectId },
+                      final: false,
+                      message:
+                        'This task is still pending and may write later. Do not report completion or final failure; check the task result.',
                     };
                   const lease = {
                     ...scope,
@@ -735,14 +782,26 @@ export function createProjectResourceTools(
                       if (!editing.acquired) {
                         if (!editing.lease)
                           throw new BadRequest('Project edit lease changed');
-                        await models.copilotProjectAgentRuntime.waitForEditLease(
-                          {
-                            ...lease,
-                            resourceId,
-                            leaseId: editing.lease.leaseId,
-                          }
-                        );
-                        return { status: 'waiting_lease', runId: run.id };
+                        const waiting =
+                          await models.copilotProjectAgentRuntime.waitForEditLease(
+                            {
+                              ...lease,
+                              resourceId,
+                              leaseId: editing.lease.leaseId,
+                            }
+                          );
+                        return {
+                          status: waiting.status,
+                          runId: run.id,
+                          applied: false,
+                          final: waiting.status !== 'waiting_lease',
+                          automaticRetryScheduled:
+                            waiting.status === 'waiting_lease',
+                          message:
+                            waiting.status === 'waiting_lease'
+                              ? 'No write yet. This task will automatically retry after the current editor releases the resource; do not promise it will remain unchanged.'
+                              : 'This request stopped without applying changes and will not retry automatically. A new explicit request is required to retry.',
+                        };
                       }
                     }
                     const saved =
@@ -793,6 +852,7 @@ export const ProjectResourceCommandSchema = z
       'project_folder_create',
     ]),
     arguments: z.record(z.unknown()),
+    editLeaseConflictPolicy: z.enum(['wait', 'fail']).optional(),
     toolCallId: z.string().min(1).max(512),
     options: CopilotChatOptionsSchema,
     readProof: z

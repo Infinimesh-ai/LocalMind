@@ -10,6 +10,7 @@ import { useLegacyProjectReportsEnabled } from '@affine/core/components/report-d
 import { useI18n } from '@affine/i18n';
 import {
   AiIcon,
+  CollaborationIcon,
   DeleteTemporarilyIcon,
   EditIcon,
   MoreHorizontalIcon,
@@ -309,26 +310,25 @@ export const ProjectTree = ({
                     </button>
                   )}
 
-                  {renamingProjectId !== project.id && onOpenReports ? (
-                    <IconButton
-                      className={styles.projectReportButton}
-                      size="16"
-                      tooltip={reportEntryLabel}
-                      aria-label={reportEntryLabel}
-                      icon={<PresentationIcon />}
-                      data-testid="project-report-entry"
-                      onClick={event => {
-                        event.stopPropagation();
-                        onOpenReports(project);
-                      }}
-                    />
-                  ) : null}
                   {renamingProjectId !== project.id ? (
                     <Menu
                       contentOptions={{ align: 'end' }}
                       items={
                         <>
+                          {onOpenReports ? (
+                            <MenuItem
+                              prefixIcon={<PresentationIcon />}
+                              data-testid="project-report-entry"
+                              onClick={event => {
+                                event.stopPropagation();
+                                onOpenReports(project);
+                              }}
+                            >
+                              {reportEntryLabel}
+                            </MenuItem>
+                          ) : null}
                           <MenuItem
+                            prefixIcon={<CollaborationIcon />}
                             disabled={mutationsPending}
                             onClick={() => onManageCollaboration(project)}
                           >

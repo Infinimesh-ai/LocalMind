@@ -1,4 +1,5 @@
 import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
+import { UserFriendlyError } from '@affine/error';
 import {
   reportDeckAiOptionsQuery,
   reportDeckCommandMutation,
@@ -136,6 +137,9 @@ export function readDeckSummary(value: unknown): DeckSummary {
     title: text(deck.title),
     status: oneOf(deck.status, STATUSES, 'queued'),
     mode: oneOf(deck.mode, ['template', 'custom'] as const, 'template'),
+    ...(nullableOneOf(deck.designMode, ['fast', 'refine'] as const)
+      ? { designMode: deck.designMode as 'fast' | 'refine' }
+      : {}),
     templateKey: nullableText(deck.templateKey),
     slideCount: nullableCount(deck.slideCount),
     sourceCount: count(deck.sourceCount),
@@ -268,7 +272,17 @@ export function readAiOptions(value: unknown): DeckAiOptionsResult {
         models: list(option.models).flatMap(model => {
           const entry = record(model);
           return entry && typeof entry.id === 'string'
-            ? [{ id: entry.id, name: text(entry.name, entry.id) }]
+            ? [
+                {
+                  id: entry.id,
+                  name: text(entry.name, entry.id),
+                  vision: oneOf(
+                    entry.vision,
+                    ['declared', 'unknown'] as const,
+                    'unknown'
+                  ),
+                },
+              ]
             : [];
         }),
         defaultModelId: nullableText(option.defaultModelId),
@@ -360,8 +374,23 @@ export function createReportDeckApi(
         cache: 'no-store',
         signal,
       });
-      if (!response.ok)
-        throw new Error(`Report deck HTML unavailable (${response.status})`);
+      if (!response.ok) {
+        const name =
+          response.status === 401
+            ? 'AUTHENTICATION_REQUIRED'
+            : response.status === 403
+              ? 'ACCESS_DENIED'
+              : response.status === 404
+                ? 'NOT_FOUND'
+                : 'INTERNAL_SERVER_ERROR';
+        throw new UserFriendlyError({
+          status: response.status,
+          code: name,
+          type: name,
+          name,
+          message: 'Report deck HTML unavailable',
+        });
+      }
       return response.text();
     },
     htmlUrl(deckId, download) {

@@ -14,6 +14,7 @@ import {
   type OfficeDocumentPageLayoutCommand,
   type OfficeDocumentReplaceTextCommand,
   type OfficeDocumentReviewResolveCommand,
+  type OfficeDocumentUpdateObjectCommand,
   parseOfficeCommand,
 } from '../command';
 import {
@@ -122,7 +123,7 @@ type DocxStructuralCommand =
 
 type DocxInsertedObject<
   K extends OfficeDocumentInsertObjectCommand['object']['type'],
-> = Omit<OfficeDocumentInsertObjectCommand, 'object'> & {
+> = {
   object: Extract<OfficeDocumentInsertObjectCommand['object'], { type: K }>;
 };
 
@@ -984,8 +985,15 @@ function insertSection(
   if (!existingSections.length) {
     existingSections.push(createFinalSection(body));
   }
+  let following = sectionNodes(
+    body.slice(body.indexOf(target.element.node) + 1)
+  )[0];
+  if (!following) {
+    following = createFinalSection(body);
+    existingSections.push(following);
+  }
   const sourceIndex =
-    command.sourceSectionIndex ?? Math.max(0, existingSections.length - 1);
+    command.sourceSectionIndex ?? existingSections.indexOf(following);
   const source = existingSections[sourceIndex];
   if (!source) {
     throw new DocxPackageError(`DOCX section not found: ${sourceIndex}`);
@@ -1002,13 +1010,15 @@ function insertSection(
   if (!insertedKey || !Array.isArray(insertedChildren)) {
     throw new DocxPackageError('DOCX source section properties are invalid');
   }
+  // The break type describes the start of the following section, not its end.
+  const followingKey = elementKey(following);
+  if (!followingKey)
+    throw new DocxPackageError('DOCX following section properties are invalid');
   upsertChild(
-    insertedChildren as OrderedXmlNode[],
-    prefixOf(insertedKey),
+    following[followingKey] as OrderedXmlNode[],
+    prefixOf(followingKey),
     'type',
-    {
-      [qualify(prefixOf(insertedKey), 'val')]: command.sectionType,
-    }
+    { [qualify(prefixOf(followingKey), 'val')]: command.sectionType }
   );
   properties.children.push(inserted);
   return target.semantic.id;
@@ -1303,7 +1313,7 @@ function applyMailMerge(
         const fieldName = match?.[1] ?? match?.[2];
         if (
           fieldName &&
-          fieldName in command.values &&
+          Object.hasOwn(command.values, fieldName) &&
           replaceTextNodes(childrenOf(node), command.values[fieldName])
         ) {
           mergedFields++;
@@ -1427,6 +1437,11 @@ function nextDrawingId(nodes: OrderedXmlNode[]) {
   const visit = (items: OrderedXmlNode[]) => {
     for (const node of items) {
       const key = elementKey(node);
+      const vmlId = /^_x0000_s(\d+)$/.exec(
+        attributeByLocalName(node, 'id') ?? ''
+      );
+      if (vmlId && Number.isSafeInteger(Number(vmlId[1])))
+        maximum = Math.max(maximum, Number(vmlId[1]) - 1024);
       if (key && localName(key) === 'docPr') {
         const value = Number(attributeByLocalName(node, 'id'));
         if (Number.isSafeInteger(value)) maximum = Math.max(maximum, value);
@@ -1700,7 +1715,9 @@ function chartPart(
               createElement('c', 'orientation', { val: 'minMax' }),
             ]),
             createElement('c', 'delete', { val: '0' }),
-            createElement('c', 'axPos', { val: 'b' }),
+            createElement('c', 'axPos', {
+              val: chart.chartType === 'bar' ? 'l' : 'b',
+            }),
             createElement('c', 'crossAx', { val: '48964864' }),
             createElement('c', 'crosses', { val: 'autoZero' }),
           ]),
@@ -1710,7 +1727,9 @@ function chartPart(
               createElement('c', 'orientation', { val: 'minMax' }),
             ]),
             createElement('c', 'delete', { val: '0' }),
-            createElement('c', 'axPos', { val: 'l' }),
+            createElement('c', 'axPos', {
+              val: chart.chartType === 'bar' ? 'b' : 'l',
+            }),
             createElement('c', 'crossAx', { val: '48963328' }),
             createElement('c', 'crosses', { val: 'autoZero' }),
           ]),
@@ -1777,10 +1796,10 @@ function chartDrawing(
 
 function shapePict(command: DocxInsertedObject<'shape'>, drawingId: number) {
   const shapeType = {
-    rectangle: '#_x0000_t202',
-    roundedRectangle: '#_x0000_t202',
-    ellipse: '#_x0000_t202',
-    line: '#_x0000_t32',
+    rectangle: 'rect',
+    roundedRectangle: 'roundrect',
+    ellipse: 'oval',
+    line: 'line',
   }[command.object.shape];
   const shapeChildren = command.object.text
     ? [
@@ -1796,11 +1815,9 @@ function shapePict(command: DocxInsertedObject<'shape'>, drawingId: number) {
       ]
     : [];
   return nodeWithChildren('w', 'pict', [
-    nodeWithChildren('v', 'shape', shapeChildren, {
+    nodeWithChildren('v', shapeType, shapeChildren, {
       id: `_x0000_s${1024 + drawingId}`,
-      type: shapeType,
       style: `width:${command.object.widthPt}pt;height:${command.object.heightPt}pt`,
-      ...(command.object.shape === 'ellipse' ? { o: 'ellipse' } : {}),
       ...(command.object.fillColor
         ? { fillcolor: command.object.fillColor }
         : {}),
@@ -1821,7 +1838,7 @@ function equationNode(linearText: string) {
 
 function applyInsertObject(
   pkg: DocxOpcPackage,
-  command: OfficeDocumentInsertObjectCommand
+  command: OfficeDocumentInsertObjectCommand | OfficeDocumentUpdateObjectCommand
 ) {
   const before = readDocxSemanticState(pkg);
   const xml = parsePreservedXml(
@@ -1837,6 +1854,56 @@ function applyInsertObject(
     paragraphElements,
     command.target.blockId
   );
+  let replacedObject: ElementRef | undefined;
+  if (command.operation === 'office.document.object.update') {
+    const objectRuns = target.semantic.runs.flatMap(run =>
+      run.content
+        .filter(content => content.type === 'object')
+        .map(content => ({ run, content }))
+    );
+    const selected = objectRuns[command.target.objectIndex];
+    const semanticObject = selected?.content;
+    if (selected?.run.change)
+      throw new DocxPackageError(
+        'Resolve tracked changes before updating this object'
+      );
+    if (
+      !semanticObject?.editableObject ||
+      semanticObject.objectData?.type !== command.object.type
+    ) {
+      throw new DocxPackageError('DOCX object cannot be safely updated');
+    }
+    const objects: ElementRef[] = [];
+    const collect = (nodes: OrderedXmlNode[], inRun = false) =>
+      nodes.forEach((node, index) => {
+        const key = elementKey(node);
+        const children = key ? node[key] : undefined;
+        if (!key || !Array.isArray(children)) return;
+        if (
+          inRun &&
+          ['drawing', 'pict', 'object', 'oMath'].includes(localName(key))
+        ) {
+          objects.push({ node, key, children, parent: nodes, index });
+        } else if (
+          !inRun &&
+          [
+            'r',
+            'hyperlink',
+            'ins',
+            'del',
+            'smartTag',
+            'sdt',
+            'sdtContent',
+            'fldSimple',
+          ].includes(localName(key))
+        )
+          collect(children, localName(key) === 'r');
+      });
+    collect(target.element.children);
+    replacedObject = objects[command.target.objectIndex];
+    if (!replacedObject)
+      throw new DocxPackageError('DOCX object target cannot be resolved');
+  }
   const drawingId = nextDrawingId(xml);
   const additions = new Map<string, Uint8Array>();
   const replacements = new Map<string, Uint8Array>();
@@ -1944,12 +2011,42 @@ function applyInsertObject(
     }
   }
 
-  insertRunAtOffset(
-    target.element,
-    target.semantic,
-    command.target.offset,
-    nodeWithChildren('w', 'r', [objectNode])
-  );
+  if (command.operation === 'office.document.object.insert') {
+    insertRunAtOffset(
+      target.element,
+      target.semantic,
+      command.target.offset,
+      nodeWithChildren('w', 'r', [objectNode])
+    );
+  } else if (replacedObject) {
+    const identityNames =
+      command.object.type === 'chart'
+        ? ['docPr']
+        : ['shape', 'rect', 'roundrect', 'oval', 'line'];
+    const identityNode = (
+      nodes: OrderedXmlNode[]
+    ): OrderedXmlNode | undefined => {
+      for (const node of nodes) {
+        const key = elementKey(node);
+        if (key && identityNames.includes(localName(key))) return node;
+        const nested = identityNode(childrenOf(node));
+        if (nested) return nested;
+      }
+      return undefined;
+    };
+    const oldIdentity = identityNode([replacedObject.node]),
+      newIdentity = identityNode([objectNode]);
+    if (oldIdentity && newIdentity) {
+      for (const key of command.object.type === 'chart'
+        ? ['id', 'name', 'descr']
+        : ['id']) {
+        const value = attributeByLocalName(oldIdentity, key);
+        if (value !== undefined)
+          setAttribute(attributes(newIdentity), '', key, value);
+      }
+    }
+    replacedObject.parent[replacedObject.index] = objectNode;
+  }
   replacements.set(
     pkg.documentPart,
     buildPreservedXml(xml, pkg.documentPart, pkg.limits.maxXmlPartBytes)
@@ -1958,8 +2055,12 @@ function applyInsertObject(
   const state = readDocxSemanticState(
     openDocxPackage(packageBytes, pkg.limits)
   );
-  if (state.stats.objects !== before.stats.objects + 1) {
-    throw new DocxPackageError('DOCX object insertion output is invalid');
+  if (
+    state.stats.objects !==
+    before.stats.objects +
+      (command.operation === 'office.document.object.insert' ? 1 : 0)
+  ) {
+    throw new DocxPackageError('DOCX object output is invalid');
   }
   return {
     packageBytes,
@@ -1967,7 +2068,9 @@ function applyInsertObject(
     summary: {
       operation: command.operation,
       blockId: command.target.blockId,
-      offset: command.target.offset,
+      ...(command.operation === 'office.document.object.insert'
+        ? { offset: command.target.offset }
+        : { objectIndex: command.target.objectIndex }),
       objectType: command.object.type,
       insertedPart,
     },
@@ -2386,8 +2489,46 @@ export function applyDocxCommand(
   const command = parseOfficeCommand(input);
   if (command.operation === 'office.document.edit')
     return applyParagraphTransaction(pkg, command);
-  if (command.operation === 'office.document.object.insert') {
+  if (
+    command.operation === 'office.document.object.insert' ||
+    command.operation === 'office.document.object.update'
+  ) {
     return applyInsertObject(pkg, command);
+  }
+  if (command.operation === 'office.document.paragraph.text.set') {
+    const before = readDocxSemanticState(pkg);
+    const paragraphs: DocxParagraph[] = [];
+    collectSemanticParagraphs(before.body, paragraphs);
+    const paragraph = paragraphs.find(
+      candidate => candidate.id === command.target.blockId
+    );
+    if (!paragraph) {
+      throw new DocxPackageError('DOCX paragraph target cannot be resolved');
+    }
+    if (paragraph.text !== command.expectedText) {
+      throw new DocxPackageError(
+        'DOCX paragraph text does not match the expected source; reread the paragraph'
+      );
+    }
+    const { expectedText, target, operation, ...base } = command;
+    const result = applyDocxCommand(pkg, {
+      ...base,
+      operation: 'office.document.text.replace',
+      target: {
+        type: 'text_range',
+        start: { blockId: target.blockId, offset: 0 },
+        end: { blockId: target.blockId, offset: expectedText.length },
+      },
+    });
+    return {
+      ...result,
+      summary: {
+        ...result.summary,
+        operation,
+        target,
+        expectedTextLength: expectedText.length,
+      },
+    };
   }
   if (
     command.operation === 'office.document.paragraph.format' ||

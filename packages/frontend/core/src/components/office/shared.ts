@@ -5,6 +5,7 @@ import {
   type NativeOfficeState,
   type OfficeArtifactKindValue,
   type OfficeCommentAnchor,
+  OfficePdfFontUnavailableError,
   type OfficeResourceOwner,
   previewOfficeCommand,
 } from '@affine/core/modules/office';
@@ -15,7 +16,11 @@ import type {
   ProjectOfficeArtifactQuery,
 } from '@affine/graphql';
 import { I18n } from '@affine/i18n';
-import type { OfficeCommand, OfficeSelection } from '@localmind/office';
+import type {
+  OfficeCommand,
+  OfficeCommandBatch,
+  OfficeSelection,
+} from '@localmind/office';
 import type { DocxBlock, DocxParagraph } from '@localmind/office/docx';
 import type { PptxShape } from '@localmind/office/pptx';
 
@@ -179,12 +184,14 @@ export async function executeAndReloadOfficeCommand<
   graphql: GraphQLService;
   owner: OfficeResourceOwner;
   kind: OfficeArtifactKindValue;
-  command: OfficeCommand;
+  command: OfficeCommand | OfficeCommandBatch;
 }) {
   // Interactive paragraph transactions are validated atomically by execute.
   // A separate preview doubles autosave traffic and rejects a valid replay if
   // the first attempt committed but its response was lost.
-  const continuousEdit = input.command.operation === 'office.document.edit';
+  const continuousEdit =
+    input.command.version === 'localmind-office-command-batch/v1' ||
+    input.command.operation === 'office.document.edit';
   const preview = continuousEdit
     ? null
     : await previewOfficeCommand(input.graphql, input.owner, input.command);
@@ -214,6 +221,8 @@ export function officeErrorMessage(
   error: unknown,
   owner?: OfficeResourceOwner
 ) {
+  if (error instanceof OfficePdfFontUnavailableError)
+    return I18n['com.affine.office.error.pdf-font-unavailable']();
   if (owner?.kind === 'project') return projectErrorMessage(error);
   const normalized = UserFriendlyError.fromAny(error);
   if (normalized.isNetworkError())

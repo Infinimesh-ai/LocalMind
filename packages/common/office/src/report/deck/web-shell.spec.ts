@@ -2,9 +2,13 @@
 import { afterEach, beforeEach, expect, it, type Mock, vi } from 'vitest';
 
 import { LEGACY_DECK_SHELL_SCRIPT } from './legacy-shell.fixture';
+import { REPORT_RUNTIME_HEAD_SCRIPT, REPORT_RUNTIME_SCRIPT } from './runtime';
 import { renderCustomDeckHtml } from './sanitize';
+import { sha256Base64 } from './sha256';
 import { DECK_SHELL_SCRIPT, setDeckDisplayMode, wrapDeckHtml } from './shell';
 import { upgradeDeckHtml } from './upgrade';
+import { WEB_REVEAL_RUNTIME_SCRIPT } from './web-reveal-runtime.fixture';
+import { WEB_SCROLL_SHELL_SCRIPT } from './web-scroll-shell.fixture';
 import { WEB_V2_SHELL_SCRIPT } from './web-v2-shell.fixture';
 
 const content =
@@ -59,6 +63,45 @@ function boot(mode: 'read' | 'present' = 'read') {
   // Execute the actual hash-authorized runtime against a DOM, never model code.
   new Function(DECK_SHELL_SCRIPT)();
 }
+for (const oldShell of [false, true]) {
+  it(`repairs the known v4 reveal runtime with ${oldShell ? 'old' : 'current'} navigation without changing content`, () => {
+    let original = wrapDeckHtml({
+      title: 'Stored v4',
+      lang: 'en',
+      css: '.slide{color:red}',
+      slidesHtml: content,
+      contentVersion: 'custom-v4',
+    })
+      .replaceAll(
+        sha256Base64(REPORT_RUNTIME_SCRIPT),
+        sha256Base64(WEB_REVEAL_RUNTIME_SCRIPT)
+      )
+      .replace(REPORT_RUNTIME_SCRIPT, WEB_REVEAL_RUNTIME_SCRIPT);
+    if (oldShell)
+      original = original
+        .replaceAll(
+          sha256Base64(DECK_SHELL_SCRIPT),
+          sha256Base64(WEB_SCROLL_SHELL_SCRIPT)
+        )
+        .replace(DECK_SHELL_SCRIPT, WEB_SCROLL_SHELL_SCRIPT);
+    const upgraded = upgradeDeckHtml(original);
+    expect(upgraded).toContain(REPORT_RUNTIME_SCRIPT);
+    expect(upgraded).toContain(DECK_SHELL_SCRIPT);
+    expect(upgraded).toContain(REPORT_RUNTIME_HEAD_SCRIPT);
+    expect(upgraded).not.toContain(WEB_REVEAL_RUNTIME_SCRIPT);
+    expect(upgraded).toContain(
+      `'sha256-${sha256Base64(REPORT_RUNTIME_SCRIPT)}'`
+    );
+    expect(upgraded).toContain('All facts preserved');
+    expect(upgraded).toContain('.slide{color:red}');
+    expect(upgradeDeckHtml(upgraded)).toBe(upgraded);
+    const badCsp = original.replace(
+      `'sha256-${sha256Base64(WEB_REVEAL_RUNTIME_SCRIPT)}'`,
+      "'none'"
+    );
+    expect(upgradeDeckHtml(badCsp)).toBe(badCsp);
+  });
+}
 it('reading exposes every chapter and leaves ordinary clicks and scrolling keys alone', () => {
   boot();
   expect(document.querySelectorAll('[data-slide][aria-hidden]')).toHaveLength(
@@ -94,6 +137,60 @@ it('chapter navigation and mode switching keep the current chapter', () => {
   );
   (document.getElementById('deck-mode') as HTMLButtonElement).click();
   expect(document.documentElement.dataset.mode).toBe('read');
+});
+it('unlaid-out previews do not select the final chapter before becoming visible', () => {
+  const bounds = vi.mocked(Element.prototype.getBoundingClientRect);
+  bounds.mockImplementation(() => new DOMRect());
+  boot();
+  expect(document.getElementById('deck-num')!.textContent).toBe('1 / 2');
+  bounds.mockImplementation(function (this: Element) {
+    return new DOMRect(0, this.id === 'chapter-2' ? 1000 : 0, 800, 1000);
+  });
+  window.dispatchEvent(new Event('resize'));
+  expect(document.getElementById('deck-num')!.textContent).toBe('1 / 2');
+});
+it('intermediate smooth-scroll positions cannot replace the requested chapter before presentation', () => {
+  boot();
+  (document.getElementById('deck-next') as HTMLButtonElement).click();
+  window.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(20);
+  expect(document.getElementById('deck-num')!.textContent).toBe('2 / 2');
+  (document.getElementById('deck-mode') as HTMLButtonElement).click();
+  expect(scroll.mock.contexts.at(-1)).toBe(
+    document.getElementById('chapter-2')
+  );
+  expect(scroll.mock.calls.at(-1)).toEqual([
+    { block: 'start', behavior: 'instant' },
+  ]);
+  expect(document.documentElement.dataset.mode).toBe('present');
+});
+it('manual wheel scrolling cancels a pending chapter jump', () => {
+  boot();
+  (document.getElementById('deck-next') as HTMLButtonElement).click();
+  window.dispatchEvent(new Event('wheel'));
+  window.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(20);
+  expect(document.getElementById('deck-num')!.textContent).toBe('1 / 2');
+});
+it('completed navigation and bounded fallback both resume observing normal scroll', () => {
+  boot();
+  (document.getElementById('deck-next') as HTMLButtonElement).click();
+  vi.advanceTimersByTime(1200);
+  expect(document.getElementById('deck-num')!.textContent).toBe('1 / 2');
+  (document.getElementById('deck-next') as HTMLButtonElement).click();
+  const bounds = vi.mocked(Element.prototype.getBoundingClientRect);
+  bounds.mockImplementation(function (this: Element) {
+    return new DOMRect(0, this.id === 'chapter-2' ? 0 : -1000, 800, 1000);
+  });
+  window.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(20);
+  expect(document.getElementById('deck-num')!.textContent).toBe('2 / 2');
+  bounds.mockImplementation(function (this: Element) {
+    return new DOMRect(0, this.id === 'chapter-2' ? 1000 : 0, 800, 1000);
+  });
+  window.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(20);
+  expect(document.getElementById('deck-num')!.textContent).toBe('1 / 2');
 });
 it('fullscreen refusal keeps an accessible window-filling presentation', async () => {
   boot('present');
@@ -244,3 +341,40 @@ it('updates stored first-version web reports with the fullscreen fix', () => {
   expect(upgraded).toContain('.slide{color:red}');
   expect(upgradeDeckHtml(upgraded)).toBe(upgraded);
 });
+for (const contentVersion of [undefined, 'custom-v3', 'custom-v4'] as const) {
+  it(`updates only the known scroll shell and CSP of a stored ${contentVersion ?? 'template'} report`, () => {
+    const original = wrapDeckHtml({
+      title: 'Stored',
+      lang: 'en',
+      css: '.slide{color:red}',
+      slidesHtml: content,
+      contentVersion,
+    })
+      .replaceAll(
+        sha256Base64(DECK_SHELL_SCRIPT),
+        sha256Base64(WEB_SCROLL_SHELL_SCRIPT)
+      )
+      .replace(DECK_SHELL_SCRIPT, WEB_SCROLL_SHELL_SCRIPT);
+    const upgraded = upgradeDeckHtml(original);
+    expect(upgraded).toContain(DECK_SHELL_SCRIPT);
+    expect(upgraded).not.toContain(WEB_SCROLL_SHELL_SCRIPT);
+    expect(upgraded).toContain(`'sha256-${sha256Base64(DECK_SHELL_SCRIPT)}'`);
+    expect(upgraded).toContain('All facts preserved');
+    expect(upgraded).toContain('.slide{color:red}');
+    if (contentVersion === 'custom-v4') {
+      expect(upgraded).toContain(REPORT_RUNTIME_SCRIPT);
+      expect(upgraded).toContain(REPORT_RUNTIME_HEAD_SCRIPT);
+    }
+    expect(upgradeDeckHtml(upgraded)).toBe(upgraded);
+    const untrusted = original.replace(
+      '</body>',
+      '<script>alert(1)</script></body>'
+    );
+    expect(upgradeDeckHtml(untrusted)).toBe(untrusted);
+    const badCsp = original.replace(
+      `'sha256-${sha256Base64(WEB_SCROLL_SHELL_SCRIPT)}'`,
+      "'none'"
+    );
+    expect(upgradeDeckHtml(badCsp)).toBe(badCsp);
+  });
+}

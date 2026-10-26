@@ -7,7 +7,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { OfficeRevisionOrigin, type Prisma } from '@prisma/client';
 
-import { readBufferWithLimit, ResourceConflict } from '../../base';
+import { BadRequest, readBufferWithLimit, ResourceConflict } from '../../base';
 import { Models } from '../../models';
 import {
   type OfficeOwner,
@@ -78,6 +78,7 @@ function commandEvidence(command: OfficeCommand) {
     case 'office.document.text.format':
       return { target: command.target, format: command.format };
     case 'office.document.text.replace':
+    case 'office.document.paragraph.text.set':
       return {
         target: command.target,
         replacementTextLength: command.text.length,
@@ -133,6 +134,7 @@ function commandEvidence(command: OfficeCommand) {
         ),
       };
     case 'office.document.object.insert':
+    case 'office.document.object.update':
       return {
         target: command.target,
         objectType: command.object.type,
@@ -441,6 +443,33 @@ export class OfficeCommandService {
 
   async execute(input: ExecuteOfficeCommandInput) {
     return (await this.prepareExecution(input))();
+  }
+
+  private interactiveCommand(input: unknown) {
+    const command =
+      typeof input === 'object' &&
+      input !== null &&
+      'version' in input &&
+      input.version === 'localmind-office-command-batch/v1'
+        ? parseOfficeCommandBatch(input)
+        : parseOfficeCommand(input);
+    if (command.source !== 'user')
+      throw new BadRequest('Interactive Office commands must use source=user');
+    return command;
+  }
+
+  async previewInteractive(input: ExecuteOfficeCommandInput) {
+    const command = this.interactiveCommand(input.command);
+    return command.version === 'localmind-office-command-batch/v1'
+      ? this.previewBatch({ ...input, batch: command })
+      : this.preview({ ...input, command });
+  }
+
+  async executeInteractive(input: ExecuteOfficeCommandInput) {
+    const command = this.interactiveCommand(input.command);
+    return command.version === 'localmind-office-command-batch/v1'
+      ? this.executeBatch({ ...input, batch: command })
+      : this.execute({ ...input, command });
   }
 
   async prepareExecution(input: ExecuteOfficeCommandInput) {

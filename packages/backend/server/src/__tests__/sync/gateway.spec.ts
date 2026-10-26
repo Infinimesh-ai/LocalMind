@@ -396,6 +396,28 @@ test('should reject websocket jwt auth after session deletion', async t => {
   }
 });
 
+test('suspending a user closes their open sockets and blocks reconnects', async t => {
+  const { user, cookieHeader } = await login(app);
+  const socket = createClient(url, cookieHeader);
+  try {
+    await waitForConnect(socket);
+    const disconnected = waitForDisconnect(socket);
+    await app.get(Models).user.suspend(user.id);
+    await disconnected;
+    t.false(socket.connected);
+
+    const retry = createClient(url, cookieHeader);
+    try {
+      await t.throwsAsync(() => waitForConnect(retry));
+    } finally {
+      retry.disconnect();
+    }
+  } finally {
+    socket.disconnect();
+    await app.get(Models).user.enable(user.id);
+  }
+});
+
 test('clientVersion=0.25.0 should only receive space:broadcast-doc-update', async t => {
   const { user, cookieHeader } = await login(app);
   const spaceId = user.id;

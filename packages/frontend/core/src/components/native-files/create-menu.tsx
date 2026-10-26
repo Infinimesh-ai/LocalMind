@@ -425,6 +425,8 @@ export function WorkspaceCreateMenu({
         hidden
         style={{ display: 'none' }}
         ref={picker}
+        // Tree-row link handlers cancel bubbled clicks, including file pickers.
+        onClick={event => event.stopPropagation()}
         onChange={event => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = '';

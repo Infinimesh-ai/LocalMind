@@ -58,6 +58,21 @@ export function workOrderRelationLabel(kind: string, t: Translator) {
   }
 }
 
+export function workOrderExchangeLabel(kind: string, t: Translator) {
+  switch (kind) {
+    case 'question':
+      return t['com.affine.localmind.workbench.v9.exchange.question']();
+    case 'answer':
+      return t['com.affine.localmind.workbench.v9.exchange.answer']();
+    case 'refusal':
+      return t['com.affine.localmind.workbench.v9.exchange.refusal']();
+    case 'cancellation':
+      return t['com.affine.localmind.workbench.v9.exchange.cancellation']();
+    default:
+      return t['com.affine.localmind.workbench.v9.exchange.recorded']();
+  }
+}
+
 export function memoryKindLabel(kind: string, t: Translator) {
   switch (kind) {
     case 'rule':

@@ -289,7 +289,9 @@ export class ReportWebGenerationService {
         maxCalls: this.config.reportDecks.maxModelCalls,
         maxHtmlBytes: this.config.reportDecks.maxHtmlBytes,
       },
-      mode: this.config.reportDecks.webRefine ? 'refine' : 'fast',
+      mode:
+        config.designMode ??
+        (this.config.reportDecks.webRefine ? 'refine' : 'fast'),
     };
   }
 

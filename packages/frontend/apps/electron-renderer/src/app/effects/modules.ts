@@ -25,7 +25,7 @@ import {
 import { configureDesktopWorkbenchModule } from '@affine/core/modules/workbench';
 import { configureBrowserWorkspaceFlavours } from '@affine/core/modules/workspace-engine';
 import { I18n } from '@affine/i18n';
-import { Framework } from '@toeverything/infra';
+import { Framework, type FrameworkProvider } from '@toeverything/infra';
 
 function notifySessionOnlySignIn(sessionOnly?: boolean) {
   if (!sessionOnly) return;
@@ -79,54 +79,56 @@ export function setupModules() {
       },
     };
   });
-  framework.scope(ServerScope).override(AuthProvider, p => {
-    const apis = p.get(DesktopApiService).api;
-    const serverService = p.get(ServerService);
-    const endpoint = serverService.server.baseUrl;
+  framework
+    .scope(ServerScope)
+    .override(AuthProvider, (p: FrameworkProvider): AuthProvider => {
+      const apis = p.get(DesktopApiService).api;
+      const serverService = p.get(ServerService);
+      const endpoint = serverService.server.baseUrl;
 
-    return {
-      async signInMagicLink(email, token, clientNonce) {
-        const result = await apis.handler.auth.signInMagicLink(
-          endpoint,
-          email,
-          token,
-          clientNonce
-        );
-        notifySessionOnlySignIn(result.sessionOnly);
-      },
-      async signInOauth(code, state, _provider, clientNonce) {
-        const result = await apis.handler.auth.signInOauth(
-          endpoint,
-          code,
-          state,
-          clientNonce
-        );
-        notifySessionOnlySignIn(result.sessionOnly);
-        return result;
-      },
-      async signInPassword(credential) {
-        const result = await apis.handler.auth.signInPassword(
-          endpoint,
-          credential
-        );
-        notifySessionOnlySignIn(result.sessionOnly);
-        return result;
-      },
-      async signInOpenAppSignInCode(code) {
-        const result = await apis.handler.auth.signInOpenAppSignInCode(
-          endpoint,
-          code
-        );
-        notifySessionOnlySignIn(result.sessionOnly);
-      },
-      async signOut() {
-        await apis.handler.auth.signOut(endpoint);
-      },
-      async clearSession() {
-        await apis.handler.auth.clearSession(endpoint);
-      },
-    };
-  });
+      return {
+        async signInMagicLink(email, token, clientNonce) {
+          const result = await apis.handler.auth.signInMagicLink(
+            endpoint,
+            email,
+            token,
+            clientNonce
+          );
+          notifySessionOnlySignIn(result.sessionOnly);
+        },
+        async signInOauth(code, state, _provider, clientNonce) {
+          const result = await apis.handler.auth.signInOauth(
+            endpoint,
+            code,
+            state,
+            clientNonce
+          );
+          notifySessionOnlySignIn(result.sessionOnly);
+          return result;
+        },
+        async signInPassword(credential) {
+          const result = await apis.handler.auth.signInPassword(
+            endpoint,
+            credential
+          );
+          notifySessionOnlySignIn(result.sessionOnly);
+          return result;
+        },
+        async signInOpenAppSignInCode(code) {
+          const result = await apis.handler.auth.signInOpenAppSignInCode(
+            endpoint,
+            code
+          );
+          notifySessionOnlySignIn(result.sessionOnly);
+        },
+        async signOut() {
+          await apis.handler.auth.signOut(endpoint);
+        },
+        async clearSession() {
+          await apis.handler.auth.clearSession(endpoint);
+        },
+      };
+    });
 
   const frameworkProvider = framework.provider();
 

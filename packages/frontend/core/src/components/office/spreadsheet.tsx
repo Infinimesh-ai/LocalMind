@@ -25,7 +25,15 @@ import {
   PlusIcon,
   TableIcon,
 } from '@blocksuite/icons/rc';
-import { columnIndexToName, parseCellAddress } from '@localmind/office/xlsx';
+import type { OfficeCommandBatch } from '@localmind/office';
+import {
+  columnIndexToName,
+  evaluateXlsxFormula,
+  parseCellAddress,
+  parseXlsxFormula,
+  validateXlsxCellValue,
+  xlsxRangeContains,
+} from '@localmind/office/xlsx';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -35,14 +43,83 @@ import {
   type NativeOfficeEditorProps,
   officeErrorMessage,
 } from './shared';
+import { SpreadsheetChart } from './spreadsheet-chart';
+import {
+  copySpreadsheetValues,
+  parseSpreadsheetInput,
+  SpreadsheetClipboardError,
+  spreadsheetPasteBatch,
+} from './spreadsheet-clipboard';
+import {
+  DEFAULT_COLUMN_WIDTH,
+  DEFAULT_ROW_HEIGHT,
+  mergedCellAddress,
+  worksheetDimensions,
+  worksheetLayout,
+} from './spreadsheet-layout';
 import * as styles from './surface.css';
 
-function cellDisplay(cell: XlsxCell | undefined) {
+const numberFormats = [
+  [0, 'General'],
+  [1, '0'],
+  [2, '0.00'],
+  [3, '#,##0'],
+  [4, '#,##0.00'],
+  [9, '0%'],
+  [10, '0.00%'],
+  [11, '0.00E+00'],
+  [49, '@'],
+] as const;
+
+export function cellDisplay(
+  cell: XlsxCell | undefined,
+  state?: XlsxSemanticState
+) {
   if (!cell) return '';
+  if (cell.formula && cell.calculationError) {
+    return cell.calculationError ===
+      'XLSX formula contains a circular reference'
+      ? '#CYCLE!'
+      : '#ERROR!';
+  }
   const value = cell.formula ? cell.calculatedValue : cell.value;
   if (value === null || value === undefined) return '';
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const formatId =
+      cell.styleIndex === undefined
+        ? 0
+        : (state?.styles.cells[cell.styleIndex]?.numberFormatId ?? 0);
+    if ([1, 2, 3, 4, 9, 10].includes(formatId)) {
+      const digits = [2, 4, 10].includes(formatId) ? 2 : 0;
+      return new Intl.NumberFormat('en-US', {
+        style: formatId === 9 || formatId === 10 ? 'percent' : 'decimal',
+        useGrouping: formatId === 3 || formatId === 4,
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      }).format(value);
+    }
+    if (formatId === 11) {
+      return value
+        .toExponential(2)
+        .replace(
+          /e([+-])(\d+)$/,
+          (_: string, sign: string, exp: string) =>
+            `E${sign}${exp.padStart(2, '0')}`
+        );
+    }
+  }
   return String(value);
+}
+
+function formulaErrorMessage(error: string) {
+  if (error === 'XLSX formula contains a circular reference') {
+    return I18n['com.affine.office.formula-circular-reference']();
+  }
+  if (error.startsWith('XLSX formula function is unsupported:')) {
+    return I18n['com.affine.office.formula-unsupported-function']();
+  }
+  return I18n['com.affine.office.formula-invalid']();
 }
 
 function cellInput(cell: XlsxCell | undefined) {
@@ -52,30 +129,18 @@ function cellInput(cell: XlsxCell | undefined) {
   return String(cell.value);
 }
 
-function parseCellInput(value: string) {
-  if (!value) return { type: 'blank' as const };
-  if (value.startsWith('=')) {
-    return { type: 'formula' as const, formula: value.slice(1) };
-  }
-  if (/^(true|false)$/i.test(value)) {
-    return { type: 'boolean' as const, value: value.toLowerCase() === 'true' };
-  }
-  const number = Number(value);
-  if (value.trim() && Number.isFinite(number)) {
-    return { type: 'number' as const, value: number };
-  }
-  return { type: 'string' as const, value };
-}
-
 function sheetFormulaRange(sheetName: string, range: string) {
   if (range.includes('!')) return range;
   const escaped = sheetName.replaceAll("'", "''");
   return `'${escaped}'!${range}`;
 }
 
-function tryParseCellAddress(input: string) {
+function tryParseCellAddress(
+  input: string,
+  sheet?: XlsxSemanticState['sheets'][number]
+) {
   try {
-    return parseCellAddress(input);
+    return mergedCellAddress(sheet, input);
   } catch {
     return undefined;
   }
@@ -96,6 +161,8 @@ function cellStyle(state: XlsxSemanticState, cell: XlsxCell | undefined) {
     fontStyle: font?.italic ? 'italic' : undefined,
     textDecoration: font?.underline ? 'underline' : undefined,
     background: fill?.foregroundColor,
+    whiteSpace: style?.wrapText ? 'pre-wrap' : undefined,
+    overflowWrap: style?.wrapText ? 'anywhere' : undefined,
     justifyContent:
       style?.horizontalAlignment === 'center'
         ? 'center'
@@ -133,6 +200,7 @@ export function cellFormatDraft(
     fillColor: fill?.foregroundColor ?? '#FFFFFF',
     alignment,
     wrapText: style?.wrapText ?? false,
+    numberFormatId: style?.numberFormatId ?? 0,
   };
 }
 
@@ -172,8 +240,9 @@ export function SpreadsheetEditor({
     'left'
   );
   const [wrapText, setWrapText] = useState(false);
-  const [rowHeight, setRowHeight] = useState(22);
-  const [columnWidth, setColumnWidth] = useState(12);
+  const [numberFormatId, setNumberFormatId] = useState(0);
+  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
+  const [columnWidth, setColumnWidth] = useState(DEFAULT_COLUMN_WIDTH);
   const [dimensionCount, setDimensionCount] = useState(1);
   const [filterValues, setFilterValues] = useState('');
   const [validationValues, setValidationValues] = useState('');
@@ -181,13 +250,28 @@ export function SpreadsheetEditor({
   const [chartType, setChartType] = useState<'column' | 'bar' | 'line' | 'pie'>(
     'column'
   );
+  const [selectedChartId, setSelectedChartId] = useState<string | null>(null);
   const [categoryRange, setCategoryRange] = useState('A2:A10');
   const [valueRange, setValueRange] = useState('B2:B10');
   const [newSheetName, setNewSheetName] = useState('Sheet');
   const [sheetName, setSheetName] = useState('');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const pendingPaste = useRef<ReturnType<typeof spreadsheetPasteBatch> | null>(
+    null
+  );
+  const [hasPendingPaste, setHasPendingPaste] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setRevisionStatus] = useState<{
+    revisionId: string;
+    message: string;
+  } | null>(null);
+  const setStatus = useCallback(
+    (message: string, revisionId = revision.id) => {
+      setRevisionStatus({ revisionId, message });
+    },
+    [revision.id]
+  );
   const sheet =
     state.sheets.find(candidate => candidate.id === activeSheetId) ??
     state.sheets[0];
@@ -196,8 +280,8 @@ export function SpreadsheetEditor({
     [sheet]
   );
   const parsedActiveAddress = useMemo(
-    () => tryParseCellAddress(activeAddress),
-    [activeAddress]
+    () => tryParseCellAddress(activeAddress, sheet),
+    [activeAddress, sheet]
   );
   const activeCell = parsedActiveAddress
     ? cells.get(parsedActiveAddress.address)
@@ -208,10 +292,12 @@ export function SpreadsheetEditor({
     setDraft(cellInput(activeCell));
     savedDraft.current = cellInput(activeCell);
     currentDraft.current = cellInput(activeCell);
-    if (parsedActiveAddress) {
-      setRange(`${parsedActiveAddress.address}:${parsedActiveAddress.address}`);
-    }
   }, [activeCell, parsedActiveAddress, registerDraft]);
+
+  const selectedAddress = parsedActiveAddress?.address;
+  useEffect(() => {
+    if (selectedAddress) setRange(`${selectedAddress}:${selectedAddress}`);
+  }, [selectedAddress, sheet?.id]);
 
   useEffect(() => {
     const format = cellFormatDraft(state, activeCell);
@@ -224,11 +310,45 @@ export function SpreadsheetEditor({
     setFillColor(format.fillColor);
     setAlignment(format.alignment);
     setWrapText(format.wrapText);
+    setNumberFormatId(format.numberFormatId);
   }, [activeCell, state]);
+
+  useEffect(() => {
+    if (!sheet || !parsedActiveAddress) return;
+    const dimensions = worksheetDimensions(
+      sheet,
+      parsedActiveAddress.row,
+      parsedActiveAddress.column
+    );
+    setRowHeight(dimensions.row?.heightPt ?? DEFAULT_ROW_HEIGHT);
+    setColumnWidth(dimensions.column?.width ?? DEFAULT_COLUMN_WIDTH);
+  }, [sheet, parsedActiveAddress]);
 
   useEffect(() => {
     setSheetName(sheet?.name ?? '');
   }, [sheet?.name]);
+
+  const activeValidation = sheet?.dataValidations.find(rule => {
+    if (!parsedActiveAddress) return false;
+    try {
+      return xlsxRangeContains(rule.range, parsedActiveAddress.address);
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    const formula = activeValidation?.formula1 ?? '';
+    setValidationValues(
+      activeValidation?.type === 'list' &&
+        formula.startsWith('"') &&
+        formula.endsWith('"')
+        ? formula.slice(1, -1).replaceAll('""', '"')
+        : ''
+    );
+  }, [activeValidation, sheet?.id]);
+  useEffect(() => {
+    setFilterValues(sheet?.autoFilter?.criteria[0]?.values.join(',') ?? '');
+  }, [sheet?.autoFilter, sheet?.id]);
 
   useEffect(() => {
     if (!sheet) {
@@ -296,6 +416,16 @@ export function SpreadsheetEditor({
     };
   }, [sheet]);
 
+  const layout = useMemo(() => worksheetLayout(sheet, bounds), [sheet, bounds]);
+  const activeDimensions =
+    sheet && parsedActiveAddress
+      ? worksheetDimensions(
+          sheet,
+          parsedActiveAddress.row,
+          parsedActiveAddress.column
+        )
+      : undefined;
+
   const commandBase = useCallback(() => {
     const id = nanoid();
     return {
@@ -309,12 +439,21 @@ export function SpreadsheetEditor({
   }, [artifactId, revision.id]);
 
   const runCommand = useCallback(
-    async (command: OfficeCommand, message: string) => {
-      if (readOnly || saving) return false;
+    async (command: OfficeCommand | OfficeCommandBatch, message: string) => {
+      if (readOnly || savingRef.current) return false;
+      if (pendingPaste.current && command !== pendingPaste.current.batch) {
+        setError(i18n['com.affine.office.clipboard-pending']());
+        return false;
+      }
+      savingRef.current = true;
       setSaving(true);
       setError(null);
       setStatus(
-        I18n['com.affine.office.previewing-operation']({ operation: message })
+        command.version === 'localmind-office-command-batch/v1'
+          ? i18n['com.affine.localmind.project-files.saving']()
+          : I18n['com.affine.office.previewing-operation']({
+              operation: message,
+            })
       );
       try {
         const result = await executeAndReloadOfficeCommand<XlsxSemanticState>({
@@ -328,7 +467,8 @@ export function SpreadsheetEditor({
           I18n['com.affine.office.operation-saved']({
             operation: message,
             version: String(result.revision.sequence),
-          })
+          }),
+          result.revision.id
         );
         return true;
       } catch (err) {
@@ -336,20 +476,104 @@ export function SpreadsheetEditor({
         setStatus(i18n['com.affine.office.save-failed']());
         return false;
       } finally {
+        savingRef.current = false;
         setSaving(false);
       }
     },
-    [graphql, onRevision, owner, readOnly, saving, i18n]
+    [graphql, onRevision, owner, readOnly, i18n, setStatus]
   );
+
+  const savePaste = useCallback(async () => {
+    const pending = pendingPaste.current;
+    if (!pending) return false;
+    const saved = await runCommand(pending.batch, pending.range);
+    if (saved) {
+      pendingPaste.current = null;
+      setHasPendingPaste(false);
+      setRange(pending.range);
+    }
+    return saved;
+  }, [runCommand]);
+
+  const clipboardError = (caught: unknown) => {
+    const code =
+      caught instanceof SpreadsheetClipboardError ? caught.code : 'invalid';
+    const messages = {
+      limit: i18n['com.affine.office.clipboard-limit'](),
+      shape: i18n['com.affine.office.clipboard-shape'](),
+      merged: i18n['com.affine.office.clipboard-merged'](),
+      invalid: i18n['com.affine.office.clipboard-invalid'](),
+    };
+    setError(messages[code]);
+  };
 
   const save = useCallback(async () => {
     if (!sheet || readOnly || saving) return false;
+    if (pendingPaste.current) return savePaste();
     if (!parsedActiveAddress) {
       setError(
         i18n['com.affine.office.enter-a-valid-cell-address-for-example-a1']()
       );
       setStatus(i18n['com.affine.office.invalid-cell-address']());
       return false;
+    }
+    const input = parseSpreadsheetInput(draft);
+    if (input.type !== 'formula') {
+      const validation = validateXlsxCellValue(
+        state,
+        sheet,
+        parsedActiveAddress.address,
+        input.type === 'blank' ? null : input.value
+      );
+      if (validation) {
+        setError(
+          i18n[
+            validation === 'invalid'
+              ? 'com.affine.office.validation-invalid'
+              : 'com.affine.office.validation-unsupported'
+          ]()
+        );
+        setStatus(i18n['com.affine.office.save-failed']());
+        return false;
+      }
+    }
+    if (input.type === 'formula') {
+      try {
+        // This preview improves feedback; the command engine recalculates and
+        // checks persisted rules again before producing a revision.
+        const value = evaluateXlsxFormula(parseXlsxFormula(input.formula), {
+          sheet: sheet.name,
+          resolveCell: (sheetName, address) => {
+            const cell = state.sheets
+              .find(item => item.name === sheetName)
+              ?.cells.find(item => item.address === address);
+            return (cell?.formula ? cell.calculatedValue : cell?.value) ?? null;
+          },
+        });
+        const validation = Array.isArray(value)
+          ? 'invalid'
+          : validateXlsxCellValue(
+              state,
+              sheet,
+              parsedActiveAddress.address,
+              value
+            );
+        if (validation) {
+          setError(
+            i18n[
+              validation === 'invalid'
+                ? 'com.affine.office.validation-invalid'
+                : 'com.affine.office.validation-unsupported'
+            ]()
+          );
+          setStatus(i18n['com.affine.office.save-failed']());
+          return false;
+        }
+      } catch (err) {
+        setError(formulaErrorMessage(err instanceof Error ? err.message : ''));
+        setStatus(i18n['com.affine.office.save-failed']());
+        return false;
+      }
     }
     const command = {
       ...commandBase(),
@@ -359,7 +583,7 @@ export function SpreadsheetEditor({
         sheetId: sheet.id,
         address: parsedActiveAddress.address,
       },
-      input: parseCellInput(draft),
+      input,
       styleIndex: activeCell?.styleIndex,
     } satisfies OfficeWorkbookSetCellCommand;
     const saved = await runCommand(command, parsedActiveAddress.address);
@@ -370,17 +594,23 @@ export function SpreadsheetEditor({
     commandBase,
     draft,
     parsedActiveAddress,
+    state,
     readOnly,
     runCommand,
     saving,
+    savePaste,
     sheet,
+    setStatus,
 
     i18n,
   ]);
 
   useOfficeEditorDraft(registerDraft, {
     get hasUnsavedChanges() {
-      return currentDraft.current !== savedDraft.current;
+      return (
+        Boolean(pendingPaste.current) ||
+        currentDraft.current !== savedDraft.current
+      );
     },
     save: async () => {
       if (!(await save()))
@@ -389,6 +619,10 @@ export function SpreadsheetEditor({
         );
     },
     discard: async () => {
+      pendingPaste.current = null;
+      setHasPendingPaste(false);
+      setError(null);
+      setStatus(i18n['com.affine.office.ready']());
       currentDraft.current = savedDraft.current;
       setDraft(savedDraft.current);
     },
@@ -411,6 +645,7 @@ export function SpreadsheetEditor({
           fillColor,
           horizontalAlignment: alignment,
           wrapText,
+          numberFormatId,
         },
       },
       i18n['com.affine.office.range-formatting']()
@@ -429,6 +664,7 @@ export function SpreadsheetEditor({
     textColor,
     underline,
     wrapText,
+    numberFormatId,
 
     i18n,
   ]);
@@ -461,7 +697,15 @@ export function SpreadsheetEditor({
         `${action === 'insert' ? 'Insert' : 'Delete'} ${axis}`
       );
     },
-    [commandBase, dimensionCount, parsedActiveAddress, runCommand, sheet, i18n]
+    [
+      commandBase,
+      dimensionCount,
+      parsedActiveAddress,
+      runCommand,
+      sheet,
+      i18n,
+      setStatus,
+    ]
   );
 
   const moveSheet = useCallback(
@@ -494,9 +738,19 @@ export function SpreadsheetEditor({
     );
   }
 
-  const gridTemplateColumns = `42px repeat(${bounds.columns}, minmax(92px, 1fr))`;
+  const selectedChart = sheet.charts.find(
+    chart => chart.id === selectedChartId
+  );
   return (
-    <div className={styles.editor}>
+    <div className={styles.workbookEditor}>
+      {selectedChart ? (
+        <SpreadsheetChart
+          state={state}
+          sheet={sheet}
+          chart={selectedChart}
+          onClose={() => setSelectedChartId(null)}
+        />
+      ) : null}
       <div
         className={styles.toolbar}
         role="toolbar"
@@ -527,7 +781,7 @@ export function SpreadsheetEditor({
         <input
           className={styles.formulaInput}
           value={draft}
-          disabled={readOnly || saving}
+          disabled={readOnly || saving || hasPendingPaste}
           ref={formulaInputRef}
           data-created-resource-focus-target
           aria-label={i18n['com.affine.office.cell-value-or-formula']()}
@@ -600,6 +854,33 @@ export function SpreadsheetEditor({
           {i18n['com.affine.office.apply-format']()}{' '}
         </Button>
       </div>
+      <div className={styles.toolbar}>
+        <span>{i18n['com.affine.office.clipboard-help']()}</span>
+        {hasPendingPaste ? (
+          <>
+            <span role="status">
+              {i18n['com.affine.office.clipboard-pending']()}
+            </span>
+            <Button
+              disabled={readOnly || saving}
+              onClick={() => void savePaste()}
+            >
+              {i18n['com.affine.office.clipboard-retry']()}
+            </Button>
+            <Button
+              disabled={saving}
+              onClick={() => {
+                pendingPaste.current = null;
+                setHasPendingPaste(false);
+                setError(null);
+                setStatus(i18n['com.affine.office.ready']());
+              }}
+            >
+              {i18n['com.affine.office.clipboard-discard']()}
+            </Button>
+          </>
+        ) : null}
+      </div>
       <div className={styles.sheetsBody}>
         <div className={styles.sheetWorkspace}>
           <div
@@ -612,56 +893,123 @@ export function SpreadsheetEditor({
             <div
               className={styles.sheetGrid}
               role="grid"
+              onCopy={event => {
+                event.preventDefault();
+                try {
+                  event.clipboardData.setData(
+                    'text/plain',
+                    copySpreadsheetValues(sheet, range)
+                  );
+                  setError(null);
+                  setStatus(i18n['com.affine.office.clipboard-copied']());
+                } catch (caught) {
+                  clipboardError(caught);
+                }
+              }}
+              onPaste={event => {
+                event.preventDefault();
+                if (readOnly) {
+                  setError(i18n['com.affine.office.clipboard-readonly']());
+                  return;
+                }
+                if (
+                  savingRef.current ||
+                  pendingPaste.current ||
+                  currentDraft.current !== savedDraft.current
+                ) {
+                  setError(i18n['com.affine.office.clipboard-pending']());
+                  return;
+                }
+                try {
+                  if (!event.clipboardData.types.includes('text/plain'))
+                    throw new SpreadsheetClipboardError('invalid');
+                  pendingPaste.current = spreadsheetPasteBatch({
+                    text: event.clipboardData.getData('text/plain'),
+                    address: activeAddress,
+                    sheet,
+                    artifactId,
+                    revisionId: revision.id,
+                    id: nanoid(),
+                  });
+                  setHasPendingPaste(true);
+                  savePaste().catch(clipboardError);
+                } catch (caught) {
+                  clipboardError(caught);
+                }
+              }}
               aria-rowcount={bounds.rows}
               aria-colcount={bounds.columns}
-              style={{ gridTemplateColumns }}
+              style={{
+                gridTemplateColumns: layout.gridTemplateColumns,
+                gridTemplateRows: layout.gridTemplateRows,
+              }}
             >
-              <div className={styles.cornerHeader} />
-              {Array.from({ length: bounds.columns }, (_, index) => (
+              <div
+                className={styles.cornerHeader}
+                style={{ gridRow: 1, gridColumn: 1 }}
+              />
+              {layout.columns.map((column, index) => (
                 <div
                   className={styles.columnHeader}
-                  key={`column:${index + 1}`}
+                  key={`column:${column}`}
+                  style={{ gridRow: 1, gridColumn: index + 2 }}
                 >
-                  {columnIndexToName(index + 1)}
+                  {columnIndexToName(column)}
                 </div>
               ))}
-              {Array.from({ length: bounds.rows }, (_, rowIndex) => {
-                const row = rowIndex + 1;
+              {layout.rows.map((row, rowIndex) => {
                 return [
-                  <div className={styles.rowHeader} key={`row:${row}`}>
+                  <div
+                    className={styles.rowHeader}
+                    key={`row:${row}`}
+                    style={{ gridRow: rowIndex + 2, gridColumn: 1 }}
+                  >
                     {row}
                   </div>,
-                  ...Array.from(
-                    { length: bounds.columns },
-                    (_, columnIndex) => {
-                      const address = `${columnIndexToName(columnIndex + 1)}${row}`;
-                      const cell = cells.get(address);
-                      return (
-                        <button
-                          type="button"
-                          role="gridcell"
-                          aria-selected={address === activeAddress}
-                          aria-label={`${address}: ${cellDisplay(cell) || i18n['com.affine.office.empty-cell']()}`}
-                          className={styles.sheetCell}
-                          data-active={address === activeAddress}
-                          key={address}
-                          style={cellStyle(state, cell)}
-                          onClick={() => {
-                            if (address !== activeAddress)
-                              changeSelection(() => setActiveAddress(address));
-                          }}
-                          onDoubleClick={() => {
-                            changeSelection(() => {
-                              setActiveAddress(address);
-                              formulaInputRef.current?.focus();
-                            });
-                          }}
-                        >
-                          {cellDisplay(cell)}
-                        </button>
-                      );
-                    }
-                  ),
+                  ...layout.columns.map((column, columnIndex) => {
+                    const position = `${columnIndexToName(column)}${row}`;
+                    const merged = layout.merged.get(position);
+                    if (merged === null) return null;
+                    const address = merged?.address ?? position;
+                    const cell = cells.get(address);
+                    return (
+                      <button
+                        type="button"
+                        role="gridcell"
+                        aria-selected={address === parsedActiveAddress?.address}
+                        aria-rowindex={row}
+                        aria-colindex={column}
+                        aria-rowspan={merged?.rowSpan}
+                        aria-colspan={merged?.columnSpan}
+                        aria-label={`${address}: ${cellDisplay(cell, state) || i18n['com.affine.office.empty-cell']()}`}
+                        title={
+                          cell?.formula && cell.calculationError
+                            ? formulaErrorMessage(cell.calculationError)
+                            : undefined
+                        }
+                        className={styles.sheetCell}
+                        data-active={address === parsedActiveAddress?.address}
+                        key={address}
+                        style={{
+                          ...cellStyle(state, cell),
+                          gridRow: `${rowIndex + 2} / span ${merged?.rowSpan ?? 1}`,
+                          gridColumn: `${columnIndex + 2} / span ${merged?.columnSpan ?? 1}`,
+                        }}
+                        onClick={() => {
+                          if (address !== activeAddress)
+                            changeSelection(() => setActiveAddress(address));
+                        }}
+                        onDoubleClick={() => {
+                          changeSelection(() => {
+                            setActiveAddress(address);
+                            formulaInputRef.current?.focus();
+                          });
+                        }}
+                      >
+                        {cellDisplay(cell, state)}
+                      </button>
+                    );
+                  }),
                 ];
               })}
             </div>
@@ -678,6 +1026,35 @@ export function SpreadsheetEditor({
                 {i18n['com.affine.office.range-format']()}
               </div>
               <div className={styles.inspectorGroup}>
+                <label className={styles.fieldLabel}>
+                  {i18n['com.affine.office.number-format']()}
+                  <select
+                    className={styles.select}
+                    aria-label={i18n['com.affine.office.number-format']()}
+                    value={numberFormatId}
+                    onChange={event =>
+                      setNumberFormatId(Number(event.target.value))
+                    }
+                  >
+                    {numberFormats.map(([id, code]) => (
+                      <option key={id} value={id}>
+                        {id === 0
+                          ? i18n['com.affine.office.number-format-general']()
+                          : code}
+                      </option>
+                    ))}
+                    {!numberFormats.some(([id]) => id === numberFormatId) && (
+                      <option value={numberFormatId}>
+                        {i18n['com.affine.office.number-format-preserved']({
+                          id: String(numberFormatId),
+                        })}
+                      </option>
+                    )}
+                  </select>
+                </label>
+                {!numberFormats.some(([id]) => id === numberFormatId) && (
+                  <p>{i18n['com.affine.office.number-format-raw-preview']()}</p>
+                )}
                 <div className={styles.inspectorGrid}>
                   <label className={styles.fieldLabel}>
                     {i18n[
@@ -804,6 +1181,49 @@ export function SpreadsheetEditor({
                 {i18n['com.affine.office.rows-and-columns']()}
               </div>
               <div className={styles.inspectorGroup}>
+                <label className={styles.checkRow}>
+                  <input
+                    type="checkbox"
+                    disabled={!parsedActiveAddress}
+                    checked={activeDimensions?.row?.hidden ?? false}
+                    onChange={event => {
+                      if (!parsedActiveAddress) return;
+                      runCommand(
+                        {
+                          ...commandBase(),
+                          operation: 'office.workbook.row.properties.set',
+                          sheetId: sheet.id,
+                          row: parsedActiveAddress.row,
+                          hidden: event.target.checked,
+                        },
+                        i18n['com.affine.office.current-row-hidden']()
+                      ).catch(console.error);
+                    }}
+                  />
+                  {i18n['com.affine.office.current-row-hidden']()}
+                </label>
+                <label className={styles.checkRow}>
+                  <input
+                    type="checkbox"
+                    disabled={!parsedActiveAddress}
+                    checked={activeDimensions?.column?.hidden ?? false}
+                    onChange={event => {
+                      if (!parsedActiveAddress) return;
+                      runCommand(
+                        {
+                          ...commandBase(),
+                          operation: 'office.workbook.column.properties.set',
+                          sheetId: sheet.id,
+                          startColumn: parsedActiveAddress.column,
+                          endColumn: parsedActiveAddress.column,
+                          hidden: event.target.checked,
+                        },
+                        i18n['com.affine.office.current-column-hidden']()
+                      ).catch(console.error);
+                    }}
+                  />
+                  {i18n['com.affine.office.current-column-hidden']()}
+                </label>
                 <div className={styles.inspectorGrid}>
                   <label className={styles.fieldLabel}>
                     {i18n['com.affine.office.row-height']()}{' '}
@@ -817,7 +1237,16 @@ export function SpreadsheetEditor({
                         setRowHeight(Number(event.target.value))
                       }
                       onBlur={() => {
-                        if (!parsedActiveAddress) return;
+                        if (
+                          !parsedActiveAddress ||
+                          rowHeight ===
+                            (worksheetDimensions(
+                              sheet,
+                              parsedActiveAddress.row,
+                              parsedActiveAddress.column
+                            ).row?.heightPt ?? DEFAULT_ROW_HEIGHT)
+                        )
+                          return;
                         runCommand(
                           {
                             ...commandBase(),
@@ -843,7 +1272,16 @@ export function SpreadsheetEditor({
                         setColumnWidth(Number(event.target.value))
                       }
                       onBlur={() => {
-                        if (!parsedActiveAddress) return;
+                        if (
+                          !parsedActiveAddress ||
+                          columnWidth ===
+                            (worksheetDimensions(
+                              sheet,
+                              parsedActiveAddress.row,
+                              parsedActiveAddress.column
+                            ).column?.width ?? DEFAULT_COLUMN_WIDTH)
+                        )
+                          return;
                         runCommand(
                           {
                             ...commandBase(),
@@ -1170,34 +1608,42 @@ export function SpreadsheetEditor({
                   <ChartPanelIcon />
                   {i18n['com.affine.office.add-chart']()}{' '}
                 </Button>
-                {sheet.charts.map(chart => (
-                  <div className={styles.objectRow} key={chart.id}>
-                    <span>{chart.title || chart.type}</span>
-                    <IconButton
-                      size="24"
-                      tooltip={i18n['com.affine.office.delete-chart']()}
-                      aria-label={I18n['com.affine.office.delete-named-chart']({
-                        name: chart.title || chart.type,
-                      })}
-                      disabled={readOnly || saving}
-                      onClick={() =>
-                        void runCommand(
-                          {
-                            ...commandBase(),
-                            operation: 'office.workbook.chart.delete',
-                            sheetId: sheet.id,
-                            chartId: chart.id,
-                          },
-                          i18n['com.affine.office.chart-deletion']()
-                        )
-                      }
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </div>
-                ))}
               </div>
             </fieldset>
+            {sheet.charts.map(chart => (
+              <div className={styles.objectRow} key={chart.id}>
+                <Button
+                  variant="plain"
+                  onClick={() => setSelectedChartId(chart.id)}
+                >
+                  {chart.title || i18n['com.affine.office.chart']()} ·{' '}
+                  {chart.type === 'unknown'
+                    ? chart.type
+                    : i18n[`com.affine.office.${chart.type}`]()}
+                </Button>
+                <IconButton
+                  size="24"
+                  tooltip={i18n['com.affine.office.delete-chart']()}
+                  aria-label={I18n['com.affine.office.delete-named-chart']({
+                    name: chart.title || chart.type,
+                  })}
+                  disabled={readOnly || saving}
+                  onClick={() =>
+                    void runCommand(
+                      {
+                        ...commandBase(),
+                        operation: 'office.workbook.chart.delete',
+                        sheetId: sheet.id,
+                        chartId: chart.id,
+                      },
+                      i18n['com.affine.office.chart-deletion']()
+                    )
+                  }
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </div>
+            ))}
           </aside>
         </div>
         <div
@@ -1339,10 +1785,20 @@ export function SpreadsheetEditor({
         {readOnly ? (
           <span>{i18n['com.affine.share-menu.option.link.readonly']()}</span>
         ) : null}
+        {activeCell?.formula && activeCell.calculationError ? (
+          <span className={styles.statusError}>
+            {activeCell.address}:{' '}
+            {formulaErrorMessage(activeCell.calculationError)}
+          </span>
+        ) : null}
         {error ? (
           <span className={styles.statusError}>{error}</span>
         ) : (
-          <span>{status ?? i18n['com.affine.office.ready']()}</span>
+          <span>
+            {status?.revisionId === revision.id
+              ? status.message
+              : i18n['com.affine.office.ready']()}
+          </span>
         )}
       </div>
     </div>

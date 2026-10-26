@@ -35,7 +35,10 @@ export const validatePassword = (
   ) {
     return {
       valid: false,
-      error: `Password must be between ${passwordLimits.minLength} and ${passwordLimits.maxLength} characters.`,
+      error: I18n['error.INVALID_PASSWORD_LENGTH']({
+        min: String(passwordLimits.minLength),
+        max: String(passwordLimits.maxLength),
+      }),
     };
   }
 
@@ -69,12 +72,20 @@ export const validateEmails = (users: ParsedUser[]): ParsedUser[] => {
     const lowerCaseEmail = user.email.toLowerCase();
 
     if (!emailRegex.test(user.email)) {
-      return { ...user, valid: false, error: 'Invalid email format' };
+      return {
+        ...user,
+        valid: false,
+        error: I18n['com.affine.admin.invalid-email-address'](),
+      };
     }
 
     const emailCount = emailMap.get(lowerCaseEmail) || 0;
     if (emailCount > 1) {
-      return { ...user, valid: false, error: 'Duplicate email address' };
+      return {
+        ...user,
+        valid: false,
+        error: I18n['com.affine.admin.duplicate-email-address'](),
+      };
     }
 
     return { ...user, valid: true };

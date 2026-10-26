@@ -24,11 +24,13 @@ import { DeleteAccountDialog } from './delete-account';
 import { DisableAccountDialog } from './disable-account';
 import { EnableAccountDialog } from './enable-account';
 import { ResetPasswordDialog } from './reset-password';
+import { SuspendAccountDialog } from './suspend-account';
 import {
   useDeleteUser,
   useDisableUser,
   useEnableUser,
   useResetUserPassword,
+  useSuspendUser,
 } from './use-user-management';
 import { UpdateUserForm } from './user-form';
 
@@ -42,6 +44,7 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [disableDialogOpen, setDisableDialogOpen] = useState(false);
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const {
     openPanel,
@@ -55,6 +58,7 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
   const deleteUser = useDeleteUser();
   const disableUser = useDisableUser();
   const enableUser = useEnableUser();
+  const suspendUser = useSuspendUser();
   const { resetPasswordLink, onResetPassword } = useResetUserPassword();
 
   const openResetPasswordDialog = useCallback(() => {
@@ -100,6 +104,12 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
     }
     setEnableDialogOpen(false);
   }, [closePanel, isOpen]);
+  const handleSuspending = useCallback(() => {
+    if (isOpen) {
+      closePanel();
+    }
+    setSuspendDialogOpen(false);
+  }, [closePanel, isOpen]);
 
   const handleDelete = useCallback(() => {
     deleteUser(user.id, handleDeleting);
@@ -110,6 +120,9 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
   const handleEnable = useCallback(() => {
     enableUser(user.id, handleEnabling);
   }, [enableUser, handleEnabling, user.id]);
+  const handleSuspend = useCallback(() => {
+    suspendUser(user.id, handleSuspending);
+  }, [suspendUser, handleSuspending, user.id]);
 
   const openDeleteDialog = useCallback(() => {
     setDeleteDialogOpen(true);
@@ -210,6 +223,15 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
               {i18n['com.affine.admin.enable-email']()}{' '}
             </DropdownMenuItem>
           )}
+          {!user.disabled && (
+            <DropdownMenuItem
+              className="px-2 py-[6px] text-sm font-normal gap-2 cursor-pointer"
+              onSelect={() => setSuspendDialogOpen(true)}
+            >
+              <AccountBanIcon fontSize={20} />
+              {i18n['com.affine.admin.suspend-reversible']()}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           {!user.disabled && (
             <DropdownMenuItem
@@ -242,6 +264,13 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
         onClose={closeDisableDialog}
         onOpenChange={setDisableDialogOpen}
         onDisable={handleDisable}
+      />
+      <SuspendAccountDialog
+        email={user.email}
+        open={suspendDialogOpen}
+        onClose={() => setSuspendDialogOpen(false)}
+        onOpenChange={setSuspendDialogOpen}
+        onConfirm={handleSuspend}
       />
       <EnableAccountDialog
         email={user.email}

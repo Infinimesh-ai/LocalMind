@@ -424,7 +424,7 @@ export const canvas = style({
 
 export const page = style({
   position: 'relative',
-  width: 'min(var(--office-page-width), 100%)',
+  width: 'var(--office-page-width)',
   minHeight: 'var(--office-page-height)',
   margin: '0 auto 24px',
   overflow: 'hidden',
@@ -625,5 +625,13 @@ export const draftActions = style({
   display: 'flex',
   gap: 8,
   justifyContent: 'flex-end',
+  flexWrap: 'wrap',
+});
+
+export const objectCaption = style({
+  display: 'flex',
+  gap: 8,
+  alignItems: 'center',
+  fontSize: 12,
   flexWrap: 'wrap',
 });

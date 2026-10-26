@@ -3,6 +3,7 @@ import test from 'ava';
 import { z } from 'zod';
 
 import { CopilotPromptInvalid, CopilotProviderSideError } from '../../base';
+import { mapAnyError } from '../../base/nestjs/exception';
 import {
   type LlmBackendConfig,
   type LlmEmbeddingRequest,
@@ -36,6 +37,7 @@ import {
   type RequiredStructuredOutputContract,
   requireStructuredOutputContract,
 } from '../../plugins/copilot/runtime/contracts';
+import { NativeStreamProtocolError } from '../../plugins/copilot/runtime/native-errors';
 import {
   buildCanonicalNativeRequest,
   buildCanonicalNativeStructuredRequest,
@@ -761,6 +763,62 @@ test('NativeProviderAdapter should append citation and attachment footnotes', as
   for (const testCase of cases) {
     testCase.verify(await testCase.run());
   }
+});
+
+test('native stream adapters preserve safe protocol errors across the API boundary', async t => {
+  const request: LlmRequest = {
+    model: 'synthetic',
+    stream: true,
+    messages: nativeMessages(nativeUserText('test')),
+  };
+  let dispatches = 0;
+  const dispatch = () =>
+    (async function* () {
+      dispatches += 1;
+      yield {
+        type: 'error',
+        code: 'conflicting_tool_arguments',
+        message: 'secret upstream body must not escape',
+      };
+    })();
+  const provider = new NativeProviderAdapter(dispatch);
+  const runtime = new NativeRuntimeAdapter(dispatch);
+  for (const source of [
+    provider.streamText(request),
+    provider.streamObject(request),
+    runtime.streamObject(request),
+  ]) {
+    const error = await t.throwsAsync(collectChunks<unknown>(source), {
+      instanceOf: NativeStreamProtocolError,
+    });
+    t.is(error.streamCode, 'conflicting_tool_arguments');
+    error.requestId = 'synthetic-request-id';
+    const json = mapAnyError(error).toJSON();
+    t.is(json.name, 'COPILOT_PROVIDER_SIDE_ERROR');
+    t.is(json.data.kind, 'stream_protocol');
+    t.is(json.requestId, 'synthetic-request-id');
+    t.regex(json.message, /conflicting_tool_arguments/);
+    t.false(JSON.stringify(json).includes('secret upstream'));
+  }
+  t.is(dispatches, 3, 'a rejected stream must not automatically replay tools');
+});
+
+test('native stream adapters retain non-protocol error codes', async t => {
+  const adapter = new NativeRuntimeAdapter(() =>
+    (async function* () {
+      yield { type: 'error', code: 'invalid_api_key', message: 'HTTP 401' };
+    })()
+  );
+  const error = await t.throwsAsync(
+    collectChunks(
+      adapter.streamObject({
+        model: 'synthetic',
+        messages: nativeMessages(nativeUserText('test')),
+      })
+    )
+  );
+  t.false(error instanceof NativeStreamProtocolError);
+  t.is((error as Error & { code: string }).code, 'invalid_api_key');
 });
 
 test('NativeProviderAdapter streamObject should map tool and text events', async t => {

@@ -161,6 +161,18 @@ test('accepts approval-gated AI commands for every native Office engine', async 
   const commands = [
     {
       version: 'localmind-office-command/v1',
+      commandId: 'paragraph-command',
+      idempotencyKey: 'paragraph-command',
+      artifactId: 'document-1',
+      expectedRevisionId: 'document-revision-1',
+      source: 'ai',
+      operation: 'office.document.paragraph.text.set',
+      target: { type: 'paragraph', blockId: 'paragraph-1' },
+      expectedText: '原段落。',
+      text: '修改后的完整段落😀。',
+    },
+    {
+      version: 'localmind-office-command/v1',
       commandId: 'workbook-command',
       idempotencyKey: 'workbook-command',
       artifactId: 'workbook-1',

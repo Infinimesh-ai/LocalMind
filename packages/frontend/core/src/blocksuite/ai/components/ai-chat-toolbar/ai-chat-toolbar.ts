@@ -14,7 +14,7 @@ import {
 } from '@blocksuite/icons/lit';
 import { flip, offset } from '@floating-ui/dom';
 import { css, html } from 'lit';
-import { property, query } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
 
 import type { AIChatRuntime, AIChatSnapshot } from '../../runtime/chat';
 import type { DocDisplayConfig } from '../ai-chat-chips';
@@ -52,9 +52,10 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
   accessor notificationService!: NotificationService;
 
   @query('.history-button')
-  accessor historyButton!: HTMLDivElement;
+  accessor historyButton!: HTMLButtonElement;
 
-  private abortController: AbortController | null = null;
+  @state()
+  private accessor abortController: AbortController | null = null;
 
   get isGenerating() {
     const status = this.runtimeSnapshot.status;
@@ -72,6 +73,9 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
       align-items: center;
 
       .chat-toolbar-icon {
+        border: 0;
+        padding: 0;
+        background: transparent;
         cursor: pointer;
         display: flex;
         justify-content: center;
@@ -81,6 +85,10 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
         border-radius: 4px;
         &:hover {
           background-color: ${unsafeCSSVarV2('layer/background/hoverOverlay')};
+        }
+        &:focus-visible {
+          outline: 2px solid ${unsafeCSSVarV2('text/emphasis')};
+          outline-offset: 2px;
         }
 
         svg {
@@ -101,8 +109,10 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
     return html`
       <div class="ai-chat-toolbar">
         ${this.canCreateNewSession
-          ? html` <div
+          ? html` <button
+              type="button"
               class="chat-toolbar-icon"
+              aria-label=${I18n['com.affine.ai.action-label.new-chat']()}
               @click=${this.onPlusClick}
               data-testid="ai-panel-new-chat"
             >
@@ -112,10 +122,16 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
                   'com.affine.ai.action-label.new-chat'
                 ]()}</affine-tooltip
               >
-            </div>`
+            </button>`
           : null}
-        <div
+        <button
+          type="button"
           class="chat-toolbar-icon"
+          aria-label=${pinned
+            ? I18n['Unpin']()
+            : I18n['com.affine.localmind.chat.pin']()}
+          aria-pressed=${!!pinned}
+          aria-disabled=${this.isGenerating}
           @click=${this.onPinClick}
           data-pinned=${!!pinned}
           data-disabled=${this.isGenerating}
@@ -123,11 +139,16 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
         >
           ${pinned ? PinedIcon() : PinIcon()}
           <affine-tooltip>
-            ${pinned ? 'Unpin this Chat' : 'Pin this Chat'}
+            ${pinned
+              ? I18n['Unpin']()
+              : I18n['com.affine.localmind.chat.pin']()}
           </affine-tooltip>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           class="chat-toolbar-icon history-button"
+          aria-label=${I18n['com.affine.ai.action-label.chat-history']()}
+          aria-expanded=${!!this.abortController}
           @click=${this.toggleHistoryMenu}
           data-testid="ai-panel-chat-history"
         >
@@ -137,7 +158,7 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
               'com.affine.ai.action-label.chat-history'
             ]()}</affine-tooltip
           >
-        </div>
+        </button>
       </div>
     `;
   }
@@ -220,41 +241,57 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
     this.onOpenDoc(docId, sessionId);
   };
 
-  private readonly toggleHistoryMenu = async () => {
+  private readonly toggleHistoryMenu = () => {
     if (this.abortController) {
       this.abortController.abort();
       return;
     }
 
-    this.abortController = new AbortController();
-    this.abortController.signal.addEventListener('abort', () => {
-      this.abortController = null;
+    const controller = new AbortController();
+    const runtime = this.runtime;
+    this.abortController = controller;
+    let updatePortal = () => {};
+    let refreshError: Error | null = null;
+    const unsubscribe = runtime.subscribe(() => updatePortal());
+    controller.signal.addEventListener('abort', () => {
+      unsubscribe();
+      if (this.abortController === controller) this.abortController = null;
     });
-
-    try {
-      await this.runtime.dispatch({ type: 'refreshHistory' });
-    } catch (error) {
-      console.error(error);
-    }
-    if (this.abortController.signal.aborted) {
-      return;
-    }
+    const refresh = () => {
+      refreshError = null;
+      runtime.dispatch({ type: 'refreshHistory' }).catch(() => {
+        if (controller.signal.aborted) return;
+        refreshError = new Error('History refresh failed');
+        updatePortal();
+      });
+    };
+    const close = () => {
+      controller.abort();
+      this.historyButton?.focus();
+    };
 
     createLitPortal({
-      template: html`
-        <ai-session-history
-          .session=${this.session}
-          .docId=${this.docId}
-          .recentSessions=${this.runtime.getSnapshot().history.recent}
-          .currentDocSessions=${this.runtime.getSnapshot().history.currentDoc}
-          .loading=${this.runtime.getSnapshot().history.loading}
-          .docDisplayConfig=${this.docDisplayConfig}
-          .onSessionClick=${this.onSessionClick}
-          .onSessionDelete=${this.onSessionDelete}
-          .onDocClick=${this.onDocClick}
-          .notificationService=${this.notificationService}
-        ></ai-session-history>
-      `,
+      template: ({ updatePortal: update }) => {
+        updatePortal = update;
+        const history = runtime.getSnapshot().history;
+        return html`
+          <ai-session-history
+            .session=${this.session}
+            .docId=${this.docId}
+            .recentSessions=${history.recent}
+            .currentDocSessions=${history.currentDoc}
+            .loading=${history.loading}
+            .error=${refreshError ?? history.error}
+            .onRetry=${refresh}
+            .onClose=${close}
+            .docDisplayConfig=${this.docDisplayConfig}
+            .onSessionClick=${this.onSessionClick}
+            .onSessionDelete=${this.onSessionDelete}
+            .onDocClick=${this.onDocClick}
+            .notificationService=${this.notificationService}
+          ></ai-session-history>
+        `;
+      },
       portalStyles: {
         zIndex: 'var(--affine-z-index-popover)',
       },
@@ -265,10 +302,16 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
         middleware: [offset({ crossAxis: 0, mainAxis: 5 }), flip()],
         autoUpdate: { animationFrame: true },
       },
-      abortController: this.abortController,
+      abortController: controller,
       closeOnClickAway: true,
     });
+    refresh();
   };
+
+  override disconnectedCallback() {
+    this.closeHistoryMenu();
+    super.disconnectedCallback();
+  }
 
   public closeHistoryMenu() {
     this.abortController?.abort();

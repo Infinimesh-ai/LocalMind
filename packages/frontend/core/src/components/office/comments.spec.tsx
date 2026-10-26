@@ -2,6 +2,7 @@
  * @vitest-environment happy-dom
  */
 
+import type { OfficeCommentAnchor } from '@affine/core/modules/office';
 import {
   cleanup,
   fireEvent,
@@ -42,6 +43,7 @@ const updateOfficeCommentReplyMutation = vi.hoisted(() =>
 const deleteOfficeCommentReplyMutation = vi.hoisted(() =>
   Symbol('deleteOfficeCommentReplyMutation')
 );
+const openConfirmModal = vi.hoisted(() => vi.fn());
 const realtimeSubscriber = vi.hoisted(() =>
   vi.fn(() => ({ unsubscribe: vi.fn() }))
 );
@@ -112,6 +114,7 @@ vi.mock('@affine/component', async () => ({
   Modal: ({ open, children }: PropsWithChildren<{ open: boolean }>) =>
     open ? <div>{children}</div> : null,
   Tooltip: ({ children }: PropsWithChildren) => children,
+  useConfirmModal: () => ({ openConfirmModal }),
 }));
 
 vi.mock('@affine/core/components/hooks/use-query', () => ({
@@ -152,6 +155,7 @@ describe('Office comments panel', () => {
 
   beforeEach(() => {
     gql.mockClear();
+    openConfirmModal.mockClear();
     mutateComments.mockClear();
     mutateCollaborators.mockClear();
     realtimeSubscribe.mockClear();
@@ -247,6 +251,30 @@ describe('Office comments panel', () => {
     );
   });
 
+  test('deletes comments only after the in-app confirmation', async () => {
+    const nativeConfirm = vi.fn();
+    Object.defineProperty(window, 'confirm', {
+      configurable: true,
+      writable: true,
+      value: nativeConfirm,
+    });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete comment' }));
+
+    expect(nativeConfirm).not.toHaveBeenCalled();
+    expect(openConfirmModal).toHaveBeenCalledOnce();
+    expect(gql).not.toHaveBeenCalled();
+    const [{ onConfirm }] = openConfirmModal.mock.calls[0] as [
+      { onConfirm: () => Promise<void> },
+    ];
+    await onConfirm();
+    expect(gql).toHaveBeenCalledWith({
+      query: deleteOfficeCommentMutation,
+      variables: { id: 'comment-1' },
+    });
+  });
+
   test('IME confirmation does not send a partial Office comment reply', async () => {
     renderPanel();
     const input = screen.getByLabelText('Reply to Alice');
@@ -269,6 +297,129 @@ describe('Office comments panel', () => {
         },
       },
     });
+  });
+
+  test('typing a comment keeps the selected revision and range after editor selection clears', async () => {
+    const anchor: OfficeCommentAnchor = {
+      kind: 'document',
+      revisionId: 'revision-7',
+      start: { blockId: 'paragraph-1', offset: 0 },
+      end: { blockId: 'paragraph-1', offset: 21 },
+    };
+    const props = {
+      open: true,
+      workspaceId: 'workspace-1',
+      artifactId: 'artifact-1',
+      graphql: { gql } as never,
+      realtime: { subscribe: realtimeSubscribe } as never,
+      onOpenChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <OfficeCommentsPanel {...props} anchor={anchor} />
+    );
+    rerender(<OfficeCommentsPanel {...props} anchor={null} />);
+    fireEvent.change(screen.getByLabelText('New Office comment'), {
+      target: { value: 'Review selected paragraph' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    await waitFor(() =>
+      expect(gql).toHaveBeenCalledWith({
+        query: createOfficeCommentMutation,
+        variables: {
+          input: {
+            owner: { workspaceId: 'workspace-1' },
+            artifactId: 'artifact-1',
+            content: {
+              version: 'localmind-office-comment/v1',
+              text: 'Review selected paragraph',
+              anchor,
+            },
+          },
+        },
+      })
+    );
+  });
+
+  test('reopening with a different selection captures the new anchor and never reuses an absent one', async () => {
+    const anchor: OfficeCommentAnchor = {
+      kind: 'workbook',
+      revisionId: 'revision-1',
+      sheetId: 'sheet-1',
+      address: 'A1',
+    };
+    const props = {
+      workspaceId: 'workspace-1',
+      artifactId: 'artifact-1',
+      graphql: { gql } as never,
+      realtime: { subscribe: realtimeSubscribe } as never,
+      onOpenChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <OfficeCommentsPanel {...props} open anchor={anchor} />
+    );
+    fireEvent.change(screen.getByLabelText('New Office comment'), {
+      target: { value: 'Draft' },
+    });
+    rerender(<OfficeCommentsPanel {...props} open={false} anchor={null} />);
+    rerender(<OfficeCommentsPanel {...props} open anchor={null} />);
+    expect(
+      (screen.getByRole('button', { name: 'Comment' }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+    rerender(<OfficeCommentsPanel {...props} open={false} anchor={null} />);
+    const next = { ...anchor, revisionId: 'revision-2', address: 'C3' };
+    rerender(<OfficeCommentsPanel {...props} open anchor={next} />);
+    rerender(<OfficeCommentsPanel {...props} open anchor={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    await waitFor(() =>
+      expect(gql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variables: {
+            input: {
+              owner: { workspaceId: 'workspace-1' },
+              artifactId: 'artifact-1',
+              content: {
+                version: 'localmind-office-comment/v1',
+                text: 'Draft',
+                anchor: next,
+              },
+            },
+          },
+        })
+      )
+    );
+  });
+
+  test('losing edit permission disables a comment even while its anchor is retained', () => {
+    const props = {
+      open: true,
+      workspaceId: 'workspace-1',
+      artifactId: 'artifact-1',
+      graphql: { gql } as never,
+      realtime: { subscribe: realtimeSubscribe } as never,
+      onOpenChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <OfficeCommentsPanel
+        {...props}
+        anchor={{
+          kind: 'workbook',
+          revisionId: 'revision-1',
+          sheetId: 'sheet-1',
+          address: 'A1',
+        }}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('New Office comment'), {
+      target: { value: 'Draft' },
+    });
+    rerender(<OfficeCommentsPanel {...props} anchor={null} readOnly />);
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    expect(gql).not.toHaveBeenCalled();
+    expect(
+      (screen.getByRole('button', { name: 'Comment' }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
   });
 
   test('resolves an Office comment without mutating package state', async () => {

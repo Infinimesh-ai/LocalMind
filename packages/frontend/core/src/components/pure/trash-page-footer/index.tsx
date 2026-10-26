@@ -71,6 +71,7 @@ export const TrashPageFooter = () => {
       <div className={styles.group}>
         <Button
           tooltip={t['com.affine.trashOperation.restoreIt']()}
+          aria-label={t['com.affine.trashOperation.restoreIt']()}
           data-testid="page-restore-button"
           variant="primary"
           disabled={pending || !canRestore}
@@ -81,6 +82,7 @@ export const TrashPageFooter = () => {
         />
         <Button
           tooltip={t['com.affine.trashOperation.deletePermanently']()}
+          aria-label={t['com.affine.trashOperation.deletePermanently']()}
           variant="error"
           disabled={pending || !canDelete}
           onClick={onDelete}

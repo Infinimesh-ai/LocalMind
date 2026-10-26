@@ -137,12 +137,27 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
     const { host, item, isLast, status, error } = this;
     const { streamObjects, content } = item;
     const shouldRenderError = isLast && status === 'error' && !!error;
+    const legacyAborted =
+      content === '> Request aborted' && !streamObjects?.length;
+    const interrupted =
+      item.params?.generationStatus === 'aborted' || legacyAborted;
 
     return html`
       ${this.renderImages()}
       ${streamObjects?.length
         ? this.renderStreamObjects(streamObjects)
-        : this.renderRichText(content)}
+        : legacyAborted
+          ? nothing
+          : this.renderRichText(content)}
+      ${interrupted
+        ? html`<div
+            class="message-info"
+            role="status"
+            data-testid="chat-generation-stopped"
+          >
+            ${I18n['com.affine.ai.chat.generation-stopped']()}
+          </div>`
+        : nothing}
       ${shouldRenderError ? AIChatErrorRenderer(error, host) : nothing}
       ${this.renderEditorActions()}
     `;

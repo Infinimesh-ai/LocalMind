@@ -10,6 +10,7 @@ import useSWR, { useSWRConfig } from 'swr';
 import useSWRInfinite from 'swr/infinite';
 
 import { useReportDeckApi } from './api';
+import { deckAccessFailure } from './errors';
 import {
   ACTIVE_DECK_STATUSES,
   type DeckCommandResponse,
@@ -72,7 +73,7 @@ export function useDeck(deckId: string | null | undefined) {
     {
       suspense: false,
       // Ride out short server restarts before showing the error state.
-      shouldRetryOnError: true,
+      shouldRetryOnError: error => !deckAccessFailure(error),
       errorRetryCount: 3,
       errorRetryInterval: 3000,
       refreshInterval: deck =>
@@ -80,7 +81,8 @@ export function useDeck(deckId: string | null | undefined) {
     }
   );
   return {
-    deck: query.data,
+    // Do not retain a previously cached deck after its access is revoked.
+    deck: deckAccessFailure(query.error) ? undefined : query.data,
     error: query.error as unknown,
     loading: query.isLoading,
     refresh: () => query.mutate(),

@@ -32,6 +32,7 @@ export const ParagraphKeymapExtension = KeymapExtension(
   std => {
     return {
       Backspace: ctx => {
+        if (std.store.readonly) return;
         const text = std.selection.find(TextSelection);
         if (!text) return;
         const isCollapsed = text.isCollapsed();
@@ -74,6 +75,7 @@ export const ParagraphKeymapExtension = KeymapExtension(
         return true;
       },
       'Mod-Enter': ctx => {
+        if (std.store.readonly) return;
         const { store } = std;
         const text = std.selection.find(TextSelection);
         if (!text) return;
@@ -103,6 +105,7 @@ export const ParagraphKeymapExtension = KeymapExtension(
         return true;
       },
       Enter: ctx => {
+        if (std.store.readonly) return;
         const raw = ctx.get('keyboardState').raw;
         if (raw.isComposing) return;
 
@@ -180,6 +183,7 @@ export const ParagraphKeymapExtension = KeymapExtension(
         return true;
       },
       Delete: ctx => {
+        if (std.store.readonly) return;
         const deleted = forwardDelete(std);
         if (!deleted) {
           return;
@@ -189,6 +193,7 @@ export const ParagraphKeymapExtension = KeymapExtension(
         return true;
       },
       'Control-d': ctx => {
+        if (std.store.readonly) return;
         if (!IS_MAC) return;
         const deleted = forwardDelete(std);
         if (!deleted) {
@@ -199,6 +204,7 @@ export const ParagraphKeymapExtension = KeymapExtension(
         return true;
       },
       Tab: ctx => {
+        if (std.store.readonly) return;
         const [success] = std.command
           .chain()
           .pipe(canIndentParagraphCommand)
@@ -211,6 +217,7 @@ export const ParagraphKeymapExtension = KeymapExtension(
         return true;
       },
       'Shift-Tab': ctx => {
+        if (std.store.readonly) return;
         const [success] = std.command
           .chain()
           .pipe(canDedentParagraphCommand)

@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import { BadRequest } from '../../base';
 import { CurrentUser, type CurrentUser as User } from '../auth';
 import { OfficeArtifactService } from './artifact-service';
+import { officePdfExportResponse } from './pdf-export-response';
 
 @Controller(
   '/api/projects/:projectId/office/artifacts/:artifactId/revisions/:revisionId'
@@ -20,10 +21,13 @@ export class ProjectOfficeController {
     @Param('revisionId') revisionId: string,
     @Param('asset') kind: string,
     @Query('path') partName: string,
-    @Res() response: Response
+    @Res() response: Response,
+    @Query('view') view?: string
   ) {
     if (kind !== 'package' && kind !== 'state' && kind !== 'part')
       throw new BadRequest('Unknown Office asset');
+    if (view !== undefined && (kind !== 'state' || view !== 'layout-v2'))
+      throw new BadRequest('Unknown Office state view');
     const asset =
       kind === 'part'
         ? await this.artifacts.readRevisionPackagePart(
@@ -33,13 +37,20 @@ export class ProjectOfficeController {
             revisionId,
             partName
           )
-        : await this.artifacts.readRevisionAsset(
-            { projectId },
-            user.id,
-            artifactId,
-            revisionId,
-            kind
-          );
+        : view === 'layout-v2'
+          ? await this.artifacts.readRevisionLayoutState(
+              { projectId },
+              user.id,
+              artifactId,
+              revisionId
+            )
+          : await this.artifacts.readRevisionAsset(
+              { projectId },
+              user.id,
+              artifactId,
+              revisionId,
+              kind
+            );
     response.setHeader(
       'content-type',
       kind === 'state'
@@ -69,12 +80,17 @@ export class ProjectOfficeController {
     @Param('revisionId') revisionId: string,
     @Res() response: Response
   ) {
-    const asset = await this.artifacts.exportDocumentRevisionPdf(
-      { projectId },
-      user.id,
-      artifactId,
-      revisionId
+    const asset = await officePdfExportResponse(
+      () =>
+        this.artifacts.exportDocumentRevisionPdf(
+          { projectId },
+          user.id,
+          artifactId,
+          revisionId
+        ),
+      response
     );
+    if (!asset) return;
     response.setHeader('cache-control', 'private, no-store');
     response.setHeader('x-content-type-options', 'nosniff');
     response

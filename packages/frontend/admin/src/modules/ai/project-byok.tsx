@@ -27,6 +27,7 @@ import { FlaskConicalIcon, RefreshCwIcon, SaveIcon } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmDialog } from '../../components/shared/confirm-dialog';
 import { formatByokError } from './byok-feedback';
 
 type Settings = QueryResponse<
@@ -52,6 +53,7 @@ function ProjectByokForm({
   const [endpoint, setEndpoint] = useState(settings.endpoint ?? '');
   const [modelId, setModelId] = useState(settings.modelId ?? '');
   const [apiKey, setApiKey] = useState('');
+  const [confirmDisable, setConfirmDisable] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelListUnavailable, setModelListUnavailable] = useState(false);
   const clearModelList = () => {
@@ -154,17 +156,12 @@ function ProjectByokForm({
     });
   };
 
-  const handleEnabled = async (enabled: boolean) => {
+  const handleEnabled = async (enabled: boolean, confirmed = false) => {
     if (busy || !settings.configured) return;
-    if (
-      !enabled &&
-      !window.confirm(
-        i18n[
-          'com.affine.admin.disable-ai-for-all-project-conversations-new-requests-will-stop-until-global-project-byok-is-enabled'
-        ]()
-      )
-    )
+    if (!enabled && !confirmed) {
+      setConfirmDisable(true);
       return;
+    }
     setFeedback(null);
     try {
       await setEnabled({ expectedRevision: settings.revision, enabled });
@@ -438,6 +435,26 @@ function ProjectByokForm({
             : i18n['com.affine.admin.verify-and-save']()}
         </Button>
       </div>
+      <ConfirmDialog
+        open={confirmDisable}
+        onOpenChange={setConfirmDisable}
+        title={i18n['com.affine.admin.project-ai-enabled']()}
+        description={i18n[
+          'com.affine.admin.disable-ai-for-all-project-conversations-new-requests-will-stop-until-global-project-byok-is-enabled'
+        ]()}
+        confirmText={i18n[
+          'com.affine.integration.external-mcp.action.disable'
+        ]()}
+        confirmButtonVariant="destructive"
+        onConfirm={() => {
+          setConfirmDisable(false);
+          handleEnabled(false, true).catch(() =>
+            toast.error(
+              i18n['com.affine.admin.could-not-update-project-byok']()
+            )
+          );
+        }}
+      />
     </form>
   );
 }

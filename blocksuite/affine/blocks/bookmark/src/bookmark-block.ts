@@ -142,6 +142,11 @@ export class BookmarkBlockComponent extends CaptionedBlockComponent<BookmarkBloc
   handleClick = (event: MouseEvent) => {
     event.stopPropagation();
 
+    if (this.isCitation && this.store.readonly) {
+      this.open();
+      return;
+    }
+
     if (
       this.model.parent?.flavour !== 'affine:surface' &&
       !this.store.readonly

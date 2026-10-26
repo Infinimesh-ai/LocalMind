@@ -9,6 +9,8 @@ import { ByokNotConfiguredError } from '../../provider';
 vi.mock('@affine/i18n', () => ({
   I18n: {
     'error.COPILOT_BYOK_NOT_CONFIGURED': () => 'Configure BYOK first.',
+    'error.COPILOT_BYOK_CREDENTIAL_DISABLED': () =>
+      'Credential disabled after rejection.',
   },
 }));
 
@@ -28,6 +30,21 @@ describe('CopilotClient action streams', () => {
 
     expect(resolved).toBeInstanceOf(ByokNotConfiguredError);
     expect(resolved.message).toBe('Configure BYOK first.');
+  });
+
+  test('distinguishes a disabled credential from a missing configuration', () => {
+    const resolved = resolveError(
+      new UserFriendlyError({
+        status: 403,
+        code: 'FORBIDDEN',
+        type: 'ACTION_FORBIDDEN',
+        name: 'COPILOT_BYOK_CREDENTIAL_DISABLED',
+        message: 'Raw server message',
+      })
+    );
+
+    expect(resolved).toBeInstanceOf(ByokNotConfiguredError);
+    expect(resolved.message).toBe('Credential disabled after rejection.');
   });
 
   test('routes action endpoint outside the deprecated workflow path', () => {

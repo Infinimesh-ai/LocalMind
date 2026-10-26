@@ -4,7 +4,13 @@ import { PrismaClient, WorkspaceMemberStatus } from '@prisma/client';
 import ava, { type ExecutionContext, type TestFn } from 'ava';
 import Sinon from 'sinon';
 
-import { Cache, ConfigFactory, CryptoHelper } from '../../base';
+import {
+  Cache,
+  ConfigFactory,
+  CryptoHelper,
+  NetworkError,
+  SpaceAccessDenied,
+} from '../../base';
 import { EntitlementService } from '../../core/entitlement';
 import { Models, WorkspaceRole } from '../../models';
 import { CopilotAccessPolicy } from '../../plugins/copilot/access';
@@ -15,6 +21,7 @@ import {
   ByokKeyTestStatus,
   ByokProvider,
 } from '../../plugins/copilot/byok/types';
+import { nativeStreamError } from '../../plugins/copilot/runtime/native-errors';
 import {
   SubscriptionPlan,
   SubscriptionRecurring,
@@ -1399,7 +1406,107 @@ test('dispatch failure disables server BYOK key by provider id', async t => {
   }
   t.false(disabled.enabled);
   t.is(disabled.disabledReason, 'recent_failure');
-  t.is(disabled.lastError, 'Provider request failed.');
+  t.is(disabled.lastError, 'Provider rejected the credential.');
+});
+
+test('only upstream credential rejection disables server BYOK keys', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, user.id);
+  const key = await t.context.byok.upsertConfig({
+    workspaceId: workspace.id,
+    userId: user.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    name: 'Primary',
+    apiKey: 'sk-runtime-primary',
+  });
+  const providerId = `byok-${workspaceHash(workspace.id)}-openai-${key.id}-r${key.configRevision}`;
+  const runtimeFailures: [Error, string][] = [
+    [
+      new Error('http timeout error: request exceeded sk-runtime-primary'),
+      'Provider request timed out.',
+    ],
+    [new NetworkError('LLM request timed out'), 'Provider request timed out.'],
+    [
+      new Error('http transport error: connection reset'),
+      'Provider connection failed.',
+    ],
+    [new Error('no backend available'), 'Provider request failed.'],
+    [new Error('json error: expected value'), 'Provider request failed.'],
+    [new Error('INTERNAL_SERVER_ERROR'), 'Provider request failed.'],
+    [
+      Object.assign(new Error('tool failed {"status":403}'), {
+        code: 'dispatch_error',
+      }),
+      'Provider request failed.',
+    ],
+    // LocalMind's own permission errors are never credential evidence.
+    [
+      new SpaceAccessDenied({ spaceId: workspace.id }),
+      'Provider request failed.',
+    ],
+  ];
+  for (const [error, expected] of runtimeFailures) {
+    await t.context.byok.recordProviderFailure({
+      workspaceId: workspace.id,
+      providerId,
+      featureKind: 'chat',
+      error,
+    });
+    const config = await t.context.models.copilotWorkspaceByokConfig.get(
+      key.id
+    );
+    t.true(config?.enabled, error.message);
+    t.is(config?.disabledReason, null);
+    t.is(config?.lastError, expected);
+    t.false(config!.lastError!.includes('sk-runtime-primary'));
+  }
+  t.false(
+    await t.context.byok.hasWorkspaceCredentialDisabledAfterFailure({
+      userId: user.id,
+      workspaceId: workspace.id,
+    })
+  );
+
+  for (const error of [
+    new Error('upstream returned status 401: {"error":"sk-runtime-primary"}'),
+    new Error('upstream returned status 403: forbidden'),
+    Object.assign(new Error('provider stream error'), {
+      code: 'authentication_error',
+    }),
+  ]) {
+    await t.context.models.copilotWorkspaceByokConfig.markValidated(
+      workspace.id,
+      key.id,
+      user.id,
+      key.configRevision
+    );
+    await t.context.byok.recordProviderFailure({
+      workspaceId: workspace.id,
+      providerId,
+      featureKind: 'chat',
+      error,
+    });
+    const config = await t.context.models.copilotWorkspaceByokConfig.get(
+      key.id
+    );
+    t.false(config?.enabled, error.message);
+    t.is(config?.disabledReason, 'recent_failure');
+    t.is(config?.lastError, 'Provider rejected the credential.');
+  }
+  t.true(
+    await t.context.byok.hasWorkspaceCredentialDisabledAfterFailure({
+      userId: user.id,
+      workspaceId: workspace.id,
+    })
+  );
+  t.false(
+    await t.context.byok.hasWorkspaceCredentialDisabledAfterFailure({
+      userId: user.id,
+      workspaceId: workspace.id,
+      projectId: 'project-uses-global-byok',
+    })
+  );
 });
 
 test('dispatch accounting ignores provider ids from another workspace hash', async t => {
@@ -1766,5 +1873,97 @@ test('API protocol revisions preserve old-client updates and fence late probes',
   t.is(
     (profile?.config as { apiStyle?: string })?.apiStyle,
     'chat_completions'
+  );
+});
+
+test('stream protocol failures record diagnostics without disabling or re-enabling BYOK', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  await grantUserPlan(t, user.id);
+  const input = {
+    workspaceId: workspace.id,
+    userId: user.id,
+    provider: ByokProvider.openai,
+    storage: ByokKeyStorage.server,
+    name: 'Stream regression',
+    apiKey: 'synthetic-key',
+    modelId: 'synthetic',
+    apiStyle: 'responses',
+  };
+  const original = await t.context.byok.upsertConfig(input);
+  const profiles = await t.context.byok.getProfiles({
+    workspaceId: workspace.id,
+    userId: user.id,
+  });
+  const profile = profiles.find(profile =>
+    profile.id.endsWith(`${original.id}-r1`)
+  );
+  t.truthy(profile);
+  const failure = {
+    workspaceId: workspace.id,
+    providerId: profile!.id,
+    featureKind: 'action' as const,
+    error: nativeStreamError({
+      code: 'conflicting_tool_arguments',
+      message: 'private document and credential must not be stored',
+    }),
+  };
+  await t.context.models.copilotWorkspaceByokConfig.markValidated(
+    workspace.id,
+    original.id,
+    user.id,
+    1
+  );
+  const validated = await t.context.models.copilotWorkspaceByokConfig.get(
+    original.id
+  );
+  await t.context.byok.recordProviderFailure(failure);
+  const failed = await t.context.models.copilotWorkspaceByokConfig.get(
+    original.id
+  );
+  t.true(failed?.enabled);
+  t.is(failed?.disabledReason, null);
+  t.is(failed?.lastValidationError, null);
+  t.deepEqual(failed?.lastValidatedAt, validated?.lastValidatedAt);
+  t.regex(failed!.lastError!, /conflicting_tool_arguments/);
+  t.false(failed!.lastError!.includes('private document'));
+  t.truthy(failed?.lastErrorAt);
+  t.is(failed?.configRevision, 1);
+
+  // Real credential failures still disable the credential.
+  await t.context.byok.recordProviderFailure({
+    ...failure,
+    error: nativeStreamError({
+      code: 'invalid_api_key',
+      message: 'HTTP 401 invalid API key',
+    }),
+  });
+  await t.context.byok.recordProviderFailure({
+    ...failure,
+    providerId: failure.providerId.replace(/-r1$/, '-r2'),
+  });
+  const disabled = await t.context.models.copilotWorkspaceByokConfig.get(
+    original.id
+  );
+  t.false(disabled?.enabled);
+  t.is(disabled?.disabledReason, 'recent_failure');
+  t.is(disabled?.lastValidationError, 'Provider rejected the credential.');
+  t.is(disabled?.configRevision, 2);
+  t.regex(disabled!.lastError!, /conflicting_tool_arguments/);
+
+  await t.context.byok.upsertConfig({
+    ...input,
+    id: original.id,
+    apiKey: 'rotated-synthetic-key',
+    expectedRevision: 2,
+  });
+  const rotated = await t.context.models.copilotWorkspaceByokConfig.get(
+    original.id
+  );
+  t.is(rotated?.configRevision, 3);
+  await t.context.byok.recordProviderFailure(failure);
+  t.deepEqual(
+    await t.context.models.copilotWorkspaceByokConfig.get(original.id),
+    rotated,
+    'late errors must not overwrite diagnostics on a rotated key'
   );
 });

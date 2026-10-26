@@ -92,7 +92,7 @@ export function createWorkspaceNativeTools(
   ) {
     tools.workspace_resource_list = defineTool({
       description:
-        'List or keyword-search native Workspace Office and text/binary files, using current content, directory permissions and trash status. Use document tools separately for Page and Edgeless. A cursor continues the same query.',
+        'List or keyword-search native Workspace Office and text/binary files, using current content, directory permissions and trash status. Use each returned url unchanged for opening links and type=url citations; never guess a files route for Office or treat resource IDs as attachment blob IDs. Use document tools separately for Page and Edgeless. A cursor continues the same query.',
       sideEffectType: 'read',
       inputSchema: z
         .object({
@@ -104,17 +104,29 @@ export function createWorkspaceNativeTools(
         .strict(),
       execute: async input => {
         await authorize();
-        return resources.list({ ...actor, ...input });
+        const result = await resources.list({ ...actor, ...input });
+        return {
+          ...result,
+          items: result.items.map(item => ({
+            ...item,
+            url: `/workspace/${encodeURIComponent(actor.workspaceId)}/${item.kind === 'office' ? 'office' : 'files'}/${encodeURIComponent(item.id)}`,
+          })),
+        };
       },
     });
     tools.workspace_file_read = defineTool({
       description:
-        'Read complete UTF-8 TXT, Markdown, CSV or JSON by its native Workspace file ID and return the same immutable content version. Unsupported encoding and over-limit content fail without truncation. Read before updating.',
+        'Read complete UTF-8 TXT, Markdown, CSV or JSON by its native Workspace file ID and return the same immutable content version. Use the returned url unchanged for opening links and type=url citations, not attachment blob IDs. Unsupported encoding and over-limit content fail without truncation. Read before updating.',
       sideEffectType: 'read',
       inputSchema: z
         .object({
           resource_id: identity.shape.resource_id,
-          sequence: version.optional(),
+          sequence: version
+            .nullish()
+            .transform(value => value ?? undefined)
+            .describe(
+              'Omit or use null to read the latest current file. Never default to version 1. Specify a version only when the user explicitly requests historical content. Before an update, read the latest version.'
+            ),
         })
         .strict(),
       execute: async input => {
@@ -126,7 +138,11 @@ export function createWorkspaceNativeTools(
           sequence: input.sequence,
         });
         proof.set(input.resource_id, result.contentVersion);
-        return { ...result, complete: true };
+        return {
+          ...result,
+          url: `/workspace/${encodeURIComponent(actor.workspaceId)}/files/${encodeURIComponent(input.resource_id)}`,
+          complete: true,
+        };
       },
     });
     tools.workspace_resource_history = defineTool({

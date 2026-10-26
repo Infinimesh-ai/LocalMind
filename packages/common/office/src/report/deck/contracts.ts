@@ -81,9 +81,13 @@ export const DeckAiChoiceSchema = z
   .strict();
 export type DeckAiChoice = z.infer<typeof DeckAiChoiceSchema>;
 
+export const DeckDesignModeSchema = z.enum(['fast', 'refine']);
+export type DeckDesignMode = z.infer<typeof DeckDesignModeSchema>;
+
 export const DeckConfigSchema = z
   .object({
     mode: DeckModeSchema,
+    designMode: DeckDesignModeSchema.optional(),
     templateKey: z.string().trim().min(1).max(64).optional(),
     customStyle: z.string().max(500).optional(),
     accentColor: z
@@ -121,6 +125,12 @@ export const DeckConfigSchema = z
   })
   .strict()
   .superRefine((config, ctx) => {
+    if (config.mode !== 'custom' && config.designMode !== undefined)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['designMode'],
+        message: 'Design mode is only available for custom reports',
+      });
     if (config.mode === 'template' && !config.templateKey)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -207,6 +217,8 @@ export type DeckSummary = {
   title: string;
   status: DeckStatus;
   mode: DeckMode;
+  /** Absent on historical reports without a recorded selection. */
+  designMode?: DeckDesignMode;
   templateKey: string | null;
   slideCount: number | null;
   sourceCount: number;
@@ -246,7 +258,7 @@ export type DeckAiOption = {
     | 'blocked_by_policy'
     | null;
   providerName: string | null;
-  models: { id: string; name: string }[];
+  models: { id: string; name: string; vision?: 'declared' | 'unknown' }[];
   defaultModelId: string | null;
   /** Project AI is one instance-wide configuration; the model cannot change. */
   modelLocked: boolean;

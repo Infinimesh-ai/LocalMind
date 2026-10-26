@@ -246,3 +246,94 @@ it('preselects the template from the gallery and switches to custom mode', async
     ).value
   ).toBe('styleChip.tech.text');
 });
+
+it('submits the selected design mode, preserves it while switching modes, and never remembers it', async () => {
+  const api = mockApi({
+    preflight: vi.fn(async () => preflight(true)),
+    aiOptions: vi.fn(async () => aiOptions),
+    command: vi.fn(async () => ({})),
+  });
+  apiState.api = api;
+  const path = stashDeckSources(sources);
+  renderAt(path, '/reports/new', <DeckConfigPage />);
+  fireEvent.click(screen.getByRole('button', { name: /mode\.custom/ }));
+  expect(
+    (
+      screen.getByRole('radio', {
+        name: /designMode.fast /,
+      }) as HTMLInputElement
+    ).checked
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('radio', { name: /designMode.refine / }));
+  expect((await screen.findByTestId('deck-vision-hint')).textContent).toContain(
+    'designMode.visionUnknown'
+  );
+  fireEvent.click(screen.getByRole('button', { name: /mode\.template/ }));
+  expect(
+    screen.queryByRole('radio', { name: /designMode.refine / })
+  ).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /mode\.custom/ }));
+  expect(
+    (
+      screen.getByRole('radio', {
+        name: /designMode.refine /,
+      }) as HTMLInputElement
+    ).checked
+  ).toBe(true);
+  const submit = screen.getByRole('button', { name: 'designMode.refine' });
+  await waitFor(() => expect(submit.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(submit);
+  await waitFor(() => expect(api.command).toHaveBeenCalledOnce());
+  expect(vi.mocked(api.command).mock.calls[0][0]).toMatchObject({
+    config: { mode: 'custom', designMode: 'refine' },
+  });
+  expect(
+    JSON.parse(localStorage.getItem('report-deck:last-config') ?? '{}')
+      .designMode
+  ).toBeUndefined();
+  cleanup();
+  renderAt(path, '/reports/new', <DeckConfigPage />);
+  expect(
+    (
+      screen.getByRole('radio', {
+        name: /designMode.fast /,
+      }) as HTMLInputElement
+    ).checked
+  ).toBe(true);
+});
+
+it('reconfiguration starts fast even for a refined report or stored legacy preference', async () => {
+  const { detail } = await import('./__tests__/test-utils');
+  const original = detail();
+  localStorage.setItem(
+    'report-deck:last-config',
+    JSON.stringify({ mode: 'custom', designMode: 'refine' })
+  );
+  apiState.api = mockApi({
+    get: vi.fn(async () =>
+      detail({
+        mode: 'custom',
+        designMode: 'refine',
+        config: {
+          ...original.config,
+          mode: 'custom',
+          templateKey: undefined,
+          designMode: 'refine',
+        },
+      })
+    ),
+    preflight: vi.fn(async () => preflight(true)),
+    aiOptions: vi.fn(async () => aiOptions),
+  });
+  renderAt('/reports/new?from=deck-1', '/reports/new', <DeckConfigPage />);
+  await waitFor(() => expect(apiState.api?.get).toHaveBeenCalled());
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole('radio', {
+          name: /designMode.fast /,
+        }) as HTMLInputElement
+      ).checked
+    ).toBe(true)
+  );
+});

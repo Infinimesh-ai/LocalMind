@@ -56,11 +56,7 @@ import type { GenericNavigationPanelNode } from '../types';
 import { FolderEmpty } from './empty';
 import { NavigationPanelNativeFileNode } from './native-file';
 import { FavoriteFolderOperation } from './operations';
-import {
-  FolderSortButton,
-  FolderSortItems,
-  type FolderSortMode,
-} from './sort-menu';
+import { FolderSortMenu, type FolderSortMode } from './sort-menu';
 
 export const NavigationPanelFolderNode = ({
   nodeId,
@@ -895,39 +891,21 @@ const NavigationPanelFolderNodeFolder = ({
   const sortOperation = useMemo(
     () => ({
       index: 150,
-      view: (
-        <MenuSub
-          triggerOptions={{ disabled: !sortReady || sorting }}
-          items={<FolderSortItems mode={sortMode} onChange={changeSort} />}
-        >
-          {t['com.affine.rootAppSidebar.organize.folder.sort.label']()}
-        </MenuSub>
-      ),
-    }),
-    [sortReady, sorting, sortMode, changeSort, t]
-  );
-  const inlineSortOperation = useMemo(
-    () => ({
-      index: 1,
-      inline: true,
-      view: (
-        <FolderSortButton
-          name={name}
-          mode={sortMode}
-          expanded={!collapsed}
+      view: children.length >= 2 && (
+        <FolderSortMenu
           disabled={!sortReady || sorting}
+          mode={sortMode}
           onChange={changeSort}
         />
       ),
     }),
-    [name, sortMode, collapsed, sortReady, sorting, changeSort]
+    [children.length, sortReady, sorting, sortMode, changeSort]
   );
 
   const folderOperations = useMemo(() => {
     if (!canMutate)
       return [
         sortOperation,
-        inlineSortOperation,
         {
           index: 200,
           view: node.id ? <FavoriteFolderOperation id={node.id} /> : null,
@@ -935,7 +913,6 @@ const NavigationPanelFolderNodeFolder = ({
       ];
     return [
       sortOperation,
-      inlineSortOperation,
       {
         index: 0,
         inline: true,
@@ -1041,7 +1018,6 @@ const NavigationPanelFolderNodeFolder = ({
   }, [
     canMutate,
     sortOperation,
-    inlineSortOperation,
     canDelete,
     lifecycle.online,
     handleAddToFolder,

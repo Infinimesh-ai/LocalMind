@@ -38,6 +38,7 @@ export async function uploadProjectBlobWithProgress(input: {
                 'content-type':
                   xhr.getResponseHeader('content-type') ??
                   'application/octet-stream',
+                'retry-after': xhr.getResponseHeader('retry-after') ?? '',
               },
             })
           );

@@ -66,6 +66,23 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
         height: 344px;
       }
 
+      .error-container {
+        padding: 16px 8px;
+      }
+
+      button {
+        border: 0;
+        background: transparent;
+        font: inherit;
+        text-align: start;
+        cursor: pointer;
+      }
+
+      button:focus-visible {
+        outline: 2px solid ${unsafeCSSVarV2('text/emphasis')};
+        outline-offset: -2px;
+      }
+
       .loading-title,
       .empty-title {
         font-weight: 600;
@@ -101,7 +118,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
         background: ${unsafeCSSVarV2('layer/background/hoverOverlay')};
       }
 
-      .ai-session-item[aria-selected='true'] .ai-session-title {
+      .ai-session-item[data-selected='true'] .ai-session-title {
         color: ${unsafeCSSVarV2('text/emphasis')};
       }
 
@@ -110,6 +127,8 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
       }
 
       .ai-session-title {
+        flex: 1;
+        min-width: 0;
         font-size: 12px;
         font-weight: 400;
         line-height: 20px;
@@ -160,10 +179,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
         padding: 2px;
         cursor: pointer;
         opacity: 0;
-        visibility: hidden;
-        transition:
-          opacity 0.2s ease,
-          visibility 0.2s ease;
+        transition: opacity 0.2s ease;
 
         svg {
           width: 16px;
@@ -172,9 +188,9 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
         }
       }
 
-      .ai-session-item:hover .ai-session-item-delete {
+      .ai-session-item:hover .ai-session-item-delete,
+      .ai-session-item:focus-within .ai-session-item-delete {
         opacity: 1;
-        visibility: visible;
       }
     }
 
@@ -195,6 +211,15 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
 
   @property({ attribute: false })
   accessor loading = false;
+
+  @property({ attribute: false })
+  accessor error: Error | null = null;
+
+  @property({ attribute: false })
+  accessor onRetry: () => void = () => {};
+
+  @property({ attribute: false })
+  accessor onClose: () => void = () => {};
 
   @property({ attribute: false })
   accessor docDisplayConfig!: DocDisplayConfig;
@@ -266,6 +291,16 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
     this.selectedSessionId = this.session?.sessionId ?? undefined;
   }
 
+  protected override firstUpdated() {
+    // Floating portals are hidden until their first position calculation.
+    // Focusing during the initial Lit update is ignored by the browser.
+    requestAnimationFrame(() => {
+      if (this.isConnected) {
+        this.querySelector<HTMLElement>('.ai-session-history')?.focus();
+      }
+    });
+  }
+
   protected override willUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('session')) {
       this.selectedSessionId = this.session?.sessionId ?? undefined;
@@ -287,29 +322,32 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
           return html`
             <div
               class="ai-session-item"
-              @click=${(e: MouseEvent) => {
-                e.stopPropagation();
-                this.selectedSessionId = session.sessionId;
-                if (session.docId) {
-                  this.onDocClick(session.docId, session.sessionId);
-                } else {
-                  this.onSessionClick(session.sessionId);
-                }
-              }}
-              aria-selected=${this.selectedSessionId === session.sessionId}
+              data-selected=${this.selectedSessionId === session.sessionId}
               data-session-id=${session.sessionId}
             >
-              <div class="ai-session-title">
+              <button
+                type="button"
+                class="ai-session-title"
+                aria-pressed=${this.selectedSessionId === session.sessionId}
+                @click=${(e: MouseEvent) => {
+                  e.stopPropagation();
+                  this.selectedSessionId = session.sessionId;
+                  if (session.docId) {
+                    this.onDocClick(session.docId, session.sessionId);
+                  } else {
+                    this.onSessionClick(session.sessionId);
+                  }
+                }}
+              >
                 ${sessionTitle}
-                <affine-tooltip .offsetX=${60}>
-                  Click to open this chat
-                </affine-tooltip>
-              </div>
+              </button>
               ${session.docId
                 ? this.renderSessionDoc(session.docId, session.sessionId)
                 : nothing}
-              <div
+              <button
+                type="button"
                 class="ai-session-item-delete"
+                aria-label=${`${I18n['Delete']()}: ${sessionTitle}`}
                 @click=${(e: MouseEvent) => {
                   e.stopPropagation();
                   this.onSessionDelete(session);
@@ -317,7 +355,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
               >
                 ${DeleteIcon()}
                 <affine-tooltip>${I18n['Delete']()}</affine-tooltip>
-              </div>
+              </button>
             </div>
           `;
         })}
@@ -328,8 +366,10 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
   private renderSessionDoc(docId: string, sessionId: string) {
     const getIcon = this.docDisplayConfig.getIcon(docId);
     const docIcon = typeof getIcon === 'function' ? getIcon() : getIcon;
-    return html`<div
+    return html`<button
+      type="button"
       class="ai-session-doc"
+      aria-label=${`${I18n['com.affine.ai.action-label.open-this-doc']()}: ${this.docDisplayConfig.getTitle(docId)}`}
       @click=${(e: MouseEvent) => {
         e.stopPropagation();
         this.selectedSessionId = sessionId;
@@ -341,13 +381,15 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
       <affine-tooltip
         >${I18n['com.affine.ai.action-label.open-this-doc']()}</affine-tooltip
       >
-    </div>`;
+    </button>`;
   }
 
   private renderLoading() {
     return html`
-      <div class="loading-container">
-        <div class="loading-title">Loading history...</div>
+      <div class="loading-container" role="status">
+        <div class="loading-title">
+          ${I18n['com.affine.office.loading-chat-history']()}
+        </div>
       </div>
     `;
   }
@@ -367,6 +409,15 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
       return this.renderLoading();
     }
 
+    if (this.error) {
+      return html`<div class="error-container" role="alert">
+        <p>${I18n['com.affine.localmind.chat.historyFailed']()}</p>
+        <button type="button" @click=${this.onRetry}>
+          ${I18n['com.affine.localmind.aiContext.retry']()}
+        </button>
+      </div>`;
+    }
+
     const currentDocSessions = this.currentDocSessions;
     const currentDocSessionIds = new Set(
       currentDocSessions.map(session => session.sessionId)
@@ -383,17 +434,47 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
 
     const groupedSessions = this.groupSessionsByTime(otherSessions);
     return html`
-      ${this.renderSessionGroup('Current document', currentDocSessions)}
-      ${this.renderSessionGroup('Today', groupedSessions.today)}
-      ${this.renderSessionGroup('Last 7 days', groupedSessions.last7Days)}
-      ${this.renderSessionGroup('Last 30 days', groupedSessions.last30Days)}
-      ${this.renderSessionGroup('Older', groupedSessions.older)}
+      ${this.renderSessionGroup(
+        I18n['com.affine.localmind.chat.currentDocument'](),
+        currentDocSessions
+      )}
+      ${this.renderSessionGroup(
+        I18n['com.affine.today'](),
+        groupedSessions.today
+      )}
+      ${this.renderSessionGroup(
+        I18n['com.affine.last7Days'](),
+        groupedSessions.last7Days
+      )}
+      ${this.renderSessionGroup(
+        I18n['com.affine.last30Days'](),
+        groupedSessions.last30Days
+      )}
+      ${this.renderSessionGroup(
+        I18n['com.affine.moreThan30Days'](),
+        groupedSessions.older
+      )}
     `;
   }
 
   override render() {
     return html`
-      <div class="ai-session-history">${this.renderHistory()}</div>
+      <div
+        class="ai-session-history"
+        role="region"
+        tabindex="-1"
+        aria-label=${I18n['com.affine.ai.action-label.chat-history']()}
+        aria-busy=${this.loading}
+        @keydown=${(event: KeyboardEvent) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            this.onClose();
+          }
+        }}
+      >
+        ${this.renderHistory()}
+      </div>
     `;
   }
 }

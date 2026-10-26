@@ -353,3 +353,95 @@ server native addon 后，`affine_doc_loader` 的 96 项 Rust 测试与直接资
 Rust 格式检查通过。未运行 Linux native 构建或数据库集成测试：当前无
 `localmind-affine:test` 镜像，现有 `localmind-affine:dev-base` 容器缺少 Rust
 工具链。本轮未重建镜像、同步运行环境、部署或提交此前失败的日志正文。
+
+## 后续：2026-10-26 列表后独立段落的导出修复
+
+日志追加的 `unsupported_document_structure` 在 Linux 容器中复现：原有日志
+可写，合并稿在列表后新增独立说明段落；原生 Markdown 导出器没有在两者之间
+保留空行。再次导入时，该段落被当作最后一条列表的续行，Yjs 语义往返检查发现
+结构改变并拒绝写入。失败回执为 `writeOutcome: none`，回读原文及版本未变。
+
+`vendor/affine_doc_loader-0.1.4/src/read/mod.rs` 现在在已导出的列表后遇到普通
+段落时补充分隔空行。新增回归覆盖普通、嵌套、有序和待办列表，并检查连续两次
+导入导出仍保留段落边界。没有放宽结构、权限、版本或事务检查；未修改已有
+数据库表格导出变更。
+
+复用 `localmind_ui_acceptance_native_verify`（`localmind-affine:dev-base`），
+按仓库指定版本安装容器内 Rust 1.97.1，执行：
+
+```sh
+docker exec -w /workspace \
+  -e CARGO_TARGET_DIR=/tmp/localmind-daily-log-cargo-target \
+  localmind_ui_acceptance_native_verify \
+  cargo test --locked -p affine_doc_loader --lib
+docker exec -w /workspace localmind_ui_acceptance_native_verify \
+  rustfmt --check --edition 2024 --config skip_children=true \
+  vendor/affine_doc_loader-0.1.4/src/read/mod.rs \
+  vendor/affine_doc_loader-0.1.4/src/roundtrip_tests.rs
+```
+
+结果：100 项 Rust 测试通过，格式检查通过（稳定版忽略已有 nightly 专用配置的
+警告仍存在）。本次真实日志合并稿仅保存在忽略的本地证据目录；将新增说明改为
+列表项后，使用当前 native 模块离线验证完整更新，正文仍可写、内容与目标一致，
+原有 47 个块及其文字全部保留，合并后共 80 个块。真实正文没有加入回归 fixture。
+
+本轮没有构建镜像或替换运行服务的 native addon，也未提交、推送或部署；源码
+修复仍需后续按既有 native 构建及同步流程上线。本次日志提交使用当前服务可
+无损往返的列表格式，不代表服务已经加载新版导出器。构建前 Docker 占用为镜像
+20.05 GB、容器 2.92 GB、卷 25.59 GB、缓存 1.788 GB；仅新增聚焦编译缓存，未删除
+其他任务资源或持久化数据。
+
+### 同日后续：同步本地 3011 并复验追加路径
+
+用户明确选择本地 `http://localhost:3011`；云端日志所在实例是另一套环境，本轮
+未同步云端。与本地运行版本的输入快照相比，native 相关变化只有上述两个 Rust
+文件；构建前后核对 714 个输入文件，无并发源码漂移。
+
+复用 `localmind-affine:dev-base` 和已有 Cargo 缓存，执行以下 Linux 发布构建，
+21 分 20 秒成功完成，没有重建镜像：
+
+```sh
+docker exec -w /workspace \
+  -e CARGO_HOME=/workspace/.codex-artifacts/project-report-workbench/native-build/cargo \
+  -e RUSTUP_HOME=/workspace/.codex-artifacts/project-report-workbench/native-build/rustup \
+  -e CARGO_TARGET_DIR=/workspace/.codex-artifacts/project-report-workbench/native-build/target \
+  -e CARGO_BUILD_JOBS=4 localmind_ui_acceptance_native_verify \
+  /workspace/.codex-artifacts/project-report-workbench/native-build/cargo/bin/cargo \
+  build --locked --offline --release -p affine_server_native
+```
+
+将构建产物挂入独立的 `localmind_daily_log_native_verify`，验证结果如下：
+
+- 新增资源单元回归在旧 addon 上复现 `unsupported_document_structure`；新版
+  addon 的 `copilot-mcp-resources.spec.ts` 全部 31 项通过。
+- `copilot-mcp-resources.e2e.ts` 的日志更新用例扩展为列表后追加独立普通段落，
+  检查持久化回读、旧块 ID 与创建/修改记录、幂等重放和版本冲突；同时运行
+  非默认编辑状态拒绝用例，两项均通过。使用独立临时 PostgreSQL 数据库和 Redis，
+  测试前校验数据库身份，未在业务库运行测试清理逻辑。
+- 此前失败的完整合并稿在新 addon 上可直接验证和更新，读回正文仍可写且与目标
+  一致，无需改成兼容列表格式。真实正文只用于本地内存验证，未写入本地业务文档。
+- 两个 TypeScript 测试文件的聚焦类型检查、oxlint、Prettier 均通过。
+
+本地数据库已生成 1,748,419,865 字节备份，`pg_restore --list` 检查通过；同时
+保留原 addon 和运行输入快照。使用既有同步脚本完成应用：
+
+```sh
+LOCALMIND_RUNTIME_MODE=source \
+LOCALMIND_CONTAINER=localmind_hot_backend \
+LOCALMIND_RUNTIME_SOURCE_CONTAINER=localmind_daily_log_native_verify \
+LOCALMIND_RUNTIME_MIGRATION_CONTAINER=localmind_daily_log_native_verify \
+LOCALMIND_DATABASE_BACKUP="$PWD/.codex-artifacts/daily-log-structure/before-native-sync.pgdump" \
+LOCALMIND_URL=http://localhost:3011 yarn localmind:sync:backend
+```
+
+同步核对 schema/Prisma Client/平台，暂停后端后检查 419 条迁移，无待应用迁移；
+通过 Compose 重建后端容器以重新绑定 native 文件，未重建镜像。GraphQL
+`{ __typename }` 返回 `Query`，并在实际运行后端进程的内存映射中确认新版 addon
+的 inode。运行文件与验证文件 SHA-256 均为
+`b047ca1222b61e55e52ad6928eb8cd2a9d5d327fe3e19078a5adec7d3d092b1a`。
+运行容器内再次执行新增追加用例通过；这是同一用例的环境复验，不累计为新测试。
+同步状态时间为 `2026-10-26T03:32:33.849Z`，输入快照与当前源码一致。
+
+本轮证据与回滚文件位于忽略目录 `.codex-artifacts/daily-log-structure/`。开始时
+Docker 镜像 20.5 GB、容器 3.37 GB、卷 25.58 GB、缓存 1.788 GB，容器文件系统
+约 14 GiB 可用；发布构建复用原缓存，未新建镜像 tag。未 commit、push 或部署云端。

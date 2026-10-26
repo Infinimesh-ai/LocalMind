@@ -316,6 +316,9 @@ const PageHeaderMenuItem = ({
 
             // to handle overflow when the width is not enough
             collisionPadding: 20,
+            // Permission menus move focus into their own portal. Keep this
+            // submenu mounted; the root menu still handles outside dismissal.
+            onFocusOutside: event => event.preventDefault(),
           }}
           items={
             <div className={shareMenu}>

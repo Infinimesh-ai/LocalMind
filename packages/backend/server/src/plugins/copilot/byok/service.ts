@@ -6,15 +6,19 @@ import {
   BadRequest,
   Cache,
   Config,
+  CopilotProviderSideError,
   CopilotSessionNotFound,
   CryptoHelper,
   metrics,
+  NetworkError,
   safeFetch,
+  UserFriendlyError,
 } from '../../../base';
 import { Models } from '../../../models';
 import { resolveByokApiStyle } from '../../../models/copilot-byok-protocol';
 import type { CopilotModelDefinition, CopilotProviderProfile } from '../config';
 import { ModelInputType, ModelOutputType } from '../providers/types';
+import { NativeStreamProtocolError } from '../runtime/native-errors';
 import { ByokEntitlementPolicy } from './policy';
 import { ProviderProbeError, runProviderProbe } from './probe';
 import { AiProfileService } from './profile-service';
@@ -32,6 +36,42 @@ import {
 const LOCAL_LEASE_TTL_MS = 10 * 60 * 1000;
 const BYOK_PROFILE_PRIORITY_BASE = 10_000;
 const SERVER_PROFILE_PRIORITY_OFFSET = 2_000;
+// Upstream codes that prove the stored credential itself was rejected.
+const PROVIDER_CREDENTIAL_FAILURE_CODES = new Set([
+  'invalid_api_key',
+  'invalid_authentication',
+  'authentication_error',
+  'permission_error',
+  'permission_denied',
+  'unauthorized',
+]);
+
+/**
+ * Only an explicit upstream authentication rejection may disable a stored
+ * credential. Timeouts, transport failures, tool errors and LocalMind's own
+ * permission errors are runtime diagnostics, not credential evidence.
+ */
+function isProviderCredentialFailure(error: unknown) {
+  if (error instanceof NativeStreamProtocolError) return false;
+  if (
+    error instanceof UserFriendlyError &&
+    !(error instanceof CopilotProviderSideError)
+  )
+    return false;
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? error.code
+      : undefined;
+  if (
+    typeof code === 'string' &&
+    PROVIDER_CREDENTIAL_FAILURE_CODES.has(code.toLowerCase())
+  )
+    return true;
+  const message = error instanceof Error ? error.message : '';
+  return /^(?:upstream returned status |HTTP\s*)?40[13]\b/i.test(
+    message.trim()
+  );
+}
 
 export type ByokProviderRequestContext = {
   userId?: string;
@@ -1052,6 +1092,37 @@ export class ByokService {
     }
   }
 
+  /**
+   * Distinguishes "a Workspace credential exists but was disabled after an
+   * authentication failure" from "nothing is configured". Project and work
+   * order sessions use the global Project BYOK and never consult Workspace
+   * keys, so they keep the plain not-configured error.
+   */
+  async hasWorkspaceCredentialDisabledAfterFailure(
+    context: ByokProviderRequestContext
+  ) {
+    if (context.projectId || !context.workspaceId) return false;
+    if (context.sessionId) {
+      const session = await this.models.copilotSession.getMeta(
+        context.sessionId
+      );
+      if (
+        !session ||
+        session.selectedContextProjectId ||
+        session.scopeType === 'work_order'
+      )
+        return false;
+    }
+    if (!(await this.entitlement.hasServerEntitlement(context.workspaceId)))
+      return false;
+    const configs = await this.models.copilotWorkspaceByokConfig.list(
+      context.workspaceId
+    );
+    return configs.some(
+      config => !config.enabled && config.disabledReason === 'recent_failure'
+    );
+  }
+
   async recordProviderFailure(input: {
     workspaceId?: string;
     providerId?: string;
@@ -1077,21 +1148,34 @@ export class ByokService {
           )))
     )
       return;
-    const message = this.sanitizeError(input.error);
+    const credentialFailure = isProviderCredentialFailure(input.error);
+    const message = credentialFailure
+      ? 'Provider rejected the credential.'
+      : this.sanitizeRuntimeError(input.error);
     metrics.ai.counter('byok_route_failure').add(1, {
       workspace: input.workspaceId ?? 'project-global',
       provider: meta.provider,
       source: meta.source,
       feature: input.featureKind,
+      credential: String(credentialFailure),
     });
     if (meta.source === ByokProviderSource.Server && meta.keyId) {
       if (!input.workspaceId) return;
-      await this.models.copilotWorkspaceByokConfig.markFailure(
-        input.workspaceId,
-        meta.keyId,
-        message,
-        meta.revision
-      );
+      if (!credentialFailure) {
+        await this.models.copilotWorkspaceByokConfig.recordRuntimeFailure(
+          input.workspaceId,
+          meta.keyId,
+          message,
+          meta.revision
+        );
+      } else {
+        await this.models.copilotWorkspaceByokConfig.markFailure(
+          input.workspaceId,
+          meta.keyId,
+          message,
+          meta.revision
+        );
+      }
     }
     if (meta.source === ByokProviderSource.ProjectGlobal && meta.revision) {
       await this.models.copilotProjectByok.recordFailure(
@@ -1472,12 +1556,26 @@ export class ByokService {
     }
     if (
       (error instanceof ProviderProbeError ||
+        error instanceof NativeStreamProtocolError ||
         error instanceof BadRequestException) &&
       error.message
     ) {
       return error.message.slice(0, 300);
     }
     return 'Provider request failed.';
+  }
+
+  // Bounded runtime classification for operators; never includes upstream bodies.
+  private sanitizeRuntimeError(error: unknown) {
+    const message = error instanceof Error ? error.message : '';
+    if (
+      error instanceof NetworkError ||
+      message.startsWith('http timeout error:')
+    )
+      return 'Provider request timed out.';
+    if (message.startsWith('http transport error:'))
+      return 'Provider connection failed.';
+    return this.sanitizeError(error);
   }
 
   private workspaceHash(workspaceId: string) {

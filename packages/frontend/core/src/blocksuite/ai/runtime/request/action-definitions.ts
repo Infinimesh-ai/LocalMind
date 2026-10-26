@@ -26,6 +26,8 @@ export type AIActionOptions = Omit<
     modelSelection?: AIActionModelSelection;
     officeContext?: OfficeAiContext;
     reportContext?: ProjectReportAiContext;
+    onMessageCreated?: (messageId: string) => void;
+    messageId?: string;
   };
 
 export type AIActionDefinition = {

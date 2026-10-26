@@ -83,6 +83,7 @@ function createOrganization(input?: {
         },
       },
       workspaceNativeResource: { officeIds: async () => new Set<string>() },
+      workspacePageTree: { state: async () => null },
       workspaceDirectoryGrant: {
         snapshot: async () => directoryPolicySnapshot('actor', []),
         withMutationLock: async (
@@ -96,7 +97,9 @@ function createOrganization(input?: {
           canCreateFolder: true,
         }),
       },
-    } as never
+    } as never,
+    createPermissions({ readableDocumentIds: ['doc-1', 'doc-2', 'orphan-doc'] })
+      .ac as never
   );
 }
 
@@ -111,6 +114,7 @@ function createPermissions(input?: {
   const ac = {
     user: () => ({
       workspace: () => ({
+        can: async () => read,
         assert: async (permission: string) => {
           if (
             (permission === 'Workspace.Organize.Read' && !read) ||
@@ -120,6 +124,7 @@ function createPermissions(input?: {
           }
         },
         doc: (docId: string) => ({
+          can: async () => readable.has(docId),
           assert: async () => {
             if (!readable.has(docId)) {
               throw new Error(`Permission denied for document ${docId}`);

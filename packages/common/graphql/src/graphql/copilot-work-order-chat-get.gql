@@ -20,6 +20,7 @@ query copilotWorkOrderChatGet($workOrderId: ID!) {
           id
           role
           content
+          params
           attachments
           streamObjects {
             type

@@ -1,4 +1,6 @@
 import { Avatar, Button, Input, Modal, notify } from '@affine/component';
+import { NavigateContext } from '@affine/core/components/hooks/use-navigate-helper';
+import { getProjectPath } from '@affine/core/desktop/route-paths';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import {
   type Notification,
@@ -12,7 +14,7 @@ import {
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useService } from '@toeverything/infra';
-import { useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 
 import * as styles from './list.style.css';
 
@@ -24,7 +26,9 @@ export const AccessRequestNotificationItem = ({
   const t = useI18n();
   const graphql = useService(GraphQLService);
   const list = useService(NotificationListService);
+  const navigate = useContext(NavigateContext);
   const body = notification.body as AccessRequestNotificationBodyType;
+  const workspaceId = body.workspace?.id;
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,6 +43,13 @@ export const AccessRequestNotificationItem = ({
       ? t['com.affine.localmind.accessNotification.write']()
       : t['com.affine.localmind.accessNotification.read']();
   const currentStatus = status ?? body.status;
+  const open = (path: string) => {
+    if (navigate) void navigate(path);
+    else window.location.assign(path);
+    void list.readNotification(notification.id).catch(error => {
+      notify.error(UserFriendlyError.fromAny(error));
+    });
+  };
   const statusLabel =
     {
       pending: t['com.affine.localmind.accessNotification.pending'](),
@@ -116,6 +127,26 @@ export const AccessRequestNotificationItem = ({
             {level} · {statusLabel}
           </div>
           {body.resolutionReason ? <div>{body.resolutionReason}</div> : null}
+          {currentStatus !== 'unavailable' ? (
+            <div className={styles.headerActions}>
+              {body.projectId ? (
+                <Button onClick={() => open(getProjectPath(body.projectId))}>
+                  {t['com.affine.localmind.accessNotification.openProject']()}
+                </Button>
+              ) : null}
+              {workspaceId ? (
+                <Button
+                  onClick={() =>
+                    open(`/workspace/${encodeURIComponent(workspaceId)}/all`)
+                  }
+                >
+                  {t[
+                    'com.affine.notification.invitation-review-approved.open-workspace'
+                  ]()}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           {body.canDecide && currentStatus === 'pending' ? (
             <div className={styles.headerActions}>
               <Button disabled={busy} onClick={() => setDecision('approve')}>

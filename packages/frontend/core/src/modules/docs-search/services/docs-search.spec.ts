@@ -2,10 +2,76 @@
 /* eslint-disable rxjs/finnish */
 
 import { Framework } from '@toeverything/infra';
-import { firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DocsSearchService } from './docs-search';
+
+it('filters cached titles and snippets until current read permission is granted, and removes revoked results', () => {
+  const readable = new BehaviorSubject<ReadonlySet<string>>(new Set());
+  const framework = new Framework();
+  framework.service(
+    DocsSearchService,
+    () =>
+      new DocsSearchService(
+        {
+          workspace: {
+            engine: {
+              indexer: {
+                state$: of({}),
+                search$: () =>
+                  of({ nodes: [{ id: 'private' }, { id: 'allowed' }] }),
+                aggregate$: () =>
+                  of({
+                    buckets: ['private', 'allowed'].map(key => ({
+                      key,
+                      score: 1,
+                      hits: {
+                        nodes: [
+                          {
+                            fields: { flavour: 'affine:page' },
+                            highlights: { content: [key + ' title'] },
+                          },
+                          {
+                            fields: { blockId: 'block' },
+                            highlights: { content: [key + ' secret content'] },
+                          },
+                        ],
+                      },
+                    })),
+                  }),
+              },
+            },
+          },
+        } as never,
+        {} as never,
+        { readableDocIds$: () => readable } as never
+      )
+  );
+  const provider = framework.provider();
+  const service = provider.get(DocsSearchService);
+  const titles: string[][] = [];
+  const content: unknown[] = [];
+  const subscriptions = [
+    service.searchTitle$('secret').subscribe(value => titles.push(value)),
+    service.search$('secret', 'local').subscribe(value => content.push(value)),
+  ];
+  expect(titles.at(-1)).toEqual([]);
+  expect(content.at(-1)).toEqual([]);
+  readable.next(new Set(['allowed']));
+  expect(titles.at(-1)).toEqual(['allowed']);
+  expect(content.at(-1)).toEqual([
+    expect.objectContaining({
+      docId: 'allowed',
+      blockContent: 'allowed secret content',
+    }),
+  ]);
+  readable.next(new Set());
+  expect(content.at(-1)).toEqual([]);
+  expect(JSON.stringify(content)).not.toContain('private secret');
+  subscriptions.forEach(subscription => subscription.unsubscribe());
+  provider.dispose();
+});
 
 describe('DocsSearchService refs', () => {
   it('skips malformed reference items without poisoning the result', async () => {
@@ -51,7 +117,8 @@ describe('DocsSearchService refs', () => {
           >[0],
           docsService as unknown as ConstructorParameters<
             typeof DocsSearchService
-          >[1]
+          >[1],
+          {} as never
         )
     );
     const service = framework.provider().get(DocsSearchService);
@@ -111,7 +178,8 @@ describe('DocsSearchService refs', () => {
                   : null,
               }),
             },
-          } as never
+          } as never,
+          {} as never
         )
     );
     const service = framework.provider().get(DocsSearchService);

@@ -380,10 +380,12 @@ export class TurnOrchestrator {
               ? `\n${PROJECT_COLLABORATION_POLICY}\n${WORK_ORDER_DRAFT_POLICY}`
               : ''),
     };
-    const finalMessage = appendChatSystemPolicy(
-      messagesWithOfficePolicy,
-      managementPolicy
-    );
+    const finalMessage = appendChatSystemPolicy(messagesWithOfficePolicy, {
+      ...managementPolicy,
+      content: [managementPolicy.content, prepared.memoryCaptureReceipt]
+        .filter(Boolean)
+        .join('\n\n'),
+    });
 
     return {
       prepared,

@@ -1,8 +1,10 @@
 import {
   deleteAccountMutation,
   disableUserMutation,
+  enableUserMutation,
   getCurrentUserQuery,
   getWorkspaceQuery,
+  suspendUserMutation,
 } from '@affine/graphql';
 import { WorkspaceMemberStatus } from '@prisma/client';
 
@@ -174,4 +176,67 @@ e2e('should not signup banned account', async t => {
   t.like(res.body, {
     message: `Wrong user email or password: ${user.email}`,
   });
+});
+
+e2e(
+  'should suspend and restore an account without losing its data',
+  async t => {
+    const user = await app.create(Mockers.User);
+    const workspace = await app.create(Mockers.Workspace, { owner: user });
+
+    await app.login(admin);
+    const { suspendUser } = await app.gql({
+      query: suspendUserMutation,
+      variables: { id: user.id },
+    });
+    t.is(suspendUser.disabled, true);
+    t.is(
+      (await app.models.user.get(user.id, { withDisabled: true }))?.id,
+      user.id
+    );
+    await app.logout();
+
+    const rejected = await app.login(user);
+    t.is(rejected.status, 400);
+
+    await app.login(admin);
+    const { enableUser } = await app.gql({
+      query: enableUserMutation,
+      variables: { id: user.id },
+    });
+    t.is(enableUser.disabled, false);
+    await app.logout();
+
+    await app.login(user);
+    const { workspace: restored } = await app.gql({
+      query: getWorkspaceQuery,
+      variables: { id: workspace.id },
+    });
+    t.is(restored.id, workspace.id);
+  }
+);
+
+e2e('should revoke existing sessions when an account is suspended', async t => {
+  const user = await app.create(Mockers.User);
+  await app.login(user);
+  const { currentUser } = await app.gql({ query: getCurrentUserQuery });
+  t.is(currentUser?.id, user.id);
+
+  await app.models.user.suspend(user.id);
+
+  const { currentUser: afterSuspend } = await app.gql({
+    query: getCurrentUserQuery,
+  });
+  t.is(afterSuspend, null);
+});
+
+e2e('an administrator cannot suspend their own account', async t => {
+  await app.login(admin);
+  await t.throwsAsync(
+    app.gql({ query: suspendUserMutation, variables: { id: admin.id } })
+  );
+  t.false(
+    (await app.models.user.get(admin.id, { withDisabled: true }))?.disabled ??
+      true
+  );
 });

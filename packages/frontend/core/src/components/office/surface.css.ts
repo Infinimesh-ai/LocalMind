@@ -12,6 +12,11 @@ export const editor = style({
   background: cssVarV2('layer/background/secondary'),
 });
 
+export const workbookEditor = style([
+  editor,
+  { gridTemplateRows: '42px auto minmax(0, 1fr) auto 28px' },
+]);
+
 export const toolbar = style({
   minWidth: 0,
   display: 'flex',
@@ -212,7 +217,8 @@ export const columnHeader = style([gridHeader, { top: 0 }]);
 export const cornerHeader = style([rowHeader, { top: 0, zIndex: 5 }]);
 
 export const sheetCell = style({
-  minWidth: 92,
+  minWidth: 0,
+  minHeight: 0,
   display: 'flex',
   alignItems: 'center',
   padding: '0 6px',
@@ -684,6 +690,25 @@ export const pdfCanvas = style({
     '0 3px 12px rgba(20, 24, 31, 0.24), 0 16px 36px rgba(20, 24, 31, 0.18)',
 });
 
+export const pdfCanvasLayer = style({
+  position: 'relative',
+  flex: '0 0 auto',
+});
+
+export const pdfRegionPreview = style({
+  position: 'absolute',
+  border: `2px dashed ${cssVarV2('button/primary')}`,
+  boxSizing: 'border-box',
+  pointerEvents: 'none',
+});
+
+export const pdfRegionHelp = style({
+  color: cssVarV2('text/secondary'),
+  fontSize: 12,
+  lineHeight: 1.5,
+  margin: '6px 0',
+});
+
 export const pdfCanvasStatus = style({
   position: 'absolute',
   inset: 0,
@@ -727,6 +752,17 @@ export const formRow = style({
   gap: 5,
   marginBottom: 10,
 });
+
+globalStyle(
+  `${checkRow} input[type="checkbox"], ${formRow} input[type="checkbox"]`,
+  {
+    appearance: 'auto',
+    width: 14,
+    height: 14,
+    flex: '0 0 14px',
+    margin: 0,
+  }
+);
 
 export const annotationList = style({
   display: 'grid',
@@ -1075,4 +1111,18 @@ export const replyComposer = style({
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1fr) auto',
   gap: 6,
+});
+
+export const workbookChart = style({ width: '100%', height: 320, minWidth: 0 });
+export const workbookChartData = style({ maxHeight: 200, overflow: 'auto' });
+
+globalStyle(`${workbookChartData} table`, {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 13,
+});
+globalStyle(`${workbookChartData} th, ${workbookChartData} td`, {
+  padding: '6px 12px',
+  textAlign: 'left',
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });

@@ -172,6 +172,20 @@ export class CopilotWorkspaceByokConfigModel extends BaseModel {
   }
 
   @Transactional()
+  async recordRuntimeFailure(
+    workspaceId: string,
+    id: string,
+    message: string,
+    configRevision?: number
+  ) {
+    if (configRevision == null) return;
+    await this.db.aiWorkspaceByokConfig.updateMany({
+      where: { id, workspaceId, configRevision },
+      data: { lastError: message, lastErrorAt: new Date() },
+    });
+  }
+
+  @Transactional()
   async touchUsed(workspaceId: string, id: string) {
     await this.db.aiWorkspaceByokConfig.updateMany({
       where: { id, workspaceId },

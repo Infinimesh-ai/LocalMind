@@ -955,11 +955,24 @@ export class ChatSessionService {
     const inputBudget =
       source.task.inputBudget ?? contextCompactionInputBudget();
     const batches = splitContextCompactionMessages(messages, inputBudget);
-    if (!batches.length) {
+    const unchangedPrefix =
+      previousSummary &&
+      previousMessageCount === source.messages.length &&
+      source.previousCheckpoint?.sourceFingerprint ===
+        source.task.sourceFingerprint;
+    if (!batches.length && !unchangedPrefix) {
       throw new Error('CONTEXT_COMPACTION_EMPTY_SOURCE');
     }
 
-    let summary = previousSummary;
+    // Retrying the same summarized prefix needs no model call. Publication still
+    // rechecks the task lease, dependencies and active checkpoint with CAS.
+    let summary = unchangedPrefix
+      ? validateContextCompactionSummary({
+          value: previousSummary,
+          sourceMessageIds: source.messages.map(message => message.id),
+          receiptIds: source.receiptIds,
+        })
+      : previousSummary;
     let inputTokensEstimated = 0;
     for (const [batchIndex, batch] of batches.entries()) {
       const prompt = contextCompactionMessages({
@@ -1019,6 +1032,7 @@ export class ChatSessionService {
         batchCount: batches.length,
         sourceMessageCount: source.messages.length,
         previousCheckpointUsed: Boolean(previousSummary),
+        unchangedPrefixReused: Boolean(unchangedPrefix),
         receiptCount: source.receiptIds.length,
         tokenAccounting: 'provider_neutral_conservative_estimate',
         inputBudget,

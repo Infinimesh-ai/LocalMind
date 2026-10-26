@@ -4,6 +4,7 @@
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
 import { describe, expect, test, vi } from 'vitest';
 
+import { ByokNotConfiguredError } from '../../provider/error';
 import type { AIRequestService } from '../request';
 import { AIChatRuntime } from './runtime';
 import {
@@ -118,6 +119,7 @@ function createRequest(
     updateSession: vi.fn().mockResolvedValue(undefined),
     cleanupSessions: vi.fn().mockResolvedValue(undefined),
     executeAction: vi.fn().mockResolvedValue(stream(['hello'])),
+    reportLastAction: vi.fn(),
     histories: {
       ids: vi.fn().mockResolvedValue([]),
     },
@@ -562,6 +564,7 @@ describe('AIChatRuntime', () => {
       sessionId: 'session-1',
       messages: [
         {
+          params: null,
           id: 'message-1',
           role: 'user',
           content: 'previous chat',
@@ -740,6 +743,7 @@ describe('AIChatRuntime', () => {
       session: session({
         messages: [
           {
+            params: null,
             id: 'user-1',
             role: 'user',
             content: input,
@@ -1207,6 +1211,7 @@ describe('AIChatRuntime', () => {
         title: 'One',
         messages: [
           {
+            params: null,
             id: 'message-1',
             role: 'user',
             content: 'existing chat',
@@ -1270,6 +1275,7 @@ describe('AIChatRuntime', () => {
         sessionId: 'session-1',
         messages: [
           {
+            params: null,
             id: 'message-1',
             role: 'user',
             content: 'first chat',
@@ -1286,6 +1292,7 @@ describe('AIChatRuntime', () => {
         sessionId: 'session-2',
         messages: [
           {
+            params: null,
             id: 'message-2',
             role: 'user',
             content: 'second chat',
@@ -1302,6 +1309,7 @@ describe('AIChatRuntime', () => {
         sessionId: 'session-1',
         messages: [
           {
+            params: null,
             id: 'message-1',
             role: 'user',
             content: 'first chat',
@@ -1349,6 +1357,7 @@ describe('AIChatRuntime', () => {
       title: 'One',
       messages: [
         {
+          params: null,
           id: 'message-1',
           role: 'user',
           content: 'old chat',
@@ -1591,7 +1600,7 @@ describe('AIChatRuntime', () => {
     consoleError.mockRestore();
   });
 
-  test('stop marks the active assistant response as complete', async () => {
+  test('stop preserves partial output, marks it interrupted and ignores late deltas', async () => {
     let release!: () => void;
     const blockedStream = {
       async *[Symbol.asyncIterator]() {
@@ -1619,8 +1628,13 @@ describe('AIChatRuntime', () => {
 
     expect(runtime.getSnapshot().status).toBe('success');
     expect(runtime.getSnapshot().messages.at(-1)).toEqual(
-      expect.objectContaining({ role: 'assistant', content: 'partial' })
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'partial',
+        params: { generationStatus: 'aborted' },
+      })
     );
+    expect(request.reportLastAction).toHaveBeenCalledWith('aborted:stop');
   });
 
   test('clearError resets error status', async () => {
@@ -1650,6 +1664,7 @@ describe('AIChatRuntime', () => {
       session: session({
         messages: [
           {
+            params: null,
             id: 'user-1',
             role: 'user',
             content: 'hello',
@@ -1658,6 +1673,7 @@ describe('AIChatRuntime', () => {
             streamObjects: null,
           },
           {
+            params: null,
             id: 'assistant-1',
             role: 'assistant',
             content: 'old',
@@ -1718,6 +1734,7 @@ describe('AIChatRuntime', () => {
       session: session({
         messages: [
           {
+            params: null,
             id: 'user-1',
             role: 'user',
             content: 'hello',
@@ -1726,6 +1743,7 @@ describe('AIChatRuntime', () => {
             streamObjects: null,
           },
           {
+            params: null,
             id: 'assistant-1',
             role: 'assistant',
             content: 'old',
@@ -1747,6 +1765,46 @@ describe('AIChatRuntime', () => {
     );
   });
 
+  test.each([false, true])(
+    'retry after BYOK rejection preserves the original submission instead of answering an earlier question (%s)',
+    async persisted => {
+      const executeAction = vi
+        .fn<AIRequestService['executeAction']>()
+        .mockImplementationOnce(async (_action, options) => {
+          if (persisted) options.onMessageCreated?.('new-user-message');
+          throw new ByokNotConfiguredError('Project AI is disabled');
+        })
+        .mockResolvedValueOnce(stream(['answer to the new question']));
+      const request = createRequest({ executeAction });
+      const runtime = createRuntime(request);
+      await runtime.dispatch({ type: 'openSessionObject', session: session() });
+      const contexts = { selectionContext: 'the original selection' };
+      await runtime.dispatch({
+        type: 'send',
+        input: 'the new question',
+        contexts,
+      });
+      expect(runtime.getSnapshot().status).toBe('error');
+      await runtime.dispatch({ type: 'retry', messageId: '' });
+      const options = executeAction.mock.calls[1][1];
+      if (persisted) {
+        expect(options.retry).toBe(true);
+        expect(options.messageId).toBe('new-user-message');
+        expect(options.input).toBeUndefined();
+      } else {
+        expect(options.retry).not.toBe(true);
+        expect(options.input).toBe('the new question');
+        expect(options.contexts).toEqual(contexts);
+      }
+      expect(
+        runtime.getSnapshot().messages.filter(m => m.role === 'user')
+      ).toHaveLength(1);
+      expect(runtime.getSnapshot().messages.at(-1)?.content).toBe(
+        'answer to the new question'
+      );
+    }
+  );
+
   test('retry remains successful when refreshing the assistant message id fails', async () => {
     const error = new Error('history unavailable');
     const consoleError = vi
@@ -1764,6 +1822,7 @@ describe('AIChatRuntime', () => {
       session: session({
         messages: [
           {
+            params: null,
             id: 'user-1',
             role: 'user',
             content: 'hello',
@@ -1772,6 +1831,7 @@ describe('AIChatRuntime', () => {
             streamObjects: null,
           },
           {
+            params: null,
             id: '',
             role: 'assistant',
             content: 'old',
@@ -2160,6 +2220,7 @@ describe('AIChatRuntime', () => {
       session: session({
         messages: [
           {
+            params: null,
             id: 'message-1',
             role: 'user',
             content: 'read doc-2',

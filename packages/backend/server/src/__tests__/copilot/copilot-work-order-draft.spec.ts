@@ -1,6 +1,7 @@
 import test from 'ava';
 
 import type { Models } from '../../models';
+import { executeToolCall } from '../../plugins/copilot/runtime/tool/bridge';
 import { createWorkOrderDraftTools } from '../../plugins/copilot/tools/work-order';
 
 const recipient = {
@@ -60,3 +61,31 @@ test('identical work-order drafts in one turn reuse one ID', async t => {
   t.is(repeated.draftId, first.draftId);
   t.not(nextTurn.draftId, first.draftId);
 });
+
+for (const relatedId of [null, undefined]) {
+  test(`original work-order draft accepts ${relatedId === null ? 'explicit null' : 'omitted'} related ID through the tool bridge`, async t => {
+    const tools = createWorkOrderDraftTools(models, scope);
+    const result = await executeToolCall(
+      tools,
+      {
+        name: 'work_order_draft',
+        callId: 'draft-call',
+        args: {
+          recipients: input.recipients.map(draft => ({
+            ...draft,
+            ...(relatedId === null ? { related_work_order_id: null } : {}),
+          })),
+        },
+      },
+      {}
+    );
+    t.not(result.isError, true);
+    const output = result.output as {
+      confirmationRequired: boolean;
+      recipients: Array<{ relatedWorkOrderId: null; relationKind: string }>;
+    };
+    t.true(output.confirmationRequired);
+    t.is(output.recipients[0].relatedWorkOrderId, null);
+    t.is(output.recipients[0].relationKind, 'original');
+  });
+}

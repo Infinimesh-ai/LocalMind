@@ -11,6 +11,7 @@ import {
 } from 'lit';
 import { property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { ifDefined } from 'lit/directives/if-defined.js';
 
 export class CitationCard extends SignalWatcher(WithDisposable(LitElement)) {
   static override styles = css`
@@ -122,8 +123,20 @@ export class CitationCard extends SignalWatcher(WithDisposable(LitElement)) {
     return html`
       <div
         class="citation-container"
+        role=${ifDefined(this.onClickCallback ? 'button' : undefined)}
+        tabindex=${ifDefined(this.onClickCallback ? '0' : undefined)}
         @click=${this.onClickCallback}
         @dblclick=${this.onDoubleClickCallback}
+        @keydown=${(event: KeyboardEvent) => {
+          if (
+            this.onClickCallback &&
+            (event.key === 'Enter' || event.key === ' ')
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            (event.currentTarget as HTMLElement).click();
+          }
+        }}
       >
         <div class="citation-header">
           ${this.icon

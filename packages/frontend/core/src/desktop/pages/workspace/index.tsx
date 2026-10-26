@@ -30,7 +30,7 @@ import {
   useServices,
 } from '@toeverything/infra';
 import type { PropsWithChildren, ReactElement } from 'react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   matchPath,
   useLocation,
@@ -46,6 +46,8 @@ import { PageNotFound } from '../404';
 import { resolveDocumentScopeAccess } from './document-scope-route';
 import { WorkspaceLayout } from './layouts/workspace-layout';
 import { SharePage } from './share/share-page';
+import { useOpenWorkspace } from './use-open-workspace';
+import { WorkspaceOpenFailed } from './workspace-open-failed';
 
 declare global {
   /**
@@ -337,22 +339,6 @@ type WorkspacePageProps = {
   };
 };
 
-type OpenedWorkspace = {
-  workspace: Workspace;
-  switchId: string;
-  dispose: (options?: { warm?: boolean }) => void;
-  reused: boolean;
-  validateAccess?: (signal?: AbortSignal) => Promise<void>;
-  lastSyncState?: {
-    ready: boolean;
-    synced: boolean;
-    syncing: boolean;
-    syncRetrying: boolean;
-    syncErrorMessage: string | null;
-  };
-  remoteConnectedMarked?: boolean;
-};
-
 const WorkspacePage = ({
   meta,
   documentScope,
@@ -364,12 +350,6 @@ const WorkspacePage = ({
       GlobalContextService,
       WorkspaceSwitchService,
     });
-
-  const [active, setActive] = useState<OpenedWorkspace | null>(null);
-  const activeRef = useRef<OpenedWorkspace | null>(null);
-  const pendingRef = useRef<OpenedWorkspace | null>(null);
-  const retiredRef = useRef<OpenedWorkspace[]>([]);
-  const generationRef = useRef(0);
 
   const openOptions = useMemo(
     () => ({
@@ -390,202 +370,12 @@ const WorkspacePage = ({
     ]
   );
 
-  useLayoutEffect(() => {
-    const switchId = workspaceSwitchService.routeCommitted(
-      openOptions.metadata.id
-    );
-    workspaceSwitchService.phase(switchId, 'preparing');
-    workspaceSwitchService.engineStarted(switchId);
-    const generation = ++generationRef.current;
-    let committed = false;
-    let failed = false;
-    let candidate: OpenedWorkspace;
-    try {
-      const ref = workspacesService.open(
-        openOptions,
-        documentScope?.workerInitOptions
-      );
-      candidate = { ...ref, switchId };
-      pendingRef.current = candidate;
-    } catch (error) {
-      workspaceSwitchService.fail(switchId, 'open', error);
-      return;
-    }
-
-    const accessAbort = new AbortController();
-    let accessValidated = !candidate.reused || !candidate.validateAccess;
-    const failBeforeCommit = (failurePhase: string, error: unknown) => {
-      if (committed || failed) {
-        return;
-      }
-      failed = true;
-      accessAbort.abort(error);
-      if (pendingRef.current === candidate) {
-        pendingRef.current = null;
-      }
-      candidate.dispose({ warm: false });
-      workspaceSwitchService.fail(switchId, failurePhase, error);
-    };
-    const commitIfReady = () => {
-      if (
-        committed ||
-        failed ||
-        !accessValidated ||
-        !(
-          candidate.workspace.localRootReady || candidate.lastSyncState?.ready
-        ) ||
-        generation !== generationRef.current ||
-        !workspaceSwitchService.isCurrent(switchId)
-      ) {
-        return;
-      }
-
-      committed = true;
-      pendingRef.current = null;
-      workspaceSwitchService.phase(switchId, 'local-ready');
-      const previous = activeRef.current;
-      activeRef.current = candidate;
-      if (previous && previous !== candidate) {
-        retiredRef.current.push(previous);
-      }
-      setActive(candidate);
-    };
-
-    const subscription = candidate.workspace.engine.doc
-      .docState$(candidate.workspace.id)
-      .subscribe({
-        next: state => {
-          candidate.lastSyncState = state;
-          if (state.ready) {
-            candidate.workspace.markLocalRootReady();
-          }
-          if (
-            generation !== generationRef.current ||
-            !workspaceSwitchService.isCurrent(switchId)
-          ) {
-            return;
-          }
-
-          if (
-            !candidate.remoteConnectedMarked &&
-            candidate.workspace.flavour !== 'local' &&
-            (state.syncing || state.synced)
-          ) {
-            candidate.remoteConnectedMarked = true;
-            workspaceSwitchService.remoteConnected(switchId);
-          }
-
-          // Keep the engine alive while its remote connection is retrying.
-          // Disposing here prevents recovery after a server restart, even when
-          // the local root can still finish loading.
-          if (
-            !committed &&
-            state.syncErrorMessage &&
-            !state.syncRetrying &&
-            !state.ready
-          ) {
-            failBeforeCommit(
-              'local-root',
-              new Error('Workspace root is unavailable')
-            );
-            return;
-          }
-
-          if (!committed) {
-            commitIfReady();
-            return;
-          }
-
-          if (!committed || activeRef.current !== candidate) {
-            return;
-          }
-          if (state.syncErrorMessage) {
-            workspaceSwitchService.fail(
-              switchId,
-              'remote-sync',
-              new Error('Workspace remote sync failed')
-            );
-          } else if (state.synced) {
-            workspaceSwitchService.phase(switchId, 'ready');
-          } else if (state.syncing || state.syncRetrying) {
-            workspaceSwitchService.phase(switchId, 'syncing');
-          }
-        },
-        error: error => {
-          if (generation !== generationRef.current || committed) {
-            return;
-          }
-          failBeforeCommit('local-root', error);
-        },
-      });
-
-    commitIfReady();
-
-    if (!accessValidated) {
-      void candidate.validateAccess?.(accessAbort.signal).then(
-        () => {
-          accessValidated = true;
-          commitIfReady();
-        },
-        error => {
-          if (generation === generationRef.current) {
-            failBeforeCommit('access-check', error);
-          }
-        }
-      );
-    }
-
-    return () => {
-      accessAbort.abort(new Error('Workspace switch superseded'));
-      subscription.unsubscribe();
-      if (!committed && !failed) {
-        if (pendingRef.current === candidate) {
-          pendingRef.current = null;
-        }
-        candidate.dispose({ warm: false });
-      }
-    };
-  }, [
-    documentScope?.workerInitOptions,
-    openOptions,
-    switchRequestId,
+  const active = useOpenWorkspace(
     workspacesService,
     workspaceSwitchService,
-  ]);
-
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-    for (const retired of retiredRef.current.splice(0)) {
-      retired.dispose();
-    }
-    workspaceSwitchService.phase(active.switchId, 'committed');
-    if (active.lastSyncState?.syncErrorMessage) {
-      workspaceSwitchService.fail(
-        active.switchId,
-        'remote-sync',
-        new Error('Workspace remote sync failed')
-      );
-    } else if (active.lastSyncState?.synced) {
-      workspaceSwitchService.phase(active.switchId, 'ready');
-    } else {
-      workspaceSwitchService.phase(active.switchId, 'syncing');
-    }
-  }, [active, workspaceSwitchService]);
-
-  useEffect(
-    () => () => {
-      generationRef.current++;
-      pendingRef.current?.dispose({ warm: false });
-      pendingRef.current = null;
-      activeRef.current?.dispose();
-      activeRef.current = null;
-      for (const retired of retiredRef.current.splice(0)) {
-        retired.dispose();
-      }
-    },
-    []
+    openOptions,
+    documentScope?.workerInitOptions,
+    switchRequestId
   );
 
   const workspace = active?.workspace ?? null;
@@ -653,7 +443,11 @@ const WorkspacePage = ({
   }, [globalContextService, workspace]);
 
   if (!workspace) {
-    return <AppContainer fallback />;
+    return (
+      <AppContainer fallback>
+        <WorkspaceOpenFailed workspaceId={meta.id} />
+      </AppContainer>
+    );
   }
 
   return (

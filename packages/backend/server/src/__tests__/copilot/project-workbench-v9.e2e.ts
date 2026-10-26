@@ -545,6 +545,8 @@ test.serial(
     t.true(payload.includes('does not waive'));
     t.true(payload.includes('clarify an ambiguous reply'));
     t.true(payload.includes('confirm Refuse work order'));
+    t.true(payload.includes('first enter the reason in the shared text box'));
+    t.true(payload.includes('there is no separate reason dialog'));
     t.false(payload.includes('PRIVATE_SENDER_HISTORY_DO_NOT_SHARE'));
     t.false(payload.includes(sender.email));
   }

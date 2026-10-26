@@ -1,3 +1,4 @@
+import { I18n } from '@affine/i18n';
 import {
   generateFractionalIndexingKeyBetween,
   LiveData,
@@ -18,6 +19,16 @@ import type { WorkspaceDBService } from '../../db';
 import type { DocsService } from '../../doc';
 import { compareNodeIds } from '../folder-sorting';
 import type { DirectoryAccessStore } from './directory-access';
+
+function validFolderName(name: string) {
+  const normalized = name.trim();
+  if (!normalized) {
+    throw new Error(
+      I18n['com.affine.localmind.resources.folderNameRequired']()
+    );
+  }
+  return normalized;
+}
 
 export class FolderStore extends Store {
   constructor(
@@ -200,6 +211,7 @@ export class FolderStore extends Store {
     name: string,
     index: string
   ) {
+    name = validFolderName(name);
     await this.prepareAuthorizedMutation();
     if (!this.filtered) return this.createFolder(parentId, name, index);
     if (parentId && this.getNode(parentId)?.type !== 'folder')
@@ -244,6 +256,7 @@ export class FolderStore extends Store {
   }
 
   async renameNodeAuthorized(nodeId: string, name: string) {
+    name = validFolderName(name);
     await this.prepareAuthorizedMutation();
     if (!this.filtered) return this.renameNode(nodeId, name);
     const node = this.getNode(nodeId);
@@ -491,6 +504,7 @@ export class FolderStore extends Store {
   }
 
   renameNode(nodeId: string, name: string) {
+    name = validFolderName(name);
     this.assertLocalMutation();
     const node = this.dbService.db.folders.get(nodeId);
     if (node === null) {
@@ -505,6 +519,7 @@ export class FolderStore extends Store {
   }
 
   createFolder(parentId: string | null, name: string, index: string) {
+    name = validFolderName(name);
     this.assertLocalMutation();
     if (parentId) {
       const parent = this.dbService.db.folders.get(parentId);

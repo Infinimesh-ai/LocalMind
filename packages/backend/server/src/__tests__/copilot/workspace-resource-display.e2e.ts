@@ -247,7 +247,7 @@ test.serial(
     t.is(winner?.status, 'fulfilled');
     if (winner?.status === 'fulfilled') {
       t.deepEqual(current.lastUpdatedAt, winner.value.lastUpdatedAt);
-      t.is(current.lastUpdatedBy, winner.value.lastUpdatedBy);
+      t.is(current.lastUpdatedBy, winner.value.lastUpdatedBy ?? null);
     }
   }
 );
@@ -422,9 +422,18 @@ test.serial(
         .getDoc(actor.workspaceId, actor.workspaceId);
       Y.applyUpdate(root, snapshot!.bin);
       const before = Y.encodeStateVector(root);
-      const pages = root.getMap('meta').get('pages') as Y.Array<Y.Map<unknown>>;
-      const index = pages.toArray().findIndex(page => page.get('id') === docId);
-      const legacy = pages.get(index).toJSON();
+      const pages = root.getMap('meta').get('pages') as Y.Array<
+        Y.Map<unknown> | Record<string, unknown>
+      >;
+      const index = pages
+        .toArray()
+        .findIndex(page =>
+          page instanceof Y.Map ? page.get('id') === docId : page.id === docId
+        );
+      const page = pages.get(index);
+      if (!(page instanceof Y.Map))
+        throw new Error('Expected initial Y.Map page');
+      const legacy: Record<string, unknown> = page.toJSON();
       pages.delete(index, 1);
       pages.insert(index, [legacy]);
       await writer.pushDocUpdate(

@@ -184,12 +184,36 @@ test('workspace AI lists server-key models only', async t => {
     modelLocked: false,
   });
   t.deepEqual(option.models, [
-    { id: 'm1', name: 'Model One' },
-    { id: 'm2', name: 'm2' },
+    { id: 'm1', name: 'Model One', vision: 'unknown' },
+    { id: 'm2', name: 'm2', vision: 'unknown' },
   ]);
   t.like(calls[0], { sources: { local: false, server: true } });
   t.like(calls[1], {
     selection: { featureKind: 'action', quotaBackedRoutesAllowed: false },
+  });
+});
+
+test('AI model metadata only declares vision for image-to-text capabilities', async t => {
+  const definitions = [
+    { id: 'm1', capabilities: [{ input: ['image'], output: ['text'] }] },
+    { id: 'm2', capabilities: [{ input: ['text'], output: ['image'] }] },
+    {
+      id: 'project-model',
+      capabilities: [{ input: ['image'], output: ['text'] }],
+    },
+  ];
+  const configured = { type: 'openai', modelDefinitions: definitions };
+  const { ai } = service({
+    serverProfiles: [configured],
+    projectProfiles: [configured],
+  });
+  t.deepEqual(
+    (await ai.describe('u1', ws('w1'))).models.map(model => model.vision),
+    ['declared', 'unknown']
+  );
+  t.like(await ai.describe('u1', pj('p1')), {
+    modelLocked: true,
+    models: [{ id: 'project-model', vision: 'declared' }],
   });
 });
 
@@ -231,7 +255,9 @@ test('project AI is locked to the instance project model', async t => {
     modelLocked: true,
     defaultModelId: 'project-model',
   });
-  t.deepEqual(option.models, [{ id: 'project-model', name: 'project-model' }]);
+  t.deepEqual(option.models, [
+    { id: 'project-model', name: 'project-model', vision: 'unknown' },
+  ]);
   t.is(
     (await service({ member: false }).ai.describe('u1', pj('p1'))).reason,
     'no_permission'

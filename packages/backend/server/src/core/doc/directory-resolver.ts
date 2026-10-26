@@ -384,6 +384,60 @@ export class WorkspaceDirectoryResolver {
   }
 
   @Mutation(() => WorkspaceDirectoryMutationType)
+  async moveWorkspaceDocument(
+    @CurrentUser() actor: Actor,
+    @Args('workspaceId', { type: () => ID }) workspaceId: string,
+    @Args('documentId', { type: () => ID }) documentId: string,
+    @Args('expectedRevision') expectedRevision: string,
+    @Args('folderId', { type: () => ID, nullable: true })
+    folderId: string | null
+  ) {
+    const id = z.string().min(1).max(256);
+    if (
+      !id.safeParse(workspaceId).success ||
+      !id.safeParse(documentId).success ||
+      !id.nullable().safeParse(folderId).success ||
+      !/^[a-f0-9]{64}$/.test(expectedRevision)
+    )
+      throw new BadRequest('Invalid document move');
+    const input = { workspaceId, actorId: actor.id };
+    return this.resources.snapshot(input, async () => {
+      const authorize = async () => {
+        await this.resources.assertWorkspace(input, 'Workspace.Sync');
+        await this.resources.assertDocument(input, documentId);
+        if (
+          (
+            await this.models.workspaceNativeResource.officeIds(workspaceId, [
+              documentId,
+            ])
+          ).has(documentId)
+        )
+          throw new BadRequest('Use the native resource move operation');
+      };
+      await authorize();
+      if (
+        (await this.organization.directoryRevision(workspaceId, actor.id)) !==
+        expectedRevision
+      )
+        throw new BadRequest('Directory changed; refresh before moving');
+      // The domain service checks every source placement, including hidden ones,
+      // and the destination ACL. A filtered client must not reconstruct this write.
+      await this.organization.moveResourceDocument({
+        ...input,
+        documentId,
+        folderId,
+        authorize,
+      });
+      return {
+        revision: await this.organization.directoryRevision(
+          workspaceId,
+          actor.id
+        ),
+      };
+    });
+  }
+
+  @Mutation(() => WorkspaceDirectoryMutationType)
   async reorderWorkspaceDirectory(
     @CurrentUser() actor: Actor,
     @Args('workspaceId', { type: () => ID }) workspaceId: string,

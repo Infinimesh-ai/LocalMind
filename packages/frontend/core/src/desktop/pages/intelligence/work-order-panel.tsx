@@ -26,6 +26,7 @@ import {
 } from './work-order-file-input';
 import * as styles from './work-order-panel.css';
 import {
+  workOrderExchangeLabel,
   workOrderRelationLabel,
   workOrderStatusLabel,
 } from './workbench-labels';
@@ -112,7 +113,9 @@ export function WorkOrderPanel({
   );
   const lastServerTextValues = useRef<Record<string, string>>({});
   const [files, setFiles] = useState<Record<string, WorkOrderFile[]>>({});
-  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+  const [uploadErrors, setUploadErrors] = useState<
+    Record<string, { message: string; knownBlobIds: string[] }>
+  >({});
   const uploadLock = useRef(false);
   const [editingDelivery, setEditingDelivery] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -129,13 +132,14 @@ export function WorkOrderPanel({
         .filter(item => item.text)
         .map(item => [item.requirementId, item.text ?? ''])
     );
+    const previousServerValues = lastServerTextValues.current;
     setTextValues(current => {
       const next = { ...current };
       for (const requirement of order.requirements) {
         if (requirement.kind !== 'text') continue;
         if (
           (current[requirement.id] ?? '') ===
-          (lastServerTextValues.current[requirement.id] ?? '')
+          (previousServerValues[requirement.id] ?? '')
         ) {
           next[requirement.id] = serverValues[requirement.id] ?? '';
         }
@@ -145,6 +149,20 @@ export function WorkOrderPanel({
     lastServerTextValues.current = serverValues;
     const selectedBlobIds = new Set(
       order.deliveryDraft?.items.flatMap(item => item.blobIds) ?? []
+    );
+    setUploadErrors(current =>
+      Object.fromEntries(
+        Object.entries(current).filter(([requirementId, error]) => {
+          const selection = order.deliveryDraft?.items.find(
+            item => item.requirementId === requirementId
+          );
+          // Preserve failures after partial uploads; a different accepted file
+          // from AI or another page supersedes the previous attempt's error.
+          return !selection?.blobIds.some(
+            id => !error.knownBlobIds.includes(id)
+          );
+        })
+      )
     );
     setFiles(
       order.stagedBlobs
@@ -188,7 +206,8 @@ export function WorkOrderPanel({
   const act = async (
     key: string,
     execute: () => Promise<unknown>,
-    clearMessage = false
+    clearMessage = false,
+    successMessage?: string
   ) => {
     if (pending) return;
     setPending(key);
@@ -196,6 +215,7 @@ export function WorkOrderPanel({
       await execute();
       if (clearMessage) setMessage('');
       await refresh();
+      if (successMessage) notify.success({ title: successMessage });
     } catch (error) {
       notify.error({
         title: t['com.affine.localmind.workbench.v9.actionFailed'](),
@@ -211,8 +231,17 @@ export function WorkOrderPanel({
       item => item.id === requirementId
     );
     if (!requirement) return;
+    const staged: WorkOrderFile[] = [];
     const setError = (message: string) =>
-      setUploadErrors(current => ({ ...current, [requirementId]: message }));
+      setUploadErrors(current => ({
+        ...current,
+        [requirementId]: {
+          message,
+          knownBlobIds: [...(files[requirementId] ?? []), ...staged].map(
+            file => file.id
+          ),
+        },
+      }));
     if (selected.length > requirement.maxCount) {
       setError(
         t['com.affine.localmind.workbench.v9.deliveryFileCountError']({
@@ -230,7 +259,6 @@ export function WorkOrderPanel({
     setUploading(requirementId);
     setError('');
     try {
-      const staged: WorkOrderFile[] = [];
       for (const file of selected) {
         const response = await fetch(
           `/api/copilot/work-orders/${encodeURIComponent(order.id)}/files?fileName=${encodeURIComponent(file.name)}&requirementId=${encodeURIComponent(requirementId)}&requestKey=${encodeURIComponent(newRequestKey('upload'))}`,
@@ -408,7 +436,7 @@ export function WorkOrderPanel({
                   (order.status !== 'delivered' ||
                     requirement.kind === 'text' ||
                     !!files[requirement.id]?.length) &&
-                  !uploadErrors[requirement.id] ? (
+                  !uploadErrors[requirement.id]?.message ? (
                     <p role="status">{checkReasonText(check.reason)}</p>
                   ) : null}
                   {order.status === 'delivered' && !editingDraft
@@ -454,7 +482,7 @@ export function WorkOrderPanel({
                         files={files[requirement.id] ?? []}
                         uploading={uploading === requirement.id}
                         disabled={!!uploading || !!pending}
-                        error={uploadErrors[requirement.id]}
+                        error={uploadErrors[requirement.id]?.message}
                         onSelect={selected =>
                           void upload(requirement.id, selected)
                         }
@@ -516,7 +544,7 @@ export function WorkOrderPanel({
             <ol className={styles.timeline}>
               {order.exchanges.map(exchange => (
                 <li key={exchange.id}>
-                  <strong>{exchange.kind}</strong>
+                  <strong>{workOrderExchangeLabel(exchange.kind, t)}</strong>
                   <span>{exchange.body}</span>
                   <time>{new Date(exchange.createdAt).toLocaleString()}</time>
                 </li>
@@ -562,22 +590,28 @@ export function WorkOrderPanel({
                 variant="primary"
                 loading={pending === 'adopt'}
                 onClick={() =>
-                  void act('adopt', () =>
-                    graphql.gql({
-                      query: adoptWorkOrderDeliveriesMutation,
-                      variables: {
-                        sourceSessionId: order.sourceSessionId as string,
-                        expectedContextVersion:
-                          order.sourceContextVersion as number,
-                        requestKey: newRequestKey('adopt'),
-                        revisions: [
-                          {
-                            workOrderId: order.id,
-                            deliveryRevisionId: latestDelivery.id,
-                          },
-                        ],
-                      },
-                    })
+                  void act(
+                    'adopt',
+                    () =>
+                      graphql.gql({
+                        query: adoptWorkOrderDeliveriesMutation,
+                        variables: {
+                          sourceSessionId: order.sourceSessionId as string,
+                          expectedContextVersion:
+                            order.sourceContextVersion as number,
+                          requestKey: newRequestKey('adopt'),
+                          revisions: [
+                            {
+                              workOrderId: order.id,
+                              deliveryRevisionId: latestDelivery.id,
+                            },
+                          ],
+                        },
+                      }),
+                    false,
+                    t[
+                      'com.affine.localmind.workbench.v9.adoptDeliverySuccess'
+                    ]()
                   )
                 }
               >

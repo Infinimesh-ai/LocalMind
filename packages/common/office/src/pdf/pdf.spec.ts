@@ -1,4 +1,13 @@
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import {
+  decodePDFRawStream,
+  degrees,
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFRawStream,
+  StandardFonts,
+} from 'pdf-lib';
 import { describe, expect, test } from 'vitest';
 
 import { applyPdfCommand } from './edit';
@@ -309,5 +318,108 @@ describe('native PDF engine', () => {
       redactionCount: 1,
       flattened: true,
     });
+    expect(result.state.formFields).toEqual([]);
+    const reopened = await PDFDocument.load(result.packageBytes);
+    const streams = reopened.context
+      .enumerateIndirectObjects()
+      .flatMap(([, object]) =>
+        object instanceof PDFRawStream
+          ? [new TextDecoder().decode(decodePDFRawStream(object).decode())]
+          : []
+      )
+      .join('\n');
+    expect(streams).not.toContain('50616765206F6E65'); // Page one
+    expect(streams).toContain('506167652074776F'); // Page two
   });
+
+  test('redaction preserves other pages, shared fields, metadata and page destinations', async () => {
+    const document = await PDFDocument.load(await minimalPdf());
+    const pages = document.getPages();
+    pages[0].setRotation(degrees(90));
+    const shared = document.getForm().createTextField('shared');
+    shared.setText('VISIBLE ON PAGE TWO');
+    shared.addToPage(pages[0], { x: 10, y: 10, width: 150, height: 20 });
+    shared.addToPage(pages[1], { x: 10, y: 10, width: 150, height: 20 });
+    const other = document.getForm().createTextField('other');
+    other.setText('KEEP');
+    other.addToPage(pages[1], { x: 10, y: 40, width: 150, height: 20 });
+    document.catalog.set(
+      PDFName.of('Dests'),
+      document.context.obj({
+        target: [pages[0].ref, PDFName.of('Fit')],
+      })
+    );
+    const pkg = await openPdfPackage(await document.save());
+    const result = await applyPdfCommand(pkg, {
+      ...commandBase('office.pdf.redaction.apply'),
+      operation: 'office.pdf.redaction.apply',
+      target: { type: 'page', pageIndex: 0 },
+      flattenedPagePngBase64:
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nKsAAAAASUVORK5CYII=',
+      rects: [{ xPt: 0, yPt: 0, widthPt: 200, heightPt: 100 }],
+    });
+    const reopened = await PDFDocument.load(result.packageBytes);
+    expect(reopened.getPages()[0].getRotation().angle).toBe(90);
+    expect(reopened.getTitle()).toBe('LocalMind Native PDF');
+    expect(
+      reopened
+        .getForm()
+        .getFields()
+        .map(field => field.getName())
+        .sort()
+    ).toEqual(['other', 'shared']);
+    expect(
+      reopened.getForm().getTextField('shared').acroField.getWidgets()
+    ).toHaveLength(1);
+    expect(reopened.getForm().getTextField('other').getText()).toBe('KEEP');
+    const target = reopened.catalog
+      .lookup(PDFName.of('Dests'), PDFDict)
+      .lookup(PDFName.of('target'), PDFArray);
+    expect(target.get(0)).toBe(reopened.getPages()[0].ref);
+    const streams = reopened.context
+      .enumerateIndirectObjects()
+      .flatMap(([, value]) =>
+        value instanceof PDFRawStream
+          ? [new TextDecoder().decode(decodePDFRawStream(value).decode())]
+          : []
+      )
+      .join('\n');
+    expect(streams).not.toContain('50616765206F6E65');
+    expect(streams).toContain('506167652074776F');
+    expect(readPdfSemanticState(pkg).formFields).toHaveLength(5);
+  });
+
+  test.each(['tagged', 'xfa', 'cropped'] as const)(
+    'redaction rejects unsupported %s structure without rewriting the source',
+    async kind => {
+      const document = await PDFDocument.load(await minimalPdf());
+      if (kind === 'tagged')
+        document.catalog.set(
+          PDFName.of('StructTreeRoot'),
+          document.context.obj({ Type: 'StructTreeRoot', K: [] })
+        );
+      if (kind === 'xfa')
+        document.catalog
+          .getAcroForm()!
+          .dict.set(
+            PDFName.of('XFA'),
+            document.context.obj(['template', 'test'])
+          );
+      if (kind === 'cropped')
+        document.getPages()[0].setCropBox(10, 10, 500, 700);
+      const bytes = await document.save({ updateFieldAppearances: false });
+      const pkg = await openPdfPackage(bytes);
+      await expect(
+        applyPdfCommand(pkg, {
+          ...commandBase('office.pdf.redaction.apply'),
+          operation: 'office.pdf.redaction.apply',
+          target: { type: 'page', pageIndex: 0 },
+          flattenedPagePngBase64:
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nKsAAAAASUVORK5CYII=',
+          rects: [{ xPt: 0, yPt: 0, widthPt: 50, heightPt: 20 }],
+        })
+      ).rejects.toThrow(/redaction/);
+      expect(pkg.readBytes()).toEqual(bytes);
+    }
+  );
 });

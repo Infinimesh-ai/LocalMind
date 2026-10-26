@@ -548,6 +548,7 @@ __metadata:
     react-router-dom: "npm:^6.30.4"
     typescript: "npm:^5.9.3"
     uuid: "npm:^14.0.0"
+    vitest: "npm:^4.1.10"
   languageName: unknown
   linkType: soft
 

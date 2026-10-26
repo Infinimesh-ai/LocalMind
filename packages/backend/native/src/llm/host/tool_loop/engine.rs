@@ -26,6 +26,13 @@ use crate::llm::{
 
 pub(crate) type PreparedToolLoopRoute = (PreparedChatRoute, LlmMiddlewarePayload);
 
+fn stream_error_code(error: &BackendError) -> &str {
+  match error {
+    BackendError::StreamEvent { code: Some(code), .. } => code,
+    _ => "dispatch_error",
+  }
+}
+
 fn dispatch_prepared_round_with_fallback(
   routes: &[PreparedToolLoopRoute],
   callback: &ThreadsafeFunction<String, ()>,
@@ -53,7 +60,10 @@ fn dispatch_prepared_round_with_fallback(
     },
     || aborted.load(Ordering::Relaxed),
     || backend_transport_error(STREAM_ABORTED_REASON),
-    |error: RoundProcessorError| backend_transport_error(error.to_string()),
+    |error: RoundProcessorError| match error {
+      RoundProcessorError::ProviderStreamError { message, code } => BackendError::StreamEvent { message, code },
+      error => backend_transport_error(error.to_string()),
+    },
     |loop_event| {
       emitted.store(true, Ordering::Relaxed);
       emit_tool_loop_event(callback, loop_event)
@@ -274,7 +284,7 @@ pub(crate) fn spawn_tool_loop_stream(
       && !matches!(&error, BackendError::Transport { message: reason } if reason == STREAM_ABORTED_REASON)
       && !callback_dispatch_failed
     {
-      emit_error_event(&callback, error.to_string(), "dispatch_error");
+      emit_error_event(&callback, error.to_string(), stream_error_code(&error));
     }
 
     if !aborted_in_worker.load(Ordering::Relaxed) && !callback_dispatch_failed {
@@ -320,7 +330,7 @@ pub(crate) fn spawn_routed_tool_loop_stream(
       && !matches!(&error, BackendError::Transport { message: reason } if reason == STREAM_ABORTED_REASON)
       && !callback_dispatch_failed
     {
-      emit_error_event(&callback, error.to_string(), "dispatch_error");
+      emit_error_event(&callback, error.to_string(), stream_error_code(&error));
     }
 
     if !aborted_in_worker.load(Ordering::Relaxed) && !callback_dispatch_failed {
@@ -356,7 +366,7 @@ pub(crate) fn spawn_prepared_tool_loop_stream(
       && !matches!(&error, BackendError::Transport { message: reason } if reason == STREAM_ABORTED_REASON)
       && !callback_dispatch_failed
     {
-      emit_error_event(&callback, error.to_string(), "dispatch_error");
+      emit_error_event(&callback, error.to_string(), stream_error_code(&error));
     }
 
     if !aborted_in_worker.load(Ordering::Relaxed) && !callback_dispatch_failed {

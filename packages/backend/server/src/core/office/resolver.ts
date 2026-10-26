@@ -240,8 +240,7 @@ export class OfficeResolver {
     @CurrentUser() user: CurrentUserType,
     @Args('input') input: OfficeCommandInput
   ) {
-    this.assertInteractiveUserCommand(input.command);
-    const result = await this.commands.preview({
+    const result = await this.commands.previewInteractive({
       workspaceId: input.workspaceId,
       actorId: user.id,
       command: input.command,
@@ -292,8 +291,7 @@ export class OfficeResolver {
     @CurrentUser() user: CurrentUserType,
     @Args('input') input: OfficeCommandInput
   ) {
-    this.assertInteractiveUserCommand(input.command);
-    const result = await this.commands.execute({
+    const result = await this.commands.executeInteractive({
       workspaceId: input.workspaceId,
       actorId: user.id,
       command: input.command,

@@ -58,18 +58,17 @@ export function setupEvents(frameworkProvider: FrameworkProvider) {
   });
 
   events?.applicationMenu.onOpenJournal(() => {
-    using currentWorkspace = getCurrentWorkspace(frameworkProvider);
-    if (!currentWorkspace) {
-      return;
-    }
-    const { workspace, dispose } = currentWorkspace;
-
-    const workbench = workspace.scope.get(WorkbenchService).workbench;
-    const journalService = workspace.scope.get(JournalService);
-    const docId = journalService.ensureJournalByDate(new Date()).id;
-    workbench.openDoc(docId);
-
-    dispose();
+    void (async () => {
+      using currentWorkspace = getCurrentWorkspace(frameworkProvider);
+      if (!currentWorkspace) return;
+      const { workspace } = currentWorkspace;
+      const workbench = workspace.scope.get(WorkbenchService).workbench;
+      const journalService = workspace.scope.get(JournalService);
+      const journal = await journalService.ensureJournalByDate(new Date());
+      workbench.openDoc(journal.id);
+    })().catch(err => {
+      console.error(err);
+    });
   });
 
   setupRecordingEvents(frameworkProvider);

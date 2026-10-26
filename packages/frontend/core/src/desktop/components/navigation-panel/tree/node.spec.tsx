@@ -1,4 +1,5 @@
 /** @vitest-environment happy-dom */
+import { DNDContext } from '@affine/component/ui/dnd';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { NEVER } from 'rxjs';
@@ -15,20 +16,18 @@ const state = vi.hoisted(() => ({
   openOffice: vi.fn(),
   openNativeFile: vi.fn(),
   dragOptions: [] as unknown[],
-  dropOptions: [] as unknown[],
 }));
 
-vi.mock('@affine/component', () => ({
+vi.mock('@affine/component', async () => ({
   ContextMenu: ({ children }: PropsWithChildren) => children,
   IconRenderer: ({ fallback }: { fallback: ReactNode }) => fallback,
   useDraggable: (options: () => unknown) => {
     state.dragOptions.push(options());
     return { CustomDragPreview: () => null };
   },
-  useDropTarget: (options: () => unknown) => {
-    state.dropOptions.push(options());
-    return { dropTargetRef: { current: null } };
-  },
+  // Keep the real hook and adapters: a false callback still registers native
+  // external drags, whereas a literal false must leave no DOM registration.
+  useDropTarget: (await import('@affine/component/ui/dnd')).useDropTarget,
   DropIndicator: ({ instruction }: { instruction: { type: string } }) => (
     <div data-testid="drop-indicator" data-type={instruction.type} />
   ),
@@ -49,7 +48,9 @@ vi.mock('@affine/core/modules/workbench', () => ({
   WorkbenchLink: ({ children }: PropsWithChildren) => children,
 }));
 vi.mock('@affine/core/utils', () => ({ extractEmojiIcon: vi.fn() }));
-vi.mock('@affine/i18n', () => ({ useI18n: () => ({}) }));
+vi.mock('@affine/i18n', () => ({
+  useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
+}));
 vi.mock('@toeverything/infra', () => ({
   useLiveData: (value: unknown) => value,
   useService: () => ({
@@ -102,9 +103,10 @@ import { NavigationPanelNativeFileNode } from '../nodes/folder/native-file';
 import { NavigationPanelTreeNode as DesktopTreeNode } from './node';
 import * as styles from './node.css';
 
+const externalDnd = { fromExternalData: () => ({}) };
+
 test('native tree drops measure the title row, reuse its indicator and disable the second drop handler', () => {
   const ref = vi.fn();
-  state.dropOptions.length = 0;
   render(
     <DesktopTreeNode
       name="Parent"
@@ -118,7 +120,14 @@ test('native tree drops measure the title row, reuse its indicator and disable t
       }}
     >
       <span>Child subtree</span>
-    </DesktopTreeNode>
+    </DesktopTreeNode>,
+    {
+      wrapper: ({ children }) => (
+        <DNDContext.Provider value={externalDnd}>
+          {children}
+        </DNDContext.Provider>
+      ),
+    }
   );
   const row = ref.mock.calls.find(
     ([element]) => element
@@ -126,10 +135,84 @@ test('native tree drops measure the title row, reuse its indicator and disable t
   expect(row.textContent).toContain('Parent');
   expect(row.textContent).not.toContain('Child subtree');
   expect(screen.getByTestId('drop-indicator').dataset.type).toBe('make-child');
-  const options = state.dropOptions.at(-1) as {
-    canDrop: (args: unknown) => boolean;
+  expect(Object.hasOwn(row.dataset, 'dropTargetForElement')).toBe(false);
+  expect(Object.hasOwn(row.dataset, 'dropTargetForExternal')).toBe(false);
+  expect(row.classList.contains(styles.draggedOverEffect)).toBe(false);
+});
+
+test('switching from legacy to controlled drops unregisters both real adapters', () => {
+  const ref = vi.fn();
+  const props = {
+    name: 'Folder',
+    collapsed: true,
+    setCollapsed: vi.fn(),
+    rowRef: ref,
   };
-  expect(options.canDrop({})).toBe(false);
+  const view = render(<DesktopTreeNode {...props} />, {
+    wrapper: ({ children }) => (
+      <DNDContext.Provider value={externalDnd}>{children}</DNDContext.Provider>
+    ),
+  });
+  const row = ref.mock.calls.find(
+    ([element]) => element
+  )?.[0] as HTMLDivElement;
+  expect(Object.hasOwn(row.dataset, 'dropTargetForElement')).toBe(true);
+  expect(Object.hasOwn(row.dataset, 'dropTargetForExternal')).toBe(true);
+  view.rerender(<DesktopTreeNode {...props} dropInstruction={null} />);
+  expect(Object.hasOwn(row.dataset, 'dropTargetForElement')).toBe(false);
+  expect(Object.hasOwn(row.dataset, 'dropTargetForExternal')).toBe(false);
+  expect(row.classList.contains(styles.draggedOverEffect)).toBe(false);
+  view.rerender(<DesktopTreeNode {...props} />);
+  expect(Object.hasOwn(row.dataset, 'dropTargetForElement')).toBe(true);
+  expect(row.classList.contains(styles.draggedOverEffect)).toBe(true);
+});
+
+test('container drops highlight the row without rendering a rectangular insertion outline', () => {
+  const view = render(
+    <DesktopTreeNode
+      name="Parent"
+      collapsed
+      setCollapsed={vi.fn()}
+      dropInsideLabel="Move into Parent"
+      dropInstruction={{
+        type: 'make-child',
+        currentLevel: 0,
+        indentPerLevel: 20,
+      }}
+    />
+  );
+  expect(screen.queryByTestId('drop-indicator')).toBeNull();
+  expect(
+    view.container.querySelector('[data-drop-inside="true"]')
+  ).toBeTruthy();
+  expect(screen.getByRole('status').textContent).toBe('Move into Parent');
+});
+
+test('a controlled below indicator is anchored after the subtree, not under the title', () => {
+  const ref = vi.fn();
+  render(
+    <DesktopTreeNode
+      name="Parent"
+      collapsed={false}
+      setCollapsed={vi.fn()}
+      rowRef={ref}
+      dropInstruction={{
+        type: 'reorder-below',
+        currentLevel: 0,
+        indentPerLevel: 20,
+      }}
+    >
+      <span>Child subtree</span>
+    </DesktopTreeNode>
+  );
+  const indicator = screen.getByTestId('drop-indicator');
+  const row = ref.mock.calls.find(
+    ([element]) => element
+  )?.[0] as HTMLDivElement;
+  expect(row.contains(indicator)).toBe(false);
+  expect(
+    indicator.parentElement?.previousElementSibling?.textContent
+  ).toContain('Child subtree');
 });
 
 afterEach(() => {

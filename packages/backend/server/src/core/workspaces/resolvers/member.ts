@@ -280,7 +280,7 @@ export class WorkspaceMemberResolver {
       } catch (error) {
         results[index] = {
           email,
-          error: mapAnyError(error),
+          error: mapAnyError(error).toJSON(),
         };
       }
     }
@@ -382,7 +382,7 @@ export class WorkspaceMemberResolver {
         } catch (error) {
           results[candidate.index] = {
             email: candidate.email,
-            error: mapAnyError(error),
+            error: mapAnyError(error).toJSON(),
           };
         }
       }

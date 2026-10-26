@@ -1,3 +1,4 @@
+import { isStableDocxParagraphId } from './command';
 import type { DocxBlock, DocxSemanticState } from './docx';
 import type { PdfSemanticState } from './pdf';
 import type { PptxSemanticState, PptxShape } from './pptx';
@@ -49,6 +50,7 @@ type ComparableEntity = {
   label: string;
   value: Record<string, unknown>;
   preview?: string;
+  paragraphScope?: string;
 };
 
 const SCHEMA_BY_KIND = {
@@ -113,12 +115,13 @@ function entity(
 
 function collectDocxBlocks(
   blocks: readonly DocxBlock[],
-  output: ComparableEntity[]
+  output: ComparableEntity[],
+  scope = 'body'
 ) {
   for (const block of blocks) {
     if (block.type === 'paragraph') {
-      output.push(
-        entity(
+      output.push({
+        ...entity(
           'paragraph',
           block.id,
           block.text || 'Empty paragraph',
@@ -134,8 +137,9 @@ function collectDocxBlocks(
             bookmarks: block.bookmarks,
           },
           block.text
-        )
-      );
+        ),
+        paragraphScope: scope,
+      });
     } else if (block.type === 'table') {
       output.push(
         entity('table', block.id, 'Table', {
@@ -146,9 +150,15 @@ function collectDocxBlocks(
           columns: Math.max(0, ...block.rows.map(row => row.cells.length)),
         })
       );
-      for (const row of block.rows) {
-        for (const cell of row.cells) collectDocxBlocks(cell.blocks, output);
-      }
+      block.rows.forEach((row, rowIndex) =>
+        row.cells.forEach((cell, cellIndex) =>
+          collectDocxBlocks(
+            cell.blocks,
+            output,
+            `${scope}/${block.id}/${rowIndex}/${cellIndex}`
+          )
+        )
+      );
     } else if (block.type === 'contentControl') {
       output.push(
         entity(
@@ -158,7 +168,7 @@ function collectDocxBlocks(
           { title: block.title, tag: block.tag }
         )
       );
-      collectDocxBlocks(block.blocks, output);
+      collectDocxBlocks(block.blocks, output, `${scope}/${block.id}`);
     } else {
       output.push(
         entity('unsupportedBlock', block.id, block.element, {
@@ -167,6 +177,124 @@ function collectDocxBlocks(
       );
     }
   }
+}
+
+/** Match an imported document's first ID stabilization without changing its saved state. */
+function alignDocumentParagraphs(
+  before: ComparableEntity[],
+  after: ComparableEntity[]
+) {
+  const groups = (items: ComparableEntity[]) => {
+    const result = new Map<string, ComparableEntity[]>();
+    for (const item of items) {
+      if (item.paragraphScope === undefined) continue;
+      const group = result.get(item.paragraphScope) ?? [];
+      group.push(item);
+      result.set(item.paragraphScope, group);
+    }
+    return result;
+  };
+  const afterGroups = groups(after);
+  const aliases = new Map<string, string>();
+  let truncated = false;
+  for (const [scope, previous] of groups(before)) {
+    const next = afterGroups.get(scope);
+    if (!next?.length) continue;
+    const migrated = (a: ComparableEntity, b: ComparableEntity) =>
+      isStableDocxParagraphId(a.id) !== isStableDocxParagraphId(b.id);
+    if (
+      !previous.some(a => !isStableDocxParagraphId(a.id)) &&
+      !next.some(b => !isStableDocxParagraphId(b.id))
+    )
+      continue;
+    const aValues = previous.map(item => stableJson(item.value));
+    const bValues = next.map(item => stableJson(item.value));
+    const same = (a: number, b: number) =>
+      previous[a].id === next[b].id ||
+      (migrated(previous[a], next[b]) && aValues[a] === bValues[b]);
+    const pairs: Array<[number, number]> = [];
+    let start = 0;
+    while (
+      start < previous.length &&
+      start < next.length &&
+      same(start, start)
+    ) {
+      pairs.push([start, start]);
+      start++;
+    }
+    let aEnd = previous.length,
+      bEnd = next.length;
+    const suffix: Array<[number, number]> = [];
+    while (aEnd > start && bEnd > start && same(aEnd - 1, bEnd - 1)) {
+      suffix.push([--aEnd, --bEnd]);
+    }
+    const rows = aEnd - start,
+      columns = bEnd - start;
+    // Prefix/suffix matching is linear even for very large documents. Bound the
+    // remaining LCS work instead of allocating a quadratic table without a limit.
+    if ((rows + 1) * (columns + 1) <= 1_000_000) {
+      const width = columns + 1;
+      const lengths = new Uint32Array((rows + 1) * width);
+      for (let a = rows - 1; a >= 0; a--)
+        for (let b = columns - 1; b >= 0; b--)
+          lengths[a * width + b] = same(a + start, b + start)
+            ? 1 + lengths[(a + 1) * width + b + 1]
+            : Math.max(
+                lengths[(a + 1) * width + b],
+                lengths[a * width + b + 1]
+              );
+      let a = 0,
+        b = 0;
+      while (a < rows && b < columns) {
+        if (same(a + start, b + start)) pairs.push([start + a++, start + b++]);
+        else if (lengths[(a + 1) * width + b] >= lengths[a * width + b + 1])
+          a++;
+        else b++;
+      }
+    } else if (rows && columns) truncated = true;
+    pairs.push(...suffix.reverse());
+    const anchors: Array<[number, number]> = [
+      [-1, -1],
+      ...pairs,
+      [previous.length, next.length],
+    ];
+    for (let i = 1; i < anchors.length; i++) {
+      const [a, b] = anchors[i - 1];
+      const [aNext, bNext] = anchors[i];
+      // Only one-to-one replacement gaps may bridge an ID migration. Existing
+      // stable IDs, insertions/deletions, and larger ambiguous gaps stay distinct.
+      if (
+        aNext - a === 2 &&
+        bNext - b === 2 &&
+        migrated(previous[a + 1], next[b + 1])
+      )
+        aliases.set(previous[a + 1].id, next[b + 1].id);
+    }
+    for (const [a, b] of pairs) aliases.set(previous[a].id, next[b].id);
+  }
+  for (const item of before) {
+    if (item.entity === 'paragraph') item.id = aliases.get(item.id) ?? item.id;
+    if (item.entity === 'documentSettings' && isRecord(item.value.references)) {
+      item.value.references = Object.fromEntries(
+        Object.entries(item.value.references).map(([kind, references]) => [
+          kind,
+          Array.isArray(references)
+            ? references.map(reference =>
+                isRecord(reference) && typeof reference.paragraphId === 'string'
+                  ? {
+                      ...reference,
+                      paragraphId:
+                        aliases.get(reference.paragraphId) ??
+                        reference.paragraphId,
+                    }
+                  : reference
+              )
+            : references,
+        ])
+      );
+    }
+  }
+  return truncated;
 }
 
 function documentEntities(state: DocxSemanticState) {
@@ -407,17 +535,16 @@ export function diffOfficeSemanticStates(
   assertState(kind, beforeInput);
   assertState(kind, afterInput);
   const maxChanges = Math.max(1, Math.min(2_000, options.maxChanges ?? 250));
+  const beforeEntities = entitiesFor(kind, beforeInput);
+  const afterEntities = entitiesFor(kind, afterInput);
+  const identityAlignmentTruncated =
+    kind === 'document' &&
+    alignDocumentParagraphs(beforeEntities, afterEntities);
   const before = new Map(
-    entitiesFor(kind, beforeInput).map(item => [
-      `${item.entity}:${item.id}`,
-      item,
-    ])
+    beforeEntities.map(item => [`${item.entity}:${item.id}`, item])
   );
   const after = new Map(
-    entitiesFor(kind, afterInput).map(item => [
-      `${item.entity}:${item.id}`,
-      item,
-    ])
+    afterEntities.map(item => [`${item.entity}:${item.id}`, item])
   );
   const keys = [...new Set([...before.keys(), ...after.keys()])].sort();
   const changes: OfficeRevisionDiffChange[] = [];
@@ -474,7 +601,7 @@ export function diffOfficeSemanticStates(
     version: OFFICE_REVISION_DIFF_VERSION,
     kind,
     changed: totalChanges > 0,
-    truncated: totalChanges > changes.length,
+    truncated: identityAlignmentTruncated || totalChanges > changes.length,
     summary: {
       added,
       removed,

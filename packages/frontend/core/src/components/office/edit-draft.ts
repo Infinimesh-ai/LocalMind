@@ -35,6 +35,10 @@ export type OfficeEditorDraft = {
   readonly hasUnsavedChanges: boolean;
   save: () => Promise<void>;
   discard: () => Promise<void>;
+  pauseAutosave?: () => {
+    settled: Promise<void> | null;
+    resume: () => void;
+  };
 };
 
 export type RegisterOfficeDraft = (draft: OfficeEditorDraft) => () => void;
@@ -46,6 +50,7 @@ export function useOfficeEditorDraft(
   const latest = useRef(draft);
   latest.current = draft;
   const dirty = draft.hasUnsavedChanges;
+  const pausable = !!draft.pauseAutosave;
   useEffect(
     () =>
       register?.({
@@ -54,8 +59,15 @@ export function useOfficeEditorDraft(
         },
         save: () => latest.current.save(),
         discard: () => latest.current.discard(),
+        pauseAutosave: pausable
+          ? () =>
+              latest.current.pauseAutosave?.() ?? {
+                settled: null,
+                resume: () => {},
+              }
+          : undefined,
       }),
-    [register, dirty]
+    [register, dirty, pausable]
   );
 }
 

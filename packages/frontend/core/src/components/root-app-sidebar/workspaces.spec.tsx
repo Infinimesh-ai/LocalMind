@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   ready: true,
   synced: true,
   loading: false,
+  pageTreeEnabled: false,
   jump: vi.fn(),
   close: vi.fn(),
   revalidate: vi.fn(),
@@ -70,6 +71,15 @@ vi.mock('@affine/component', () => ({
 vi.mock('@affine/core/modules/doc', () => ({ DocsService: 'docs' }));
 vi.mock('@affine/core/modules/organize', () => ({
   OrganizeService: 'organize',
+  WorkspacePageTreeService: 'page-tree',
+}));
+vi.mock('@affine/core/modules/navigation-panel', () => ({
+  CreatedResourceService: 'created-resource',
+}));
+vi.mock('./page-tree', () => ({
+  WorkspacePageTree: () => <div data-testid="page-tree" />,
+  PageTreeCreateMenu: () => <button>Create at root</button>,
+  PageTreeRootSort: () => <button>Sort root</button>,
 }));
 vi.mock('@affine/core/modules/workspace', () => ({
   WorkspaceService: 'workspace',
@@ -86,6 +96,8 @@ vi.mock('@toeverything/infra', () => ({
       | 'docs'
       | 'organize'
       | 'workspace'
+      | 'page-tree'
+      | 'created-resource'
       | 'workspace-switch'
       | 'workspaces'
       | 'workbench'
@@ -105,6 +117,8 @@ vi.mock('@toeverything/infra', () => ({
         },
       },
       workspace: { workspace: state.current },
+      'page-tree': { ['enabled$']: state.pageTreeEnabled },
+      'created-resource': { ['reveal$']: null },
       'workspace-switch': {
         ['state$']: state.switchState,
         begin: state.beginSwitch,
@@ -170,6 +184,7 @@ beforeEach(() => {
   state.ready = true;
   state.synced = true;
   state.loading = false;
+  state.pageTreeEnabled = false;
   state.switchState = { phase: 'idle' };
   state.beginSwitch.mockImplementation((workspaceId: string) => {
     state.switchState = {
@@ -182,6 +197,24 @@ beforeEach(() => {
 });
 
 describe('workspace sidebar', () => {
+  test('root actions are present only for the expanded active workspace', () => {
+    state.pageTreeEnabled = true;
+    render(<SidebarWorkspaces />);
+    expect(screen.getAllByRole('button', { name: 'Sort root' })).toHaveLength(
+      1
+    );
+    expect(
+      screen.getAllByRole('button', { name: 'Create at root' })
+    ).toHaveLength(1);
+    const current = screen.getByRole('button', { name: 'Workspace one' });
+    fireEvent.click(current);
+    expect(screen.queryByRole('button', { name: 'Sort root' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create at root' })).toBeNull();
+    fireEvent.click(current);
+    expect(screen.getAllByRole('button', { name: 'Sort root' })).toHaveLength(
+      1
+    );
+  });
   test('shows the active tree, collapses it, and switches workspace through the existing route', () => {
     const view = render(<SidebarWorkspaces />);
     expect(screen.getAllByTestId('files')).toHaveLength(1);

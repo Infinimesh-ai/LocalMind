@@ -115,6 +115,37 @@ e2e('should invite a user', async t => {
 });
 
 e2e(
+  'should serialize per-address invitation failures without losing successes',
+  async t => {
+    const { owner, workspace } = await createWorkspace();
+    const member = await app.create(Mockers.User);
+    await app.login(owner);
+    const result = await app.gql({
+      query: inviteByEmailsMutation,
+      variables: {
+        workspaceId: workspace.id,
+        emails: [owner.email, member.email, 'invalid-email'],
+      },
+    });
+    t.is(result.inviteMembers.length, 3);
+    t.falsy(result.inviteMembers[0].inviteId);
+    t.is(result.inviteMembers[0].error?.name, 'ALREADY_IN_SPACE');
+    t.truthy(result.inviteMembers[1].inviteId);
+    t.falsy(result.inviteMembers[1].error);
+    t.falsy(result.inviteMembers[2].inviteId);
+    t.truthy(result.inviteMembers[2].error?.name);
+    t.false('stack' in result.inviteMembers[0].error!);
+    t.false('stacktrace' in result.inviteMembers[0].error!);
+    const repeated = await app.gql({
+      query: inviteByEmailsMutation,
+      variables: { workspaceId: workspace.id, emails: [member.email] },
+    });
+    t.falsy(repeated.inviteMembers[0].inviteId);
+    t.is(repeated.inviteMembers[0].error?.name, 'ALREADY_IN_SPACE');
+  }
+);
+
+e2e(
   'should return already in space when accepting an email invite twice',
   async t => {
     const { owner, workspace } = await createWorkspace();

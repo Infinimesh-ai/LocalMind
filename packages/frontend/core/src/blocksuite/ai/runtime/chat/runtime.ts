@@ -100,6 +100,7 @@ export class AIChatRuntime {
     AIChatMessage,
     AIChatSendOptions
   >();
+  private readonly submittedUserMessages = new WeakMap<AIChatMessage, string>();
   private requestSeq = 0;
   private historyRequestSeq = 0;
   private contextRequestSeq = 0;
@@ -208,6 +209,7 @@ export class AIChatRuntime {
         return;
       case 'stop':
         this.stop();
+        this.options.request.reportLastAction('aborted:stop');
         return;
       case 'deleteSession':
         await this.deleteSession(action.sessionId);
@@ -492,10 +494,12 @@ export class AIChatRuntime {
   private async send(options: AIChatSendOptions, retryExisting = false) {
     const content = options.input || this.snapshot.composer.text;
     if (!content.trim() || !this.snapshot.uiPolicy.canSend) return;
-    const userMessage = this.createMessage('user', content, {
-      attachments: options.attachmentPreviews,
-      ...options.userInfo,
-    });
+    const userMessage =
+      (retryExisting ? this.getLastUserMessage() : null) ??
+      this.createMessage('user', content, {
+        attachments: options.attachmentPreviews,
+        ...options.userInfo,
+      });
     this.sendOptions.set(userMessage, options);
     const seq = ++this.requestSeq;
     this.streamAbortController?.abort();
@@ -538,6 +542,8 @@ export class AIChatRuntime {
             : undefined,
         sessionId: session.sessionId,
         input: content,
+        onMessageCreated: (messageId: string) =>
+          this.submittedUserMessages.set(userMessage, messageId),
         contexts: options.contexts,
         attachments: options.attachments ?? this.snapshot.composer.attachments,
         contextId: this.snapshot.composer.context.contextId,
@@ -585,8 +591,13 @@ export class AIChatRuntime {
     if (!this.snapshot.uiPolicy.canSend) {
       return;
     }
-    if (!this.snapshot.activeSessionId) {
-      const lastUserMessage = this.getLastUserMessage();
+    const lastUserMessage = this.getLastUserMessage();
+    const rejectedBeforeSubmission =
+      this.snapshot.error instanceof ByokNotConfiguredError &&
+      lastUserMessage &&
+      this.sendOptions.has(lastUserMessage) &&
+      !this.submittedUserMessages.has(lastUserMessage);
+    if (!this.snapshot.activeSessionId || rejectedBeforeSubmission) {
       if (lastUserMessage) {
         await this.send(
           {
@@ -616,6 +627,9 @@ export class AIChatRuntime {
             : undefined,
         sessionId: this.snapshot.activeSessionId,
         retry: true,
+        messageId: lastUserMessage
+          ? this.submittedUserMessages.get(lastUserMessage)
+          : undefined,
         ...(this.options.chatSurface
           ? { chatSurface: this.options.chatSurface }
           : {}),
@@ -648,7 +662,17 @@ export class AIChatRuntime {
       this.snapshot.status === 'loading' ||
       this.snapshot.status === 'transmitting'
     ) {
-      this.commit({ status: 'success' });
+      this.commit({
+        status: 'success',
+        messages: this.snapshot.messages.map((message, index, messages) =>
+          index === messages.length - 1 && message.role === 'assistant'
+            ? {
+                ...message,
+                params: { ...message.params, generationStatus: 'aborted' },
+              }
+            : message
+        ),
+      });
     }
   }
 

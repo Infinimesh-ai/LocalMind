@@ -22,11 +22,13 @@ export function DocSaveStatus({ docId }: { docId: string }) {
       ? 'saving'
       : workspace.flavour === 'local'
         ? 'local'
-        : state.syncRetrying
-          ? 'retrying'
-          : state.syncing || !state.synced
-            ? 'pending'
-            : 'synced';
+        : state.syncPermissionDenied
+          ? 'unsubmitted'
+          : state.syncRetrying
+            ? 'retrying'
+            : state.syncing || !state.synced
+              ? 'pending'
+              : 'synced';
   const label = t[`com.affine.doc-save.${key}`]();
   return (
     <Tooltip content={label}>
@@ -48,7 +50,7 @@ export function DocSaveStatus({ docId }: { docId: string }) {
       >
         {busy ? (
           <Loading size={16} />
-        ) : key === 'retrying' || key === 'pending' ? (
+        ) : key === 'retrying' || key === 'pending' || key === 'unsubmitted' ? (
           <UnsyncIcon />
         ) : (
           <DoneIcon />

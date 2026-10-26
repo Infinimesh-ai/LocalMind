@@ -245,7 +245,8 @@ test('editor-authored log updates preserve blocks and provenance through direct 
     if (!('content' in read)) return t.fail(JSON.stringify(read));
     t.true(read.contentWritable);
     const updatedMarkdown =
-      read.content.text.replace('待更新事项', '更新后的事项') + '* 新增记录\n';
+      read.content.text.replace('待更新事项', '更新后的事项') +
+      '\n列表后的独立日志说明。\n\n* 新增记录\n';
     const args = {
       documentId,
       expectedVersion: read.version,
@@ -275,8 +276,17 @@ test('editor-authored log updates preserve blocks and provenance through direct 
       }
     }
     const added = [...blocks].filter(([id]) => !before.has(id));
-    t.is(added.length, 1);
-    t.is(added[0][1].get('prop:meta:createdBy'), actorId);
+    t.is(added.length, 2);
+    for (const [, block] of added) {
+      t.is(block.get('prop:meta:createdBy'), actorId);
+    }
+    t.true(
+      added.some(
+        ([, block]) =>
+          block.get('sys:flavour') === 'affine:paragraph' &&
+          String(block.get('prop:text')) === '列表后的独立日志说明。'
+      )
+    );
     const after = await call(t.context, 'workspace_doc_read', { documentId });
     if (!('content' in after)) return t.fail(JSON.stringify(after));
     t.true(after.contentWritable);

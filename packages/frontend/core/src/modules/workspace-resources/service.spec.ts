@@ -8,6 +8,7 @@ import { WorkspaceResourcesService } from './service';
 const services: WorkspaceResourcesService[] = [];
 afterEach(() => {
   services.splice(0).forEach(service => service.dispose());
+  vi.useRealTimers();
 });
 const item = (id: string) => ({
   id,
@@ -35,11 +36,11 @@ const page = (items: unknown[], nextCursor: string | null = null) => ({
   ok: true,
   json: async () => ({ items, nextCursor }),
 });
-function setup(fetch = vi.fn()) {
+function setup(fetch = vi.fn(), gql = vi.fn()) {
   const changes$ = new Subject<unknown>();
   const resourceChanges$ = new Subject<unknown>();
   const account$ = new LiveData<unknown>({ id: 'actor' });
-  const server = { account$, fetch };
+  const server = { account$, fetch, gql };
   const framework = new Framework();
   framework.service(
     WorkspaceResourcesService,
@@ -141,4 +142,125 @@ test('multiple simultaneous views share one in-flight listing and logout clears 
   expect(service.active$.value.items).toEqual([]);
   a();
   b();
+});
+
+test('remounting fresh views or refreshing the same account metadata does not refetch', async () => {
+  const { service, fetch, account$ } = setup();
+  fetch.mockResolvedValue(page([item('cached')]));
+  const stop = service.watch();
+  await vi.waitFor(() => expect(service.active$.value.ready).toBe(true));
+  stop();
+  account$.next({ id: 'actor', name: 'updated' });
+  const stopAgain = service.watch();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(service.active$.value.items[0].id).toBe('cached');
+  stopAgain();
+});
+
+test('idle invalidation retains a snapshot and reconciles once when observed again', async () => {
+  const { service, fetch } = setup();
+  fetch.mockResolvedValue(page([item('cached')]));
+  await service.refresh();
+  service.invalidate();
+  service.invalidate();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(service.active$.value.items[0].id).toBe('cached');
+  const stop = service.watch();
+  await vi.waitFor(() => expect(service.active$.value.loading).toBe(false));
+  expect(fetch).toHaveBeenCalledTimes(2);
+  stop();
+});
+
+test('an idle snapshot becomes stale by age without background requests', async () => {
+  vi.useFakeTimers();
+  const { service, fetch } = setup();
+  fetch.mockResolvedValue(page([item('cached')]));
+  await service.refresh();
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(service.active$.value.items[0].id).toBe('cached');
+  const stop = service.watch();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  stop();
+});
+
+test('in-flight refresh calls share the request; real invalidations get one follow-up', async () => {
+  let resolve!: (value: ReturnType<typeof page>) => void;
+  const { service, fetch } = setup();
+  fetch
+    .mockReturnValueOnce(
+      new Promise(done => {
+        resolve = done;
+      })
+    )
+    .mockResolvedValue(page([item('new')]));
+  const stop = service.watch();
+  void service.refresh();
+  void service.refresh();
+  service.invalidate();
+  service.invalidate();
+  resolve(page([item('old')]));
+  await vi.waitFor(() =>
+    expect(service.active$.value.items[0]?.id).toBe('new')
+  );
+  expect(fetch).toHaveBeenCalledTimes(2);
+  stop();
+});
+
+test('transient background errors preserve rows but forbidden responses clear them', async () => {
+  const { service, fetch } = setup();
+  fetch
+    .mockResolvedValueOnce(page([item('cached')]))
+    .mockResolvedValueOnce({ ok: false, status: 503 })
+    .mockResolvedValueOnce({ ok: false, status: 403 });
+  await service.refresh();
+  await service.refresh();
+  expect(service.active$.value.error).toBe(true);
+  expect(service.active$.value.items[0].id).toBe('cached');
+  await service.refresh();
+  expect(service.active$.value.items).toEqual([]);
+  expect(service.active$.value.error).toBe(true);
+  expect(service.active$.value.ready).toBe(false);
+});
+
+test('tag metadata is reconciled by value across explorer remounts', async () => {
+  const { service, fetch } = setup();
+  fetch.mockResolvedValue(page([item('cached')]));
+  const stop = service.watch();
+  await vi.waitFor(() => expect(service.active$.value.ready).toBe(true));
+  const tags = [{ id: 'tag', name: 'original', color: 'red' }];
+  service.reconcileTagMetadata(tags);
+  service.reconcileTagMetadata(tags.map(tag => ({ ...tag })));
+  expect(fetch).toHaveBeenCalledTimes(1);
+  service.reconcileTagMetadata([{ ...tags[0], name: 'renamed' }]);
+  await vi.waitFor(() => expect(service.active$.value.loading).toBe(false));
+  expect(fetch).toHaveBeenCalledTimes(2);
+  stop();
+});
+
+test('native moves await their own commit and cannot report success for a duplicate pending move or changed account', async () => {
+  let finish!: (value: unknown) => void;
+  const gql = vi
+    .fn()
+    .mockResolvedValueOnce({ workspaceNativeResource: { metadataVersion: 1 } })
+    .mockResolvedValueOnce({ workspaceDirectory: { revision: 'revision' } })
+    .mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+  const { service, account$ } = setup(vi.fn(), gql);
+  const identity = {
+    workspaceId: 'workspace',
+    resourceId: 'file',
+    kind: 'file' as const,
+  };
+  const pending = service.move(identity, null);
+  await vi.waitFor(() => expect(gql).toHaveBeenCalledTimes(3));
+  await expect(service.move(identity, null)).rejects.toThrow('pending');
+  account$.next({ id: 'different' });
+  finish({});
+  await expect(pending).rejects.toThrow('Account changed');
 });

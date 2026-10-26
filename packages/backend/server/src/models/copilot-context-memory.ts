@@ -2783,6 +2783,7 @@ export class CopilotContextMemoryModel extends BaseModel {
               select: {
                 id: true,
                 summarizedMessageCount: true,
+                sourceFingerprint: true,
                 summaryData: true,
               },
             })

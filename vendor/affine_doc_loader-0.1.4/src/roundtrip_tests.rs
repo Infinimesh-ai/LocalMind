@@ -42,6 +42,32 @@ fn test_roundtrip_list_items() {
 }
 
 #[test]
+fn test_roundtrip_paragraph_after_list() {
+  for (markdown, expected) in [
+    (
+      "- Existing item\n\nIndependent paragraph\n\n- New item",
+      "* Existing item\n\nIndependent paragraph\n\n* New item\n",
+    ),
+    (
+      "- Parent\n  - Child\n\nIndependent paragraph",
+      "* Parent\n    * Child\n\nIndependent paragraph\n\n",
+    ),
+    (
+      "1. Existing item\n\nIndependent paragraph",
+      "1. Existing item\n\nIndependent paragraph\n\n",
+    ),
+    (
+      "- [x] Existing task\n\nIndependent paragraph",
+      "- [x] Existing task\n\nIndependent paragraph\n\n",
+    ),
+  ] {
+    assert_markdown_roundtrip(markdown, expected);
+    // A second import/export must keep the paragraph independent as well.
+    assert_markdown_roundtrip(expected, expected);
+  }
+}
+
+#[test]
 fn test_roundtrip_code_block() {
   let markdown = "```rust\nfn main() {}\n```";
   let expected = "```rust\nfn main() {}\n\n```\n\n";

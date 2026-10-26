@@ -2,6 +2,36 @@
 
 This directory is the source of truth for LocalMind's native Office subsystem.
 
+DOCX revision comparison keeps imported snapshots immutable. When the first
+paragraph edit assigns stable Word IDs, comparison aligns paragraphs within the
+same container using unchanged content and ordered anchors, preserving distinct
+insertions and removals. Different existing stable IDs are never merged. Alignment
+work is bounded; comparisons that exceed that budget report truncation instead of
+claiming a complete identity match.
+
+Spreadsheet rendering uses persisted merged ranges, row heights, column widths,
+hidden rows/columns, wrapping and value filters. The current viewport remains
+bounded to 200 rows and 52 columns. Column widths use a seven-pixel default digit
+metric; custom workbook font metrics and frozen panes are not yet rendered.
+The inspector applies built-in integer, decimal, grouped, percentage and
+scientific number formats without changing raw values or formulas. General and
+text formats show raw values. Imported date/custom format IDs remain intact,
+with an explicit raw-preview notice rather than a claimed formatted preview.
+The current row/column can be hidden and restored through the address field
+and inspector; hiding does not delete its values or change calculation inputs.
+The chart viewer resolves current sheet/range references for column, horizontal
+bar, line and pie charts (up to 200 categories and 12 series). It preserves gaps
+and exposes source values alongside the graphic. Original drawing anchors and
+advanced imported chart styles are preserved in OOXML rather than reproduced
+in the viewer. Unsupported references and chart types have an explicit state.
+Cell edits validate persisted rules in the common command engine after formula
+recalculation, and the UI retains rejected drafts. Literal/range/named-range
+lists and constant whole/decimal/text-length bounds are supported. Date/time,
+custom validation formulas and dynamic list formulas remain unsupported and
+reject affected edits explicitly; their existing OOXML is preserved. Filter
+rules remain in exported OOXML, but external Office display/round-trip fidelity
+has not been verified by the current browser acceptance run.
+
 ## AI file creation
 
 The `workspace_file_create` and `project_file_create` tools generate real DOCX,
@@ -10,7 +40,9 @@ They are exposed through the existing `docCreate` capability in direct user
 conversations. Existing delegated/MCP capability snapshots do not acquire these
 tools automatically. Workspace and Project tools remain mutually exclusive.
 
-- DOCX generation supports paragraphs and heading levels 1–6; XLSX supports
+- DOCX generation supports paragraphs and heading levels 1–6. Normal body
+  paragraphs use `heading: null` or omit `heading`; heading 6 is not a body
+  style. Existing inputs that omit the field remain valid. XLSX supports
   named sheets and typed rows; PPTX supports editable slide titles and body text.
   Advanced layouts, images, charts, tables in DOCX and formulas at creation time
   are not part of this initial generator. XLSX strings beginning with `=` remain
@@ -294,12 +326,12 @@ intent
   -> immutable revision and audit evidence
 ```
 
-The shared `@localmind/office` package owns 48 strict command schemas under
-`localmind-office-command/v1`: 13 Docs commands, 15 Sheets commands, 11 Slides
-commands, and 9 PDF commands. Every command requires an expected revision,
+The shared `@localmind/office` package owns strict command schemas under
+`localmind-office-command/v1` for Docs, Sheets, Slides, and PDF. Every command requires an expected revision,
 command id, idempotency key, source, and stable resource-specific target where
 applicable. Unknown fields are rejected instead of being silently dropped.
-The new `office.document.edit` transaction is restricted to `source=user`;
+The `office.document.edit` transaction and `office.document.object.update`
+command are restricted to `source=user`;
 the existing AI command allowlist and delegated capabilities are unchanged.
 New paragraph IDs follow the numeric bounds in [MS-DOCX paraId](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/a0e7d2e2-2246-44c6-96e8-1cf009823615)
 and carry a markup-compatibility declaration for older readers.
@@ -349,17 +381,53 @@ history and comparison.
   retries an uncertain write with the same idempotency key, and stops automatic
   writes after failure or revision conflict. Existing navigation guards retain
   unsaved drafts; drafts and undo history remain in memory, not crash recovery.
+  Navigation confirmation pauses unsent automatic saves. Already submitted writes
+  settle before the dialog is shown, so discard only applies to the remaining
+  unsaved draft. Cancelling resumes autosave; explicit save remains available.
 - Paragraph focus uses a visible text caret without a blue bottom border.
   Browser spelling underlines are opt-in through the spell-check control.
 - Edit text and paragraph formatting, including font family and size, text
   color, bold, italic, underline style/color, paragraph style, alignment,
   spacing, indentation, numbering, outline level, and pagination controls.
 - Replace text and insert line, page, and column breaks or new sections.
+- Whole-paragraph AI replacements use `office.document.paragraph.text.set`
+  with a stable paragraph ID and exact `expectedText`. The command computes
+  the full UTF-16 range and rejects mismatched source text; partial replacements
+  continue to use `text.replace` with an exclusive end offset. Replacement text
+  inherits the existing range's first run format; paragraph properties and
+  content outside the target remain unchanged. This does not enable the
+  user-only `office.document.edit` transaction for AI callers.
 - Configure page size, orientation, margins, header/footer distance, gutter,
   columns, and first-page behavior.
 - Insert tables, PNG/JPEG/GIF images, basic shapes and text boxes, equations,
   and column/bar/line/pie charts.
+- Preview basic inline VML rectangles, rounded rectangles, ellipses and lines,
+  single-run linear equations, and literal/cached column/bar/line/pie chart data.
+  The same basic vector preview is used in the editor and DOCX PDF export,
+  including table cells. Equations display their linear notation, not a full
+  OMML layout. Pie previews use the first series. Charts are bounded to 200
+  categories and 12 series; imported themes and exact Office typography are
+  not reproduced.
+- Edit supported objects in place through the existing command/revision service,
+  using a paragraph ID, object index and the revision captured when opening the
+  form. A newer revision is rejected, not silently rebased. Failed saves retain
+  the form. Shapes retain their actual shape type in new VML output. Legacy
+  rounded rectangles whose old writer encoded them as rectangles cannot have
+  their lost type inferred automatically. New VML shape IDs avoid existing IDs;
+  historical duplicate IDs are preserved, not silently renumbered.
+  Complex/custom XML, external chart formulas, tracked changes and unsupported
+  drawing containers are protected from this replacement operation. Original
+  package parts and immutable revisions remain preserved. Older state views
+  derive object metadata from verified original packages without overwriting
+  stored state. Image replacement and arbitrary drawing/OMML editing are not
+  implemented by this command.
 - Read and update headers, footers, content controls, and mail-merge fields.
+  The document navigation exposes a mail-merge form for simple OOXML fields
+  (up to 100 distinct names). Only edited values are submitted, including an
+  explicitly cleared value; duplicate names update together. Quoted names may
+  contain spaces. Complex field sequences remain preserved with an explicit
+  unsupported state. The versioned state read view derives missing field-support
+  metadata from verified original packages without rewriting revision evidence.
 - Inspect tracked OOXML changes and accept or reject selected/all changes.
 - Show headings, bookmarks, review metadata, approximate pagination, and a
   multi-page document view.
@@ -372,6 +440,18 @@ history and comparison.
 - Open, inspect, edit, save, reopen, and download workbooks while preserving
   unchanged OOXML package parts.
 - Edit sparse string, number, boolean, blank, and formula cells.
+- Copy a selected rectangle's values and paste rectangular TSV through the
+  grid (up to 64 cells and 256 KiB of UTF-8 text). Quoted tabs/newlines, typed
+  booleans/numbers, leading-zero identifiers and apostrophe-prefixed literal
+  strings are supported; pasted `=` input is a formula. Copy exports values,
+  not relocated formulas or source formatting. Destination styles are retained;
+  merged ranges are explicitly rejected rather than flattened.
+- Interactive Workspace and Project command endpoints dispatch user batches
+  through the existing atomic Office batch service, preserving current ACL,
+  Project edit leases, expected Revision and idempotency checks. A failed paste
+  retains its original batch as a guarded draft for retry or explicit discard.
+  It does not submit a sequence of independent cell revisions, expand AI/MCP
+  permissions, or require a new GraphQL field (the command remains typed JSON).
 - Parse and deterministically evaluate arithmetic, comparison, references,
   ranges, and the supported functions `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`,
   `COUNTA`, `IF`, `IFERROR`, `AND`, `OR`, `NOT`, `ABS`, `ROUND`, `COUNTIF`, and
@@ -395,11 +475,22 @@ history and comparison.
 - Open, validate, render with PDF.js, search extracted text, download, and
   print fixed-layout PDFs.
 - Add, update, and delete text/highlight/underline/strikeout annotations.
+- Annotation and signature regions expose bounded coordinates and dimensions
+  with an on-page preview. Existing annotation regions can be changed against
+  the revision captured when the region editor opens. This is region editing,
+  not a text-selection or OCR capability.
 - Read and set supported AcroForm field values.
 - Rotate, delete, and reorder pages.
 - Add an explicit visual signature appearance.
 - Apply permanent redaction by replacing the affected page with a flattened
   rendered image in a new immutable revision.
+  The confirmation explicitly preserves access to earlier revisions. The new
+  package removes the affected page's form widgets and unreachable objects;
+  page destinations point to the replacement page. Shared fields on other pages
+  remain. Rasterization uses unrotated coordinates, preserving page rotation
+  and user units in the output. XFA, tagged documents, cropped pages and pages
+  with a nonzero media-box origin are currently rejected rather than silently
+  flattened with unverified structure or positioning.
 
 ### Shared Product Surface
 
@@ -474,17 +565,35 @@ The implementation does not claim macro execution, ActiveX, editable arbitrary
 OLE objects, complete SmartArt, every Excel function, complete PowerPoint
 animation, or Microsoft Office-identical rendering. In particular:
 
-- DOCX pagination uses measured block heights with an estimated fallback. It is
+- DOCX semantic sections carry their ending paragraph ID. UI pagination and PDF
+  export honor top-level next-page, odd-page and even-page boundaries and per-section
+  paper sizes. Same-size continuous sections remain on the current page. Section
+  insertion writes the requested start type to the following section, as required
+  by OOXML. Headers/footers resolve section references and inheritance.
+  `state?view=layout-v2` derives missing boundary metadata from verified package
+  bytes for older revisions without modifying their stored state, fingerprints or
+  raw download endpoints. Derived views are private and not cached.
+  Pagination uses measured block heights with an estimated fallback. It is
   still approximate: individual long paragraphs/tables are not split into page
-  fragments, and it is not a Word-identical layout engine.
+  fragments, and it is not a Word-identical layout engine. Nested content-control
+  section boundaries, multi-column layout, different margins within a continuous
+  page and even-page story selection are not yet faithfully rendered.
 - Continuous editing only rebuilds paragraph structures fully represented by
   the semantic model. Paragraphs containing unsupported OOXML, fields, bookmarks,
   tracked changes, or embedded objects remain readable and keep their original
   XML. Editing across those boundaries is rejected rather than losing content.
   Other package parts remain byte-preserved. Structured Office commands retain
   their existing capabilities and checks.
-- DOCX PDF export uses the `pdf-lib` standard Helvetica font and a simplified
-  layout pass. Characters outside the WinAnsi encoding are replaced with `?`.
+- DOCX PDF export embeds the bundled Unicode font for Chinese and other
+  supported non-Latin characters, with a bundled monochrome Noto Emoji fallback,
+  preserves mixed run formatting, and wraps
+  paragraphs with their alignment and spacing. Missing glyphs fail explicitly
+  instead of silently becoming `?`. CJK bold/italic use synthetic styling and
+  the full embedded font increases PDF size. This remains a simplified layout
+  pass: table cells retain text formatting, supported images, column-grid widths
+  and horizontal spans with bounded row continuation across pages. Imported
+  border themes, vertical merges and nested table geometry are not faithfully
+  reproduced. Unsupported objects are represented by placeholders.
 - LocalMind comments/replies are a revision-anchored collaboration layer; they
   are not a complete write-back implementation of OOXML comments and replies.
 - PDF signature insertion creates a visible appearance stamp only. It is not
@@ -536,6 +645,28 @@ be reported per feature and fixture.
   UX, atomic command batches, revision refresh, and four-format validation.
 
 ## Validation
+
+### Workspace AI resource links — 2026-10-21 acceptance repair
+
+Workspace native discovery and text-read tool results include a canonical UI
+`url`, derived from the authorized workspace, resource ID and resource kind.
+Office resources use `/workspace/:workspaceId/office/:resourceId`; ordinary
+files use `/workspace/:workspaceId/files/:resourceId`. This presentation field
+is added at the AI tool boundary, not to immutable domain receipts. Tools direct
+the model to use URL citations rather than treating a resource ID as a blob ID.
+Existing malformed conversation citations are not silently rewritten.
+
+Read-only URL citation cards now open on a single click and support Enter/Space.
+Inline links keep native Enter activation without entering paragraph editing
+keymaps, which also check live read-only state before mutations. Real browser
+regression opened the existing CSV/JSON from citations and the existing DOCX
+revision 7 from a newly queried Office link. Historical attachment citations
+without a trustworthy native-resource target remain an explicit acceptance gap.
+
+Linux validation: 24 paragraph/link/citation tests and 9 file-read/native
+lifecycle checks passed in the existing development containers; the lifecycle
+tests used the isolated temporary QA database. No image rebuild or production
+deployment was performed.
 
 Every persistence change requires:
 

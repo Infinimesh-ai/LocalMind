@@ -86,7 +86,8 @@ const OfficeCommandBatchToolSchema = jsonStringOrValueSchema(
 );
 
 const OFFICE_COMMAND_DESCRIPTION = `A strict localmind-office-command/v1 command. Always copy artifactId, expectedRevisionId, and stable target IDs from workspace_office_read; use source=ai and new commandId/idempotencyKey values.
-Docs operations: text.format, text.replace, paragraph.format, break.insert, section.insert, table.insert, page.layout.set, header_footer.text.set, content_control.text.set, review.resolve, mail_merge.apply, object.insert.
+Docs operations: text.format, text.replace, paragraph.text.set, paragraph.format, break.insert, section.insert, table.insert, page.layout.set, header_footer.text.set, content_control.text.set, review.resolve, mail_merge.apply, object.insert.
+For a complete paragraph replacement, use office.document.paragraph.text.set with target={type:"paragraph",blockId:<read paragraph id>}, expectedText=<exact original paragraph text, including punctuation and whitespace>, and text=<complete replacement>. The engine calculates the full UTF-16 range and verifies the original text. Do not estimate offsets for whole paragraphs. Use text.replace only for an intentionally partial range; its end offset is exclusive. Re-read and verify the saved paragraph before claiming an exact replacement is complete.
 Sheets operations: cell.set, range.format, cells.merge.set, row.properties.set, column.properties.set, filter.set, validation.set, sheet.add, sheet.delete, sheet.rename, sheets.reorder, dimension.change, table.set, chart.add, chart.delete.
 Slides operations: shape.text.set, shape.geometry.set, shape.add, shape.delete, image.add, slide.add, slide.duplicate, slide.delete, slides.reorder, notes.text.set, theme.color.set.
 PDF operations: annotation.add, annotation.update, annotation.delete, form.set, page.rotate, page.delete, pages.reorder, signature.appearance.add, redaction.apply.

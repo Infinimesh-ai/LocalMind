@@ -78,6 +78,7 @@ const INSTRUCTIONS_LIMIT = 2000;
 
 type FormState = {
   mode: 'template' | 'custom';
+  designMode: 'fast' | 'refine';
   templateKey?: string;
   customStyle: string;
   accentColor?: string;
@@ -102,6 +103,7 @@ function initialForm(
   const last = loadLastDeckConfig();
   return {
     mode: template ? 'template' : (last.mode ?? 'template'),
+    designMode: 'fast',
     templateKey: template ?? last.templateKey,
     customStyle: last.customStyle ?? '',
     accentColor: last.accentColor,
@@ -129,6 +131,7 @@ export function buildDeckConfig(
   const title = form.title.trim();
   return {
     mode: form.mode,
+    ...(form.mode === 'custom' ? { designMode: form.designMode } : {}),
     ...(form.mode === 'template' && form.templateKey
       ? { templateKey: form.templateKey }
       : {}),
@@ -289,6 +292,9 @@ export function DeckConfigPage() {
   const [form, setForm] = useState<FormState>(() =>
     initialForm(uiLanguage, templateParam)
   );
+  useEffect(() => {
+    setForm(current => ({ ...current, designMode: 'fast' }));
+  }, [handoff, fromDeckId, templateParam]);
   const [ai, setAi] = useState<DeckAiChoice | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [submitError, setSubmitError] = useState(false);
@@ -306,6 +312,7 @@ export function DeckConfigPage() {
     setForm(current => ({
       ...current,
       mode: config.mode ?? current.mode,
+      designMode: 'fast',
       templateKey: config.templateKey ?? current.templateKey,
       customStyle: config.customStyle ?? '',
       accentColor: config.accentColor,
@@ -501,6 +508,31 @@ export function DeckConfigPage() {
               />
             ) : (
               <>
+                <fieldset className={styles.designModes}>
+                  <legend>{t('designMode.label')}</legend>
+                  <div className={styles.designModeOptions}>
+                    {(['fast', 'refine'] as const).map(mode => (
+                      <label
+                        key={mode}
+                        className={styles.designModeOption}
+                        data-selected={form.designMode === mode}
+                      >
+                        <input
+                          type="radio"
+                          name="report-design-mode"
+                          value={mode}
+                          checked={form.designMode === mode}
+                          onChange={() => update('designMode', mode)}
+                        />
+                        <span>
+                          <strong>{t(`designMode.${mode}`)}</strong>
+                          <span>{t(`designMode.${mode}Hint`)}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className={styles.muted}>{t('designMode.hint')}</p>
+                </fieldset>
                 <label className={styles.field}>
                   {t('config.customStyle')}
                   <textarea
@@ -686,6 +718,7 @@ export function DeckConfigPage() {
               error={aiOptions.error}
               value={ai}
               onChange={setAi}
+              designMode={form.mode === 'custom' ? form.designMode : undefined}
             />
           </Card>
           {activeCount > 0 && (
@@ -709,10 +742,15 @@ export function DeckConfigPage() {
       <footer className={styles.footer}>
         <div className={styles.footerSummary}>
           <strong data-testid="deck-config-summary">
-            {t('config.summary', {
-              count: preflight.preflight ? included : sources.length,
-              minutes: Math.max(1, minutes),
-            })}
+            {t(
+              form.mode === 'custom' ? 'designMode.summary' : 'config.summary',
+              {
+                count: preflight.preflight ? included : sources.length,
+                ...(form.mode === 'custom'
+                  ? { mode: t(`designMode.${form.designMode}`) }
+                  : { minutes: Math.max(1, minutes) }),
+              }
+            )}
           </strong>
           <span
             className={styles.muted}
@@ -735,7 +773,13 @@ export function DeckConfigPage() {
           aria-describedby="deck-config-reason"
           onClick={() => void submit()}
         >
-          {t(command.pending ? 'config.submitting' : 'config.submit')}
+          {t(
+            command.pending
+              ? 'config.submitting'
+              : form.mode === 'custom'
+                ? `designMode.${form.designMode}`
+                : 'config.submit'
+          )}
         </button>
       </footer>
       <SourcePicker

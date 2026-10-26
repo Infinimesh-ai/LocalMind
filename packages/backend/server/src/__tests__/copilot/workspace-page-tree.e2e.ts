@@ -2156,6 +2156,60 @@ test.serial(
 );
 
 test.serial(
+  'folder conversion explains why it is unavailable without widening access',
+  async t => {
+    const { actor, service, db } = await fixture();
+    await service.migrate(actor, (await service.preflight(actor)).fingerprint);
+    let tree = await service.list(actor, null);
+    await service.execute(actor, {
+      action: 'create-folder',
+      title: 'Reasons',
+      parentNodeId: null,
+      requestKey: 'reason-folder',
+      contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+      expectedRevision: tree.revision,
+      expectedAuthorizationRevision: tree.authorizationRevision,
+    });
+    const folder = () => service.list(actor, null).then(page => page.items[0]);
+    t.like(await folder(), {
+      canConvertToPage: true,
+      convertToPageUnavailableReason: null,
+    });
+
+    for (const [policy, reason] of [
+      [
+        { visibility: 'public', memberDefaultDocRole: 'manager' },
+        'public_workspace',
+      ],
+      [
+        { visibility: 'private', memberDefaultDocRole: 'editor' },
+        'default_role_not_manager',
+      ],
+    ] as const) {
+      await db.workspaceAccessPolicy.upsert({
+        where: { workspaceId: actor.workspaceId },
+        create: { workspaceId: actor.workspaceId, ...policy },
+        update: policy,
+      });
+      const node = await folder();
+      t.like(node, {
+        canConvertToPage: false,
+        convertToPageUnavailableReason: reason,
+      });
+      await t.throwsAsync(service.conversionPreview(actor, node.nodeId));
+    }
+    await db.workspaceAccessPolicy.update({
+      where: { workspaceId: actor.workspaceId },
+      data: { visibility: 'private', memberDefaultDocRole: 'manager' },
+    });
+    t.like(await folder(), {
+      canConvertToPage: true,
+      convertToPageUnavailableReason: null,
+    });
+  }
+);
+
+test.serial(
   'folder conversion rolls back content, ownership and evidence together on failure',
   async t => {
     const { actor, service, db } = await fixture();

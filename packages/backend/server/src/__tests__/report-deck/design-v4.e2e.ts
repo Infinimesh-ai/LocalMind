@@ -94,9 +94,8 @@ function mapIds(
   return out;
 }
 
-isolated(
-  'v4 engine: evidence, plan feedback, behaviours in Chromium, structural repair, blind choice and recovery',
-  async t => {
+const refineScenario = test.macro(
+  async (t, reviewOutcome: 'complete' | 'failed' | 'partial') => {
     t.timeout(300000);
     const deck = await db.reportDeck.create({
       data: {
@@ -106,6 +105,7 @@ isolated(
         config: reportJson(
           DeckConfigSchema.parse({
             mode: 'custom',
+            designMode: 'refine',
             length: 'standard',
             language: 'zh-CN',
           })
@@ -151,6 +151,11 @@ isolated(
       structured: boolean
     ): Promise<unknown> {
       calls.push(name);
+      if (
+        (reviewOutcome === 'failed' && /Critique|Motion/.test(name)) ||
+        (reviewOutcome === 'partial' && name.includes('Motion'))
+      )
+        throw new Error('Fixture image review unavailable');
       (contents[name] ??= []).push(content);
       const data = JSON.parse(content).data;
       const wrap = (value: unknown) =>
@@ -318,7 +323,7 @@ isolated(
         maxModelCalls: 40,
         maxHtmlBytes: 5 * 1024 * 1024,
         rendererExecutablePath: '/usr/bin/chromium',
-        webRefine: true,
+        webRefine: false,
       },
     } as Config;
     const service = new ReportWebGenerationService(
@@ -330,6 +335,31 @@ isolated(
       settings,
       {} as JobQueue
     );
+    if (reviewOutcome !== 'complete') {
+      await service.generate(deck.id, 0);
+      const row = await db.reportDeck.findUniqueOrThrow({
+        where: { id: deck.id },
+      });
+      t.is(row.status, 'ready', row.errorCode ?? '');
+      const quality = row.quality as {
+        visual: string;
+        warnings: string[];
+        checkedCaptures: number;
+      };
+      t.is(
+        quality.visual,
+        reviewOutcome === 'failed' ? 'unavailable' : 'partial'
+      );
+      t.true(
+        quality.warnings.includes(
+          reviewOutcome === 'failed' ? 'visual_unavailable' : 'visual_partial'
+        )
+      );
+      t.is((row.usage as { mode: string }).mode, 'refine');
+      if (reviewOutcome === 'failed') t.is(quality.checkedCaptures, 0);
+      else t.true(quality.checkedCaptures > 0);
+      return;
+    }
     const complete = models.reportDeckDesign.complete.bind(
       models.reportDeckDesign
     );
@@ -376,7 +406,11 @@ isolated(
       artifactHash: string;
       repairs: number;
       visual: string;
-      experience: { behaviorsVerified: number; motion: string; charts: number };
+      experience: {
+        behaviorsVerified: number;
+        motion: string;
+        charts: number;
+      };
     };
     t.is(quality.version, 'report-web-v4');
     t.is(quality.artifactHash, reportHash(html));
@@ -401,6 +435,12 @@ isolated(
     t.true(usage.behaviors.every(b => b.ok));
   }
 );
+for (const reviewOutcome of ['complete', 'failed', 'partial'] as const)
+  isolated(
+    `v4 refine: ${reviewOutcome} review, explicit mode, browser checks and recovery`,
+    refineScenario,
+    reviewOutcome
+  );
 
 isolated(
   'v4 fast path: parallel chapters on rd-kit, browser-found overflow regenerates one chapter, no model review',
@@ -414,6 +454,7 @@ isolated(
         config: reportJson(
           DeckConfigSchema.parse({
             mode: 'custom',
+            designMode: 'fast',
             length: 'standard',
             language: 'zh-CN',
           })
@@ -546,7 +587,7 @@ isolated(
         maxModelCalls: 40,
         maxHtmlBytes: 5 * 1024 * 1024,
         rendererExecutablePath: '/usr/bin/chromium',
-        webRefine: false,
+        webRefine: true,
       },
     } as Config;
     const service = new ReportWebGenerationService(
@@ -585,6 +626,7 @@ isolated(
     t.false(quality.warnings.includes('visual_unavailable'));
     t.is(quality.experience.motion, 'verified');
     t.is((row.usage as { mode: string }).mode, 'fast');
+    t.is((row.quality as { visual: string }).visual, 'not_requested');
     t.log({ elapsedMsWithFakeModel: elapsed });
   }
 );

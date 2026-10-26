@@ -337,6 +337,7 @@ fn parse_blocks_to_markdown<M: MapRead>(
   let mut skipped_subtrees = HashSet::new();
   let md_options = DeltaToMdOptions::new(doc_url_prefix);
   let renderer = MarkdownRenderer::new(&md_options);
+  let mut previous_rendered_was_list = false;
 
   while let Some((_parent_block_id, block_id)) = walker.next() {
     let block = match context.block_pool.get(&block_id) {
@@ -422,10 +423,22 @@ fn parse_blocks_to_markdown<M: MapRead>(
       }
     }
 
+    // A plain paragraph after a list needs a blank line; otherwise Markdown
+    // reparses it as a lazy continuation of the final list item.
+    if previous_rendered_was_list
+      && flavour == "affine:paragraph"
+      && get_string(block, "prop:type").as_deref().unwrap_or("text") == "text"
+      && !markdown.ends_with("\n\n")
+    {
+      markdown.push('\n');
+    }
     if ai_block {
       markdown.push_str(&format!("<!-- block_id={block_id} flavour={flavour} -->\n"));
     }
     markdown.push_str(&block_markdown);
+    if !block_markdown.is_empty() {
+      previous_rendered_was_list = flavour == "affine:list";
+    }
   }
 
   Ok(MarkdownResult {

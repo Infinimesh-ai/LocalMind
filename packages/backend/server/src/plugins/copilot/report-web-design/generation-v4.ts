@@ -396,6 +396,23 @@ export class ReportWebV4Pipeline {
             /structured|schema|400|422|incomplete|text content/i.test(
               error.message
             ));
+        // Bounded operational evidence only: never log provider errors or source text.
+        this.logger.warn(
+          JSON.stringify({
+            event: 'report_model_call_failed',
+            deckId: run.lease.deckId,
+            stage,
+            attempt: attempt + 1,
+            elapsedMs: Date.now() - started,
+            code: run.controller.signal.aborted
+              ? 'cancelled'
+              : signal.aborted
+                ? 'timeout'
+                : fixable
+                  ? 'model_invalid_output'
+                  : 'provider_unavailable',
+          })
+        );
         await this.models.reportDeckDesign
           .finishCall(run.lease, step.id, {
             status: signal.aborted ? 'outcome_unknown' : 'failed',
@@ -696,7 +713,8 @@ export class ReportWebV4Pipeline {
     if (run.sourceCoverage) warnings.push('source_coverage');
     if (fast) {
       // Fast path: deterministic browser checks only, by design.
-    } else if (!run.vision) warnings.push('visual_unavailable');
+    } else if (!run.vision || best.visualChecked === 0)
+      warnings.push('visual_unavailable');
     else if (best.visualChecked < best.visualTotal)
       warnings.push('visual_partial');
     if (
@@ -713,11 +731,13 @@ export class ReportWebV4Pipeline {
     const quality: DeckQuality = {
       version: REPORT_WEB_V4,
       artifactHash: best.hash,
-      visual: !run.vision
-        ? 'unavailable'
-        : best.visualChecked < best.visualTotal
-          ? 'partial'
-          : 'complete',
+      visual: fast
+        ? 'not_requested'
+        : !run.vision || best.visualChecked === 0
+          ? 'unavailable'
+          : best.visualChecked < best.visualTotal
+            ? 'partial'
+            : 'complete',
       warnings,
       checkedCaptures: Math.min(300, best.visualChecked),
       totalCaptures: Math.min(300, best.visualTotal),

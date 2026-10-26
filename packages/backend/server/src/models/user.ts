@@ -44,6 +44,8 @@ declare global {
       ownedWorkspaces: Workspace['id'][];
     };
     'user.postCreated': User;
+    // Reversible suspension: data and identity stay, access is cut.
+    'user.disabled': { id: string };
   }
 }
 
@@ -325,6 +327,19 @@ export class UserModel extends BaseModel {
 
     await this.event.emitAsync('user.postCreated', user);
 
+    return user;
+  }
+
+  /**
+   * Reversible suspension: unlike `ban`, the account record, identity and all
+   * owned data are kept so `enable` restores the same user.
+   */
+  async suspend(id: string) {
+    const user = await this.db.user.update({
+      where: { id },
+      data: { disabled: true },
+    });
+    await this.event.emitAsync('user.disabled', { id });
     return user;
   }
 

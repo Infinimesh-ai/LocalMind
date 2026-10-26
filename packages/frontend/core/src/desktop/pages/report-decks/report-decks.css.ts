@@ -1,4 +1,4 @@
-import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { createVar, globalStyle, keyframes, style } from '@vanilla-extract/css';
 
 import { workbenchTokens as wb } from '../intelligence/workbench-tokens.css';
 
@@ -611,15 +611,21 @@ export const skeletonRow = style({
 });
 
 /* Covers & template gallery */
+const coverRadius = createVar();
 export const cover = style({
   position: 'relative',
   width: '100%',
+  flexShrink: 0,
   aspectRatio: '16 / 9',
   overflow: 'hidden',
+  borderRadius: `${coverRadius} ${coverRadius} 0 0`,
+  // Clip the scaled iframe directly; ancestor overflow is unreliable in Safari.
+  clipPath: `inset(0 round ${coverRadius} ${coverRadius} 0 0)`,
   background: wb.panelStrong,
   isolation: 'isolate',
 });
 export const coverFrame = style({
+  display: 'block',
   position: 'absolute',
   left: 0,
   top: 0,
@@ -642,26 +648,34 @@ export const coverPlaceholder = style({
   animation: `${shimmer} 1.6s linear infinite`,
   '@media': { '(prefers-reduced-motion: reduce)': { animation: 'none' } },
 });
-export const masonry = style({
-  columns: '3 260px',
-  columnGap: 18,
+export const templateGrid = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  gridAutoRows: '1fr',
+  gap: 18,
+  '@container': {
+    '(max-width: 815px)': {
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    },
+    '(max-width: 537px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
+  },
 });
 export const templateCard = style({
+  vars: { [coverRadius]: `calc(${wb.radius} - 1px)` },
   position: 'relative',
   display: 'flex',
   flexDirection: 'column',
   width: '100%',
-  marginBottom: 18,
-  breakInside: 'avoid',
+  minWidth: 0,
   border,
   borderRadius: wb.radius,
   overflow: 'hidden',
   background: wb.paper,
   boxShadow: wb.shadow,
-  transition: `transform .25s ${ease}, box-shadow .25s ${ease}, border-color .2s ease`,
+  // Keep the iframe's containing block stable when the card is hovered.
+  transition: `box-shadow .25s ${ease}, border-color .2s ease`,
   selectors: {
     '&:hover': {
-      transform: 'translateY(-3px)',
       borderColor: wb.lineStrong,
       boxShadow: wb.shadowRaised,
     },
@@ -670,7 +684,6 @@ export const templateCard = style({
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       transition: 'none',
-      selectors: { '&:hover': { transform: 'none' } },
     },
   },
 });
@@ -688,6 +701,7 @@ export const templateHit = style({
 export const templateBody = style({
   display: 'flex',
   flexDirection: 'column',
+  flex: 1,
   gap: 6,
   padding: '13px 15px 15px',
   borderTop: border,
@@ -723,7 +737,7 @@ export const templateTags = style({
   display: 'flex',
   flexWrap: 'wrap',
   gap: 4,
-  marginTop: 2,
+  marginTop: 'auto',
 });
 export const previewButton = style([
   button,
@@ -736,14 +750,17 @@ export const previewButton = style([
     padding: '0 10px',
     fontSize: 12,
     opacity: 0,
-    transform: 'translateY(-4px)',
-    transition: `opacity .2s ease, transform .2s ${ease}`,
-    backdropFilter: 'blur(6px)',
+    transform: 'none',
+    transition: 'opacity .2s ease',
     selectors: {
       [`${templateCard}:hover &, ${templateCard}:focus-within &`]: {
         opacity: 1,
-        transform: 'none',
       },
+      '&:active:not(:disabled)': { transform: 'none' },
+    },
+    '@media': {
+      '(hover: none)': { opacity: 1 },
+      '(prefers-reduced-motion: reduce)': { transition: 'none' },
     },
   },
 ]);
@@ -779,6 +796,7 @@ export const pickerGrid = style({
   gap: 12,
 });
 export const pickerCard = style({
+  vars: { [coverRadius]: '10px' },
   display: 'flex',
   flexDirection: 'column',
   padding: 0,
@@ -1380,4 +1398,68 @@ export const error = style({
   fontSize: 13,
   color: wb.danger,
   background: wb.dangerSoft,
+});
+
+/* Per-submission custom generation mode. */
+export const designModes = style({
+  border: 0,
+  padding: 0,
+  margin: 0,
+  minWidth: 0,
+  display: 'grid',
+  gap: 10,
+});
+export const designModeOptions = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 10,
+  '@media': { '(max-width: 600px)': { gridTemplateColumns: '1fr' } },
+});
+export const designModeOption = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 10,
+  padding: 14,
+  border,
+  borderRadius: 8,
+  cursor: 'pointer',
+  background: wb.paper,
+  selectors: {
+    '&[data-selected="true"]': { borderColor: wb.signal },
+    '&:focus-within': focusRing,
+    '&:hover': { borderColor: wb.signal },
+  },
+});
+globalStyle(`${designModeOption} input`, {
+  appearance: 'auto',
+  width: 16,
+  height: 16,
+  accentColor: wb.signal,
+  marginTop: 3,
+  flexShrink: 0,
+});
+globalStyle(`${designModeOption} > span`, {
+  display: 'grid',
+  gap: 6,
+  lineHeight: 1.5,
+});
+globalStyle(`${designModeOption} > span > span`, {
+  color: wb.ink2,
+  fontSize: 13,
+});
+export const generationQuality = style({
+  padding: '12px 16px',
+  borderBottom: border,
+  lineHeight: 1.5,
+});
+globalStyle(`${generationQuality} p`, {
+  margin: '4px 0 0',
+  color: wb.ink2,
+  fontSize: 13,
+});
+
+globalStyle(`${designModes} > legend`, {
+  padding: 0,
+  marginBottom: 10,
+  fontWeight: 600,
 });

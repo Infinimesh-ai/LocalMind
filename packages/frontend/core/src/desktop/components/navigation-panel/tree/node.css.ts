@@ -48,6 +48,11 @@ export const itemRoot = style({
       lineHeight: wb.sidebarItemLineHeight,
     },
     [`${shellSidebar} &[data-active="true"]`]: selectedItem,
+    [`&[data-drop-inside="true"], ${shellSidebar} &[data-drop-inside="true"]`]:
+      {
+        background: `color-mix(in srgb, ${cssVar('primaryColor')} 12%, transparent)`,
+        boxShadow: 'none',
+      },
   },
 });
 export const itemMain = style({
@@ -89,8 +94,8 @@ export const postfix = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-end',
-  // Reserve the same create/sort/more slots for every row, including leaves.
-  flex: '0 0 64px',
+  // Reserve create/more slots even when hidden so titles never resize on hover.
+  flex: '0 0 44px',
   minHeight: 20,
 });
 export const operation = style({
@@ -100,14 +105,11 @@ export const operation = style({
   opacity: 0,
   pointerEvents: 'none',
   selectors: {
-    [`${itemRoot}:hover &, ${itemRoot}:focus-within &`]: {
-      opacity: 1,
-      pointerEvents: 'initial',
-    },
-    '&:has([data-folder-sort-visible="true"])': {
-      opacity: 1,
-      pointerEvents: 'initial',
-    },
+    [`${itemRoot}:hover &, ${itemRoot}:focus-within &, ${itemRoot}:has([aria-haspopup="menu"][aria-expanded="true"]) &`]:
+      {
+        opacity: 1,
+        pointerEvents: 'initial',
+      },
   },
   '@media': {
     '(hover: none)': {
@@ -205,6 +207,31 @@ export const contentContainer = style({
   marginTop: 2,
   paddingLeft: levelIndent,
   position: 'relative',
+});
+
+export const dropInsideHint = style({
+  position: 'absolute',
+  top: '100%',
+  right: 0,
+  zIndex: 3,
+  maxWidth: '100%',
+  padding: '2px 6px',
+  borderRadius: 4,
+  fontSize: 12,
+  lineHeight: '20px',
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/primary'),
+  boxShadow: cssVar('shadow2'),
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  pointerEvents: 'none',
+});
+
+export const subtreeDropIndicator = style({
+  position: 'absolute',
+  inset: 0,
+  pointerEvents: 'none',
 });
 
 export const draggingContainer = style({

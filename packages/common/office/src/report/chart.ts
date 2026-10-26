@@ -51,7 +51,10 @@ const colors = [
   '#7e22ce',
 ];
 export function reportChartShapes(
-  node: Extract<PublicReportNode, { type: 'chart' }>,
+  node: Pick<
+    Extract<PublicReportNode, { type: 'chart' }>,
+    'title' | 'chartType' | 'labels' | 'series'
+  >,
   width: number,
   height: number,
   foreground: string,

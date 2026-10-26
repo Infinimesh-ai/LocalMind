@@ -1,3 +1,4 @@
+import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
@@ -165,7 +166,30 @@ export const workspaceChevron = style({
 });
 
 export const workspaceFiles = style({ paddingLeft: 12, paddingBottom: 8 });
-export const treeRoot = style({ paddingBottom: 24 });
+export const treeRoot = style({ position: 'relative' });
+// Keep row spacing inside its drop target rather than leaving dead gaps.
+export const treeNode = style({ paddingTop: 2 });
+export const treeRootDropZone = style({
+  height: 24,
+  position: 'relative',
+  borderRadius: 4,
+  fontSize: 12,
+  color: cssVarV2('text/primary'),
+  selectors: {
+    '&[data-active="true"]': {
+      background: `color-mix(in srgb, ${cssVar('primaryColor')} 12%, transparent)`,
+    },
+  },
+});
+export const treeRootDropLabel = style({
+  position: 'absolute',
+  inset: 0,
+  padding: '2px 8px',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  textOverflow: 'ellipsis',
+  pointerEvents: 'none',
+});
 export const treeMessage = style({
   padding: '10px 8px',
   fontSize: 12,
@@ -179,4 +203,18 @@ export const workspaceWrapper = style({
 
 export const bottomContainer = style({
   gap: 8,
+});
+
+export const menuItemWithHint = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+});
+
+export const menuItemHint = style({
+  fontSize: cssVar('fontXs'),
+  lineHeight: '18px',
+  color: cssVarV2('text/secondary'),
+  whiteSpace: 'normal',
+  maxWidth: 260,
 });

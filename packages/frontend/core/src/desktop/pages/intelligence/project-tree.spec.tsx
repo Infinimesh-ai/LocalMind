@@ -8,6 +8,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import type {
   ButtonHTMLAttributes,
@@ -61,7 +62,7 @@ vi.mock('@affine/component', () => ({
   Menu: ({ children, items }: PropsWithChildren<{ items: ReactElement }>) => (
     <>
       {children}
-      {items}
+      <div role="menu">{items}</div>
     </>
   ),
   MenuItem: ({
@@ -94,6 +95,7 @@ vi.mock('@affine/core/components/report-deck-entry', () => ({
 
 vi.mock('@blocksuite/icons/rc', () => ({
   AiIcon: () => <svg />,
+  CollaborationIcon: () => <svg />,
   DeleteTemporarilyIcon: () => <svg />,
   EditIcon: () => <svg />,
   FolderIcon: () => <svg />,
@@ -184,7 +186,7 @@ describe('ProjectTree', () => {
     ).not.toBeNull();
   });
 
-  test('opens project reports without toggling the project row', () => {
+  test('opens project reports from the actions menu without toggling the project row', () => {
     const onOpenReports = vi.fn();
     const onSelectProject = vi.fn();
     const containerClick = vi.fn();
@@ -208,7 +210,7 @@ describe('ProjectTree', () => {
     );
 
     fireEvent.click(
-      screen.getByRole('button', {
+      within(screen.getByRole('menu')).getByRole('button', {
         name: 'com.affine.localmind.reportDeck.entry',
       })
     );

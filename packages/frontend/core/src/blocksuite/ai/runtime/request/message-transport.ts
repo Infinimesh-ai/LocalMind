@@ -18,6 +18,7 @@ export type TextToTextOptions = {
   stream?: boolean;
   signal?: AbortSignal;
   retry?: boolean;
+  messageId?: string;
   endpoint?: Endpoint;
   actionId?: string;
   actionVersion?: string;
@@ -28,6 +29,7 @@ export type TextToTextOptions = {
   modelSelectionSource?: AIActionModelSelectionSource;
   toolsConfig?: AIToolsConfig;
   chatSurface?: 'intelligence_workbench';
+  onMessageCreated?: (messageId: string) => void;
 };
 
 export type ToImageOptions = TextToTextOptions & {
@@ -135,6 +137,7 @@ export function textToText({
   signal,
   timeout = TIMEOUT,
   retry = false,
+  messageId: submittedMessageId,
   endpoint = Endpoint.StreamObject,
   actionId,
   actionVersion,
@@ -144,8 +147,9 @@ export function textToText({
   modelSelectionSource,
   toolsConfig,
   chatSurface,
+  onMessageCreated,
 }: TextToTextOptions) {
-  let messageId: string | undefined;
+  let messageId = submittedMessageId;
 
   if (stream) {
     return {
@@ -160,6 +164,7 @@ export function textToText({
             timeout,
             signal,
           });
+          onMessageCreated?.(messageId);
         }
         if (signal?.aborted) {
           return;
@@ -222,6 +227,7 @@ export function textToText({
           timeout,
           signal,
         });
+        onMessageCreated?.(messageId);
       }
       if (signal?.aborted) {
         return '';

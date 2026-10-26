@@ -104,7 +104,8 @@ export class ProjectImportService {
     const source = this.ac
       .user(input.actorId)
       .doc(input.workspaceId, docId)
-      .projectScope(input.projectId);
+      // Copy approval authorizes sharing a snapshot, not continued source access.
+      .projectScope(null);
     await source.assert('Doc.Read');
     await source.assert('Doc.Copy');
     await source.assert('Doc.Duplicate');

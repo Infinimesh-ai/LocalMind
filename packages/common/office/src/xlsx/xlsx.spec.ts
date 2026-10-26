@@ -89,6 +89,112 @@ function runCommand(bytes: Uint8Array, command: unknown) {
 }
 
 describe('native XLSX engine', () => {
+  test('enforces persisted list validation for user and AI writes, including formula values and blanks', () => {
+    const base = runCommand(
+      minimalXlsx(),
+      officeCommand('office.workbook.validation.set', {
+        target: { type: 'cell_range', sheetId: '7', range: 'D2:D3' },
+        validation: { type: 'list', formula1: '"通过,2"', allowBlank: false },
+      })
+    ).packageBytes;
+    const write = (input: unknown, address = 'D2', source = 'user') =>
+      runCommand(base, {
+        ...officeCommand('office.workbook.cell.set', {
+          target: { type: 'cell', sheetId: '7', address },
+          input,
+        }),
+        source,
+      });
+    expect(() => write({ type: 'string', value: '拒绝' })).toThrow(
+      'XLSX cell validation invalid'
+    );
+    expect(() => write({ type: 'string', value: '拒绝' }, 'D3', 'ai')).toThrow(
+      'XLSX cell validation invalid'
+    );
+    expect(() => write({ type: 'blank' })).toThrow(
+      'XLSX cell validation invalid'
+    );
+    expect(() => write({ type: 'formula', formula: '1+2' })).toThrow(
+      'XLSX cell validation invalid'
+    );
+    expect(
+      write({ type: 'formula', formula: '1+1' }).state.sheets[0].cells.find(
+        cell => cell.address === 'D2'
+      )?.calculatedValue
+    ).toBe(2);
+    expect(
+      write({ type: 'string', value: '通过' }).state.sheets[0].cells.find(
+        cell => cell.address === 'D2'
+      )?.value
+    ).toBe('通过');
+    expect(
+      write(
+        { type: 'string', value: '范围外' },
+        'D4'
+      ).state.sheets[0].cells.find(cell => cell.address === 'D4')?.value
+    ).toBe('范围外');
+    expect(
+      readXlsxSemanticState(openXlsxPackage(base)).sheets[0].cells.some(
+        cell => cell.address === 'D2'
+      )
+    ).toBe(false);
+  });
+
+  test('validates named range lists and explicitly rejects unsupported validation formulas', () => {
+    const make = (formula1: string) =>
+      runCommand(
+        minimalXlsx(),
+        officeCommand('office.workbook.validation.set', {
+          target: { type: 'cell_range', sheetId: '7', range: 'D2:D3' },
+          validation: { type: 'list', formula1, allowBlank: true },
+        })
+      ).packageBytes;
+    const write = (bytes: Uint8Array, input: unknown) =>
+      runCommand(
+        bytes,
+        officeCommand('office.workbook.cell.set', {
+          target: { type: 'cell', sheetId: '7', address: 'D2' },
+          input,
+        })
+      );
+    expect(() => write(make('Inputs'), { type: 'number', value: 4 })).toThrow(
+      'validation invalid'
+    );
+    expect(() =>
+      write(make('Inputs'), { type: 'number', value: 2 })
+    ).not.toThrow();
+    expect(() => write(make('Inputs'), { type: 'blank' })).not.toThrow();
+    expect(() =>
+      write(make('OFFSET(A1,1,0)'), { type: 'string', value: 'anything' })
+    ).toThrow('validation unsupported');
+  });
+
+  test('validates integer bounds without accepting text or fractional values', () => {
+    const base = runCommand(
+      minimalXlsx(),
+      officeCommand('office.workbook.validation.set', {
+        target: { type: 'cell_range', sheetId: '7', range: 'D2:D3' },
+        validation: { type: 'whole', formula1: '1', formula2: '10' },
+      })
+    ).packageBytes;
+    const write = (input: unknown) =>
+      runCommand(
+        base,
+        officeCommand('office.workbook.cell.set', {
+          target: { type: 'cell', sheetId: '7', address: 'D2' },
+          input,
+        })
+      );
+    for (const value of [0, 11, 1.5])
+      expect(() => write({ type: 'number', value })).toThrow(
+        'validation invalid'
+      );
+    expect(() => write({ type: 'string', value: '5' })).toThrow(
+      'validation invalid'
+    );
+    expect(() => write({ type: 'number', value: 10 })).not.toThrow();
+  });
+
   test('reads workbook structure, sparse cells, styles, and formulas', () => {
     const state = readXlsxSemanticState(openXlsxPackage(minimalXlsx()));
 
@@ -318,6 +424,50 @@ describe('native XLSX engine', () => {
       })
     );
   });
+  test('explicitly disabled font styles remain off after an XLSX round trip', () => {
+    let bytes = minimalXlsx();
+    for (const enabled of [true, false]) {
+      const result = runCommand(
+        bytes,
+        officeCommand('office.workbook.range.format', {
+          target: { type: 'cell_range', sheetId: '7', range: 'A2:B2' },
+          format: { bold: enabled, italic: enabled, underline: enabled },
+        })
+      );
+      bytes = result.packageBytes;
+      const pkg = openXlsxPackage(bytes);
+      const state = readXlsxSemanticState(pkg);
+      const cell = state.sheets[0].cells.find(cell => cell.address === 'A2');
+      const style = state.styles.cells[cell?.styleIndex ?? 0];
+      expect(state.styles.fonts[style.fontId ?? 0]).toMatchObject({
+        bold: enabled,
+        italic: enabled,
+        underline: enabled ? 'single' : undefined,
+      });
+      expect(
+        new TextDecoder().decode(pkg.requirePart('xl/styles.xml'))
+      ).toContain(`val="${enabled ? 'single' : 'none'}"`);
+    }
+  });
+  test.each(['0', 'false', 'off'])(
+    'reads legacy disabled font flags %s without activating them',
+    value => {
+      const state = readXlsxSemanticState(
+        openXlsxPackage(
+          minimalXlsx({
+            'xl/styles.xml': strToU8(
+              `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><b val="${value}"/><i val="${value}"/><u val="${value}"/></font></fonts><cellXfs count="1"><xf fontId="0"/></cellXfs></styleSheet>`
+            ),
+          })
+        )
+      );
+      expect(state.styles.fonts[0]).toMatchObject({
+        bold: false,
+        italic: false,
+        underline: undefined,
+      });
+    }
+  );
 
   test('adds, renames, reorders, edits, and deletes worksheets', () => {
     let result = runCommand(

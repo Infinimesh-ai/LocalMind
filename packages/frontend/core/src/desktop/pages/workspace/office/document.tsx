@@ -316,9 +316,13 @@ export const Component = () => {
           catalogMissing ||
           catalog.error
         }
-        refreshFailed={!!query.error}
-        refreshing={query.isValidating}
-        refreshLifecycle={() => void mutate().catch(() => undefined)}
+        refreshFailed={!!query.error || catalog.error}
+        refreshing={query.isValidating || catalog.loading}
+        refreshLifecycle={() => {
+          Promise.allSettled([mutate(), catalog.service.refresh()]).catch(
+            () => undefined
+          );
+        }}
       />
     );
   }

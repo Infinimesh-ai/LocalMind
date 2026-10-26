@@ -7,7 +7,10 @@ import {
   useConfirmModal,
   usePromptModal,
 } from '@affine/component';
-import { FolderSortButton } from '@affine/core/desktop/components/navigation-panel/nodes/folder/sort-menu';
+import {
+  FolderSortButton,
+  FolderSortMenu,
+} from '@affine/core/desktop/components/navigation-panel/nodes/folder/sort-menu';
 import {
   NavigationPanelTreeNode,
   NavigationPanelTreeRoot,
@@ -35,6 +38,7 @@ import { useI18n } from '@affine/i18n';
 import { LiveData, useLiveData, useService } from '@toeverything/infra';
 import {
   createContext,
+  type DragEvent as ReactDragEvent,
   useCallback,
   useContext,
   useEffect,
@@ -55,8 +59,10 @@ import { PageTreeLoadError } from '../page-tree/load-error';
 import * as styles from './index.css';
 import {
   type PageTreeDropPlacement,
-  pageTreeDropPlacement,
+  type PageTreeDropTarget,
+  pageTreeDropTarget,
   pageTreeReorder,
+  pageTreeReorderIsNoop,
   samePageTreeOrder,
 } from './page-tree-drag';
 
@@ -65,10 +71,27 @@ const dragSchema = z.object({
   workspaceId: z.string().min(1).max(512),
   nodeId: z.string().min(1).max(512),
 });
+type PageTreeDragRow = {
+  element: HTMLDivElement;
+  container: boolean;
+  accepts: (placement: PageTreeDropPlacement) => boolean;
+  drop: (placement: PageTreeDropPlacement, sourceId: string) => Promise<void>;
+};
 const PageTreeDragContext = createContext<{
+  rows: Map<string, PageTreeDragRow>;
   source: PageTreeItem | null;
   setSource: (item: PageTreeItem | null) => void;
-}>({ source: null, setSource: () => {} });
+  target: PageTreeDropTarget | null;
+  setTarget: (target: PageTreeDropTarget | null) => void;
+  clearTarget: (nodeId?: string | null) => void;
+}>({
+  rows: new Map(),
+  source: null,
+  setSource: () => {},
+  target: null,
+  setTarget: () => {},
+  clearTarget: () => {},
+});
 
 export function usePageTreeLayer(parentId: string | null) {
   const service = useService(WorkspacePageTreeService);
@@ -263,8 +286,55 @@ export function FolderTreeActions({ item }: { item: PageTreeItem }) {
           {t['com.affine.localmind.page-tree.convertToPage']()}
         </MenuItem>
       )}
+      {!item.canConvertToPage && item.convertToPageUnavailableReason && (
+        <MenuItem
+          disabled
+          aria-description={convertToPageUnavailableText(
+            t,
+            item.convertToPageUnavailableReason
+          )}
+        >
+          <div className={styles.menuItemWithHint}>
+            {t['com.affine.localmind.page-tree.convertToPage']()}
+            <span className={styles.menuItemHint}>
+              {convertToPageUnavailableText(
+                t,
+                item.convertToPageUnavailableReason
+              )}
+            </span>
+          </div>
+        </MenuItem>
+      )}
     </>
   );
+}
+
+function convertToPageUnavailableText(
+  t: ReturnType<typeof useI18n>,
+  reason: string
+) {
+  switch (reason) {
+    case 'trashed':
+      return t[
+        'com.affine.localmind.page-tree.convertToPageUnavailable.trashed'
+      ]();
+    case 'missing_rights':
+      return t[
+        'com.affine.localmind.page-tree.convertToPageUnavailable.missingRights'
+      ]();
+    case 'public_workspace':
+      return t[
+        'com.affine.localmind.page-tree.convertToPageUnavailable.publicWorkspace'
+      ]();
+    case 'default_role_not_manager':
+      return t[
+        'com.affine.localmind.page-tree.convertToPageUnavailable.defaultRole'
+      ]();
+    default:
+      return t[
+        'com.affine.localmind.page-tree.convertToPageUnavailable.other'
+      ]();
+  }
 }
 
 export function MovePageDialog({
@@ -382,7 +452,34 @@ export function MovePageDialog({
   );
 }
 
-function PageTreeNode({ item }: { item: PageTreeItem }) {
+function PageTreeChildSortMenu({ item }: { item: PageTreeItem }) {
+  // Menu content mounts on demand, so collapsed containers are checked without
+  // loading every branch just to render the sidebar.
+  const layer = usePageTreeLayer(item.nodeId);
+  const sorting = useSorting(
+    item.nodeId,
+    item.defaultSortMode === 'name-desc' ? 'name-desc' : 'manual'
+  );
+  const saving = useLiveData(
+    useService(WorkspacePageTreeService).writeBlocked$
+  );
+  if (layer.error || (layer.page?.items.length ?? 0) < 2) return null;
+  return (
+    <FolderSortMenu
+      mode={sorting.mode}
+      disabled={!sorting.ready || saving || layer.loading}
+      onChange={sorting.setMode}
+    />
+  );
+}
+
+function PageTreeNode({
+  item,
+  siblingIds,
+}: {
+  item: PageTreeItem;
+  siblingIds: readonly string[];
+}) {
   const t = useI18n(),
     service = useService(WorkspacePageTreeService);
   const { workspace } = useService(WorkspaceService);
@@ -427,15 +524,10 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
   const path = useMemo(() => ['page-tree', item.nodeId], [item.nodeId]);
   const collapsed = useLiveData(navigation.collapsed$(path));
   const saving = useLiveData(service.writeBlocked$);
-  const sorting = useSorting(
-    item.nodeId,
-    item.defaultSortMode === 'name-desc' ? 'name-desc' : 'manual'
-  );
   const [moving, setMoving] = useState(false);
-  const [placement, setPlacement] = useState<PageTreeDropPlacement | null>(
-    null
-  );
   const drag = useContext(PageTreeDragContext);
+  const placement =
+    drag.target?.nodeId === item.nodeId ? drag.target.placement : null;
   const contentRef = useRef<HTMLDivElement | null>(null);
   const attachContent = useCallback((element: HTMLDivElement | null) => {
     contentRef.current = element;
@@ -491,6 +583,14 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
     if (!order) return;
     const sameParent = page.items.some(node => node.nodeId === sourceId);
     if (
+      sameParent &&
+      samePageTreeOrder(
+        order,
+        siblings.map(node => node.nodeId)
+      )
+    )
+      return;
+    if (
       !sameParent ||
       !samePageTreeOrder(
         order,
@@ -515,14 +615,15 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
     if (generation === service.accountGeneration)
       store.setMode(service.key(item.parentNodeId), 'manual');
   };
-  const validPlacement = (y: number) => {
+  const accepts = (next: PageTreeDropPlacement) => {
     if (
       saving ||
       !item.canOrganize ||
       !contentRef.current ||
+      !drag.source ||
       drag.source?.nodeId === item.nodeId
     )
-      return null;
+      return false;
     const layer = service.layer$(item.parentNodeId).value.page;
     if (
       drag.source &&
@@ -531,19 +632,50 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
         ...(layer?.parent ? [layer.parent] : []),
       ].some(node => node.nodeId === drag.source?.nodeId)
     )
-      return null;
-    return pageTreeDropPlacement(
-      y,
-      contentRef.current.getBoundingClientRect(),
-      container
-    );
+      return false;
+    if (
+      next !== 'inside' &&
+      drag.source.parentNodeId === item.parentNodeId &&
+      pageTreeReorderIsNoop(siblingIds, drag.source.nodeId, item.nodeId, next)
+    )
+      return false;
+    return next !== 'inside' || container;
   };
+  // Keep the visible row registry current with permissions, sorting and source.
+  // The root resolves a single slot regardless of which nested element receives
+  // the native drag event.
+  useEffect(() => {
+    if (!contentRef.current) return;
+    const rows = drag.rows;
+    rows.set(item.nodeId, {
+      element: contentRef.current,
+      container,
+      accepts,
+      drop: async (placement, sourceId) => {
+        if (placement !== 'inside') {
+          await reorder(placement, sourceId);
+          return;
+        }
+        await service.execute({
+          action: 'move',
+          nodeId: sourceId,
+          parentNodeId: item.nodeId,
+        });
+        navigation.setCollapsed(path, false);
+      },
+    });
+    return () => {
+      rows.delete(item.nodeId);
+    };
+  });
   const trash = () => void service.confirmLifecycle('trash', item.nodeId);
   return (
     <>
       <div
         ref={attachRow}
+        className={styles.treeNode}
         data-page-tree-node-id={item.nodeId}
+        data-page-tree-drop-placement={placement ?? undefined}
         draggable={item.canOrganize && !saving}
         onKeyDown={event => {
           if (
@@ -574,59 +706,14 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
         }}
         onDragEnd={() => {
           drag.setSource(null);
-          setPlacement(null);
-        }}
-        onDragOver={event => {
-          if (!event.dataTransfer.types.includes(dragType)) return;
-          event.stopPropagation();
-          const next = validPlacement(event.clientY);
-          setPlacement(next);
-          event.dataTransfer.dropEffect = next ? 'move' : 'none';
-          if (next) event.preventDefault();
-        }}
-        onDragLeave={event => {
-          if (
-            !(event.relatedTarget instanceof Node) ||
-            !event.currentTarget.contains(event.relatedTarget)
-          )
-            setPlacement(null);
-        }}
-        onDrop={event => {
-          const value = event.dataTransfer.getData(dragType);
-          if (!value) return;
-          event.preventDefault();
-          event.stopPropagation();
-          const next = validPlacement(event.clientY);
-          setPlacement(null);
-          drag.setSource(null);
-          try {
-            if (value.length > 4096) throw new Error('Invalid drag');
-            const source = dragSchema.parse(JSON.parse(value));
-            if (source.workspaceId !== workspace.id)
-              throw new Error('Invalid drag');
-            if (source.nodeId === item.nodeId || !next) return;
-            if (next !== 'inside') {
-              void reorder(next, source.nodeId).catch(() =>
-                toast(t['com.affine.localmind.page-tree.error']())
-              );
-              return;
-            }
-            void service
-              .execute({
-                action: 'move',
-                nodeId: source.nodeId,
-                parentNodeId: item.nodeId,
-              })
-              .then(() => navigation.setCollapsed(path, false))
-              .catch(() => toast(t['com.affine.localmind.page-tree.error']()));
-          } catch {
-            toast(t['com.affine.localmind.page-tree.error']());
-          }
         }}
       >
         <NavigationPanelTreeNode
           aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
           rowRef={attachContent}
+          dropInsideLabel={t['com.affine.localmind.page-tree.moveTarget']({
+            name: item.title || t['Untitled'](),
+          })}
           dropInstruction={
             placement
               ? {
@@ -688,16 +775,7 @@ function PageTreeNode({ item }: { item: PageTreeItem }) {
                   },
                   {
                     index: 1,
-                    inline: true,
-                    view: (
-                      <FolderSortButton
-                        name={item.title}
-                        mode={sorting.mode}
-                        expanded={!collapsed}
-                        disabled={!sorting.ready || saving}
-                        onChange={sorting.setMode}
-                      />
-                    ),
+                    view: <PageTreeChildSortMenu item={item} />,
                   },
                 ]
               : []),
@@ -813,6 +891,7 @@ function PageTreeChildren({
     sorting.mode,
     item => item.title
   );
+  const siblingIds = items.map(item => item.nodeId);
   return (
     <>
       {layer.error && (
@@ -824,7 +903,7 @@ function PageTreeChildren({
         </div>
       )}
       {items.map(item => (
-        <PageTreeNode key={item.nodeId} item={item} />
+        <PageTreeNode key={item.nodeId} item={item} siblingIds={siblingIds} />
       ))}
       {layer.page.nextCursor && (
         <Button
@@ -863,9 +942,88 @@ export function WorkspacePageTree() {
   const undo = useLiveData(service.undo$),
     saving = useLiveData(service.writeBlocked$);
   const syncing = useLiveData(service.syncing$);
-  const [rootDrop, setRootDrop] = useState(false);
-  const [source, setSource] = useState<PageTreeItem | null>(null);
-  const dragContext = useMemo(() => ({ source, setSource }), [source]);
+  const rows = useRef(new Map<string, PageTreeDragRow>()).current;
+  const [source, updateSource] = useState<PageTreeItem | null>(null);
+  const [target, updateTarget] = useState<PageTreeDropTarget | null>(null);
+  const setSource = useCallback((item: PageTreeItem | null) => {
+    updateSource(item);
+    updateTarget(null);
+  }, []);
+  const setTarget = useCallback((next: PageTreeDropTarget | null) => {
+    updateTarget(current =>
+      current?.nodeId === next?.nodeId && current?.placement === next?.placement
+        ? current
+        : next
+    );
+  }, []);
+  const clearTarget = useCallback((nodeId?: string | null) => {
+    updateTarget(current =>
+      nodeId === undefined || current?.nodeId === nodeId ? null : current
+    );
+  }, []);
+  useEffect(() => {
+    setSource(null);
+  }, [workspace.id, saving, setSource]);
+  useEffect(() => {
+    if (!source) return;
+    const end = () => setSource(null);
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') end();
+    };
+    window.addEventListener('dragend', end);
+    window.addEventListener('drop', end);
+    window.addEventListener('blur', end);
+    window.addEventListener('keydown', cancel);
+    return () => {
+      window.removeEventListener('dragend', end);
+      window.removeEventListener('drop', end);
+      window.removeEventListener('blur', end);
+      window.removeEventListener('keydown', cancel);
+    };
+  }, [source, setSource]);
+  const dragContext = useMemo(
+    () => ({ rows, source, setSource, target, setTarget, clearTarget }),
+    [rows, source, setSource, target, setTarget, clearTarget]
+  );
+  const resolveTarget = (y: number) => {
+    if (!source || saving) return null;
+    const visible = [...rows]
+      .flatMap(([nodeId, row]) => {
+        const rect = row.element.getBoundingClientRect();
+        return rect.height
+          ? [
+              {
+                nodeId,
+                container: row.container,
+                top: rect.top,
+                bottom: rect.bottom,
+              },
+            ]
+          : [];
+      })
+      .sort((a, b) => a.top - b.top);
+    const next = pageTreeDropTarget(y, visible);
+    return next?.nodeId && rows.get(next.nodeId)?.accepts(next.placement)
+      ? next
+      : null;
+  };
+  const canDropAtRoot = !!source && source.parentNodeId !== null && !saving;
+  const rootDrop = target?.nodeId === null;
+  const handleDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes(dragType)) return;
+    event.stopPropagation();
+    const next = resolveTarget(event.clientY);
+    setTarget(next);
+    event.dataTransfer.dropEffect = next ? 'move' : 'none';
+    if (next) event.preventDefault();
+  };
+  const handleRootDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes(dragType)) return;
+    event.stopPropagation();
+    setTarget(canDropAtRoot ? { nodeId: null, placement: 'inside' } : null);
+    event.dataTransfer.dropEffect = canDropAtRoot ? 'move' : 'none';
+    if (canDropAtRoot) event.preventDefault();
+  };
   return (
     <PageTreeDragContext.Provider value={dragContext}>
       <NavigationPanelTreeRoot>
@@ -873,36 +1031,27 @@ export function WorkspacePageTree() {
           role="group"
           className={styles.treeRoot}
           aria-label={t['com.affine.localmind.page-tree.root']()}
-          onDragOver={event => {
-            if (
-              !saving &&
-              event.dataTransfer.types.includes(
-                'application/x-localmind-page-tree'
-              )
-            ) {
-              event.preventDefault();
-              setRootDrop(true);
-            }
-          }}
-          onDragLeave={() => setRootDrop(false)}
+          onDragEnter={handleDragOver}
+          onDragOver={handleDragOver}
           onDrop={event => {
+            const value = event.dataTransfer.getData(dragType);
+            if (!value) return;
             event.preventDefault();
-            setRootDrop(false);
+            event.stopPropagation();
+            const next = resolveTarget(event.clientY);
+            setSource(null);
             try {
-              if (saving) return;
-              const value = event.dataTransfer.getData(dragType);
-              if (!value || value.length > 4096) return;
+              if (value.length > 4096) throw new Error('Invalid drag');
               const dropped = dragSchema.parse(JSON.parse(value));
-              setSource(null);
-              const sourceId = dropped.nodeId;
-              if (dropped.workspaceId !== workspace.id)
+              if (
+                dropped.workspaceId !== workspace.id ||
+                dropped.nodeId !== source?.nodeId
+              )
                 throw new Error('Invalid drag');
-              void service
-                .execute({
-                  action: 'move',
-                  nodeId: sourceId,
-                  parentNodeId: null,
-                })
+              if (!next?.nodeId) return;
+              void rows
+                .get(next.nodeId)
+                ?.drop(next.placement, dropped.nodeId)
                 .catch(() =>
                   toast(t['com.affine.localmind.page-tree.error']())
                 );
@@ -910,12 +1059,14 @@ export function WorkspacePageTree() {
               toast(t['com.affine.localmind.page-tree.error']());
             }
           }}
+          onDragLeave={event => {
+            if (
+              !(event.relatedTarget instanceof Node) ||
+              !event.currentTarget.contains(event.relatedTarget)
+            )
+              clearTarget();
+          }}
         >
-          {rootDrop && (
-            <div role="status" className={styles.treeMessage}>
-              {t['com.affine.localmind.page-tree.rootDrop']()}
-            </div>
-          )}
           {syncing && (
             <div role="status" className={styles.treeMessage}>
               {t['com.affine.localmind.page-tree.syncing']()}
@@ -937,6 +1088,53 @@ export function WorkspacePageTree() {
             </Button>
           )}
           <PageTreeChildren parentId={null} />
+          <div
+            className={styles.treeRootDropZone}
+            data-testid="page-tree-root-drop"
+            data-active={rootDrop}
+            onDragEnter={handleRootDragOver}
+            onDragOver={handleRootDragOver}
+            onDragLeave={event => {
+              if (
+                !(event.relatedTarget instanceof Node) ||
+                !event.currentTarget.contains(event.relatedTarget)
+              )
+                clearTarget(null);
+            }}
+            onDrop={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              setSource(null);
+              try {
+                if (!canDropAtRoot) return;
+                const value = event.dataTransfer.getData(dragType);
+                if (!value || value.length > 4096) return;
+                const dropped = dragSchema.parse(JSON.parse(value));
+                if (
+                  dropped.workspaceId !== workspace.id ||
+                  dropped.nodeId !== source?.nodeId
+                )
+                  throw new Error('Invalid drag');
+                void service
+                  .execute({
+                    action: 'move',
+                    nodeId: dropped.nodeId,
+                    parentNodeId: null,
+                  })
+                  .catch(() =>
+                    toast(t['com.affine.localmind.page-tree.error']())
+                  );
+              } catch {
+                toast(t['com.affine.localmind.page-tree.error']());
+              }
+            }}
+          >
+            {rootDrop && (
+              <span role="status" className={styles.treeRootDropLabel}>
+                {t['com.affine.localmind.page-tree.rootDrop']()}
+              </span>
+            )}
+          </div>
         </div>
       </NavigationPanelTreeRoot>
     </PageTreeDragContext.Provider>

@@ -1,4 +1,5 @@
 /** @vitest-environment happy-dom */
+import { UserFriendlyError } from '@affine/error';
 import {
   act,
   cleanup,
@@ -202,6 +203,48 @@ it('shows generation steps and cancels', async () => {
   );
 });
 
+it.each([
+  [401, 'unauthenticated'],
+  [403, 'forbidden'],
+  [404, 'notFound'],
+] as const)(
+  'explains access status %s without suggesting a network retry',
+  async (status, reason) => {
+    apiState.api = mockApi({
+      get: vi.fn(async () => {
+        throw new UserFriendlyError({
+          status,
+          code: 'ACCESS_DENIED',
+          type: 'ACCESS_DENIED',
+          name: 'ACCESS_DENIED',
+          message: 'Private diagnostic details',
+        });
+      }),
+    });
+    view();
+    const panel = await screen.findByRole('alert');
+    expect(panel.textContent).toContain(`viewer.${reason}Description`);
+    expect(panel.textContent).not.toContain('viewer.loadFailedDescription');
+    expect(panel.textContent).not.toContain('Private diagnostic details');
+    expect(screen.queryByRole('button', { name: 'action.retry' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'action.backHome' }));
+    expect(navigate).toHaveBeenCalledWith('/reports');
+  }
+);
+
+it('keeps the retry action for transient loading failures', async () => {
+  apiState.api = mockApi({
+    get: vi.fn(async () => {
+      throw new Error('Network disconnected');
+    }),
+  });
+  view();
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'viewer.loadFailedDescription'
+  );
+  expect(screen.getByRole('button', { name: 'action.retry' })).toBeTruthy();
+});
+
 it('explains failures and offers retry and reconfiguration', async () => {
   const api = mockApi({
     get: vi.fn(async () =>
@@ -390,3 +433,60 @@ it('shows incomplete visual coverage beside a ready artifact', async () => {
   expect(notice.textContent).toContain('quality.source_coverage');
   expect(await screen.findByTestId('deck-frame')).toBeTruthy();
 });
+
+it.each([
+  [
+    'fast',
+    'not_requested',
+    'designMode.fastComplete',
+    'designMode.fastChecked',
+  ],
+  [
+    'refine',
+    'complete',
+    'designMode.refineComplete',
+    'designMode.refineChecked',
+  ],
+  [
+    'refine',
+    'partial',
+    'designMode.refineIncomplete',
+    'quality.visual_partial',
+  ],
+  [
+    'refine',
+    'unavailable',
+    'designMode.refineIncomplete',
+    'quality.visual_unavailable',
+  ],
+] as const)(
+  'shows the actual %s review outcome (%s)',
+  async (designMode, visual, title, message) => {
+    apiState.api = mockApi({
+      get: vi.fn(async () =>
+        detail({
+          mode: 'custom',
+          designMode,
+          quality: {
+            version: 'report-web-v4',
+            artifactHash: 'a'.repeat(64),
+            visual,
+            warnings: [],
+            checkedCaptures: visual === 'complete' ? 2 : 0,
+            totalCaptures: 2,
+            repairs: 0,
+          },
+        })
+      ),
+    });
+    view();
+    const status = await screen.findByTestId('deck-generation-quality');
+    expect(status.textContent).toContain(title);
+    expect(status.textContent).toContain(message);
+    fireEvent.click(
+      screen.getByRole('button', { name: /action.regenerateSame/ })
+    );
+    expect(navigate).toHaveBeenCalledWith('/reports/new?from=deck-1');
+    expect(apiState.api.command).not.toHaveBeenCalled();
+  }
+);

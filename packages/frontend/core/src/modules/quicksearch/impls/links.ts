@@ -2,11 +2,13 @@ import type { ReferenceParams } from '@blocksuite/affine/model';
 import { BlockLinkIcon, EdgelessIcon, PageIcon } from '@blocksuite/icons/rc';
 import { Entity, LiveData } from '@toeverything/infra';
 import { omit, truncate } from 'lodash-es';
+import { map, switchMap } from 'rxjs';
 
 import type { DocsService } from '../../doc';
 import type { DocDisplayMetaService } from '../../doc-display-meta';
 import { resolveLinkToDoc } from '../../navigation';
 import { isLink } from '../../navigation/utils';
+import type { GuardService } from '../../permissions';
 import type { WorkspaceService } from '../../workspace';
 import type { QuickSearchSession } from '../providers/quick-search-provider';
 import type { QuickSearchItem } from '../types/item';
@@ -20,14 +22,15 @@ export class LinksQuickSearchSession
   constructor(
     private readonly workspaceService: WorkspaceService,
     private readonly docsService: DocsService,
-    private readonly docDisplayMetaService: DocDisplayMetaService
+    private readonly docDisplayMetaService: DocDisplayMetaService,
+    private readonly guardService: GuardService
   ) {
     super();
   }
 
   query$ = new LiveData('');
 
-  items$ = LiveData.computed(get => {
+  private readonly candidates$ = LiveData.computed(get => {
     const query = get(this.query$).trim();
     if (!query) return [];
 
@@ -79,6 +82,21 @@ export class LinksQuickSearchSession
       } as QuickSearchItem<'link', LinkPayload>,
     ];
   });
+
+  items$ = LiveData.from(
+    this.candidates$.pipe(
+      switchMap(items =>
+        this.guardService
+          .readableDocIds$(items.map(item => item.payload.docId))
+          .pipe(
+            map(readable =>
+              items.filter(item => readable.has(item.payload.docId))
+            )
+          )
+      )
+    ),
+    []
+  );
 
   query(query: string) {
     this.query$.next(query);

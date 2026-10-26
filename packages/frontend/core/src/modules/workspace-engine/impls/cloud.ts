@@ -109,6 +109,12 @@ class CloudWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
 
   readonly flavour = this.server.id;
 
+  get cacheIdentity$() {
+    return this.authService.session.account$.map(
+      account => account?.id ?? null
+    );
+  }
+
   DocStorageType =
     BUILD_CONFIG.isElectron || BUILD_CONFIG.isIOS || BUILD_CONFIG.isAndroid
       ? SqliteDocStorage

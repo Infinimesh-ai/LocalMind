@@ -95,7 +95,7 @@ it('lists statuses, modes, source counts and pages with the cursor', async () =>
   expect(navigate).toHaveBeenCalledWith('/reports/deck-2');
 });
 
-it('regenerates and deletes from the row actions', async () => {
+it('opens independent configuration for regeneration and deletes from the row actions', async () => {
   const api = mockApi({
     list: vi.fn(async () => ({ items: [summary()], nextCursor: null })),
     command: vi.fn(async input =>
@@ -110,12 +110,9 @@ it('regenerates and deletes from the row actions', async () => {
     await screen.findByRole('button', { name: 'action.regenerate' })
   );
   await waitFor(() =>
-    expect(navigate).toHaveBeenCalledWith('/reports/deck-new')
+    expect(navigate).toHaveBeenCalledWith('/reports/new?from=deck-1')
   );
-  expect(vi.mocked(api.command).mock.calls[0][0]).toMatchObject({
-    operation: 'regenerate',
-    deckId: 'deck-1',
-  });
+  expect(api.command).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'action.delete' }));
   expect(openConfirmModal).toHaveBeenCalled();
   await waitFor(() =>

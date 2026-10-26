@@ -43,7 +43,11 @@ export const DesktopMenuSub = ({
   if (type === 'context-menu') {
     return (
       <ContextMenu.Sub defaultOpen={defaultOpen} {...otherSubOptions}>
-        <ContextMenu.SubTrigger className={className} {...otherProps}>
+        <ContextMenu.SubTrigger
+          disabled={triggerOptions?.disabled}
+          className={className}
+          {...otherProps}
+        >
           {children}
         </ContextMenu.SubTrigger>
         <ContextMenu.Portal {...portalOptions}>
@@ -61,7 +65,11 @@ export const DesktopMenuSub = ({
 
   return (
     <DropdownMenu.Sub defaultOpen={defaultOpen} {...otherSubOptions}>
-      <DropdownMenu.SubTrigger className={className} {...otherProps}>
+      <DropdownMenu.SubTrigger
+        disabled={triggerOptions?.disabled}
+        className={className}
+        {...otherProps}
+      >
         {children}
       </DropdownMenu.SubTrigger>
       <DropdownMenu.Portal {...portalOptions}>

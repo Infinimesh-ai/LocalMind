@@ -1,4 +1,4 @@
-import { IconButton, Menu, MenuItem } from '@affine/component';
+import { IconButton, Menu, MenuItem, MenuSub } from '@affine/component';
 import { useI18n } from '@affine/i18n';
 import { SortIcon } from '@blocksuite/icons/rc';
 import { useState } from 'react';
@@ -29,6 +29,26 @@ export function FolderSortItems({
         </MenuItem>
       ))}
     </>
+  );
+}
+
+export function FolderSortMenu({
+  mode,
+  disabled,
+  onChange,
+}: {
+  mode: FolderSortMode;
+  disabled: boolean;
+  onChange: (mode: FolderSortMode) => void;
+}) {
+  const t = useI18n();
+  return (
+    <MenuSub
+      triggerOptions={{ disabled }}
+      items={<FolderSortItems mode={mode} onChange={onChange} />}
+    >
+      {t['com.affine.localmind.resource-display.childSort']()}
+    </MenuSub>
   );
 }
 

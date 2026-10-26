@@ -18,6 +18,7 @@ import {
 import type { PromptParams } from '../../providers/types';
 import { ChatSession, ChatSessionService } from '../../session';
 import { ChatQuerySchema } from '../../types';
+import { memoryCaptureReceipt } from '../memory-capture-receipt';
 
 export type PreparedConversationTurn = {
   messageId?: string;
@@ -25,6 +26,7 @@ export type PreparedConversationTurn = {
   session: ChatSession;
   latestTurn?: Turn;
   quotaBackedRoutesAllowed?: boolean;
+  memoryCaptureReceipt?: string;
 };
 
 type AppendedSessionMessage = {
@@ -268,8 +270,9 @@ export class ConversationHost {
     const currentUserMessage =
       session.stashTurns.findLast(turn => turn.role === 'user') ??
       appended.turn;
+    let receipt: string | undefined;
     if (currentUserMessage) {
-      await this.contextMemory?.captureDurableTurn({
+      const events = await this.contextMemory?.captureDurableTurn({
         userId,
         workspaceId: session.config.workspaceId,
         docId: session.config.docId,
@@ -277,6 +280,23 @@ export class ConversationHost {
         turn: currentUserMessage,
         scope: session.contextScope,
         modelId: session.model,
+      });
+      receipt = memoryCaptureReceipt({
+        content: currentUserMessage.content,
+        userId,
+        workspaceId: session.config.workspaceId,
+        projectId:
+          !session.config.docId &&
+          session.contextScope?.projectIds?.length === 1
+            ? session.contextScope.projectIds[0]
+            : null,
+        sessionId,
+        turnId: currentUserMessage.id,
+        documentScoped: Boolean(
+          session.config.docId ||
+          session.contextScope?.readableDocIds?.length === 1
+        ),
+        events: events ?? [],
       });
       await session.refreshContextMemories(currentUserMessage.content);
     }
@@ -287,6 +307,7 @@ export class ConversationHost {
       session,
       latestTurn: currentUserMessage,
       quotaBackedRoutesAllowed: appended.quotaBackedRoutesAllowed,
+      memoryCaptureReceipt: receipt,
     };
   }
 
@@ -307,16 +328,16 @@ export class ConversationHost {
     turn: Turn,
     wasAborted: boolean
   ) {
-    const trace = wasAborted
-      ? { renderTrace: [], toolEvents: [] }
-      : canonicalizeTurnTrace(turn);
+    const trace = canonicalizeTurnTrace(turn);
     const assistantTurn = {
       ...turn,
-      content: wasAborted ? '> Request aborted' : turn.content,
-      attachments: wasAborted ? [] : turn.attachments,
       renderTrace: trace.renderTrace,
       toolEvents: trace.toolEvents,
-      metadata: wasAborted ? {} : turn.metadata,
+      // Cancellation is a terminal outcome, not a replacement for evidence
+      // already emitted by the turn, including completed tool side effects.
+      metadata: wasAborted
+        ? { ...turn.metadata, generationStatus: 'aborted' }
+        : turn.metadata,
     };
     const persisted = await this.sessions.appendTurn({
       sessionId: session.config.sessionId,

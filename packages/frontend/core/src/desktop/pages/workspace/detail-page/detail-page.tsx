@@ -20,6 +20,7 @@ import {
 import { focusCreatedResourceWhenReady } from '@affine/core/components/page-tree/created-resource';
 import { WorkspacePropertySidebar } from '@affine/core/components/properties/sidebar';
 import { TrashPageFooter } from '@affine/core/components/pure/trash-page-footer';
+import { SyncPermissionDeniedTip } from '@affine/core/components/sync-permission-tip';
 import { TopTip } from '@affine/core/components/top-tip';
 import { ServerService } from '@affine/core/modules/cloud';
 import { DocService } from '@affine/core/modules/doc';
@@ -392,6 +393,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
           <AffineErrorBoundary key={doc.id}>
             <PageTreeBreadcrumbs resourceId={doc.id} />
             <TopTip pageId={doc.id} workspace={workspace} />
+            <SyncPermissionDeniedTip docId={doc.id} store={doc.blockSuiteDoc} />
             <Scrollable.Root>
               <Scrollable.Viewport
                 onScroll={handleScroll}

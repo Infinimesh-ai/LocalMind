@@ -78,11 +78,11 @@ const PERSONAL_DATA_PATTERNS = [
   /\b(?:customer|client|patient|account)[_ -]?(?:id|number)\b\s*(?:[:=]|\bis\b)\s*\S+/iu,
 ];
 const EXPLICIT_ADD_PATTERN =
-  /\b(?:remember(?: that)?|save (?:this|that) as (?:a )?memory|keep in mind|from now on)\b|记住|请记下|以后(?:请)?/iu;
+  /^(?:(?:please|kindly)[,\s]+|请(?:帮我)?|麻烦(?:你)?|帮我)?(?:remember(?: that)?\b|save (?:this|that) as (?:a )?memory\b|keep in mind\b|from now on\b|记住|记下|以后(?:请)?)/iu;
 const EXPLICIT_DELETE_PATTERN =
-  /\b(?:forget|delete (?:that |this )?memory|do not remember|don't remember|stop remembering)\b|忘记|删除(?:这条)?记忆|不要再记/iu;
+  /^(?:please[,\s]+|请)?(?:forget\b|delete (?:that |this )?memory\b|do not remember\b|don't remember\b|stop remembering\b|忘记|删除(?:这条)?记忆|不要再记)/iu;
 const EXPLICIT_UPDATE_PATTERN =
-  /\b(?:instead|change (?:it|that|my preference)?\s*to|update (?:that|my preference)?\s*to)\b|改为|改成|更新为/iu;
+  /^(?:please[,\s]+|请)?(?:instead\b|change (?:it|that|my preference)?\s*to\b|update (?:that|my preference)?\s*to\b|改为|改成|更新为)/iu;
 const IMPLICIT_CANDIDATE_PATTERN =
   /\b(?:i|we|our|my)\s+(?:prefer|use|decided|selected|work|deploy|need)|\b(?:codename|deployment region|timezone)\b[^.!?\n]{0,80}(?:\bis\b|\bare\b|:|=)|我(?:们)?(?:喜欢|偏好|决定|选择|使用)|(?:代号|部署区域|时区)[^。！？\n]{0,80}(?:是|为|：|:|=)/iu;
 const IMPLICIT_QUESTION_OR_REQUEST_PATTERN =
@@ -185,6 +185,7 @@ export function extractExplicitMemoryDecisions(content: string) {
   for (const candidate of splitMemoryCandidates(content)) {
     if (
       candidate.length > 500 ||
+      /[?？]/u.test(candidate) ||
       (!EXPLICIT_ADD_PATTERN.test(candidate) &&
         !EXPLICIT_DELETE_PATTERN.test(candidate) &&
         !EXPLICIT_UPDATE_PATTERN.test(candidate))

@@ -7,6 +7,8 @@ use crate::{AccumulatedToolCall, ToolLoopEvent, tool_call::ToolCallAccumulator};
 pub enum RoundProcessorError {
   #[error("{message}")]
   StreamError { message: String },
+  #[error("{message}")]
+  ProviderStreamError { message: String, code: Option<String> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -112,7 +114,7 @@ impl RoundProcessor {
         });
         Ok(events)
       }
-      StreamEvent::Error { message, .. } => Err(RoundProcessorError::StreamError { message }),
+      StreamEvent::Error { message, code } => Err(RoundProcessorError::ProviderStreamError { message, code }),
       StreamEvent::MessageStart { id, model } => Ok(vec![ToolLoopEvent::MessageStart { id, model }]),
       StreamEvent::TextDelta { text } => Ok(vec![ToolLoopEvent::TextDelta { text }]),
       StreamEvent::ReasoningDelta { text } => Ok(vec![ToolLoopEvent::ReasoningDelta { text }]),
@@ -215,6 +217,25 @@ mod tests {
 
   use super::{RoundProcessor, RoundProcessorError, run_prepared_stream_round_with_fallback, run_stream_round};
   use crate::ToolLoopEvent;
+
+  #[test]
+  fn provider_stream_error_retains_code_without_completing_round() {
+    let mut processor = RoundProcessor::default();
+    let error = processor
+      .process(StreamEvent::Error {
+        message: "OpenAI stream rejected: conflicting_tool_arguments".into(),
+        code: Some("conflicting_tool_arguments".into()),
+      })
+      .unwrap_err();
+    assert_eq!(
+      error,
+      RoundProcessorError::ProviderStreamError {
+        message: "OpenAI stream rejected: conflicting_tool_arguments".into(),
+        code: Some("conflicting_tool_arguments".into()),
+      }
+    );
+    assert!(processor.finish().is_err());
+  }
 
   #[test]
   fn incomplete_round_and_pending_arguments_are_not_executable() {

@@ -131,6 +131,21 @@ export const OfficeDocumentParagraphTargetSchema = z
   })
   .strict();
 
+export const OfficeDocumentSetParagraphTextCommandSchema = z
+  .object({
+    version: z.literal('localmind-office-command/v1'),
+    commandId: boundedString(256),
+    idempotencyKey: boundedString(256),
+    artifactId: boundedString(512),
+    expectedRevisionId: boundedString(512),
+    source: z.enum(['user', 'ai', 'system']),
+    operation: z.literal('office.document.paragraph.text.set'),
+    target: OfficeDocumentParagraphTargetSchema,
+    expectedText: z.string().max(4 * 1024 * 1024),
+    text: z.string().max(4 * 1024 * 1024),
+  })
+  .strict();
+
 export const OfficeDocumentParagraphFormatSchema = z
   .object({
     alignment: z
@@ -396,6 +411,26 @@ export const OfficeDocumentInsertObjectCommandSchema = z
     ]),
   })
   .strict();
+
+export const OfficeDocumentUpdateObjectCommandSchema =
+  OfficeDocumentInsertObjectCommandSchema.extend({
+    source: z.literal('user'),
+    operation: z.literal('office.document.object.update'),
+    target: z
+      .object({
+        blockId: boundedString(512),
+        objectIndex: z.number().int().min(0).max(100_000),
+      })
+      .strict(),
+    object: z.union([
+      OfficeDocumentInsertObjectCommandSchema.shape.object.options[1],
+      OfficeDocumentInsertObjectCommandSchema.shape.object.options[2],
+      OfficeDocumentInsertObjectCommandSchema.shape.object.options[3],
+    ]),
+  });
+export type OfficeDocumentUpdateObjectCommand = z.infer<
+  typeof OfficeDocumentUpdateObjectCommandSchema
+>;
 
 export const OfficeWorkbookCellTargetSchema = z
   .object({
@@ -1338,6 +1373,7 @@ export const OfficeCommandSchema = z.union([
   OfficeDocumentEditCommandSchema,
   OfficeDocumentFormatTextCommandSchema,
   OfficeDocumentReplaceTextCommandSchema,
+  OfficeDocumentSetParagraphTextCommandSchema,
   OfficeDocumentFormatParagraphCommandSchema,
   OfficeDocumentInsertBreakCommandSchema,
   OfficeDocumentInsertSectionCommandSchema,
@@ -1348,6 +1384,7 @@ export const OfficeCommandSchema = z.union([
   OfficeDocumentReviewResolveCommandSchema,
   OfficeDocumentMailMergeCommandSchema,
   OfficeDocumentInsertObjectCommandSchema,
+  OfficeDocumentUpdateObjectCommandSchema,
   OfficeWorkbookSetCellCommandSchema,
   OfficeWorkbookFormatRangeCommandSchema,
   OfficeWorkbookMergeCellsCommandSchema,
@@ -1390,6 +1427,9 @@ export type OfficeDocumentFormatTextCommand = z.infer<
 >;
 export type OfficeDocumentReplaceTextCommand = z.infer<
   typeof OfficeDocumentReplaceTextCommandSchema
+>;
+export type OfficeDocumentSetParagraphTextCommand = z.infer<
+  typeof OfficeDocumentSetParagraphTextCommandSchema
 >;
 export type OfficeDocumentFormatParagraphCommand = z.infer<
   typeof OfficeDocumentFormatParagraphCommandSchema
@@ -1531,6 +1571,7 @@ export type OfficeCommand =
   | OfficeDocumentEditCommand
   | OfficeDocumentFormatTextCommand
   | OfficeDocumentReplaceTextCommand
+  | OfficeDocumentSetParagraphTextCommand
   | OfficeDocumentFormatParagraphCommand
   | OfficeDocumentInsertBreakCommand
   | OfficeDocumentInsertSectionCommand
@@ -1541,6 +1582,7 @@ export type OfficeCommand =
   | OfficeDocumentReviewResolveCommand
   | OfficeDocumentMailMergeCommand
   | OfficeDocumentInsertObjectCommand
+  | OfficeDocumentUpdateObjectCommand
   | OfficeWorkbookSetCellCommand
   | OfficeWorkbookFormatRangeCommand
   | OfficeWorkbookMergeCellsCommand

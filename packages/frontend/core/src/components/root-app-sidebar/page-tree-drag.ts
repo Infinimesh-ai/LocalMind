@@ -1,14 +1,53 @@
 export type PageTreeDropPlacement = 'before' | 'after' | 'inside';
 
-export function pageTreeDropPlacement(
+export type PageTreeDropTarget = {
+  nodeId: string | null;
+  placement: PageTreeDropPlacement;
+};
+
+export function pageTreeDropTarget(
   y: number,
-  row: { top: number; bottom: number; height: number },
-  container: boolean
-): PageTreeDropPlacement | null {
-  if (!row.height || y < row.top || y > row.bottom) return null;
-  if (y - row.top < row.height / 4) return 'before';
-  if (row.bottom - y < row.height / 4) return 'after';
-  return container ? 'inside' : null;
+  rows: readonly {
+    nodeId: string;
+    container: boolean;
+    top: number;
+    bottom: number;
+  }[]
+): PageTreeDropTarget | null {
+  const first = rows[0];
+  const last = rows.at(-1);
+  if (!first || !last || y < first.top - 2 || y > last.bottom) return null;
+  for (const [index, row] of rows.entries()) {
+    const edge = Math.min(6, (row.bottom - row.top) / 4);
+    // Both sides of a visible gap share the following row's parent and anchor,
+    // including the boundary between a subtree's last child and a root sibling.
+    if (y < row.top + edge) return { nodeId: row.nodeId, placement: 'before' };
+    if (y <= row.bottom - edge)
+      return row.container ? { nodeId: row.nodeId, placement: 'inside' } : null;
+    if (y <= row.bottom) {
+      const next = rows[index + 1];
+      return next
+        ? { nodeId: next.nodeId, placement: 'before' }
+        : { nodeId: row.nodeId, placement: 'after' };
+    }
+  }
+  return null;
+}
+
+export function pageTreeReorderIsNoop(
+  visible: readonly string[],
+  source: string,
+  target: string,
+  placement: 'before' | 'after'
+) {
+  if (source === target) return true;
+  const sourceIndex = visible.indexOf(source);
+  const targetIndex = visible.indexOf(target);
+  return (
+    sourceIndex >= 0 &&
+    targetIndex >= 0 &&
+    sourceIndex === targetIndex + (placement === 'before' ? -1 : 1)
+  );
 }
 
 /** Remove the source before resolving the insertion anchor, including no-op drops. */

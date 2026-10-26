@@ -11,6 +11,7 @@ import type {
   OfficeDocumentPageLayoutCommand,
   OfficeDocumentReplaceTextCommand,
   OfficeDocumentReviewResolveCommand,
+  OfficeDocumentUpdateObjectCommand,
 } from '@localmind/office';
 import type {
   DocxBlock,
@@ -36,6 +37,7 @@ export type {
   OfficeDocumentPageLayoutCommand,
   OfficeDocumentReplaceTextCommand,
   OfficeDocumentReviewResolveCommand,
+  OfficeDocumentUpdateObjectCommand,
   OfficePdfAddAnnotationCommand,
   OfficePdfAddSignatureAppearanceCommand,
   OfficePdfApplyRedactionCommand,
@@ -176,6 +178,7 @@ export type OfficeDocxCommand =
   | OfficeDocumentInsertBreakCommand
   | OfficeDocumentInsertSectionCommand
   | OfficeDocumentInsertObjectCommand
+  | OfficeDocumentUpdateObjectCommand
   | OfficeDocumentInsertTableCommand
   | OfficeDocumentPageLayoutCommand
   | OfficeDocumentHeaderFooterTextCommand
@@ -185,6 +188,8 @@ export type OfficeDocxCommand =
 
 export type OfficeDocxPage = {
   index: number;
+  sectionIndex: number;
+  sectionPageIndex: number;
   blocks: DocxBlock[];
   widthPt: number;
   heightPt: number;

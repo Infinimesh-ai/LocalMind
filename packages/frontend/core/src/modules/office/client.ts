@@ -9,7 +9,7 @@ import {
 } from '@affine/graphql';
 import { I18n } from '@affine/i18n';
 import { sha } from '@blocksuite/global/utils';
-import type { OfficeCommand } from '@localmind/office';
+import type { OfficeCommand, OfficeCommandBatch } from '@localmind/office';
 
 import {
   isDocxSemanticState,
@@ -110,7 +110,13 @@ export async function fetchOfficeState(
   kind?: OfficeArtifactKindValue,
   signal?: AbortSignal
 ) {
-  const response = await fetch(officeAssetUrl(url), {
+  let stateUrl = officeAssetUrl(url);
+  if (kind === 'document') {
+    const view = new URL(stateUrl, location.href);
+    view.searchParams.set('view', 'layout-v2');
+    stateUrl = view.toString();
+  }
+  const response = await fetch(stateUrl, {
     credentials: 'include',
     signal,
   });
@@ -141,7 +147,7 @@ export async function fetchOfficeDocxState(url: string, signal?: AbortSignal) {
 export async function previewOfficeCommand(
   graphql: GraphQLService,
   owner: string | OfficeResourceOwner,
-  command: OfficeCommand
+  command: OfficeCommand | OfficeCommandBatch
 ) {
   if (typeof owner !== 'string' && owner.kind === 'project') {
     const result = await graphql.gql({
@@ -164,7 +170,7 @@ export async function previewOfficeCommand(
 export async function executeOfficeCommand(
   graphql: GraphQLService,
   owner: string | OfficeResourceOwner,
-  command: OfficeCommand
+  command: OfficeCommand | OfficeCommandBatch
 ) {
   if (typeof owner !== 'string' && owner.kind === 'project') {
     const result = await graphql.gql({
@@ -249,11 +255,24 @@ export async function importNativeDocx(
   return await importNativeOffice(workspace, graphql, file);
 }
 
+export class OfficePdfFontUnavailableError extends Error {
+  constructor() {
+    super('PDF font unavailable');
+  }
+}
+
 export async function downloadOfficePackage(url: string, filename: string) {
   const response = await fetch(officeAssetUrl(url), {
     credentials: 'include',
   });
   if (!response.ok) {
+    if (
+      response.status === 422 &&
+      response.headers.get('x-localmind-office-error') ===
+        'pdf-font-unavailable'
+    ) {
+      throw new OfficePdfFontUnavailableError();
+    }
     throw new Error(`Failed to download document (${response.status})`);
   }
   const blob = await response.blob();

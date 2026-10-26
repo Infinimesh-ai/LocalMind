@@ -315,6 +315,8 @@ pub enum BackendError {
   InvalidRequest { field: &'static str, message: String },
   #[error("http transport error: {message}")]
   Transport { message: String },
+  #[error("{message}")]
+  StreamEvent { message: String, code: Option<String> },
   #[error("http timeout error: {message}")]
   Timeout { message: String },
   #[error("upstream returned status {status}: {body}")]

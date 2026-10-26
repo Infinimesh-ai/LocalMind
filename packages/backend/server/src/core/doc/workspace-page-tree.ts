@@ -45,6 +45,12 @@ import { DocWriter } from './writer';
 const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
 type Actor = { workspaceId: string; actorId: string };
+export type FolderConversionBlocker =
+  | 'not_folder'
+  | 'trashed'
+  | 'missing_rights'
+  | 'public_workspace'
+  | 'default_role_not_manager';
 export type PageTreeCommand = {
   contractVersion: typeof WORKSPACE_PAGE_TREE_CONTRACT;
   expectedRevision: number;
@@ -702,50 +708,57 @@ export class WorkspacePageTreeService {
               ? 1
               : a.nodeId.localeCompare(b.nodeId, 'en')
         );
-      const describe = async (node: PageTreeNode) => ({
-        ...node,
-        isContainer: isPageTreeContainer(node.resource),
-        canConvertToPage:
-          node.resource.kind === 'folder' &&
-          !node.resource.trashed &&
-          policy.rights(
-            [...pageTreeAncestors(byId, node.nodeId), node].map(
-              item => item.nodeId
-            )
-          ).canCreateFolder &&
-          policy.rights(
-            [...pageTreeAncestors(byId, node.nodeId), node].map(
-              item => item.nodeId
-            )
-          ).canWrite &&
-          policy.rights(
-            [...pageTreeAncestors(byId, node.nodeId), node].map(
-              item => item.nodeId
-            )
-          ).canOrganize &&
-          (await this.folderConversionAvailable(input)),
-        title: graph.titles.get(pageTreeResourceKey(node.resource)) ?? '',
-        documentType:
-          graph.documentTypes.get(pageTreeResourceKey(node.resource)) ??
-          'other',
-        rights: {
-          ...policy.rights(
-            [...pageTreeAncestors(byId, node.nodeId), node]
-              .filter(item => isPageTreeContainer(item.resource))
-              .map(item => item.nodeId)
-          ),
-          canOrganize:
-            policy.rights(
+      let workspaceConversionBlocker:
+        | FolderConversionBlocker
+        | null
+        | undefined;
+      const conversionBlocker = async (
+        node: PageTreeNode
+      ): Promise<FolderConversionBlocker | null> => {
+        if (node.resource.kind !== 'folder') return 'not_folder';
+        if (node.resource.trashed) return 'trashed';
+        const rights = policy.rights(
+          [...pageTreeAncestors(byId, node.nodeId), node].map(
+            item => item.nodeId
+          )
+        );
+        if (!rights.canCreateFolder || !rights.canWrite || !rights.canOrganize)
+          return 'missing_rights';
+        workspaceConversionBlocker ??=
+          await this.folderConversionBlocker(input);
+        return workspaceConversionBlocker;
+      };
+      const describe = async (node: PageTreeNode) => {
+        const blocker = await conversionBlocker(node);
+        return {
+          ...node,
+          isContainer: isPageTreeContainer(node.resource),
+          canConvertToPage: blocker === null,
+          convertToPageUnavailableReason:
+            blocker === 'not_folder' ? null : blocker,
+          title: graph.titles.get(pageTreeResourceKey(node.resource)) ?? '',
+          documentType:
+            graph.documentTypes.get(pageTreeResourceKey(node.resource)) ??
+            'other',
+          rights: {
+            ...policy.rights(
               [...pageTreeAncestors(byId, node.nodeId), node]
                 .filter(item => isPageTreeContainer(item.resource))
                 .map(item => item.nodeId)
-            ).canOrganize &&
-            (await this.ac
-              .user(input.actorId)
-              .workspace(input.workspaceId)
-              .can('Workspace.Sync')),
-        },
-      });
+            ),
+            canOrganize:
+              policy.rights(
+                [...pageTreeAncestors(byId, node.nodeId), node]
+                  .filter(item => isPageTreeContainer(item.resource))
+                  .map(item => item.nodeId)
+              ).canOrganize &&
+              (await this.ac
+                .user(input.actorId)
+                .workspace(input.workspaceId)
+                .can('Workspace.Sync')),
+          },
+        };
+      };
       const visible = [];
       for (const node of children)
         if (await canRead(node)) visible.push(await describe(node));
@@ -1292,21 +1305,18 @@ export class WorkspacePageTreeService {
     });
   }
 
-  private async folderConversionAvailable(input: Actor) {
-    try {
-      await this.ac
-        .user(input.actorId)
-        .workspace(input.workspaceId)
-        .assert('Workspace.CreateDoc');
-      await this.ac
-        .user(input.actorId)
-        .workspace(input.workspaceId)
-        .assert('Workspace.Sync');
-      await this.assertFolderConversionAudience(input);
-      return true;
-    } catch {
-      return false;
-    }
+  private async folderConversionBlocker(
+    input: Actor
+  ): Promise<FolderConversionBlocker | null> {
+    const workspace = this.ac.user(input.actorId).workspace(input.workspaceId);
+    if (
+      !(await workspace.can('Workspace.CreateDoc')) ||
+      !(await workspace.can('Workspace.Sync'))
+    )
+      return 'missing_rights';
+    return await this.models.workspacePageTree.conversionAudienceBlocker(
+      input.workspaceId
+    );
   }
   private async assertFolderConversionAudience(input: Actor) {
     if (

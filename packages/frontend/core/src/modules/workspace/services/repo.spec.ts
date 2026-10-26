@@ -16,6 +16,7 @@ const createRepository = (
   options = { ttlMs: 60_000, capacity: 3 },
   flavours: Array<{
     flavour: string;
+    cacheIdentity$?: LiveData<string | null>;
     validateWorkspaceAccess?: (
       workspaceId: string,
       signal?: AbortSignal
@@ -39,6 +40,7 @@ const createRepository = (
   );
   return {
     listService,
+    flavoursService,
     repository: framework.provider().get(WorkspaceRepositoryService),
   };
 };
@@ -90,6 +92,63 @@ describe('WorkspaceRepositoryService document scope', () => {
 });
 
 describe('WorkspaceRepositoryService warm cache', () => {
+  test('metadata refresh keeps available workspaces warm and removes only missing workspaces', () => {
+    const { repository, listService } = createRepository();
+    const a = createWorkspaceMock('a', 'cloud');
+    const b = createWorkspaceMock('b', 'cloud');
+    vi.spyOn(repository, 'instantiate').mockImplementation(
+      options => (options.metadata.id === 'a' ? a : b) as never
+    );
+    repository.open({ metadata: a.meta }).dispose();
+    repository.open({ metadata: b.meta }).dispose();
+    listService.list.workspaces$.next([{ ...a.meta }, { ...b.meta }]);
+    expect(a.scope.dispose).not.toHaveBeenCalled();
+    expect(b.scope.dispose).not.toHaveBeenCalled();
+    listService.list.workspaces$.next([{ ...a.meta }]);
+    expect(b.scope.dispose).toHaveBeenCalledTimes(1);
+    expect(repository.open({ metadata: a.meta }).reused).toBe(true);
+    repository.dispose();
+  });
+
+  test('account transitions isolate an old active lease even when workspace IDs match', () => {
+    const cacheIdentity$ = new LiveData<string | null>('actor-a');
+    const { repository } = createRepository(undefined, [
+      { flavour: 'cloud', cacheIdentity$ },
+    ]);
+    const workspaces = [
+      createWorkspaceMock('same', 'cloud'),
+      createWorkspaceMock('same', 'cloud'),
+    ];
+    vi.spyOn(repository, 'instantiate')
+      .mockReturnValueOnce(workspaces[0] as never)
+      .mockReturnValueOnce(workspaces[1] as never);
+    const options = { metadata: workspaces[0].meta };
+    const a = repository.open(options);
+    cacheIdentity$.next('actor-b');
+    const b = repository.open(options);
+    expect(b.workspace).not.toBe(a.workspace);
+    a.dispose();
+    expect(workspaces[0].scope.dispose).toHaveBeenCalledTimes(1);
+    expect(workspaces[1].scope.dispose).not.toHaveBeenCalled();
+    b.dispose();
+    cacheIdentity$.next(null);
+    expect(workspaces[1].scope.dispose).toHaveBeenCalledTimes(1);
+    repository.dispose();
+  });
+
+  test('releasing one of multiple consumers does not suspend the active workspace', () => {
+    const { repository } = createRepository();
+    const workspace = createWorkspaceMock('workspace', 'cloud');
+    vi.spyOn(repository, 'instantiate').mockReturnValue(workspace as never);
+    const a = repository.open({ metadata: workspace.meta });
+    const b = repository.open({ metadata: workspace.meta });
+    expect(b.reused).toBe(true);
+    a.dispose();
+    expect(workspace.suspendBackgroundWork).not.toHaveBeenCalled();
+    b.dispose();
+    expect(workspace.suspendBackgroundWork).toHaveBeenCalledTimes(1);
+    repository.dispose();
+  });
   test('retains the default warm lease when constructed by the framework', () => {
     vi.useFakeTimers();
     const framework = new Framework();

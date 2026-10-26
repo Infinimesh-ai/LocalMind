@@ -1,7 +1,13 @@
 /**
  * @vitest-environment happy-dom
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const createUserMock = vi.fn();
@@ -76,6 +82,7 @@ import { CreateUserForm } from './user-form';
 describe('CreateUserForm', () => {
   beforeEach(() => {
     createUserMock.mockReset();
+    createUserMock.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -117,7 +124,7 @@ describe('CreateUserForm', () => {
     expect(saveButton.hasAttribute('disabled')).toBe(true);
     expect(passwordInput.getAttribute('aria-invalid')).toBe('true');
     expect(
-      screen.queryByText('Password must be between 8 and 32 characters.')
+      screen.queryByText('Password must be between 8 and 32 characters')
     ).not.toBeNull();
 
     fireEvent.change(passwordInput, {
@@ -147,6 +154,54 @@ describe('CreateUserForm', () => {
 
     expect(createUserMock).toHaveBeenCalledWith(
       expect.objectContaining({ aiProfileId: 'profile-1' })
+    );
+  });
+
+  test('keeps the draft when email validation rejects submission', () => {
+    const complete = vi.fn();
+    render(<CreateUserForm onComplete={complete} />);
+    fireEvent.change(screen.getByLabelText('User name'), {
+      target: { value: 'QA draft' },
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'invalid-email' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(createUserMock).not.toHaveBeenCalled();
+    expect(complete).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('QA draft')).not.toBeNull();
+    expect(screen.getByDisplayValue('invalid-email')).not.toBeNull();
+  });
+
+  test('keeps a rejected draft and allows correcting and resubmitting it', async () => {
+    createUserMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const complete = vi.fn();
+    render(<CreateUserForm onComplete={complete} />);
+    fireEvent.change(screen.getByLabelText('User name'), {
+      target: { value: 'QA draft' },
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'duplicate@localmind.test' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(createUserMock).toHaveBeenCalledTimes(1));
+    expect(complete).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('QA draft')).not.toBeNull();
+    expect(screen.getByDisplayValue('duplicate@localmind.test')).not.toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'corrected@localmind.test' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    expect(createUserMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'QA draft',
+        email: 'corrected@localmind.test',
+      })
     );
   });
 });

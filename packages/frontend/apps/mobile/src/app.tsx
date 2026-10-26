@@ -60,7 +60,7 @@ framework.impl(NbstoreProvider, {
       },
     };
   },
-});
+} satisfies NbstoreProvider);
 framework.impl(PopupWindowProvider, {
   open: (target: string) => {
     const targetUrl = new URL(target);

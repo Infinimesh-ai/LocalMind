@@ -15,6 +15,7 @@ fragment CopilotChatHistory on CopilotHistories {
     id
     role
     content
+    params
     attachments
     streamObjects {
       type

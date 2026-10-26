@@ -9,6 +9,7 @@ import {
 } from '../../providers/utils';
 import type { CopilotToolSet } from '../../tools';
 import { projectRuntimeEventToStreamObject } from '../contracts/runtime-event-contract';
+import { nativeStreamError } from '../native-errors';
 import { createToolLoopBridge, type ToolLoopBackend } from './bridge';
 import {
   type EnrichedToolCallEvent,
@@ -295,11 +296,7 @@ export class NativeProviderAdapter {
           await this.#recordUsageOnProviderSelected(event, usageState);
           break;
         case 'error':
-          throw new Error(
-            typeof event.message === 'string'
-              ? event.message
-              : 'native runtime stream error'
-          );
+          throw nativeStreamError({ code: event.code, message: event.message });
         default:
           break;
       }
@@ -417,11 +414,7 @@ export class NativeProviderAdapter {
           await this.#recordUsageOnProviderSelected(event, usageState);
           break;
         case 'error':
-          throw new Error(
-            typeof event.message === 'string'
-              ? event.message
-              : 'native runtime stream error'
-          );
+          throw nativeStreamError({ code: event.code, message: event.message });
         default:
           break;
       }

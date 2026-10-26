@@ -18,6 +18,6 @@ export const NativeFileCreateToolSchema = NativeFileCreateSchema.extend({
       }
     }, NativeFileCreateSchema.shape.content)
     .describe(
-      'A structured object, not a JSON string. Example: {"format":"docx","paragraphs":[{"text":"Title","heading":1},{"text":"Body"}]}. Markdown (.md, text/markdown): {"format":"md","text":"# Title\\n\\nBody"}. Plain text (.txt, text/plain): {"format":"txt","text":"Body"}.'
+      'A structured object, not a JSON string. Example: {"format":"docx","paragraphs":[{"text":"Title","heading":1},{"text":"Body","heading":null}]}. DOCX normal body paragraphs use heading:null (omitting heading is also accepted); levels 1–6 are headings, never substitutes for body text. Markdown (.md, text/markdown): {"format":"md","text":"# Title\\n\\nBody"}. Plain text (.txt, text/plain): {"format":"txt","text":"Body"}.'
     ),
 });

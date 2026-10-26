@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 import { pageTreeViewExtensions } from '../../page-tree/view';
 import { patchForAudioEmbedView } from './audio/audio-view';
+import { LocalizedCitationService } from './citation-service';
 import { buildDocDisplayMetaExtension } from './display-meta';
 import { patchDocModeService } from './doc-mode-service';
 import { patchDocUrlExtensions } from './doc-url';
@@ -107,6 +108,7 @@ export class AffineEditorViewExtension extends ViewExtensionProvider<AffineEdito
         slashMenuLocaleExtension,
         patchReferenceRenderer(reactToLit, referenceRenderer),
         patchNotificationService(confirmModal),
+        LocalizedCitationService,
         patchOpenDocExtension(),
         patchSideBarService(framework),
         patchFileSizeLimitExtension(framework),

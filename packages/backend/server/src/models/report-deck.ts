@@ -48,6 +48,7 @@ const summarySelect = {
   title: true,
   status: true,
   mode: true,
+  config: true,
   templateKey: true,
   slideCount: true,
   progress: true,

@@ -1,7 +1,6 @@
 import {
   Avatar,
   Button,
-  notify,
   observeIntersection,
   RadioGroup,
   Scrollable,
@@ -45,6 +44,7 @@ import {
   useState,
 } from 'react';
 
+import { useAsyncCallback } from '../hooks/affine-async-hooks';
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
 import { AccessRequestNotificationItem } from './access-request';
 import {
@@ -719,7 +719,7 @@ const InvitationBlockedNotificationItem = ({
   );
 };
 
-const InvitationNotificationItem = ({
+export const InvitationNotificationItem = ({
   notification,
 }: {
   notification: Notification;
@@ -729,10 +729,18 @@ const InvitationNotificationItem = ({
   const memberInactived = !body.createdByUser;
   const workspaceInactived = !body.workspace;
   const workspacesService = useService(WorkspacesService);
+  const workspaces = useLiveData(workspacesService.list.workspaces$);
+  const [accepted, setAccepted] = useState(false);
+  const alreadyJoined =
+    accepted ||
+    workspaces.some(workspace => workspace.id === body.workspace?.id);
   const invitationService = useService(InvitationService);
   const notificationListService = useService(NotificationListService);
   const inviteId = body.inviteId;
   const [isAccepting, setIsAccepting] = useState(false);
+  const accepting = useRef(false);
+  const [unavailable, setUnavailable] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
   const { jumpToPage } = useNavigateHelper();
 
   const handleReadAndOpenWorkspace = useCallback(() => {
@@ -745,57 +753,50 @@ const InvitationNotificationItem = ({
     jumpToPage(body.workspace.id, 'all');
   }, [body, jumpToPage, notification.id, notificationListService]);
 
-  const handleAcceptInvite = useCallback(() => {
+  const handleAcceptInvite = useAsyncCallback(async () => {
+    if (accepting.current || unavailable) return;
     track.$.sidebar.notifications.clickNotification({
       type: notification.type,
       item: 'button',
       button: 'accept',
     });
+    accepting.current = true;
     setIsAccepting(true);
-    invitationService
-      .acceptInvite(inviteId)
-      .catch(err => {
-        const userFriendlyError = UserFriendlyError.fromAny(err);
-        if (userFriendlyError.is('ALREADY_IN_SPACE')) {
-          // ignore if the user is already in the workspace
-          return true;
-        }
-        notify.error(userFriendlyError);
-        throw err;
-      })
-      .then(async value => {
-        if (value === false) {
-          // invite is expired
-          notify.error({
-            title: t['com.affine.expired.page.title'](),
-            message: t['com.affine.expired.page.new-subtitle'](),
-          });
-          notificationListService
-            .readNotification(notification.id)
-            .catch(err => {
-              console.error(err);
-            });
-          return;
-        } else {
-          // invite is accepted
-          await workspacesService.list.waitForRevalidation();
-          handleReadAndOpenWorkspace();
-        }
-      })
-      .catch(err => {
-        const userFriendlyError = UserFriendlyError.fromAny(err);
-        notify.error(userFriendlyError);
-      })
-      .finally(() => {
-        setIsAccepting(false);
-      });
+    setAcceptError(null);
+    try {
+      const joined = await invitationService
+        .acceptInvite(inviteId)
+        .catch(error => {
+          if (UserFriendlyError.fromAny(error).is('ALREADY_IN_SPACE'))
+            return true;
+          throw error;
+        });
+      if (!joined) {
+        setUnavailable(true);
+        setAcceptError(t['com.affine.localmind.invite.unavailable']());
+        return;
+      }
+      setAccepted(true);
+      await workspacesService.list.waitForRevalidation();
+      handleReadAndOpenWorkspace();
+    } catch (error) {
+      if (UserFriendlyError.fromAny(error).is('NOT_FOUND')) {
+        setUnavailable(true);
+        setAcceptError(t['com.affine.localmind.invite.unavailable']());
+      } else {
+        setAcceptError(t['com.affine.localmind.invite.accept-failed']());
+      }
+    } finally {
+      accepting.current = false;
+      setIsAccepting(false);
+    }
   }, [
     invitationService,
     handleReadAndOpenWorkspace,
     inviteId,
     notification,
-    notificationListService,
     t,
+    unavailable,
     workspacesService,
   ]);
 
@@ -831,12 +832,22 @@ const InvitationNotificationItem = ({
           <Button
             variant="secondary"
             className={styles.itemActionButton}
-            onClick={handleAcceptInvite}
+            onClick={
+              alreadyJoined ? handleReadAndOpenWorkspace : handleAcceptInvite
+            }
             loading={isAccepting}
+            disabled={unavailable || isAccepting}
           >
-            {t['com.affine.notification.invitation.accept']()}
+            {unavailable
+              ? t['com.affine.localmind.invite.unavailable-title']()
+              : alreadyJoined
+                ? t[
+                    'com.affine.notification.invitation-review-approved.open-workspace'
+                  ]()
+                : t['com.affine.notification.invitation.accept']()}
           </Button>
         )}
+        {acceptError ? <div role="alert">{acceptError}</div> : null}
         <div className={styles.itemDate}>
           {i18nTime(notification.createdAt, {
             relative: true,

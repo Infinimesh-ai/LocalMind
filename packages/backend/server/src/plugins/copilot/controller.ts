@@ -66,6 +66,16 @@ export interface ChatEvent {
   data: string | object;
 }
 
+// Diagnostic context is deliberately separate from request and prompt data.
+// Never add query params, model messages or tool arguments to this type.
+type StreamErrorInfo = {
+  sessionId: string;
+  throwInStream: boolean;
+  model?: string;
+  actionId?: string;
+  actionVersion?: string;
+};
+
 const PING_INTERVAL = 5000;
 const SUPPORT_BUNDLE_TRANSFER_EVENT_MAX_STRING_LENGTH = 512;
 const SUPPORT_BUNDLE_TRANSFER_SIGNATURE_EVIDENCE_MAX_STRING_LENGTH = 512;
@@ -634,7 +644,7 @@ export class CopilotController implements BeforeApplicationShutdown {
     @Param('sessionId') sessionId: string,
     @Query() query: Record<string, string>
   ): Promise<Observable<ChatEvent>> {
-    const info: any = { sessionId, params: query, throwInStream: false };
+    const info: StreamErrorInfo = { sessionId, throwInStream: false };
 
     try {
       const { signal, onConnectionClosed } = getSignal(req);
@@ -654,9 +664,6 @@ export class CopilotController implements BeforeApplicationShutdown {
       );
 
       info.model = prepared.model;
-      info.finalMessage = prepared.finalMessage.filter(
-        m => m.role !== 'system'
-      );
       metrics.ai.counter('chat_stream_calls').add(1, { model: prepared.model });
       this.ongoingStreamCount$.next(this.ongoingStreamCount$.value + 1);
 
@@ -687,7 +694,7 @@ export class CopilotController implements BeforeApplicationShutdown {
     @Param('sessionId') sessionId: string,
     @Query() query: Record<string, string>
   ): Promise<Observable<ChatEvent>> {
-    const info: any = { sessionId, params: query, throwInStream: false };
+    const info: StreamErrorInfo = { sessionId, throwInStream: false };
 
     try {
       const { signal, onConnectionClosed } = getSignal(req);
@@ -707,9 +714,6 @@ export class CopilotController implements BeforeApplicationShutdown {
       );
 
       info.model = prepared.model;
-      info.finalMessage = prepared.finalMessage.filter(
-        m => m.role !== 'system'
-      );
       metrics.ai.counter('chat_object_stream_calls').add(1, {
         model: prepared.model,
       });
@@ -742,7 +746,7 @@ export class CopilotController implements BeforeApplicationShutdown {
     @Param('sessionId') sessionId: string,
     @Query() query: Record<string, string>
   ): Promise<Observable<ChatEvent>> {
-    const info: any = { sessionId, params: query, throwInStream: false };
+    const info: StreamErrorInfo = { sessionId, throwInStream: false };
     try {
       const { signal } = getSignal(req);
 
@@ -787,7 +791,7 @@ export class CopilotController implements BeforeApplicationShutdown {
     @Param('sessionId') sessionId: string,
     @Query() query: Record<string, string>
   ): Promise<Observable<ChatEvent>> {
-    const info: any = { sessionId, params: query, throwInStream: false };
+    const info: StreamErrorInfo = { sessionId, throwInStream: false };
     try {
       const { signal, onConnectionClosed } = getSignal(req);
       let endBeforePromiseResolve = false;

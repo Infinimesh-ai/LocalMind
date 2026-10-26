@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import { UserFriendlyError } from '@affine/error';
 import {
   adminUserAiProfileAssignmentQuery,
   listUsersQuery,
@@ -23,7 +24,11 @@ vi.mock('sonner', () => ({
   toast: mocks.toast,
 }));
 
-import { useCreateUser, useUpdateUser } from './use-user-management';
+import {
+  useCreateUser,
+  useSuspendUser,
+  useUpdateUser,
+} from './use-user-management';
 
 describe('AI Profile account assignment', () => {
   beforeEach(() => {
@@ -32,6 +37,37 @@ describe('AI Profile account assignment', () => {
     mocks.toast.mockReset();
     mocks.toast.error.mockReset();
     mocks.useMutation.mockReset();
+  });
+
+  test('uses the translated structured error for a duplicate account', async () => {
+    const createAccount = vi.fn().mockRejectedValue(
+      new UserFriendlyError({
+        status: 409,
+        name: 'EMAIL_ALREADY_USED',
+        type: 'EMAIL_ALREADY_USED',
+        code: 'EMAIL_ALREADY_USED',
+        message: 'Untranslated backend error',
+      })
+    );
+    mocks.useMutation.mockReturnValue({ trigger: createAccount });
+    const { result } = renderHook(() => useCreateUser());
+    await act(async () => {
+      expect(
+        await result.current.create({
+          email: 'existing@example.test',
+          name: 'Existing',
+          password: '',
+          features: [],
+          aiProfileId: null,
+        })
+      ).toBe(false);
+    });
+    expect(mocks.toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('This email has already been registered.')
+    );
+    expect(mocks.toast.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('Untranslated backend error')
+    );
   });
 
   test('reports a partial create failure when Profile assignment fails', async () => {
@@ -157,5 +193,51 @@ describe('AI Profile account assignment', () => {
     );
     expect(mocks.revalidate.mock.calls[1][1]({ userId: 'user-1' })).toBe(true);
     expect(mocks.revalidate.mock.calls[1][1]({ userId: 'user-2' })).toBe(false);
+  });
+});
+
+describe('reversible account suspension', () => {
+  beforeEach(() => {
+    mocks.revalidate.mockReset().mockResolvedValue(undefined);
+    mocks.toast.mockReset();
+    mocks.toast.error.mockReset();
+    mocks.useMutation.mockReset();
+  });
+
+  test('suspends through the reversible mutation and refreshes the list', async () => {
+    const suspend = vi.fn().mockResolvedValue({
+      suspendUser: { email: 'user@example.test', disabled: true },
+    });
+    mocks.useMutation.mockReturnValue({ trigger: suspend });
+    const onDone = vi.fn();
+    const { result } = renderHook(() => useSuspendUser());
+
+    act(() => result.current('user-1', onDone));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(mocks.useMutation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mutation: expect.objectContaining({ op: 'suspendUser' }),
+      })
+    );
+    expect(suspend).toHaveBeenCalledWith({ id: 'user-1' });
+    expect(mocks.revalidate).toHaveBeenCalledWith(listUsersQuery);
+    expect(mocks.toast).toHaveBeenCalledWith(
+      expect.stringContaining('user@example.test')
+    );
+  });
+
+  test('keeps the dialog open and reports a rejected suspension', async () => {
+    mocks.useMutation.mockReturnValue({
+      trigger: vi.fn().mockRejectedValue(new Error('forbidden')),
+    });
+    const onDone = vi.fn();
+    const { result } = renderHook(() => useSuspendUser());
+
+    act(() => result.current('admin-1', onDone));
+
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalled());
+    expect(onDone).not.toHaveBeenCalled();
+    expect(mocks.revalidate).not.toHaveBeenCalled();
   });
 });

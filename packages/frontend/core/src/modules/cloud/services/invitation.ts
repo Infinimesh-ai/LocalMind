@@ -56,13 +56,9 @@ export class InvitationService extends Service {
   );
 
   async acceptInvite(inviteId: string) {
-    this.getInviteInfo({ inviteId });
-    await this.loading$.waitFor(f => !f);
-    if (!this.inviteInfo$.value) {
-      throw new Error('Invalid invite id');
-    }
+    const inviteInfo = await this.inviteInfoStore.getInviteInfo(inviteId);
     return await this.acceptInviteStore.acceptInvite(
-      this.inviteInfo$.value.workspace.id,
+      inviteInfo.workspace.id,
       inviteId
     );
   }

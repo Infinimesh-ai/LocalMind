@@ -49,11 +49,6 @@ export const headerActions = style({
 });
 globalStyle(`${headerActions} button`, {
   flexShrink: 0,
-  '@media': {
-    'screen and (max-width: 1040px)': {
-      display: 'none',
-    },
-  },
 });
 export const status = style({
   flexShrink: 0,

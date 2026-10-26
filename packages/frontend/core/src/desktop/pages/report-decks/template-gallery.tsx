@@ -162,14 +162,14 @@ export function TemplatePreviewDialog({
   );
 }
 
-/** Home page masonry: every template with its real cover. */
+/** Home page grid: every template with its real cover. */
 export function TemplateGallery({ onUse }: { onUse: (key: string) => void }) {
   const t = useDeckText();
   const { templates, language } = useGalleryTemplates();
   const [preview, setPreview] = useState<GalleryTemplate | null>(null);
   return (
     <>
-      <div className={styles.masonry} data-testid="template-gallery">
+      <div className={styles.templateGrid} data-testid="template-gallery">
         {templates.map(item => (
           <article key={item.key} className={styles.templateCard}>
             <DeckCover item={item} language={language} title={item.name} />

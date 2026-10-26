@@ -2,6 +2,7 @@ import { Button } from '@affine/admin/components/ui/button';
 import { Input } from '@affine/admin/components/ui/input';
 import { Label } from '@affine/admin/components/ui/label';
 import { LocalMindLogo } from '@affine/component/localmind-logo';
+import { UserFriendlyError } from '@affine/error';
 import { FeatureType, getUserFeaturesQuery } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import type { FormEvent } from 'react';
@@ -36,9 +37,7 @@ export function Auth() {
         .then(async response => {
           if (!response.ok) {
             const data = await response.json();
-            throw new Error(
-              data.message || i18n['com.affine.admin.failed-to-login']()
-            );
+            throw UserFriendlyError.fromAny(data);
           }
           return response.json();
         })
@@ -71,7 +70,10 @@ export function Auth() {
           }
         )
         .catch(err => {
-          toast.error(`Failed to login: ${err.message}`);
+          const error = UserFriendlyError.fromAny(err);
+          toast.error(
+            `${i18n['com.affine.admin.failed-to-login']()}: ${i18n[`error.${error.name}`](error.data)}`
+          );
         });
     },
     [revalidate, i18n]

@@ -37,6 +37,8 @@ function typecheckTarget(targetArg) {
     rootNames,
     options: {
       ...config.options,
+      // Some integration fixtures also validate the adjacent migration scripts.
+      rootDir: serverRoot,
       composite: false,
       incremental: false,
       noEmit: true,

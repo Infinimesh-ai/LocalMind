@@ -851,6 +851,11 @@ export const USER_FRIENDLY_ERRORS = {
     message:
       'No available AI provider is configured for this workspace. Contact your LocalMind instance administrator.',
   },
+  copilot_byok_credential_disabled: {
+    type: 'action_forbidden',
+    message:
+      'The workspace AI credential was disabled after the provider rejected it. Ask a workspace administrator to test and re-enable it.',
+  },
 
   // Quota & Limit errors
   blob_quota_exceeded: {

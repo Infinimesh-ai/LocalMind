@@ -1225,13 +1225,15 @@ function formatWorkspaceScopeLabel(workspace: WorkspaceScopeItem) {
 }
 
 function usePromptCatalogData(workspaceId: string | undefined) {
-  const { data } = useQuery({
-    query: getCopilotPromptsQuery,
-    variables: {
-      workspaceId,
+  return useQuery(
+    {
+      query: getCopilotPromptsQuery,
+      variables: {
+        workspaceId,
+      },
     },
-  });
-  return data;
+    { suspense: false, revalidateOnMount: true, shouldRetryOnError: false }
+  );
 }
 
 function useWorkspaceScopeData() {
@@ -12005,10 +12007,17 @@ function AiRuntimePageContent() {
   const nextPromptName = promptNameInput.trim() || ADMIN_AI_DEFAULT_PROMPT_NAME;
   const nextWorkspaceId = workspaceIdInput.trim() || undefined;
   const nextActionRunId = actionRunIdInput.trim();
-  const promptCatalogData = usePromptCatalogData(workspaceId);
+  const {
+    data: promptCatalogData,
+    error: promptCatalogError,
+    mutate: mutatePromptCatalog,
+  } = usePromptCatalogData(workspaceId);
   const workspaceScopeData = useWorkspaceScopeData();
   const promptCatalog =
-    promptCatalogData.currentUser?.copilot?.prompts ?? EMPTY_PROMPT_CATALOG;
+    (promptCatalogError
+      ? undefined
+      : promptCatalogData?.currentUser?.copilot?.prompts) ??
+    EMPTY_PROMPT_CATALOG;
   const workspaceScopes =
     workspaceScopeData.workspaces ?? EMPTY_WORKSPACE_SCOPES;
   const promptCatalogCategories = useMemo(
@@ -12128,7 +12137,7 @@ function AiRuntimePageContent() {
             size="sm"
             className="gap-2"
             onClick={() => {
-              mutate().catch(err => {
+              Promise.all([mutate(), mutatePromptCatalog()]).catch(err => {
                 console.error(err);
               });
             }}
@@ -12143,6 +12152,14 @@ function AiRuntimePageContent() {
       <ScrollArea className="h-full">
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-5 sm:px-6">
           <AiPageTabs active="runtime" />
+          {promptCatalogError ? (
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/30 p-4 text-sm"
+            >
+              {i18n['com.affine.admin.runtime-prompts-unavailable']()}
+            </div>
+          ) : null}
           {modelsError ? (
             <div
               role="alert"

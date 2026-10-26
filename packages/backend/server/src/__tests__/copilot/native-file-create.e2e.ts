@@ -153,7 +153,12 @@ test.serial(
       const replay = await service.create(input);
       t.is(saved.resourceId, replay.resourceId);
       t.is(saved.status, 'saved');
-      if (saved.artifactId && saved.revisionId) {
+      if (
+        'artifactId' in saved &&
+        'revisionId' in saved &&
+        saved.artifactId &&
+        saved.revisionId
+      ) {
         const asset = await app
           .get(OfficeArtifactService)
           .readRevisionAsset(

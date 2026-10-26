@@ -291,6 +291,11 @@ export class AuthSessionService {
     await this.revokeUserSessions(id, 'user_deleted_or_disabled');
   }
 
+  @OnEvent('user.disabled')
+  async onUserDisabled({ id }: Events['user.disabled']) {
+    await this.revokeUserSessions(id, 'user_deleted_or_disabled');
+  }
+
   async revokeWithRefreshToken(refreshToken: string) {
     const parsed = this.parseRefreshToken(refreshToken);
     if (!parsed) return;

@@ -3,7 +3,11 @@
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { resolveLinkToDoc, toURLSearchParams } from '../utils';
+import {
+  resolveLinkToDoc,
+  resolveRouteLinkMeta,
+  toURLSearchParams,
+} from '../utils';
 
 vi.mock('@emoji-mart/react', () => ({
   Emoji: () => null,
@@ -141,6 +145,25 @@ const testCases: [string, ReturnType<typeof resolveLinkToDoc>][] = [
 for (const [input, expected] of testCases) {
   defineTest(input, expected);
 }
+
+test.each([
+  'office',
+  'files',
+  'folder',
+  'help',
+  'tasks',
+  'journals',
+  'settings',
+])('keeps the %s route out of BlockSuite document previews', moduleName => {
+  const href = `/workspace/qa-workspace/${moduleName}/qa-resource`;
+  expect(resolveLinkToDoc(href)).toBeNull();
+  expect(resolveRouteLinkMeta(href)).toMatchObject({
+    workspaceId: 'qa-workspace',
+    moduleName,
+    subModuleName: 'qa-resource',
+    location: { pathname: `/${moduleName}/qa-resource` },
+  });
+});
 
 // self-hosted
 describe('resolveLinkToDoc in self-hosted', () => {

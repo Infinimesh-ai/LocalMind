@@ -1,4 +1,6 @@
 /** @vitest-environment happy-dom */
+import { uploadProjectBlobWithProgress } from '@affine/core/modules/project-resources/upload';
+import { UserFriendlyError } from '@affine/error';
 import {
   act,
   cleanup,
@@ -595,6 +597,59 @@ describe('Project file tree', () => {
     expect(
       screen.getAllByText('com.affine.localmind.project-files.upload.completed')
     ).toHaveLength(2);
+  });
+
+  test('rate-limited imports wait visibly and reuse the uploaded blob and request key', async () => {
+    vi.useFakeTimers();
+    try {
+      const throttled = new UserFriendlyError({
+        status: 429,
+        name: 'TOO_MANY_REQUEST',
+        code: 'too_many_requests',
+        type: 'too_many_request',
+        message: 'Too many requests',
+        retryAfterMs: 1000,
+      });
+      mock.upload
+        .mockImplementationOnce(async (_graphql, input) => {
+          await input.uploadBlob(input.file);
+          throw throttled;
+        })
+        .mockImplementationOnce(async (_graphql, input) => {
+          await input.uploadBlob(input.file);
+          return 'imported-file';
+        });
+      const { container } = render(
+        <ProjectFiles
+          projectId="project-1"
+          parentId="Reports"
+          selectedResourceId={null}
+          onOpen={vi.fn()}
+        />
+      );
+      fireEvent.change(container.querySelector('input[type="file"]')!, {
+        target: { files: [new File(['pdf'], 'test.pdf')] },
+      });
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(
+        screen.queryByText(
+          'com.affine.localmind.project-files.upload.waitingForLimit'
+        )
+      ).not.toBeNull();
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      expect(
+        screen.queryByText(
+          'com.affine.localmind.project-files.upload.completed'
+        )
+      ).not.toBeNull();
+      expect(mock.upload).toHaveBeenCalledTimes(2);
+      expect(mock.upload.mock.calls[0][1].requestKey).toBe(
+        mock.upload.mock.calls[1][1].requestKey
+      );
+      expect(uploadProjectBlobWithProgress).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -75,6 +75,56 @@ async function drainActionResult(
 }
 
 describe('runtime request transport', () => {
+  test('retries the original pending submission without creating another message', async () => {
+    const client = createClient();
+    await drain(
+      textToText({
+        client,
+        sessionId: 'session-1',
+        stream: true,
+        retry: true,
+        messageId: 'pending-submission',
+      }) as AsyncIterable<string>
+    );
+    expect(client.createMessage).not.toHaveBeenCalled();
+    expect(client.chatTextStream).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: 'pending-submission', retry: true }),
+      expect.anything()
+    );
+  });
+  test('confirms message persistence before opening the stream and never on create failure', async () => {
+    const onMessageCreated = vi.fn();
+    const client = createClient({
+      chatTextStream: vi.fn(() => {
+        expect(onMessageCreated).toHaveBeenCalledWith('message-1');
+        return createClosedEventSource();
+      }),
+    });
+    await drain(
+      textToText({
+        client,
+        sessionId: 'session-1',
+        stream: true,
+        onMessageCreated,
+      }) as AsyncIterable<string>
+    );
+    onMessageCreated.mockClear();
+    vi.mocked(client.createMessage).mockRejectedValueOnce(
+      new Error('rejected')
+    );
+    await expect(
+      drain(
+        textToText({
+          client,
+          sessionId: 'session-1',
+          stream: true,
+          onMessageCreated,
+        }) as AsyncIterable<string>
+      )
+    ).rejects.toThrow('rejected');
+    expect(onMessageCreated).not.toHaveBeenCalled();
+    expect(client.chatTextStream).toHaveBeenCalledTimes(1);
+  });
   test('keeps non-image attachment bytes, filename and MIME intact', async () => {
     const client = createClient();
     const document = new File(['Native Office bytes'], 'report.docx', {

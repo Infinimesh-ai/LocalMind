@@ -35,7 +35,6 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { ChatAbortIcon } from '../../_common/icons';
 import { AIAppEvents, type AISendParams } from '../../provider';
 import type { AIChatRuntime, AIChatSnapshot } from '../../runtime/chat';
-import { reportResponse } from '../../utils/action-reporter';
 import { readBlobAsURL } from '../../utils/image';
 import type { SearchMenuConfig } from '../ai-chat-add-context';
 import { addFilesToChat } from '../ai-chat-chips/attachment-utils';
@@ -54,6 +53,13 @@ export class AIChatInput extends SignalWatcher(
   readonly languageController = new I18nController(this);
 
   static override styles = css`
+    .chat-document-access-hint {
+      padding: 0 4px;
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--affine-text-secondary-color);
+    }
+
     :host {
       width: 100%;
     }
@@ -638,6 +644,12 @@ export class AIChatInput extends SignalWatcher(
         @paste=${this._handlePaste}
         data-testid="chat-panel-input"
       ></textarea>
+      ${this.runtimeSnapshot?.scope.kind !== 'project' &&
+      this.aiToolsConfigService.config.value.readingDocs === false
+        ? html`<div class="chat-document-access-hint" role="status">
+            ${I18n['com.affine.ai.chat.preferences.workspace-docs-disabled']()}
+          </div>`
+        : nothing}
       <div class="chat-panel-input-actions">
         <div class="chat-input-icon">
           <ai-chat-add-context
@@ -669,6 +681,8 @@ export class AIChatInput extends SignalWatcher(
         ${status === 'transmitting' || status === 'loading'
           ? html`<button
               class="chat-panel-stop"
+              aria-label=${I18n.t('com.affine.ui.stop-generating')}
+              title=${I18n.t('com.affine.ui.stop-generating')}
               @click=${this._handleAbort}
               data-testid="chat-panel-stop"
             >
@@ -677,6 +691,8 @@ export class AIChatInput extends SignalWatcher(
           : html`<button
               @click="${this._onTextareaSend}"
               class="chat-panel-send"
+              aria-label=${I18n.t('Send')}
+              title=${I18n.t('Send')}
               aria-disabled=${this.isSendDisabled}
               data-testid="chat-panel-send"
             >
@@ -820,7 +836,6 @@ export class AIChatInput extends SignalWatcher(
   private readonly _handleAbort = () => {
     if (this.runtime) {
       this.runtime.dispatch({ type: 'stop' }).catch(console.error);
-      reportResponse('aborted:stop', this.host);
       return;
     }
   };

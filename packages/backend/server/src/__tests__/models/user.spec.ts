@@ -410,6 +410,34 @@ test('should ban user', async t => {
   t.is(user2, null);
 });
 
+test('should suspend user without deleting data and restore the same account', async t => {
+  const user = await t.context.user.create({
+    email: 'suspend@affine.pro',
+  });
+  const event = t.context.module.get(EventBus);
+  const deleted = Sinon.spy();
+  const disabled = Sinon.spy();
+  event.on('user.deleted', deleted);
+  event.on('user.disabled', disabled);
+
+  const suspended = await t.context.user.suspend(user.id);
+
+  t.is(suspended.id, user.id);
+  t.true(suspended.disabled);
+  t.false(deleted.called);
+  t.true(disabled.calledOnceWith({ id: user.id }));
+  t.is(await t.context.user.get(user.id), null);
+  t.is(
+    (await t.context.user.get(user.id, { withDisabled: true }))?.id,
+    user.id
+  );
+
+  const restored = await t.context.user.enable(user.id);
+  t.is(restored.id, user.id);
+  t.false(restored.disabled);
+  t.is((await t.context.user.get(user.id))?.email, 'suspend@affine.pro');
+});
+
 test('should enable user', async t => {
   const user = await t.context.user.create({
     email: 'test@affine.pro',

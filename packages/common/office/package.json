@@ -18,7 +18,8 @@
     "./report-deck/web-v4.fixture": "./src/report/deck/web-v4.fixture.ts",
     "./testing": "./src/testing.ts",
     "./report-font": "./assets/report-fonts/NotoSansCJKsc-Regular.otf",
-    "./report-font-license": "./assets/report-fonts/LICENSE.txt"
+    "./report-font-license": "./assets/report-fonts/LICENSE.txt",
+    "./emoji-font": "./assets/report-fonts/NotoEmoji-Variable.ttf"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1",

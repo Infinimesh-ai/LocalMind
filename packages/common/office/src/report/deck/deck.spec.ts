@@ -10,6 +10,7 @@ import {
   DECK_STAGE,
   DECK_TEMPLATE_MOTION,
   DECK_TEMPLATES,
+  DeckConfigSchema,
   deckMotionCss,
   type DeckSpec,
   DeckSpecSchema,
@@ -480,4 +481,22 @@ describe('deck sanitizer', () => {
     expect(inlineScripts(result.html)).toEqual([DECK_SHELL_SCRIPT]);
     expect(result.html).not.toMatch(EXTERNAL);
   });
+});
+
+it('accepts per-report custom design modes without guessing historical modes', () => {
+  expect(
+    DeckConfigSchema.parse({ mode: 'custom', designMode: 'refine' }).designMode
+  ).toBe('refine');
+  expect(DeckConfigSchema.parse({ mode: 'custom' }).designMode).toBeUndefined();
+  expect(
+    DeckConfigSchema.safeParse({ mode: 'custom', designMode: 'automatic' })
+      .success
+  ).toBe(false);
+  expect(
+    DeckConfigSchema.safeParse({
+      mode: 'template',
+      templateKey: DECK_TEMPLATES[0].key,
+      designMode: 'refine',
+    }).success
+  ).toBe(false);
 });

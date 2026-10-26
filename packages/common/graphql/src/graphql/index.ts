@@ -39,6 +39,7 @@ export const copilotChatHistoryFragment = `fragment CopilotChatHistory on Copilo
     id
     role
     content
+    params
     attachments
     streamObjects {
       type
@@ -500,6 +501,7 @@ export const workspacePageTreeNodeFragment = `fragment WorkspacePageTreeNode on 
   isContainer
   canRename
   canConvertToPage
+  convertToPageUnavailableReason
   folder {
     title
     metadataVersion
@@ -1189,6 +1191,17 @@ export const setAdminUserAiProfileAssignmentMutation = {
     }
     createdAt
     updatedAt
+  }
+}`,
+};
+
+export const suspendUserMutation = {
+  id: 'suspendUserMutation' as const,
+  op: 'suspendUser',
+  query: `mutation suspendUser($id: String!) {
+  suspendUser(id: $id) {
+    email
+    disabled
   }
 }`,
 };
@@ -2766,6 +2779,7 @@ export const copilotContextDashboardGetQuery = {
         sourceSessionId
         scope
         kind
+        sharingStatus
         status
         content
         factKey
@@ -8593,6 +8607,7 @@ export const copilotWorkOrderChatGetQuery = {
           id
           role
           content
+          params
           attachments
           streamObjects {
             type
@@ -12274,6 +12289,7 @@ export const upsertWorkspaceByokConfigMutation = {
   query: `mutation upsertWorkspaceByokConfig($input: UpsertWorkspaceByokConfigInput!) {
   upsertWorkspaceByokConfig(input: $input) {
     id
+    configRevision
   }
 }`,
 };
@@ -12374,6 +12390,21 @@ export const mutateWorkspaceDirectoryMutation = {
     workspaceId: $workspaceId
     expectedRevision: $expectedRevision
     changes: $changes
+  ) {
+    revision
+  }
+}`,
+};
+
+export const moveWorkspaceDocumentMutation = {
+  id: 'moveWorkspaceDocumentMutation' as const,
+  op: 'moveWorkspaceDocument',
+  query: `mutation moveWorkspaceDocument($workspaceId: ID!, $documentId: ID!, $expectedRevision: String!, $folderId: ID) {
+  moveWorkspaceDocument(
+    workspaceId: $workspaceId
+    documentId: $documentId
+    expectedRevision: $expectedRevision
+    folderId: $folderId
   ) {
     revision
   }
@@ -12526,6 +12557,7 @@ export const inviteByEmailsMutation = {
   inviteMembers(workspaceId: $workspaceId, emails: $emails) {
     email
     inviteId
+    error
   }
 }`,
 };

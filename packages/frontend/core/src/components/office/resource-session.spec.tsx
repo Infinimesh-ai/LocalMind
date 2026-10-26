@@ -3,6 +3,7 @@ import type {
   NativeOfficeState,
   OfficeResourceOwner,
 } from '@affine/core/modules/office';
+import { I18n } from '@affine/i18n';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
@@ -71,6 +72,99 @@ function fixture(
 }
 
 describe('Office resource sessions', () => {
+  test('a failed in-flight save retains the draft and its confirmation', async () => {
+    const f = fixture();
+    const { result, unmount } = renderHook(() =>
+      useOfficeResourceSession(f.adapter)
+    );
+    await waitFor(() => expect(result.current.revision?.id).toBe('r1'));
+    let fail!: (reason: Error) => void;
+    const settled = new Promise<void>((_resolve, reject) => {
+      fail = reject;
+    });
+    const resume = vi.fn();
+    act(() => {
+      result.current.registerDraft({
+        hasUnsavedChanges: true,
+        save: vi.fn(),
+        discard: vi.fn(),
+        pauseAutosave: () => ({ settled, resume }),
+      });
+    });
+    let changing!: Promise<boolean>;
+    act(() => {
+      changing = result.current.confirmUnsaved();
+    });
+    await act(async () => {
+      fail(new Error('write failed'));
+    });
+    expect(result.current.confirmOpen).toBe(true);
+    expect(result.current.dirty()).toBe(true);
+    expect(resume).not.toHaveBeenCalled();
+    unmount();
+    expect(await changing).toBe(false);
+    expect(resume).toHaveBeenCalledOnce();
+  });
+  test('confirmation pauses autosave and resumes it on cancellation', async () => {
+    const f = fixture();
+    const { result } = renderHook(() => useOfficeResourceSession(f.adapter));
+    await waitFor(() => expect(result.current.revision?.id).toBe('r1'));
+    const resume = vi.fn();
+    const pauseAutosave = vi.fn(() => ({ settled: null, resume }));
+    act(() => {
+      result.current.registerDraft({
+        hasUnsavedChanges: true,
+        save: vi.fn(),
+        discard: vi.fn(),
+        pauseAutosave,
+      });
+    });
+    let changing!: Promise<boolean>;
+    act(() => {
+      changing = result.current.confirmUnsaved();
+    });
+    expect(pauseAutosave).toHaveBeenCalledOnce();
+    expect(result.current.confirmOpen).toBe(true);
+    expect(resume).not.toHaveBeenCalled();
+    await act(async () => {
+      result.current.decide(false);
+      expect(await changing).toBe(false);
+    });
+    expect(resume).toHaveBeenCalledOnce();
+  });
+  test('a completed in-flight save does not offer a false discard decision', async () => {
+    const f = fixture();
+    const { result } = renderHook(() => useOfficeResourceSession(f.adapter));
+    await waitFor(() => expect(result.current.revision?.id).toBe('r1'));
+    let finish!: () => void;
+    const settled = new Promise<void>(resolve => {
+      finish = resolve;
+    });
+    let dirty = true;
+    const resume = vi.fn();
+    act(() => {
+      result.current.registerDraft({
+        get hasUnsavedChanges() {
+          return dirty;
+        },
+        save: vi.fn(),
+        discard: vi.fn(),
+        pauseAutosave: () => ({ settled, resume }),
+      });
+    });
+    let changing!: Promise<boolean>;
+    act(() => {
+      changing = result.current.confirmUnsaved();
+    });
+    expect(result.current.confirmOpen).toBe(false);
+    await act(async () => {
+      dirty = false;
+      finish();
+      expect(await changing).toBe(true);
+    });
+    expect(result.current.confirmOpen).toBe(false);
+    expect(resume).toHaveBeenCalledOnce();
+  });
   for (const owner of [
     { kind: 'workspace', workspaceId: 'w' },
     { kind: 'project', projectId: 'p' },
@@ -177,6 +271,10 @@ describe('Office resource sessions', () => {
         target: { type: 'cell', sheetId: 'sheet', address: 'A1' },
       })
     );
+    act(() => result.current.onRevision(f.revision(1), state));
+    expect(result.current.selectionNotice).toBe(
+      I18n['com.affine.office.selection-preserved']({ version: '1' })
+    );
     f.advance(2, 'ai');
     await act(() =>
       result.current.onTaskRevision({
@@ -187,6 +285,9 @@ describe('Office resource sessions', () => {
       })
     );
     expect(result.current.selection?.kind).toBe('workbook');
+    expect(result.current.selectionNotice).toBe(
+      I18n['com.affine.office.selection-preserved']({ version: '2' })
+    );
     act(() =>
       result.current.setSelection({
         kind: 'workbook',
@@ -196,6 +297,11 @@ describe('Office resource sessions', () => {
     f.advance(3, 'ai');
     await act(() => result.current.refresh());
     expect(result.current.selection).toBeNull();
+    expect(result.current.selectionNotice).toBe(
+      I18n[
+        'com.affine.office.selection-cleared-because-its-stable-target-is-not-present-in-the-new-revision'
+      ]()
+    );
   });
   test('an artifact without editable state becomes a retryable error', async () => {
     const f = fixture();

@@ -2,6 +2,7 @@ import type { ColumnDataType, SerializedCells } from '@blocksuite/affine-model';
 import type { BlockSnapshot, DeltaInsert } from '@blocksuite/store';
 
 import { databaseBlockModels } from '../properties/model';
+import { titlePropertyModelConfig } from '../properties/title/define';
 
 function calculateColumnWidths(rows: string[][]): number[] {
   return (
@@ -58,29 +59,32 @@ export const processTable = (
   children: BlockSnapshot[] = [],
   cells: SerializedCells = {}
 ): Table => {
+  // Fixed title properties are not necessarily stored in columns.
+  const exportedColumns = columns.some(column => column.type === 'title')
+    ? columns
+    : [
+        {
+          id: 'title',
+          type: 'title',
+          name: titlePropertyModelConfig.config.name,
+          data: {},
+        },
+        ...columns,
+      ];
   const table: Table = {
-    headers: columns,
+    headers: exportedColumns,
     rows: [],
   };
   children.forEach(v => {
     const row: Row = {
       cells: [],
     };
-    const title = v.props.text;
-    if (isDelta(title)) {
-      row.cells.push({
-        value: title,
-      });
-    } else {
-      row.cells.push({
-        value: '',
-      });
-    }
-
-    columns.forEach(col => {
+    exportedColumns.forEach(col => {
       const property = databaseBlockModels[col.type];
       const cell = cells[v.id]?.[col.id];
       if (col.type === 'title') {
+        const title = v.props.text;
+        row.cells.push({ value: isDelta(title) ? title : '' });
         return;
       }
       if (!cell || !property) {

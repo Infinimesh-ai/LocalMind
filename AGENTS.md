@@ -48,6 +48,9 @@ Project 原生资源已实现，产品及验收契约的 source of truth 是
 保留等待待办。已批准的复制授权不可由审批人撤回，未决申请仍可撤回。该契约覆盖旧的
 共享引用直接写回语义，不能用隐藏 Workspace
 替代项目原生存储。
+Workspace 直接访问的权限检查未传 `projectId` 或传 `null` 时仅使用个人及 Workspace
+ACL；历史 Project 授权只可在显式指定对应项目的检查中生效，不授予普通页面或搜索
+持续读取来源新版的权限。
 
 Project 个人工单的现行交互契约见
 `docs/ai-modernization/project-work-order-ai-delivery-contract.zh-CN.md`：发单 AI 按
@@ -58,7 +61,9 @@ Project 个人工单的现行交互契约见
 `docs/ai-modernization/project-work-order-ai-delivery.execution.zh-CN.md`；仍须区分
 已接入路径、本轮验证结果与生产环境状态。
 
-Project 项目汇报的完整开发契约见
+Project 项目汇报工作室已按 `docs/localmind-report-deck-redesign.zh-CN.md` 第 8 条禁用但不删除，
+仅在 `enable_legacy_project_reports` 开启时可达；2026-10-22 用户决定页面验收以下文独立「汇报总结」
+契约为准，工作室条目只作历史与兼容参考。其原完整开发契约见
 `docs/ai-modernization/project-report-workbench-development.zh-CN.md`。汇报来源为项目文档、
 工单（仅参与方可见元数据，作为业务状态证据）和公开共享项目 Memory，不读取私人聊天或
 新增材料池；入口在左侧项目列表，编辑页为左侧项目 AI 会话加右侧画布的汇报工作室；未明确的负责人默认绑定本份汇报创建人，

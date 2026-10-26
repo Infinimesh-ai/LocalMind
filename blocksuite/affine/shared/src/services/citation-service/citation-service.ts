@@ -3,6 +3,7 @@ import { type BlockStdScope, StdIdentifier } from '@blocksuite/std';
 import { type BlockModel, Extension } from '@blocksuite/store';
 
 import { DocModeProvider } from '../doc-mode-service';
+import { NotificationProvider } from '../notification-service';
 import type {
   CitationEvents,
   CitationEventType,
@@ -38,13 +39,19 @@ export interface CitationViewService {
    * @returns True if the model is a citation model, false otherwise
    */
   isCitationModel(model: BlockModel): boolean;
+  /**
+   * Explains that a read-only citation has no navigable target, e.g. an
+   * attachment source kept by an earlier AI reply.
+   * @param model - The citation model that was activated
+   */
+  notifySourceUnavailable(model: BlockModel): void;
 }
 
 export const CitationProvider =
   createIdentifier<CitationViewService>('CitationService');
 
 export class CitationService extends Extension implements CitationViewService {
-  constructor(private readonly std: BlockStdScope) {
+  constructor(protected readonly std: BlockStdScope) {
     super();
   }
 
@@ -68,6 +75,14 @@ export class CitationService extends Extension implements CitationViewService {
       model.props.style === 'citation'
     );
   };
+
+  notifySourceUnavailable(_model: BlockModel) {
+    this.std
+      .getOptional(NotificationProvider)
+      ?.toast(
+        'This source comes from an earlier reply and cannot be opened directly. Find it in the resource tree.'
+      );
+  }
 
   trackEvent<T extends EventType>(
     type: T,

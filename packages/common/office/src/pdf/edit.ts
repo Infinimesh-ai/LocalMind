@@ -27,6 +27,11 @@ import {
   parseOfficeCommand,
 } from '../command';
 import { openPdfPackage, type PdfPackage, PdfPackageError } from './package';
+import {
+  detachRedactedPageObjects,
+  removeUnreachablePdfObjects,
+  replaceRedactedPageReferences,
+} from './redaction';
 import { type PdfSemanticState, readPdfSemanticState } from './semantic';
 
 type PdfCommand =
@@ -315,6 +320,7 @@ async function applyRedaction(
   command: OfficePdfApplyRedactionCommand
 ) {
   const sourcePage = assertPage(document, command.target.pageIndex);
+  const removed = detachRedactedPageObjects(document, sourcePage);
   const bytes = decodeBase64(
     command.flattenedPagePngBase64,
     'PDF flattened redaction page'
@@ -329,8 +335,16 @@ async function applyRedaction(
     height,
   ]);
   replacement.setRotation(rotation);
+  const userUnit = sourcePage.node.get(PDFName.of('UserUnit'));
+  if (userUnit) replacement.node.set(PDFName.of('UserUnit'), userUnit);
   replacement.drawImage(image, { x: 0, y: 0, width, height });
   document.removePage(command.target.pageIndex + 1);
+  replaceRedactedPageReferences(
+    document,
+    sourcePage.ref,
+    replacement.ref,
+    removed
+  );
 }
 
 function setFormField(
@@ -567,10 +581,16 @@ export async function applyPdfCommand(
   const command = parsed as PdfCommand;
   const document = await pkg.cloneDocument();
   const summary = await apply(document, command);
+  const redaction = command.operation === 'office.pdf.redaction.apply';
+  if (redaction) {
+    document.getForm().updateFieldAppearances();
+    await document.flush();
+    removeUnreachablePdfObjects(document);
+  }
   const packageBytes = await document.save({
     useObjectStreams: false,
     addDefaultPage: false,
-    updateFieldAppearances: true,
+    updateFieldAppearances: !redaction,
   });
   if (packageBytes.byteLength > pkg.limits.maxPackageBytes) {
     throw new PdfPackageError('PDF command output exceeds its byte limit');

@@ -172,6 +172,7 @@ export function SidebarWorkspaceRow({
           )}
         </button>
         {active &&
+          open &&
           (pageTreeEnabled ? (
             <>
               <PageTreeCreateMenu name={name} />

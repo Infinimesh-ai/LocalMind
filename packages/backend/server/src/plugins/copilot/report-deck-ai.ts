@@ -342,6 +342,20 @@ export class ReportDeckAiService {
       const models = selection.configuredModelIds.map(id => ({
         id,
         name: names.get(id) ?? id,
+        // Text-only BYOK defaults do not prove that image input is unsupported.
+        vision: profiles.some(profile =>
+          profile.modelDefinitions?.some(
+            definition =>
+              definition.id === id &&
+              definition.capabilities?.some(
+                capability =>
+                  capability.input.includes('image') &&
+                  capability.output.includes('text')
+              )
+          )
+        )
+          ? ('declared' as const)
+          : ('unknown' as const),
       }));
       return {
         ...base,
@@ -382,7 +396,19 @@ export class ReportDeckAiService {
       reason: null,
       providerName: profiles[0]?.type ?? null,
       models: modelId
-        ? [{ id: modelId, name: definition?.displayName ?? modelId }]
+        ? [
+            {
+              id: modelId,
+              name: definition?.displayName ?? modelId,
+              vision: definition?.capabilities?.some(
+                capability =>
+                  capability.input.includes('image') &&
+                  capability.output.includes('text')
+              )
+                ? ('declared' as const)
+                : ('unknown' as const),
+            },
+          ]
         : [],
       defaultModelId: modelId,
       modelLocked: true,

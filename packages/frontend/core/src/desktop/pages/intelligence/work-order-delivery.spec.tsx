@@ -1,5 +1,9 @@
 /** @vitest-environment happy-dom */
-import { setWorkOrderDeliveryDraftItemMutation } from '@affine/graphql';
+import { notify } from '@affine/component';
+import {
+  adoptWorkOrderDeliveriesMutation,
+  setWorkOrderDeliveryDraftItemMutation,
+} from '@affine/graphql';
 import {
   cleanup,
   fireEvent,
@@ -8,6 +12,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -35,7 +40,7 @@ vi.mock('@affine/component', () => ({
     ...props
   }: Record<string, unknown>) => <button {...props} />,
   Loading: () => <span>Loading</span>,
-  notify: { error: vi.fn() },
+  notify: { error: vi.fn(), success: vi.fn() },
 }));
 vi.mock('@affine/core/components/hooks/use-query', () => ({
   useQuery: () => ({
@@ -65,6 +70,8 @@ beforeEach(() => {
   localStorage.clear();
   state.gql.mockReset();
   state.mutate.mockReset();
+  vi.mocked(notify.success).mockClear();
+  vi.mocked(notify.error).mockClear();
   state.order = {
     id: 'order-1',
     title: 'Review report',
@@ -96,6 +103,36 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   localStorage.clear();
+});
+
+test('exchange history translates actions while retaining bodies and unknown events', () => {
+  const kinds = [
+    'question',
+    'answer',
+    'refusal',
+    'cancellation',
+    'future_kind',
+  ];
+  state.order = {
+    ...state.order,
+    exchanges: kinds.map((kind, index) => ({
+      id: `exchange-${index}`,
+      kind,
+      body: `Preserved exchange body ${index}`,
+      createdAt: '2026-10-21T15:00:00.000Z',
+    })),
+  };
+  render(<WorkOrderPanel workOrderId="order-1" />);
+
+  for (const [index, kind] of kinds.entries()) {
+    expect(screen.getByText(`Preserved exchange body ${index}`)).toBeTruthy();
+    expect(screen.queryByText(kind, { exact: true })).toBeNull();
+    expect(
+      screen.getByText(
+        `com.affine.localmind.workbench.v9.exchange.${kind === 'future_kind' ? 'recorded' : kind}`
+      )
+    ).toBeTruthy();
+  }
 });
 
 test('editing a ready delivery blocks confirmation until the new text is saved', async () => {
@@ -185,6 +222,79 @@ function fileOrder(maxCount = 1) {
 }
 const selectFiles = (files: File[]) =>
   fireEvent.change(screen.getByLabelText('Slides'), { target: { files } });
+
+test('refreshes untouched text when another page changes the saved draft', async () => {
+  const panel = (
+    <StrictMode>
+      <WorkOrderPanel workOrderId="order-1" />
+    </StrictMode>
+  );
+  const view = render(panel);
+  await screen.findByDisplayValue('Saved text');
+  state.order = {
+    ...state.order,
+    deliveryDraft: { version: 2, items: [], checks: [] },
+  };
+  view.rerender(
+    <StrictMode>
+      <WorkOrderPanel workOrderId="order-1" />
+    </StrictMode>
+  );
+  await waitFor(() =>
+    expect(screen.queryByDisplayValue('Saved text')).toBeNull()
+  );
+  expect(
+    screen.queryByRole('button', { name: key('saveDeliveryDraft') })
+  ).toBeNull();
+});
+
+test('preserves unsaved text when another page changes the saved draft', async () => {
+  const view = render(<WorkOrderPanel workOrderId="order-1" />);
+  fireEvent.change(await screen.findByDisplayValue('Saved text'), {
+    target: { value: 'My unsaved text' },
+  });
+  state.order = {
+    ...state.order,
+    deliveryDraft: {
+      version: 2,
+      items: [{ requirementId: 'summary', text: 'Remote text', blobIds: [] }],
+      checks: [],
+    },
+  };
+  view.rerender(<WorkOrderPanel workOrderId="order-1" />);
+  expect(screen.getByDisplayValue('My unsaved text')).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: key('saveDeliveryDraft') })
+  ).toBeTruthy();
+});
+
+test('clears an old upload error only when the saved file selection changes', async () => {
+  fileOrder();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(new Response(null, { status: 415 }))
+  );
+  const view = render(<WorkOrderPanel workOrderId="order-1" />);
+  selectFiles([file]);
+  await screen.findByRole('alert');
+  state.order = { ...state.order };
+  view.rerender(<WorkOrderPanel workOrderId="order-1" />);
+  expect(screen.getByRole('alert').textContent).toBe(
+    key('deliveryFileInvalid')
+  );
+  state.order = {
+    ...state.order,
+    stagedBlobs: [blob],
+    deliveryDraft: {
+      version: 2,
+      items: [{ requirementId: 'slides', blobIds: [blob.id] }],
+      checks: [],
+    },
+  };
+  view.rerender(<WorkOrderPanel workOrderId="order-1" />);
+  await screen.findByText(file.name);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
 
 test('uploads once while busy and exposes the saved file with a replace action', async () => {
   fileOrder();
@@ -283,10 +393,23 @@ test('keeps successfully staged files visible when a later file upload fails', a
       .mockResolvedValueOnce(Response.json(blob))
       .mockRejectedValueOnce(new TypeError('Network failed'))
   );
-  render(<WorkOrderPanel workOrderId="order-1" />);
+  const view = render(<WorkOrderPanel workOrderId="order-1" />);
+  state.mutate.mockImplementation(async () => {
+    state.order = {
+      ...state.order,
+      stagedBlobs: [blob],
+      deliveryDraft: {
+        version: 2,
+        items: [{ requirementId: 'slides', blobIds: [blob.id] }],
+        checks: [],
+      },
+    };
+    view.rerender(<WorkOrderPanel workOrderId="order-1" />);
+  });
   selectFiles([file, new File(['x'], 'second.pptx', { type: file.type })]);
   await screen.findByRole('alert');
   expect(screen.getByText('report.pptx')).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toBe('Network failed');
   expect(state.gql).not.toHaveBeenCalled();
 });
 
@@ -329,3 +452,53 @@ test('shows the receipt for delivered orders and only opens draft controls on re
   expect(screen.getByText(key('newDeliveryHint'))).toBeTruthy();
   expect(state.gql).not.toHaveBeenCalled();
 });
+
+for (const fails of [false, true]) {
+  test(`adoption reports ${fails ? 'failure without success' : 'success after saving the selected receipt'}`, async () => {
+    state.order = {
+      ...state.order,
+      viewerRole: 'sender',
+      status: 'delivered',
+      sourceSessionId: 'source-session',
+      sourceContextVersion: 7,
+      deliveriesReleased: true,
+      deliveries: [
+        {
+          id: 'receipt-1',
+          revision: 1,
+          submittedAt: new Date().toISOString(),
+          receiptFingerprint: 'fingerprint',
+          items: [],
+        },
+      ],
+    };
+    if (fails) state.gql.mockRejectedValue(new Error('Version changed'));
+    else state.gql.mockResolvedValue({});
+    render(<WorkOrderPanel workOrderId="order-1" />);
+    fireEvent.click(screen.getByRole('button', { name: key('adoptDelivery') }));
+    await waitFor(() =>
+      expect(state.gql).toHaveBeenCalledWith({
+        query: adoptWorkOrderDeliveriesMutation,
+        variables: {
+          sourceSessionId: 'source-session',
+          expectedContextVersion: 7,
+          requestKey: expect.any(String),
+          revisions: [
+            { workOrderId: 'order-1', deliveryRevisionId: 'receipt-1' },
+          ],
+        },
+      })
+    );
+    if (fails) {
+      await waitFor(() => expect(notify.error).toHaveBeenCalled());
+      expect(notify.success).not.toHaveBeenCalled();
+    } else {
+      await waitFor(() =>
+        expect(notify.success).toHaveBeenCalledWith({
+          title: key('adoptDeliverySuccess'),
+        })
+      );
+      expect(notify.error).not.toHaveBeenCalled();
+    }
+  });
+}

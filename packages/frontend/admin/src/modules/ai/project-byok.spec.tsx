@@ -211,18 +211,22 @@ test('disabling all project conversations requires confirmation', async () => {
   state.configured = true;
   state.enabled = true;
   state.revision = 3;
-  const confirm = vi.fn().mockReturnValue(false);
+  const nativeConfirm = vi.fn();
   Object.defineProperty(window, 'confirm', {
     configurable: true,
     writable: true,
-    value: confirm,
+    value: nativeConfirm,
   });
   render(<ProjectByokAdmin />);
   fireEvent.click(screen.getByRole('switch', { name: 'Project AI enabled' }));
-  expect(confirm).toHaveBeenCalled();
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog.textContent).toContain('New requests will stop');
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(state.toggle).not.toHaveBeenCalled();
-  confirm.mockReturnValue(true);
   fireEvent.click(screen.getByRole('switch', { name: 'Project AI enabled' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Disable' }));
+  expect(nativeConfirm).not.toHaveBeenCalled();
   await waitFor(() =>
     expect(state.toggle).toHaveBeenCalledWith({
       expectedRevision: 3,

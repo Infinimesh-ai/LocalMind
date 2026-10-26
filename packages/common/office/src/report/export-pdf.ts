@@ -1,6 +1,6 @@
-import fontkit from '@pdf-lib/fontkit';
-import { PDFDict, PDFDocument, PDFName, PDFStream, rgb } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 
+import { createUnicodePdfFont } from '../pdf/font';
 import { reportChartShapes } from './chart';
 import {
   reportChapterLayouts,
@@ -19,11 +19,13 @@ export async function exportReportPdf(
   layout: ReportLayout
 ) {
   const document = await PDFDocument.create();
-  document.registerFontkit(fontkit);
   document.setTitle(input.projection.title);
   document.setProducer('LocalMind Project Reports');
   document.setCreator('LocalMind');
-  const font = await document.embedFont(input.font.bytes, { subset: false });
+  const { font, finalize } = await createUnicodePdfFont(
+    document,
+    input.font.bytes
+  );
   const images = new Map<
     string,
     Awaited<ReturnType<typeof document.embedPng>>
@@ -179,29 +181,6 @@ export async function exportReportPdf(
       }
     }
   }
-  // The bundled fontkit exposes CFF data differently from pdf-lib's old probe.
-  // Correct the PDF font dictionaries for the complete OpenType CFF container.
-  await font.embed();
-  if (
-    new TextDecoder('ascii').decode(input.font.bytes.slice(0, 4)) === 'OTTO'
-  ) {
-    for (const [, object] of document.context.enumerateIndirectObjects()) {
-      if (!(object instanceof PDFDict)) continue;
-      const fontFile =
-        object.get(PDFName.of('FontFile2')) ??
-        object.get(PDFName.of('FontFile3'));
-      if (fontFile) {
-        const stream = document.context.lookup(fontFile);
-        if (stream instanceof PDFStream)
-          stream.dict.set(PDFName.of('Subtype'), PDFName.of('OpenType'));
-        object.delete(PDFName.of('FontFile2'));
-        object.set(PDFName.of('FontFile3'), fontFile);
-      }
-      if (object.get(PDFName.of('Subtype')) === PDFName.of('CIDFontType2')) {
-        object.set(PDFName.of('Subtype'), PDFName.of('CIDFontType0'));
-        object.delete(PDFName.of('CIDToGIDMap'));
-      }
-    }
-  }
+  await finalize();
   return document.save({ useObjectStreams: false });
 }

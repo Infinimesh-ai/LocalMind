@@ -106,8 +106,44 @@ function fixture() {
   };
   const children = (id: string) =>
     store.getModelById(id)!.children.map(model => model.id);
-  return { store, std, note, add, select, backspace, children, syncRange };
+  return {
+    store,
+    std,
+    note,
+    add,
+    select,
+    backspace,
+    children,
+    syncRange,
+    keymap,
+  };
 }
+
+test.each([
+  'Enter',
+  'Mod-Enter',
+  'Backspace',
+  'Delete',
+  'Control-d',
+  'Tab',
+  'Shift-Tab',
+])(
+  'readonly paragraphs leave %s to the browser without changing content',
+  key => {
+    const f = fixture();
+    const parent = f.add('parent');
+    const child = f.add('source', parent);
+    f.select(child);
+    f.store.readonly = true;
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    expect(() =>
+      f.keymap[key](UIEventStateContext.from(new UIEventState(event)))
+    ).not.toThrow();
+    expect(event.defaultPrevented).toBe(false);
+    expect(f.children(parent)).toEqual([child]);
+    expect(f.store.getModelById(child)?.text?.toString()).toBe('source');
+  }
+);
 
 describe('paragraph Backspace at the start', () => {
   for (const position of ['first', 'middle', 'last'] as const) {

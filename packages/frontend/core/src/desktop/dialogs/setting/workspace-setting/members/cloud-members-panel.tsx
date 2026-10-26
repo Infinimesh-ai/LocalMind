@@ -28,7 +28,7 @@ import { track } from '@affine/track';
 import { ExportIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { SettingState } from '../../types';
 import { MemberList, MemberListError, MemberListFallback } from './member-list';
@@ -108,6 +108,15 @@ export const CloudWorkspaceMembersPanel = ({
   const [openInvite, setOpenInvite] = useState(false);
   const [openMemberLimit, setOpenMemberLimit] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
+  const [inviteEmails, setInviteEmails] = useState('');
+  const [inviteErrors, setInviteErrors] = useState<string[]>([]);
+  const invitePending = useRef(false);
+  const csvReading = useRef(false);
+
+  const onInviteEmailsChange = useCallback((value: string) => {
+    setInviteEmails(value);
+    setInviteErrors([]);
+  }, []);
 
   const { openConfirmModal, closeConfirmModal } = useConfirmModal();
   const goToTeamBilling = useCallback(() => {
@@ -170,6 +179,7 @@ export const CloudWorkspaceMembersPanel = ({
 
       return;
     }
+    setInviteErrors([]);
     setOpenInvite(true);
   }, [
     isMutating,
@@ -196,12 +206,19 @@ export const CloudWorkspaceMembersPanel = ({
     return success;
   }, [membersService, workspaceShareSettingService.sharePreview]);
 
-  const onInviteBatchConfirm = useAsyncCallback(
+  const onInviteBatchConfirm = useCallback(
     async ({
       emails,
     }: Parameters<InviteTeamMemberModalProps['onConfirm']>[0]) => {
-      setIsMutating(true);
+      if (invitePending.current || csvReading.current) return;
       const uniqueEmails = deduplicateEmails(emails);
+      if (
+        !uniqueEmails.length ||
+        uniqueEmails.some(email => !emailRegex.test(email))
+      ) {
+        setInviteErrors([t['com.affine.auth.sign.email.error']()]);
+        return;
+      }
       if (
         !isTeam &&
         workspaceQuota &&
@@ -209,34 +226,87 @@ export const CloudWorkspaceMembersPanel = ({
           workspaceQuota.memberLimit - workspaceQuota.memberCount
       ) {
         setOpenMemberLimit(true);
-        setIsMutating(false);
         return;
       }
-      const results = await membersService.inviteMembers(uniqueEmails);
-      if (results) {
-        notify({
-          title: t['com.affine.payment.member.team.invite.notify.title']({
-            count: results.length.toString(),
-          }),
-          message: t['Invitation sent hint'](),
-        });
-        setOpenInvite(false);
+      invitePending.current = true;
+      setIsMutating(true);
+      setInviteErrors([]);
+      try {
+        const results = await membersService.inviteMembers(uniqueEmails);
+        const failed: string[] = [];
+        const errors: string[] = [];
+        for (const email of uniqueEmails) {
+          const result = results?.find(
+            result => result.email.trim().toLowerCase() === email
+          );
+          if (result?.inviteId && !result.error) continue;
+          failed.push(email);
+          const error = UserFriendlyError.fromAny(result?.error);
+          const reason = error.is('ALREADY_IN_SPACE')
+            ? t['com.affine.localmind.invite.already-member']()
+            : error.is('NO_MORE_SEAT')
+              ? t['com.affine.localmind.invite.no-seat']()
+              : error.is('ACCESS_DENIED') || error.is('ACTION_FORBIDDEN')
+                ? t['com.affine.localmind.invite.forbidden']()
+                : t['com.affine.localmind.invite.unconfirmed']();
+          errors.push(`${email}: ${reason}`);
+        }
+        const accepted = uniqueEmails.length - failed.length;
+        if (accepted) {
+          notify({
+            title: t['com.affine.localmind.invite.accepted']({
+              count: String(accepted),
+            }),
+            message: t['com.affine.localmind.invite.pending'](),
+          });
+        }
+        setInviteEmails(failed.join(', '));
+        setInviteErrors(errors);
+        if (!failed.length) setOpenInvite(false);
+      } catch (error) {
+        setInviteEmails(uniqueEmails.join(', '));
+        const failure = UserFriendlyError.fromAny(error);
+        setInviteErrors([
+          failure.is('TOO_MANY_REQUEST')
+            ? t['com.affine.localmind.invite.throttled']()
+            : failure.is('ACTION_FORBIDDEN') || failure.is('ACCESS_DENIED')
+              ? t['com.affine.localmind.invite.forbidden']()
+              : t['com.affine.localmind.invite.unconfirmed'](),
+        ]);
+      } finally {
+        invitePending.current = false;
+        setIsMutating(false);
         membersService.members.revalidate();
         workspaceQuotaService.quota.revalidate();
       }
-      setIsMutating(false);
     },
     [isTeam, membersService, t, workspaceQuota, workspaceQuotaService.quota]
   );
 
+  const onInviteConfirm = useAsyncCallback(onInviteBatchConfirm, [
+    onInviteBatchConfirm,
+  ]);
+
   const onImportCSV = useAsyncCallback(
     async (file: File) => {
+      if (invitePending.current || csvReading.current) return;
+      csvReading.current = true;
       setIsMutating(true);
-      const emails = await parseCSV(file);
-      onInviteBatchConfirm({ emails });
-      setIsMutating(false);
+      let emails: string[] | undefined;
+      try {
+        emails = await parseCSV(file);
+      } catch {
+        setInviteErrors([t['com.affine.localmind.invite.csv-failed']()]);
+      } finally {
+        csvReading.current = false;
+        setIsMutating(false);
+      }
+      if (emails) {
+        setInviteEmails(emails.join(', '));
+        await onInviteBatchConfirm({ emails });
+      }
     },
-    [onInviteBatchConfirm]
+    [onInviteBatchConfirm, t]
   );
 
   const handleUpgradeConfirm = useCallback(() => {
@@ -313,12 +383,17 @@ export const CloudWorkspaceMembersPanel = ({
             <InviteTeamMemberModal
               open={openInvite}
               setOpen={setOpenInvite}
-              onConfirm={onInviteBatchConfirm}
+              onConfirm={onInviteConfirm}
               isMutating={isMutating}
+              inviteEmails={inviteEmails}
+              setInviteEmails={onInviteEmailsChange}
+              errors={inviteErrors}
               copyTextToClipboard={copyTextToClipboard}
               onGenerateInviteLink={onGenerateInviteLink}
               onRevokeInviteLink={onRevokeInviteLink}
-              importCSV={<ImportCSV onImport={onImportCSV} />}
+              importCSV={
+                <ImportCSV onImport={onImportCSV} disabled={isMutating} />
+              }
               invitationLink={inviteLink}
             />
           </>
@@ -352,12 +427,19 @@ export const MembersPanelFallback = () => {
   );
 };
 
-const ImportCSV = ({ onImport }: { onImport: (file: File) => void }) => {
+const ImportCSV = ({
+  onImport,
+  disabled,
+}: {
+  onImport: (file: File) => void;
+  disabled: boolean;
+}) => {
   const t = useI18n();
 
   return (
     <Upload accept="text/csv" fileChange={onImport}>
       <Button
+        disabled={disabled}
         className={styles.importButton}
         prefix={<ExportIcon />}
         variant="secondary"
@@ -369,14 +451,7 @@ const ImportCSV = ({ onImport }: { onImport: (file: File) => void }) => {
 };
 
 function deduplicateEmails(emails: string[]): string[] {
-  const seenEmails = new Set<string>();
-  return emails.filter(email => {
-    const lowerCaseEmail = email.trim().toLowerCase();
-    if (seenEmails.has(lowerCaseEmail)) {
-      return false;
-    } else {
-      seenEmails.add(lowerCaseEmail);
-      return true;
-    }
-  });
+  return [
+    ...new Set(emails.map(email => email.trim().toLowerCase()).filter(Boolean)),
+  ];
 }

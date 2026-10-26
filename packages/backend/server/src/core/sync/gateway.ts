@@ -789,6 +789,17 @@ export class SpaceSyncGateway
     );
   }
 
+  @OnEvent('user.disabled')
+  onUserDisabled({ id }: Events['user.disabled']) {
+    // Revoked sessions block reconnects; sockets already open on this node
+    // for the suspended user are closed so they cannot keep syncing.
+    for (const [socketId, userId] of this.socketUsers) {
+      if (userId === id) {
+        this.server.sockets.sockets.get(socketId)?.disconnect(true);
+      }
+    }
+  }
+
   @OnEvent('doc.updates.pushed')
   async onDocUpdatesPushed({
     spaceType,

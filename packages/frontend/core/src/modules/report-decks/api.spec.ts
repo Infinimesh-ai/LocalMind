@@ -144,6 +144,18 @@ describe('response parsing', () => {
 });
 
 describe('client', () => {
+  it.each([401, 403, 404])(
+    'preserves HTML access status %s for the viewer',
+    async status => {
+      const api = createReportDeckApi(
+        { gql: vi.fn() } as never,
+        BASE,
+        async () => new Response('', { status })
+      );
+      await expect(api.fetchHtml('deck-1')).rejects.toMatchObject({ status });
+    }
+  );
+
   it('sends GraphQL documents and fetches owner HTML with cookies', async () => {
     const gql = vi.fn(async ({ query }: { query: { op: string } }) => ({
       [query.op]:

@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+
 import {
   diffOfficeSemanticStates,
   type OfficeSemanticKind,
@@ -28,6 +31,27 @@ import { OfficeResourceStorage } from './resource-storage';
 const MAX_OFFICE_PACKAGE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_OFFICE_STATE_DOWNLOAD_BYTES = 256 * 1024 * 1024;
 const MAX_OFFICE_PART_DOWNLOAD_BYTES = 64 * 1024 * 1024;
+const require = createRequire(import.meta.url);
+let documentPdfFont: Promise<Uint8Array> | undefined;
+let documentPdfEmojiFont: Promise<Uint8Array> | undefined;
+
+function loadDocumentPdfEmojiFont() {
+  return (documentPdfEmojiFont ??= readFile(
+    require.resolve('@localmind/office/emoji-font')
+  ).catch(error => {
+    documentPdfEmojiFont = undefined;
+    throw error;
+  }));
+}
+
+function loadDocumentPdfFont() {
+  return (documentPdfFont ??= readFile(
+    require.resolve('@localmind/office/report-font')
+  ).catch(error => {
+    documentPdfFont = undefined;
+    throw error;
+  }));
+}
 
 export type OfficeRevisionAssetKind = 'package' | 'state';
 
@@ -216,6 +240,85 @@ export class OfficeArtifactService {
     return { artifact, revision, bytes, mimeType: evidence.mimeType };
   }
 
+  async readRevisionLayoutState(
+    owner: OfficeOwner,
+    actorId: string,
+    artifactId: string,
+    revisionId: string
+  ) {
+    const state = await this.readRevisionAsset(
+      owner,
+      actorId,
+      artifactId,
+      revisionId,
+      'state'
+    );
+    if (state.artifact.kind !== OfficeArtifactKind.document) return state;
+    const value: unknown = JSON.parse(state.bytes.toString('utf8'));
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      !('sections' in value) ||
+      !Array.isArray(value.sections)
+    ) {
+      throw new Error('Office document state has no section metadata');
+    }
+    const references = 'references' in value ? value.references : null;
+    const fields =
+      typeof references === 'object' &&
+      references !== null &&
+      'mailMergeFields' in references
+        ? references.mailMergeFields
+        : null;
+    const hasFieldMetadata =
+      Array.isArray(fields) &&
+      fields.every(
+        (field: unknown) =>
+          typeof field === 'object' &&
+          field !== null &&
+          'mailMergeSupported' in field &&
+          typeof field.mailMergeSupported === 'boolean'
+      );
+    const hasObjectMetadata = (node: unknown): boolean => {
+      if (Array.isArray(node)) return node.every(hasObjectMetadata);
+      if (!node || typeof node !== 'object') return true;
+      if (
+        'type' in node &&
+        node.type === 'object' &&
+        (!('editableObject' in node) ||
+          typeof node.editableObject !== 'boolean')
+      )
+        return false;
+      return Object.values(node).every(hasObjectMetadata);
+    };
+    if (
+      hasObjectMetadata(value) &&
+      hasFieldMetadata &&
+      value.sections.every(
+        (section: unknown) =>
+          typeof section === 'object' &&
+          section !== null &&
+          'endParagraphId' in section
+      )
+    )
+      return state;
+    // Derive a versioned read view from verified source bytes. Immutable revision
+    // blobs, fingerprints and raw state downloads are never rewritten.
+    const source = await this.readRevisionAsset(
+      owner,
+      actorId,
+      artifactId,
+      revisionId,
+      'package'
+    );
+    const derived = readDocxSemanticState(openDocxPackage(source.bytes));
+    const bytes = Buffer.from(JSON.stringify(derived));
+    if (bytes.byteLength > MAX_OFFICE_STATE_DOWNLOAD_BYTES)
+      throw new Error('Office layout state exceeds its byte limit');
+    await this.getArtifactForAsset(owner, actorId, artifactId);
+    return { ...state, bytes };
+  }
+
   async readRevisionPackagePart(
     owner: OfficeOwner,
     actorId: string,
@@ -276,6 +379,8 @@ export class OfficeArtifactService {
       await exportDocxStateToPdf(state, {
         title: asset.artifact.title,
         author: asset.artifact.createdBy,
+        unicodeFont: await loadDocumentPdfFont(),
+        fallbackFonts: [await loadDocumentPdfEmojiFont()],
         readPart: partName => pkg.readPart(partName),
       })
     );

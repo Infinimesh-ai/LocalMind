@@ -98,6 +98,96 @@ function input(context: { actorId: string; projectId: string }) {
   };
 }
 
+for (const policy of ['fail', 'wait', undefined] as const) {
+  test(`editing conflict honors frozen ${policy ?? 'legacy wait'} intent after the editor leaves`, async t => {
+    const { models, resources, projectId, actorId } = t.context;
+    const model = models.copilotProjectAgentRuntime;
+    const resource = await resources.createDocument({
+      ...input(t.context),
+      requestKey: 'editor-resource',
+      title: 'Editor resource',
+      markdown: 'Original body',
+    });
+    const editor = {
+      projectId,
+      actorId,
+      resourceId: resource.id,
+      kind: 'user' as const,
+      tabId: 'editor-tab',
+    };
+    const held = await models.projectResourceEditLease.acquire(editor);
+    t.true(held.acquired);
+    const intent = {
+      ...input(t.context),
+      command: {
+        resourceId: resource.id,
+        ...(policy ? { editLeaseConflictPolicy: policy } : {}),
+      },
+    };
+    const prepared = await model.prepare(intent);
+    const workerLeaseId = 'conflicting-worker';
+    const acquired = await model.acquire({
+      projectId,
+      runId: prepared.id,
+      workerLeaseId,
+    });
+    const lease = {
+      projectId,
+      actorId,
+      runId: prepared.id,
+      workerLeaseId,
+      workerAttempt: acquired!.workerAttempt,
+    };
+    const conflicted = await model.waitForEditLease({
+      ...lease,
+      resourceId: resource.id,
+      leaseId: held.lease!.leaseId,
+    });
+    t.is(conflicted.status, policy === 'fail' ? 'failed' : 'waiting_lease');
+    t.deepEqual(await model.resumeWaitingLeases(projectId), []);
+    await models.projectResourceEditLease.release({
+      ...editor,
+      leaseId: held.lease!.leaseId,
+    });
+    const resumed = await model.resumeWaitingLeases(projectId);
+    const current = await model.get(lease);
+    if (policy === 'fail') {
+      t.deepEqual(resumed, []);
+      t.is(current.failureCode, 'project_edit_lease_conflict');
+      t.is(current.projectExecutionResults.length, 1);
+      t.like(current.projectExecutionResults[0].resultPayload, {
+        sideEffectsApplied: false,
+      });
+      t.false((await model.pending()).some(run => run.id === prepared.id));
+      t.is(
+        await model.acquire({
+          projectId,
+          runId: prepared.id,
+          workerLeaseId: 'late-worker',
+        }),
+        null
+      );
+      const mutation = Sinon.spy(async () => ({ changed: true }));
+      await t.throwsAsync(model.execute(lease, mutation));
+      t.false(mutation.called);
+      t.is((await model.prepare(intent)).status, 'failed');
+      await t.throwsAsync(
+        model.prepare({
+          ...intent,
+          command: { ...intent.command, editLeaseConflictPolicy: 'wait' },
+        })
+      );
+    } else {
+      t.is(resumed.length, 1);
+      t.is(current.status, 'queued');
+      t.is(current.leaseRetryCount, 1);
+      t.is(current.projectExecutionResults.length, 0);
+      t.deepEqual(await model.resumeWaitingLeases(projectId), []);
+    }
+    t.is((await models.projectResource.get({ ...editor })).contentVersion, 1);
+  });
+}
+
 test('Project approval is bound to the actor and fingerprint and is separate from cancellation', async t => {
   const { models } = t.context;
   const prepared = await models.copilotProjectAgentRuntime.prepare({

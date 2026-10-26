@@ -31,6 +31,8 @@ import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmDialog } from '../../components/shared/confirm-dialog';
+
 type WorkspaceScope = {
   id: string;
   name: string | null;
@@ -155,14 +157,10 @@ export function WorkspaceAiProfilesEditor({
     }
   };
 
+  const [pendingDelete, setPendingDelete] = useState<AdminAiProfile | null>(
+    null
+  );
   const handleDelete = async (profile: AdminAiProfile) => {
-    if (
-      !window.confirm(
-        `Delete ${profile.name}? User assignments to this profile will be cleared.`
-      )
-    ) {
-      return;
-    }
     try {
       await deleteProfile({ workspaceId: scope.id, id: profile.id });
       await Promise.all([
@@ -181,6 +179,25 @@ export function WorkspaceAiProfilesEditor({
 
   return (
     <div className="border-t border-border/70 px-6 py-5">
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={open => {
+          if (!open) setPendingDelete(null);
+        }}
+        title={i18n['com.affine.admin.delete-workspace-ai-profile']()}
+        description={i18n[
+          'com.affine.admin.delete-workspace-ai-profile-confirm'
+        ]({
+          name: pendingDelete?.name ?? '',
+        })}
+        confirmText={i18n['com.affine.admin.delete-workspace-ai-profile']()}
+        confirmButtonVariant="destructive"
+        onConfirm={() => {
+          const profile = pendingDelete;
+          setPendingDelete(null);
+          if (profile) handleDelete(profile).catch(console.error);
+        }}
+      />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">
@@ -269,7 +286,7 @@ export function WorkspaceAiProfilesEditor({
                         aria-label={`Delete ${profile.name}`}
                         title={`Delete ${profile.name}`}
                         disabled={isDeleting}
-                        onClick={() => void handleDelete(profile)}
+                        onClick={() => setPendingDelete(profile)}
                       >
                         <Trash2Icon size={16} />
                       </Button>

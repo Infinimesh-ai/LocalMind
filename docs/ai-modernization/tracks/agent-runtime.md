@@ -70,6 +70,56 @@ permission-checked `doc_create`, `doc_update`, and `doc_update_meta` tools. This
 path does not create an AgentRun and must not be treated as durable Agent Runtime
 execution evidence.
 
+## Interactive cancellation history (2026-10-20 local acceptance repair)
+
+Interactive chat cancellation preserves the partial assistant content, emitted
+attachments and canonical tool trace in the existing immutable turn. The turn's
+metadata records `generationStatus: aborted`; cancellation must not replace
+completed tool evidence with an empty trace or imply that completed side effects
+were rolled back. The authenticated history projection exposes this existing
+metadata to the chat UI, which displays a localized incomplete-response status.
+Old `Request aborted` placeholders remain readable without rewriting history;
+their discarded content cannot be recovered by this repair. Transport abort,
+runtime cancellation and the business conversation's completed state remain
+separate concepts. Source changes and engineering checks do not establish full
+browser acceptance until stop, reload and subsequent-message flows pass.
+
+## Responses Tool Argument Stream Repair (2026-10-19)
+
+The OpenAI Responses parser now preserves whitespace-only tool argument deltas,
+including JSON formatting and spaces inside document content. Identity fields
+retain blank filtering. Argument snapshots must still match the accumulated
+prefix, and JSON validation, size limits and successful round termination remain
+required before tool execution.
+
+Native tool-loop errors retain their provider/parser code through the Rust round
+processor and N-API callback. Known parser failures become a bounded
+`COPILOT_PROVIDER_SIDE_ERROR` with `kind=stream_protocol` and the existing request
+ID. Upstream bodies and document arguments are not copied into this error.
+Workspace BYOK records this runtime failure without changing credential
+validation or enabled state; updates remain scoped to workspace, key and config
+revision. Authentication failures retain their existing disable policy. No
+automatic replay or re-enabling of previously disabled credentials is introduced.
+
+Focused regressions live in `llm_adapter` / `llm_runtime`,
+`native-provider.spec.ts`, `byok.spec.ts`, and
+`packages/backend/native/tests/responses-tool-arguments-smoke.cjs`. The native
+smoke accepts an explicit freshly built Linux addon path and uses only a local
+synthetic SSE server. It checks all three native tool-loop entry points, exact
+document content, one execution on success and zero executions on conflicting
+snapshots. This is a local source repair; production rollout and recovery of an
+already-disabled server key remain separate operations.
+
+Local Linux validation reused `localmind-affine:dev-base` without rebuilding an
+image. `cargo test -p llm_adapter -p llm_runtime --no-default-features --features
+ureq-client` passed 200 tests. A fresh Rust 1.97.1 release addon passed the six
+Responses scenarios and the existing four Qwen scenarios; all 90 tests in
+`native-provider.spec.ts` and `byok.spec.ts` passed again with that addon mounted.
+Six SSE replay cases, including the previously captured synthetic provider
+response, passed. Backend TypeScript checking, focused lint/format and
+`git diff --check` passed. Tests used an isolated temporary PostgreSQL/Redis
+environment, not the everyday local instance or the server database.
+
 ## First Vertical Slice
 
 Status: implemented, with independent GraphQL/Admin observability added after

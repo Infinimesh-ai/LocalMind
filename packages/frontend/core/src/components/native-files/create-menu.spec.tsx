@@ -162,7 +162,12 @@ function setupMenu(parentId: string | null = 'folder-1', canOrganize = true) {
           parentId={parentId}
           onPage={vi.fn()}
           onEdgeless={vi.fn()}
-        />
+        />,
+        {
+          wrapper: ({ children }) => (
+            <div onClick={event => event.preventDefault()}>{children}</div>
+          ),
+        }
       ),
   };
 }
@@ -241,6 +246,24 @@ test('the enabled upload action opens an unrestricted multi-file picker', async 
   expect(click).toHaveBeenCalledTimes(1);
   expect(picker.multiple).toBe(true);
   expect(picker.getAttribute('accept')).toBeNull();
+});
+
+test('a tree row cannot cancel the file picker default action', async () => {
+  const { container } = setupMenu().renderMenu();
+  await waitFor(() => expectFileActionsDisabled(false));
+  const picker = container.querySelector<HTMLInputElement>('input[type=file]')!;
+  const pickerClick = new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+  });
+  const click = vi.spyOn(picker, 'click').mockImplementation(() => {
+    picker.dispatchEvent(pickerClick);
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: uploadLabel }));
+
+  expect(click).toHaveBeenCalledTimes(1);
+  expect(pickerClick.defaultPrevented).toBe(false);
 });
 
 test('a loaded denial keeps native file creation and upload disabled', async () => {

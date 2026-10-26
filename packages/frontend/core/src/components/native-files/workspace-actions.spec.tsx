@@ -1,4 +1,5 @@
 /** @vitest-environment happy-dom */
+import { UserFriendlyError } from '@affine/error';
 import {
   cleanup,
   fireEvent,
@@ -7,7 +8,11 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type * as Infra from '@toeverything/infra';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+} from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 const state = vi.hoisted(() => ({ gql: vi.fn(), invalidate: vi.fn() }));
 vi.mock('@affine/core/modules/cloud', () => ({ GraphQLService: class {} }));
@@ -44,7 +49,12 @@ vi.mock('@affine/component', () => ({
   MenuItem: (props: ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props} />
   ),
-  Input: () => null,
+  Input: ({
+    onChange,
+    ...props
+  }: Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> & {
+    onChange: (value: string) => void;
+  }) => <input {...props} onChange={event => onChange(event.target.value)} />,
   Modal: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div role="dialog">{children}</div> : null,
 }));
@@ -115,7 +125,8 @@ test('restoration defaults to the original location and uncertain retry retains 
   expect(screen.queryByText('destination-picker')).toBeNull();
   fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1]);
   await screen.findByRole('alert');
-  fireEvent.click(screen.getByText('com.affine.error.retry'));
+  expect(screen.getByRole<HTMLInputElement>('checkbox').disabled).toBe(true);
+  fireEvent.click(screen.getByText('Retry'));
   await waitFor(() => expect(state.invalidate).toHaveBeenCalledTimes(1));
   const requests = state.gql.mock.calls
     .filter(([input]) => input.query === changeWorkspaceNativeResourceMutation)
@@ -128,6 +139,52 @@ test('restoration defaults to the original location and uncertain retry retains 
     action: 'restore',
   });
   expect(requests[0]).not.toHaveProperty('folderId');
+});
+
+test('a rejected restore unlocks its destination and uses a fresh request on retry', async () => {
+  state.gql.mockImplementation(async ({ query }) => {
+    if (query === workspaceNativeResourceQuery)
+      return {
+        workspaceNativeResource: { metadataVersion: 4, contentVersion: 2 },
+      };
+    throw new UserFriendlyError({
+      status: 400,
+      code: 'BAD_REQUEST',
+      type: 'BAD_REQUEST',
+      name: 'BAD_REQUEST',
+      message: 'Private destination detail must not be displayed',
+    });
+  });
+  render(
+    <WorkspaceNativeActions
+      {...props}
+      trashed
+      capabilities={{ canRestore: true }}
+    />
+  );
+  fireEvent.click(screen.getByText(label('restore')));
+  fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1]);
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'com.affine.localmind.resources.restoreRejected'
+  );
+  const checkbox = screen.getByRole<HTMLInputElement>('checkbox');
+  expect(checkbox.disabled).toBe(false);
+  fireEvent.click(checkbox);
+  expect(screen.getByText('destination-picker')).toBeTruthy();
+  fireEvent.click(checkbox);
+  fireEvent.click(screen.getByText('Retry'));
+  await waitFor(() =>
+    expect(
+      state.gql.mock.calls.filter(
+        ([input]) => input.query === changeWorkspaceNativeResourceMutation
+      )
+    ).toHaveLength(2)
+  );
+  const requests = state.gql.mock.calls
+    .filter(([input]) => input.query === changeWorkspaceNativeResourceMutation)
+    .map(([input]) => input.variables.input);
+  expect(requests[0].requestKey).not.toBe(requests[1].requestKey);
+  expect(screen.queryByText(/Private destination detail/)).toBeNull();
 });
 
 test('unsaved-change cancellation prevents lifecycle submission', async () => {
@@ -144,3 +201,36 @@ test('unsaved-change cancellation prevents lifecycle submission', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(state.gql).not.toHaveBeenCalled();
 });
+
+for (const action of ['rename', 'copy'] as const) {
+  test(`${action} validates native names before submitting and recovers on valid input`, async () => {
+    render(
+      <WorkspaceNativeActions
+        {...props}
+        capabilities={{ canRename: true, canCopy: true }}
+      />
+    );
+    fireEvent.click(screen.getByText(label(action)));
+    const input = screen.getByRole('textbox');
+    for (const value of ['   ', 'bad/name', 'bad\\name', 'x'.repeat(481)]) {
+      fireEvent.change(input, { target: { value } });
+      expect(screen.getByRole('alert').textContent).toBe(
+        'com.affine.localmind.native-files.invalidName'
+      );
+      const submit = screen.getByRole('dialog').querySelectorAll('button')[1];
+      expect(submit.disabled).toBe(true);
+      fireEvent.click(submit);
+      expect(state.gql).not.toHaveBeenCalled();
+    }
+    fireEvent.change(input, { target: { value: ' 中文有效名称.txt ' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(input.getAttribute('aria-invalid')).toBe('false');
+    if (action === 'rename') {
+      state.gql.mockResolvedValue({
+        workspaceNativeResource: { metadataVersion: 4, contentVersion: 2 },
+      });
+      fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1]);
+      await waitFor(() => expect(state.invalidate).toHaveBeenCalledTimes(1));
+    }
+  });
+}

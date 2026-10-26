@@ -135,7 +135,18 @@ export async function renderRedactedPdfPage(
   const opened = await openPdf(url);
   try {
     const page = await opened.document.getPage(pageIndex + 1);
-    const viewport = page.getViewport({ scale: 2 });
+    // The replacement PDF keeps the original page rotation. Rasterize the
+    // unrotated page so rotation is applied once, in the saved PDF.
+    const viewport = page.getViewport({ scale: 2, rotation: 0 });
+    const [left, bottom, right, top] = viewport.viewBox;
+    if (
+      left !== 0 ||
+      bottom !== 0 ||
+      right !== pageSize.widthPt ||
+      top !== pageSize.heightPt
+    ) {
+      throw new Error(I18n['com.affine.office.redaction-layout-unsupported']());
+    }
     const canvas = document.createElement('canvas');
     canvas.width = Math.ceil(viewport.width);
     canvas.height = Math.ceil(viewport.height);
@@ -145,16 +156,20 @@ export async function renderRedactedPdfPage(
         I18n['com.affine.office.canvas-rendering-is-unavailable']()
       );
     await page.render({ canvas, viewport, background: '#ffffff' }).promise;
-    const scaleX = canvas.width / pageSize.widthPt;
-    const scaleY = canvas.height / pageSize.heightPt;
     context.save();
     context.fillStyle = '#000000';
     for (const rect of rects) {
+      const [x1, y1, x2, y2] = viewport.convertToViewportRectangle([
+        rect.xPt,
+        rect.yPt,
+        rect.xPt + rect.widthPt,
+        rect.yPt + rect.heightPt,
+      ]);
       context.fillRect(
-        rect.xPt * scaleX,
-        (pageSize.heightPt - rect.yPt - rect.heightPt) * scaleY,
-        rect.widthPt * scaleX,
-        rect.heightPt * scaleY
+        Math.min(x1, x2),
+        Math.min(y1, y2),
+        Math.abs(x2 - x1),
+        Math.abs(y2 - y1)
       );
     }
     context.restore();

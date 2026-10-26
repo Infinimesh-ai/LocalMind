@@ -4,6 +4,9 @@ import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { workbenchTokens as wb } from './workbench-tokens.css';
 
 export const youLabelVar = createVar();
+export const headerHeightVar = createVar();
+export const composerHeightVar = createVar();
+export const footerHeightVar = createVar();
 
 const compactChat = 'chat-panel-split-view (max-width: 640px)';
 
@@ -15,6 +18,28 @@ export const root = style({
   flexDirection: 'column',
   background: wb.panel,
 });
+
+export const floatingHeaderRoot = style([
+  root,
+  {
+    position: 'relative',
+    vars: {
+      [headerHeightVar]: '0px',
+      [composerHeightVar]: '0px',
+      [footerHeightVar]: '0px',
+    },
+  },
+]);
+
+export const headerOverlay = style({
+  position: 'absolute',
+  inset: '0 0 auto',
+  zIndex: 2,
+  display: 'flex',
+  flexDirection: 'column',
+  pointerEvents: 'none',
+});
+globalStyle(`${headerOverlay} > *`, { pointerEvents: 'auto' });
 
 // v10 title card: the conversation identity floats above the stream.
 export const header = style({
@@ -117,6 +142,9 @@ export const configuration = style({
   fontSize: 13,
   borderBottom: `1px solid ${wb.line}`,
 });
+globalStyle(`${headerOverlay} > ${configuration}`, {
+  background: wb.paper,
+});
 
 export const deliveryCard = style({
   display: 'flex',
@@ -175,6 +203,23 @@ globalStyle(`${root} ai-chat-messages`, {
 globalStyle(`${root} .chat-panel-messages-container`, {
   gap: 24,
   paddingBottom: 24,
+});
+
+// Reserve the title's height inside the scrolling stream, so its surrounding
+// space reveals messages as they pass behind the opaque title card.
+globalStyle(`${floatingHeaderRoot} .chat-panel-main`, {
+  position: 'relative',
+  paddingTop: 0,
+});
+globalStyle(`${floatingHeaderRoot} ai-chat-messages`, {
+  scrollPaddingTop: `calc(${headerHeightVar} + 24px)`,
+});
+globalStyle(`${floatingHeaderRoot} .chat-panel-messages-container`, {
+  boxSizing: 'border-box',
+  paddingTop: `calc(${headerHeightVar} + 24px)`,
+  '@container': {
+    [compactChat]: { paddingTop: `calc(${headerHeightVar} + 12px)` },
+  },
 });
 
 /* Keep each speaker on their side, with room for an avatar beside the content. */
@@ -295,6 +340,46 @@ globalStyle(`${root} ai-chat-composer`, {
   width: 'min(100%, 960px)',
   margin: '0 auto',
   padding: '0 0 18px',
+});
+
+// Keep the empty-conversation composer centered. Once messages exist, float
+// the input and status cards over the stream without blocking their gutters.
+const activeChat = `${floatingHeaderRoot} .chat-panel-main:has(ai-chat-messages:not(.no-message))`;
+globalStyle(`${activeChat} ai-chat-composer`, {
+  position: 'absolute',
+  bottom: 0,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  width: 'min(calc(100% - 56px), 960px)',
+  zIndex: 1,
+  pointerEvents: 'none',
+  '@container': {
+    [compactChat]: { width: 'min(calc(100% - 24px), 960px)' },
+  },
+});
+globalStyle(`${activeChat} ai-chat-composer > :not(.chat-panel-footer)`, {
+  pointerEvents: 'auto',
+});
+globalStyle(`${activeChat} ai-context-compaction-status`, {
+  position: 'absolute',
+  bottom: composerHeightVar,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  boxSizing: 'border-box',
+  width: 'min(calc(100% - 56px), 960px)',
+  zIndex: 1,
+  '@container': {
+    [compactChat]: { width: 'min(calc(100% - 24px), 960px)' },
+  },
+});
+globalStyle(`${activeChat} ai-chat-messages`, {
+  scrollPaddingBottom: `calc(${footerHeightVar} + 24px)`,
+});
+globalStyle(`${activeChat} .chat-panel-messages-container`, {
+  paddingBottom: `calc(${footerHeightVar} + 24px)`,
+});
+globalStyle(`${activeChat} .down-indicator`, {
+  bottom: `calc(${footerHeightVar} + 24px)`,
 });
 globalStyle(`${root} .chat-panel-input[data-independent-mode="true"]`, {
   minHeight: 82,

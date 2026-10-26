@@ -59,6 +59,12 @@ type DashboardCopilot = NonNullable<
   NonNullable<CopilotContextDashboardGetQuery['currentUser']>['copilot']
 >;
 type ContextMemory = DashboardCopilot['contextMemories'][number];
+export const getMemoryVisibilityLabelKey = (
+  memory: Pick<ContextMemory, 'scope' | 'sharingStatus'>
+) =>
+  memory.scope === 'project' && memory.sharingStatus === 'shared'
+    ? 'com.affine.localmind.aiContext.sharedWithProject'
+    : 'com.affine.localmind.aiContext.onlyYou';
 type ContextProject = DashboardCopilot['contextProjects'][number];
 type ContextRule = DashboardCopilot['contextRules'][number];
 type ContextPolicy = DashboardCopilot['contextPolicies'][number];
@@ -1289,11 +1295,7 @@ const AIContextDashboard = ({
           desc={t[
             'com.affine.localmind.aiContext.ownership.memory.description'
           ]()}
-        >
-          <span className={styles.privateBadge}>
-            {t['com.affine.localmind.aiContext.onlyYou']()}
-          </span>
-        </SettingRow>
+        />
         <SettingRow
           name={t['com.affine.localmind.aiContext.ownership.team.name']()}
           desc={t[
@@ -2286,7 +2288,7 @@ const AIContextDashboard = ({
                               {scopeLabels[memory.scope] ?? memory.scope}
                             </span>
                             <span className={styles.privateBadge}>
-                              {t['com.affine.localmind.aiContext.onlyYou']()}
+                              {t[getMemoryVisibilityLabelKey(memory)]()}
                             </span>
                             {memory.factKey ? (
                               <span className={styles.tag}>

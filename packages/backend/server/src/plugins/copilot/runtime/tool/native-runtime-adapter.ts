@@ -1,6 +1,7 @@
 import type { LlmRequest, LlmToolLoopStreamEvent } from '../../../../native';
 import type { PromptMessage, StreamObject } from '../../providers/types';
 import { projectRuntimeEventToStreamObject } from '../contracts/runtime-event-contract';
+import { nativeStreamError } from '../native-errors';
 
 type NativeRuntimeEvent = {
   type: string;
@@ -48,11 +49,7 @@ export class NativeRuntimeAdapter {
   ): AsyncIterableIterator<StreamObject> {
     for await (const event of this.streamEvents(request, signal, messages)) {
       if (event.type === 'error') {
-        throw new Error(
-          typeof event.message === 'string'
-            ? event.message
-            : 'native runtime stream error'
-        );
+        throw nativeStreamError({ code: event.code, message: event.message });
       }
       const streamObject = projectRuntimeEventToStreamObject(event);
       if (streamObject) {

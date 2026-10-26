@@ -84,7 +84,7 @@ export class PermissionContextLoader {
     userId?: string;
     workspaceId: string;
     allowLocal?: boolean;
-    // Undefined preserves product ACL; null uses personal ACL only.
+    // Project grants apply only inside an explicitly selected project.
     projectId?: string | null;
     workspaceActions?: PermissionWorkspaceAction[];
     docs?: Array<{ docId: string; actions: PermissionDocAction[] }>;
@@ -108,7 +108,7 @@ export class PermissionContextLoader {
       input.userId
         ? this.docGrants(input.workspaceId, docIds, input.userId)
         : Promise.resolve([]),
-      input.userId && input.projectId !== null
+      input.userId && typeof input.projectId === 'string'
         ? this.projectDocGrants(input.workspaceId, docIds, input.userId)
         : Promise.resolve([]),
     ]);
@@ -118,10 +118,7 @@ export class PermissionContextLoader {
     const docGrantMap = new Map(docGrants.map(grant => [grant.docId, grant]));
     const projectGrantsByDoc = new Map<string, ProjectDocGrantRow[]>();
     for (const grant of projectDocGrants) {
-      if (
-        input.projectId !== undefined &&
-        grant.projectId !== input.projectId
-      ) {
+      if (grant.projectId !== input.projectId) {
         continue;
       }
       const grants = projectGrantsByDoc.get(grant.docId) ?? [];

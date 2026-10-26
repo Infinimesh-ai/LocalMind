@@ -61,6 +61,7 @@ export function useDocumentSession({
     lastGroup: '',
     lastAt: 0,
     lastSaveAt: 0,
+    autosavePauses: 0,
     pending: null as {
       command: OfficeDocumentEditCommand;
       snapshot: DocxSemanticState;
@@ -186,10 +187,19 @@ export function useDocumentSession({
   saveRef.current = save;
   useEffect(() => {
     const m = model.current;
-    if (!dirty || m.failed || m.conflict || readOnly || m.composing) return;
+    if (
+      !dirty ||
+      m.failed ||
+      m.conflict ||
+      readOnly ||
+      m.composing ||
+      m.autosavePauses
+    )
+      return;
     const timer = setTimeout(
       () => {
-        void saveRef.current().catch(() => {});
+        if (!model.current.autosavePauses)
+          void saveRef.current().catch(() => {});
       },
       Math.max(800, m.lastSaveAt + 5000 - Date.now())
     );
@@ -204,6 +214,7 @@ export function useDocumentSession({
         !m.conflict &&
         !m.readOnly &&
         !m.composing &&
+        !m.autosavePauses &&
         Date.now() - m.lastSaveAt >= 5000 &&
         !flight.current
       )
@@ -240,6 +251,20 @@ export function useDocumentSession({
     commit,
     history,
     save,
+    pauseAutosave: () => {
+      model.current.autosavePauses++;
+      setVersion(v => v + 1);
+      let paused = true;
+      return {
+        settled: flight.current,
+        resume: () => {
+          if (!paused) return;
+          paused = false;
+          model.current.autosavePauses--;
+          setVersion(v => v + 1);
+        },
+      };
+    },
     discard: async () => {
       if (flight.current) await flight.current.catch(() => {});
       const m = model.current;

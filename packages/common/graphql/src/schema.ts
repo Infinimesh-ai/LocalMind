@@ -5418,6 +5418,7 @@ export enum ErrorNames {
   COMMENT_ATTACHMENT_QUOTA_EXCEEDED = 'COMMENT_ATTACHMENT_QUOTA_EXCEEDED',
   COMMENT_NOT_FOUND = 'COMMENT_NOT_FOUND',
   COPILOT_ACTION_TAKEN = 'COPILOT_ACTION_TAKEN',
+  COPILOT_BYOK_CREDENTIAL_DISABLED = 'COPILOT_BYOK_CREDENTIAL_DISABLED',
   COPILOT_BYOK_NOT_CONFIGURED = 'COPILOT_BYOK_NOT_CONFIGURED',
   COPILOT_CONTEXT_FILE_NOT_SUPPORTED = 'COPILOT_CONTEXT_FILE_NOT_SUPPORTED',
   COPILOT_DOCS_NOT_FOUND = 'COPILOT_DOCS_NOT_FOUND',
@@ -6331,6 +6332,7 @@ export interface Mutation {
   linkCalendarAccount: Scalars['String']['output'];
   /** mention user in a doc */
   mentionUser: Scalars['ID']['output'];
+  moveWorkspaceDocument: WorkspaceDirectoryMutationType;
   mutateWorkspaceDirectory: WorkspaceDirectoryMutationType;
   mutateWorkspacePageTree: WorkspacePageTreeReceipt;
   openWorkOrderConversation: WorkOrderConversationTargetType;
@@ -6451,6 +6453,8 @@ export interface Mutation {
   submitProjectWorkspaceImport: ProjectWorkspaceImportTaskType;
   submitTranscriptTask: Maybe<TranscriptionResultType>;
   submitWorkOrderDelivery: WorkOrderDeliveryResultType;
+  /** Suspend an user without deleting data; enableUser restores the same account */
+  suspendUser: UserType;
   testExternalMcpConversation: ExternalMcpToolCallResultType;
   testProjectByokConfig: ProjectByokTestResultType;
   testWorkspaceByokConfig: TestWorkspaceByokConfigResultType;
@@ -7118,6 +7122,13 @@ export interface MutationMentionUserArgs {
   input: MentionInput;
 }
 
+export interface MutationMoveWorkspaceDocumentArgs {
+  documentId: Scalars['ID']['input'];
+  expectedRevision: Scalars['String']['input'];
+  folderId?: InputMaybe<Scalars['ID']['input']>;
+  workspaceId: Scalars['ID']['input'];
+}
+
 export interface MutationMutateWorkspaceDirectoryArgs {
   changes: Array<WorkspaceDirectoryChangeInput>;
   expectedRevision: Scalars['String']['input'];
@@ -7570,6 +7581,10 @@ export interface MutationSubmitWorkOrderDeliveryArgs {
   items: Array<WorkOrderDeliveryItemInput>;
   requestKey: Scalars['String']['input'];
   workOrderId: Scalars['ID']['input'];
+}
+
+export interface MutationSuspendUserArgs {
+  id: Scalars['String']['input'];
 }
 
 export interface MutationTestExternalMcpConversationArgs {
@@ -10834,6 +10849,8 @@ export interface WorkspacePageTreeItem {
   canConvertToPage: Scalars['Boolean']['output'];
   canOrganize: Scalars['Boolean']['output'];
   canRename: Scalars['Boolean']['output'];
+  /** Why a folder cannot become a page: trashed, missing_rights, public_workspace or default_role_not_manager. */
+  convertToPageUnavailableReason: Maybe<Scalars['String']['output']>;
   defaultSortMode: Maybe<Scalars['String']['output']>;
   documentType: Scalars['String']['output'];
   folder: Maybe<WorkspacePageTreeFolderMetadata>;
@@ -11966,6 +11983,15 @@ export type SetAdminUserAiProfileAssignmentMutation = {
       isDefault: boolean;
     };
   } | null;
+};
+
+export type SuspendUserMutationVariables = Exact<{
+  id: Scalars['String']['input'];
+}>;
+
+export type SuspendUserMutation = {
+  __typename?: 'Mutation';
+  suspendUser: { __typename?: 'UserType'; email: string; disabled: boolean };
 };
 
 export type TestProjectByokConfigMutationVariables = Exact<{
@@ -13921,6 +13947,7 @@ export type CopilotContextDashboardGetQuery = {
         sourceSessionId: string | null;
         scope: string;
         kind: string;
+        sharingStatus: string;
         status: string;
         content: string;
         factKey: string | null;
@@ -14919,6 +14946,7 @@ export type GetCopilotDocSessionsQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -14984,6 +15012,7 @@ export type GetCopilotPinnedSessionsQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -15048,6 +15077,7 @@ export type GetCopilotWorkspaceSessionsQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -15113,6 +15143,7 @@ export type GetCopilotHistoriesQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -19219,6 +19250,7 @@ export type CreateCopilotSessionWithHistoryMutation = {
       id: string | null;
       role: string;
       content: string;
+      params: unknown | null;
       attachments: Array<string> | null;
       createdAt: string;
       streamObjects: Array<{
@@ -19360,6 +19392,7 @@ export type GetCopilotLatestDocSessionQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -19423,6 +19456,7 @@ export type GetCopilotSessionQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -19487,6 +19521,7 @@ export type GetCopilotRecentSessionsQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -19561,6 +19596,7 @@ export type GetCopilotSessionsQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -20689,6 +20725,7 @@ export type CopilotWorkOrderChatGetQuery = {
           id: string | null;
           role: string;
           content: string;
+          params: unknown | null;
           attachments: Array<string> | null;
           createdAt: string;
           streamObjects: Array<{
@@ -22527,6 +22564,7 @@ export type CopilotChatHistoryFragment = {
     id: string | null;
     role: string;
     content: string;
+    params: unknown | null;
     attachments: Array<string> | null;
     createdAt: string;
     streamObjects: Array<{
@@ -22793,6 +22831,7 @@ export type PaginatedCopilotChatsFragment = {
         id: string | null;
         role: string;
         content: string;
+        params: unknown | null;
         attachments: Array<string> | null;
         createdAt: string;
         streamObjects: Array<{
@@ -23078,6 +23117,7 @@ export type WorkspacePageTreeNodeFragment = {
   isContainer: boolean;
   canRename: boolean;
   canConvertToPage: boolean;
+  convertToPageUnavailableReason: string | null;
   canOrganize: boolean;
   defaultSortMode: string | null;
   folder: {
@@ -25013,6 +25053,7 @@ export type ProjectCopilotChatQuery = {
           id: string | null;
           role: string;
           content: string;
+          params: unknown | null;
           attachments: Array<string> | null;
           createdAt: string;
           streamObjects: Array<{
@@ -25069,6 +25110,7 @@ export type ProjectCopilotChatsQuery = {
               id: string | null;
               role: string;
               content: string;
+              params: unknown | null;
               attachments: Array<string> | null;
               createdAt: string;
               streamObjects: Array<{
@@ -26541,6 +26583,7 @@ export type UpsertWorkspaceByokConfigMutation = {
   upsertWorkspaceByokConfig: {
     __typename?: 'WorkspaceByokKeyConfigType';
     id: string;
+    configRevision: number;
   };
 };
 
@@ -26655,6 +26698,21 @@ export type MutateWorkspaceDirectoryMutationVariables = Exact<{
 export type MutateWorkspaceDirectoryMutation = {
   __typename?: 'Mutation';
   mutateWorkspaceDirectory: {
+    __typename?: 'WorkspaceDirectoryMutationType';
+    revision: string;
+  };
+};
+
+export type MoveWorkspaceDocumentMutationVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  documentId: Scalars['ID']['input'];
+  expectedRevision: Scalars['String']['input'];
+  folderId?: InputMaybe<Scalars['ID']['input']>;
+}>;
+
+export type MoveWorkspaceDocumentMutation = {
+  __typename?: 'Mutation';
+  moveWorkspaceDocument: {
     __typename?: 'WorkspaceDirectoryMutationType';
     revision: string;
   };
@@ -26819,6 +26877,7 @@ export type InviteByEmailsMutation = {
     __typename?: 'InviteResult';
     email: string;
     inviteId: string | null;
+    error: any | null;
   }>;
 };
 
@@ -27464,6 +27523,7 @@ export type WorkspacePageTreeQuery = {
       isContainer: boolean;
       canRename: boolean;
       canConvertToPage: boolean;
+      convertToPageUnavailableReason: string | null;
       canOrganize: boolean;
       defaultSortMode: string | null;
       folder: {
@@ -27490,6 +27550,7 @@ export type WorkspacePageTreeQuery = {
       isContainer: boolean;
       canRename: boolean;
       canConvertToPage: boolean;
+      convertToPageUnavailableReason: string | null;
       canOrganize: boolean;
       defaultSortMode: string | null;
       folder: {
@@ -27516,6 +27577,7 @@ export type WorkspacePageTreeQuery = {
       isContainer: boolean;
       canRename: boolean;
       canConvertToPage: boolean;
+      convertToPageUnavailableReason: string | null;
       canOrganize: boolean;
       defaultSortMode: string | null;
       folder: {
@@ -28563,6 +28625,11 @@ export type Mutations =
       name: 'setAdminUserAiProfileAssignmentMutation';
       variables: SetAdminUserAiProfileAssignmentMutationVariables;
       response: SetAdminUserAiProfileAssignmentMutation;
+    }
+  | {
+      name: 'suspendUserMutation';
+      variables: SuspendUserMutationVariables;
+      response: SuspendUserMutation;
     }
   | {
       name: 'testProjectByokConfigMutation';
@@ -29728,6 +29795,11 @@ export type Mutations =
       name: 'mutateWorkspaceDirectoryMutation';
       variables: MutateWorkspaceDirectoryMutationVariables;
       response: MutateWorkspaceDirectoryMutation;
+    }
+  | {
+      name: 'moveWorkspaceDocumentMutation';
+      variables: MoveWorkspaceDocumentMutationVariables;
+      response: MoveWorkspaceDocumentMutation;
     }
   | {
       name: 'reorderWorkspaceDirectoryMutation';

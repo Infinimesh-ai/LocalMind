@@ -1,3 +1,4 @@
+import { UserFriendlyError } from '@affine/error';
 import {
   backoffRetry,
   effect,
@@ -8,11 +9,15 @@ import {
 } from '@toeverything/infra';
 import {
   combineLatest,
+  defer,
   exhaustMap,
   groupBy,
   map,
   mergeMap,
   Observable,
+  of,
+  startWith,
+  switchMap,
 } from 'rxjs';
 
 import type { WorkspaceService } from '../../workspace';
@@ -32,6 +37,14 @@ const DOCUMENT_SCOPE_READ_ACTIONS = new Set<DocPermissionActions>([
 
 export class GuardService extends Service {
   private readonly documentScopePollTimer?: ReturnType<typeof setInterval>;
+  private readonly observedDocs = new Map<string, number>();
+  private readonly refreshObservedPermissions = () => {
+    if (this.isAdmin$.value === true) return;
+    const docIds = new Set(this.observedDocs.keys());
+    const scopedDoc = this.workspaceService.workspace.openOptions.docScopeId;
+    if (scopedDoc) docIds.add(scopedDoc);
+    docIds.forEach(docId => this.revalidateDocPermission(docId));
+  };
 
   constructor(
     private readonly guardStore: GuardStore,
@@ -39,11 +52,15 @@ export class GuardService extends Service {
     private readonly workspacePermissionService: WorkspacePermissionService
   ) {
     super();
-    const docScopeId = this.workspaceService.workspace.openOptions.docScopeId;
-    if (docScopeId) {
-      this.documentScopePollTimer = setInterval(() => {
-        this.revalidateDocPermission(docScopeId);
-      }, 5000);
+    if (this.workspaceService.workspace.flavour !== 'local') {
+      this.documentScopePollTimer = setInterval(
+        this.refreshObservedPermissions,
+        5000
+      );
+      if (typeof window !== 'undefined') {
+        window.addEventListener('focus', this.refreshObservedPermissions);
+        window.addEventListener('online', this.refreshObservedPermissions);
+      }
     }
   }
 
@@ -99,6 +116,10 @@ export class GuardService extends Service {
     return LiveData.from(
       new Observable(subscriber => {
         let prev: boolean | undefined = undefined;
+        // Keep ACLs for visible documents fresh, without polling every cached doc.
+        if (docId) {
+          this.observedDocs.set(docId, (this.observedDocs.get(docId) ?? 0) + 1);
+        }
 
         const subscription = combineLatest([
           (docId
@@ -125,6 +146,11 @@ export class GuardService extends Service {
 
         return () => {
           subscription.unsubscribe();
+          if (docId) {
+            const remaining = (this.observedDocs.get(docId) ?? 1) - 1;
+            if (remaining > 0) this.observedDocs.set(docId, remaining);
+            else this.observedDocs.delete(docId);
+          }
         };
       }),
       undefined
@@ -154,6 +180,52 @@ export class GuardService extends Service {
       : this.loadWorkspacePermission());
 
     return permissions[action as keyof typeof permissions] ?? false;
+  }
+
+  /** Search must not reveal cached content before its current ACL is checked. */
+  readableDocIds$(docIds: readonly string[]): Observable<ReadonlySet<string>> {
+    const ids = [...new Set(docIds)];
+    if (!ids.length) return of(new Set<string>());
+    if (this.workspaceService.workspace.flavour === 'local') {
+      return of(new Set(ids));
+    }
+    return defer(() =>
+      fromPromise(async signal => {
+        await this.workspacePermissionService.permission.waitForRevalidation(
+          signal
+        );
+        const checked = new Set<string>();
+        let next = 0;
+        await Promise.all(
+          Array.from({ length: Math.min(4, ids.length) }, async () => {
+            while (next < ids.length && !signal.aborted) {
+              const id = ids[next++];
+              try {
+                await this.can('Doc_Read', id);
+                checked.add(id);
+              } catch {
+                // A failed check cannot authorize a locally indexed result.
+              }
+            }
+          })
+        );
+        return checked;
+      })
+    ).pipe(
+      switchMap(checked => {
+        if (!checked.size) return of(new Set<string>());
+        const checkedIds = [...checked];
+        return combineLatest(
+          checkedIds.map(id => this.can$('Doc_Read', id))
+        ).pipe(
+          map(
+            permissions =>
+              new Set(checkedIds.filter((_, i) => permissions[i] === true))
+          )
+        );
+      }),
+      startWith(new Set<string>())
+    );
   }
 
   revalidateCan<T extends WorkspacePermissionActions | DocPermissionActions>(
@@ -234,7 +306,26 @@ export class GuardService extends Service {
     if (docScopeId && docId !== docScopeId) {
       return {};
     }
-    const permissions = await this.guardStore.getDocPermissions(docId);
+    let permissions: Partial<Record<DocPermissionActions, boolean>>;
+    try {
+      permissions = await this.guardStore.getDocPermissions(docId);
+    } catch (error) {
+      if (![401, 403, 404].includes(UserFriendlyError.fromAny(error).status)) {
+        throw error;
+      }
+      // A revoked document must not retain the last successful write grant.
+      // Transient/offline failures still follow the existing retry behaviour.
+      permissions = {
+        ...Object.fromEntries(
+          Object.keys(this.docPermissions$.value[docId] ?? {}).map(key => [
+            key,
+            false,
+          ])
+        ),
+        Doc_Read: false,
+        Doc_Update: false,
+      };
+    }
     this.docPermissions$.next({
       ...this.docPermissions$.value,
       [docId]: permissions,
@@ -246,6 +337,11 @@ export class GuardService extends Service {
     if (this.documentScopePollTimer) {
       clearInterval(this.documentScopePollTimer);
     }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', this.refreshObservedPermissions);
+      window.removeEventListener('online', this.refreshObservedPermissions);
+    }
+    this.observedDocs.clear();
     this.revalidateWorkspacePermission.unsubscribe();
     this.revalidateDocPermission.unsubscribe();
   }

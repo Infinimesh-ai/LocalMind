@@ -1,4 +1,10 @@
 import { isEditableParagraphXml } from './editable';
+import {
+  type DocxEditableObject,
+  isEditableDocxChartContainer,
+  readDocxChartData,
+  readDocxInlineObjectData,
+} from './object-data';
 import { type DocxOpcPackage, DocxPackageError } from './package';
 import {
   relationshipPartName,
@@ -80,6 +86,8 @@ export type DocxRunContent =
       description?: string;
       widthPt?: number;
       heightPt?: number;
+      editableObject?: boolean;
+      objectData?: DocxEditableObject;
     };
 
 export type DocxChangeMetadata = {
@@ -100,6 +108,7 @@ export type DocxField = {
   instruction: string;
   kind: string;
   argument?: string;
+  mailMergeSupported?: boolean;
 };
 
 export type DocxBookmark = {
@@ -156,6 +165,8 @@ export type DocxTable = {
   id: string;
   styleId?: string;
   widthTwips?: number;
+  widthType?: string;
+  columnWidthsTwips?: number[];
   layout?: string;
   rows: DocxTableRow[];
 };
@@ -182,6 +193,8 @@ export type DocxBlock =
 
 export type DocxSection = {
   index: number;
+  /** Last paragraph of this section; null denotes the final body section. */
+  endParagraphId?: string | null;
   type?: string;
   pageSize?: {
     widthPt?: number;
@@ -331,7 +344,10 @@ export type DocxSemanticState = {
 class SemanticContext {
   readonly limits: DocxSemanticLimits;
   readonly usedIds = new Set<string>();
-  readonly sectionNodes: OrderedXmlNode[] = [];
+  readonly sectionNodes: Array<{
+    node: OrderedXmlNode;
+    endParagraphId: string | null;
+  }> = [];
   readonly unsupportedBodyElements = new Set<string>();
   blocks = 0;
   paragraphs = 0;
@@ -459,18 +475,23 @@ function parseFields(nodes: OrderedXmlNode[]) {
   const instructions = [
     ...descendants(nodes, 'fldSimple')
       .map(node => getAttribute(node, 'instr'))
-      .filter((value): value is string => Boolean(value?.trim())),
+      .filter((value): value is string => Boolean(value?.trim()))
+      .map(instruction => ({ instruction, simple: true })),
     ...descendants(nodes, 'instrText')
       .map(node => descendantText(getElementChildren(node, 'instrText')))
-      .filter(value => value.trim()),
+      .filter(value => value.trim())
+      .map(instruction => ({ instruction, simple: false })),
   ];
-  return instructions.map(instruction => {
+  return instructions.map(({ instruction, simple }) => {
     const normalized = instruction.trim();
-    const [kind = 'UNKNOWN', argument] = normalized.split(/\s+/, 2);
+    const match = /^(\S+)(?:\s+(?:"([^"]+)"|(\S+)))?/.exec(normalized);
+    const kind = (match?.[1] ?? 'UNKNOWN').toUpperCase();
+    const argument = match?.[2] ?? match?.[3];
     return {
       instruction: normalized,
-      kind: kind.toUpperCase(),
-      argument: argument?.replace(/^"|"$/g, ''),
+      kind,
+      argument,
+      ...(kind === 'MERGEFIELD' ? { mailMergeSupported: simple } : {}),
     } satisfies DocxField;
   });
 }
@@ -616,6 +637,10 @@ function parseObject(
       : blip || imageData
         ? 'image'
         : objectType;
+  const data =
+    resolvedType === 'chart'
+      ? { editableObject: isEditableDocxChartContainer(node) }
+      : readDocxInlineObjectData(node, resolvedType);
   return {
     type: 'object',
     objectType: resolvedType,
@@ -623,8 +648,19 @@ function parseObject(
     part: relationship?.resolvedTarget,
     name: getAttribute(properties ?? {}, 'name'),
     description: getAttribute(properties ?? {}, 'descr'),
-    widthPt: width === undefined ? undefined : width / 12_700,
-    heightPt: height === undefined ? undefined : height / 12_700,
+    widthPt:
+      width === undefined
+        ? data.objectData && 'widthPt' in data.objectData
+          ? data.objectData.widthPt
+          : undefined
+        : width / 12_700,
+    heightPt:
+      height === undefined
+        ? data.objectData && 'heightPt' in data.objectData
+          ? data.objectData.heightPt
+          : undefined
+        : height / 12_700,
+    ...data,
   };
 }
 
@@ -809,7 +845,9 @@ function parseParagraph(
   const sectionNode = propertyNode
     ? childNode(getElementChildren(propertyNode, 'pPr'), 'sectPr')
     : undefined;
-  if (sectionNode && trackSections) context.sectionNodes.push(sectionNode);
+  if (sectionNode && trackSections) {
+    context.sectionNodes.push({ node: sectionNode, endParagraphId: id });
+  }
   return paragraph;
 }
 
@@ -844,6 +882,7 @@ function parseTable(
   const propertyNodes = properties
     ? getElementChildren(properties, 'tblPr')
     : [];
+  const grid = childNode(nodes, 'tblGrid');
   const rows = nodes
     .filter(child => 'tr' in child)
     .map(row => ({
@@ -858,6 +897,12 @@ function parseTable(
     widthTwips: parseInteger(
       getAttribute(childNode(propertyNodes, 'tblW') ?? {}, 'w')
     ),
+    widthType: getAttribute(childNode(propertyNodes, 'tblW') ?? {}, 'type'),
+    columnWidthsTwips: grid
+      ? getElementChildren(grid, 'tblGrid')
+          .filter(node => 'gridCol' in node)
+          .map(node => parseInteger(getAttribute(node, 'w')) ?? 0)
+      : undefined,
     layout: getAttribute(childNode(propertyNodes, 'tblLayout') ?? {}, 'type'),
     rows,
   } satisfies DocxTable;
@@ -1283,6 +1328,18 @@ function enrichObjects(pkg: DocxOpcPackage, blocks: readonly DocxBlock[]) {
       for (const content of run.content) {
         if (content.type === 'object' && content.part) {
           content.contentType = pkg.getContentType(content.part);
+          if (content.objectType === 'chart') {
+            const data = readDocxChartData(
+              pkg,
+              content.part,
+              content.widthPt,
+              content.heightPt
+            );
+            Object.assign(content, {
+              ...data,
+              editableObject: content.editableObject && data.editableObject,
+            });
+          }
         }
       }
     }
@@ -1321,10 +1378,12 @@ export function readDocxSemanticState(
 
   const rawSections = [...context.sectionNodes];
   const finalSection = childNode(bodyNodes, 'sectPr');
-  if (finalSection) rawSections.push(finalSection);
-  const sections = rawSections.map((section, index) =>
-    parseSection(section, index, relationshipMap)
-  );
+  if (finalSection)
+    rawSections.push({ node: finalSection, endParagraphId: null });
+  const sections = rawSections.map(({ node, endParagraphId }, index) => ({
+    ...parseSection(node, index, relationshipMap),
+    endParagraphId,
+  }));
   const stories = parseStories(pkg, sections, context);
   const footnotes = parseNotes(
     pkg,

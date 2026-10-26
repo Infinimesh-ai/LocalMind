@@ -2,10 +2,12 @@ import { DebugLogger } from '@affine/debug';
 import type { WorkerInitOptions } from '@affine/nbstore/worker/client';
 import { ObjectPool, type RcRef, Service } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
+import { combineLatest, from, map, of, switchMap } from 'rxjs';
 
 import type { Workspace } from '../entities/workspace';
 import { WorkspaceInitialized } from '../events';
 import type { WorkspaceOpenOptions } from '../open-options';
+import type { WorkspaceFlavourProvider } from '../providers/flavour';
 import { WorkspaceScope } from '../scopes/workspace';
 import type { WorkspaceFlavoursService } from './flavours';
 import type { WorkspaceListService } from './list';
@@ -29,6 +31,8 @@ type WarmEntry = {
 };
 
 export class WorkspaceRepositoryService extends Service {
+  private readonly identityEpochs = new Map<string, number>();
+  private readonly activeLeases = new Map<string, number>();
   // Framework constructors receive the resolver after their declared services.
   // Keep cache settings out of that argument slot so defaults cannot be replaced.
   protected readonly warmCacheOptions: WarmCacheOptions = {
@@ -42,14 +46,59 @@ export class WorkspaceRepositoryService extends Service {
     private readonly workspacesListService: WorkspaceListService
   ) {
     super();
-    const identityBoundarySubscription =
-      this.workspacesListService.list.workspaces$.subscribe(() => {
-        // Cloud providers emit a fresh account-scoped list on account changes.
-        // Evicting all inactive leases here prevents reuse across account or
-        // server-list boundaries, even if workspace ids happen to overlap.
-        this.evictWarmWorkspaces();
+    const listSubscription =
+      this.workspacesListService.list.workspaces$.subscribe(workspaces => {
+        const available = new Set(
+          workspaces.map(metadata => this.getPoolKey({ metadata }))
+        );
+        for (const key of this.warmEntries.keys()) {
+          if (!available.has(key)) this.evictWarmWorkspace(key);
+        }
       });
-    this.disposables.push(() => identityBoundarySubscription.unsubscribe());
+    let identities = new Map<
+      string,
+      { provider: WorkspaceFlavourProvider; identity: string | null }
+    >();
+    const identitySubscription = this.flavoursService.flavours$
+      .pipe(
+        switchMap(providers =>
+          providers.length
+            ? combineLatest(
+                providers.map(provider =>
+                  from(provider.cacheIdentity$ ?? of(null)).pipe(
+                    map(identity => ({ provider, identity }))
+                  )
+                )
+              )
+            : of([])
+        )
+      )
+      .subscribe(entries => {
+        const next = new Map(
+          entries.map(entry => [entry.provider.flavour, entry])
+        );
+        for (const [flavour, previous] of identities) {
+          const current = next.get(flavour);
+          if (
+            current?.provider === previous.provider &&
+            current.identity === previous.identity
+          )
+            continue;
+          // An old active lease can finish safely, but cannot be acquired by a new identity.
+          this.identityEpochs.set(
+            flavour,
+            (this.identityEpochs.get(flavour) ?? 0) + 1
+          );
+          for (const [key, entry] of this.warmEntries) {
+            if (entry.ref.obj.flavour === flavour) this.evictWarmWorkspace(key);
+          }
+        }
+        identities = next;
+      });
+    this.disposables.push(() => {
+      listSubscription.unsubscribe();
+      identitySubscription.unsubscribe();
+    });
     if (typeof window !== 'undefined') {
       window.addEventListener('memorypressure', this.evictWarmWorkspaces);
       this.disposables.push(() => {
@@ -100,23 +149,23 @@ export class WorkspaceRepositoryService extends Service {
     const poolKey = this.getPoolKey(options);
     const exist = this.pool.get(poolKey);
     if (exist) {
-      return this.activate(poolKey, exist);
+      return this.activate(poolKey, exist, true);
     }
 
     const workspace = this.instantiate(options, customEngineWorkerInitOptions);
 
     const ref = this.pool.put(poolKey, workspace);
 
-    return this.activate(poolKey, ref);
+    return this.activate(poolKey, ref, false);
   };
 
   private getPoolKey(options: WorkspaceOpenOptions) {
-    return `workspace:${options.metadata.flavour}:${options.metadata.id}`;
+    return `workspace:${options.metadata.flavour}:${options.metadata.id}:${this.identityEpochs.get(options.metadata.flavour) ?? 0}`;
   }
 
-  private activate(poolKey: string, ref: RcRef<Workspace>) {
+  private activate(poolKey: string, ref: RcRef<Workspace>, reused: boolean) {
     const warmEntry = this.warmEntries.get(poolKey);
-    const reused = !!warmEntry;
+    this.activeLeases.set(poolKey, (this.activeLeases.get(poolKey) ?? 0) + 1);
     if (warmEntry) {
       clearTimeout(warmEntry.timer);
       this.warmEntries.delete(poolKey);
@@ -143,11 +192,17 @@ export class WorkspaceRepositoryService extends Service {
           return;
         }
         disposed = true;
-        if (options?.warm !== false) {
+        const remaining = (this.activeLeases.get(poolKey) ?? 1) - 1;
+        if (remaining) this.activeLeases.set(poolKey, remaining);
+        else this.activeLeases.delete(poolKey);
+        const currentIdentity =
+          poolKey === this.getPoolKey({ metadata: ref.obj.meta });
+        if (!remaining && options?.warm !== false && currentIdentity) {
           this.retainWarm(poolKey, ref.obj);
         }
         ref.release();
-        if (options?.warm === false) {
+        if (options?.warm === false || !currentIdentity) {
+          this.evictWarmWorkspace(poolKey);
           this.pool.delete(poolKey);
         }
       },

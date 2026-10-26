@@ -267,19 +267,6 @@ export const projectMenuButton = style({
   },
 });
 
-export const projectReportButton = style({
-  flexShrink: 0,
-  opacity: 0,
-  color: wb.ink3,
-  selectors: {
-    [`${projectRow}:hover &, ${projectRow}:focus-within &, ${projectRow}[data-selected="true"] &`]:
-      {
-        opacity: 1,
-      },
-    '&:hover': { color: wb.ink },
-  },
-});
-
 export const renameInput = style({
   minWidth: 0,
   flex: 1,

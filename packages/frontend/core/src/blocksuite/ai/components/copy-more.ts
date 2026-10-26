@@ -35,13 +35,24 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
       align-items: center;
       padding: 8px 0;
 
-      div {
+      .button {
+        appearance: none;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
         cursor: pointer;
         border-radius: 4px;
       }
 
-      div:hover {
+      .button:hover {
         background-color: var(--affine-hover-color);
+      }
+
+      .button:focus-visible {
+        outline: 2px solid var(--affine-primary-color);
+        outline-offset: 2px;
       }
 
       .button {
@@ -67,7 +78,14 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
       z-index: 1;
       user-select: none;
 
-      > div {
+      > button {
+        appearance: none;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
         height: 30px;
         display: flex;
         gap: 8px;
@@ -79,7 +97,8 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
         }
       }
 
-      > div:hover {
+      > button:hover,
+      > button:focus-visible {
         background-color: var(--affine-hover-color);
       }
     }
@@ -101,7 +120,7 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
   private accessor _showMoreMenu = false;
 
   @query('.button.more')
-  private accessor _moreButton!: HTMLDivElement;
+  private accessor _moreButton!: HTMLButtonElement;
 
   @query('.more-menu')
   private accessor _moreMenu!: HTMLDivElement;
@@ -183,8 +202,10 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
       </style>
       <div class="copy-more">
         ${content
-          ? html`<div
+          ? html`<button
+              type="button"
               class="button copy"
+              aria-label=${I18n['com.affine.ai.action-label.copy']()}
               @click=${async () => {
                 const success = await copyText(content);
                 if (success) {
@@ -199,11 +220,13 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
               <affine-tooltip
                 >${I18n['com.affine.ai.action-label.copy']()}</affine-tooltip
               >
-            </div>`
+            </button>`
           : nothing}
         ${isLast
-          ? html`<div
+          ? html`<button
+              type="button"
               class="button retry"
+              aria-label=${I18n['com.affine.localmind.project-files.retry']()}
               @click=${() => this.retry()}
               data-testid="action-retry-button"
             >
@@ -213,16 +236,19 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
                   'com.affine.localmind.project-files.retry'
                 ]()}</affine-tooltip
               >
-            </div>`
+            </button>`
           : nothing}
         ${showMoreIcon && host
-          ? html`<div
+          ? html`<button
+              type="button"
               class="button more"
+              aria-label=${I18n['com.affine.rootAppSidebar.more']()}
+              aria-expanded=${this._showMoreMenu}
               data-testid="action-more-button"
               @click=${this._toggle}
             >
               ${MoreHorizontalIcon({ width: '20px', height: '20px' })}
-            </div> `
+            </button> `
           : nothing}
       </div>
 
@@ -236,7 +262,8 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
                   text: this._currentTextSelection,
                   blocks: this._currentBlockSelections,
                 };
-                return html`<div
+                return html`<button
+                  type="button"
                   @click=${async () => {
                     const sessionId = this.session?.sessionId;
                     const success = await action.handler(
@@ -254,7 +281,7 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
                 >
                   ${action.icon}
                   <div>${action.title}</div>
-                </div>`;
+                </button>`;
               }
             )
           : nothing}

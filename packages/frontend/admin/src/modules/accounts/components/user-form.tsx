@@ -121,8 +121,7 @@ function UserForm({
 
     // @ts-expect-error checked
     onConfirm(changes);
-    setChanges(defaultUser);
-  }, [canSave, changes, defaultUser, onConfirm]);
+  }, [canSave, changes, onConfirm]);
 
   const handleFeaturesChange = useCallback(
     (features: FeatureType[]) => {
@@ -183,7 +182,10 @@ function UserForm({
                 maxLength={passwordLimits.maxLength}
                 description={
                   passwordValidation.valid
-                    ? `Use ${passwordLimits.minLength}–${passwordLimits.maxLength} characters, or leave blank.`
+                    ? i18n['com.affine.admin.optional-password-hint']({
+                        min: String(passwordLimits.minLength),
+                        max: String(passwordLimits.maxLength),
+                      })
                     : passwordValidation.error
                 }
                 invalid={!passwordValidation.valid}

@@ -561,6 +561,7 @@ vi.mock('./work-order-panel', () => ({
   WorkOrderPanel: ({
     onLoaded,
     onDraftStateChange,
+    onCollapse,
   }: {
     onLoaded?: (order: {
       viewerRole: string;
@@ -569,6 +570,7 @@ vi.mock('./work-order-panel', () => ({
       status: string;
     }) => void;
     onDraftStateChange?: (workOrderId: string, blocked: boolean) => void;
+    onCollapse?: () => void;
   }) => {
     useEffect(() => {
       onLoaded?.({
@@ -581,6 +583,7 @@ vi.mock('./work-order-panel', () => ({
     }, [onLoaded, onDraftStateChange]);
     return (
       <div data-testid="work-order-panel">
+        <button onClick={onCollapse}>Close order details</button>
         <button onClick={() => onDraftStateChange?.('work-order-1', true)}>
           Edit delivery draft
         </button>
@@ -595,12 +598,17 @@ vi.mock('./work-order-panel', () => ({
 vi.mock('./work-order-conversation', () => ({
   WorkOrderConversation: ({
     deliveryDraftBlocked,
+    headerActions,
   }: {
     deliveryDraftBlocked: boolean;
+    headerActions?: ReactNode;
   }) => (
-    <output data-testid="work-order-confirmation-blocked">
-      {String(deliveryDraftBlocked)}
-    </output>
+    <>
+      <output data-testid="work-order-confirmation-blocked">
+        {String(deliveryDraftBlocked)}
+      </output>
+      {headerActions}
+    </>
   ),
 }));
 
@@ -1848,6 +1856,55 @@ describe('Intelligence workbench shell', () => {
     expect(blocked.textContent).toBe('false');
   });
 
+  test('received work-order toggle opens details and closing returns to chat in a narrow viewport', async () => {
+    renderWorkbench('/project/work-orders/work-order-1');
+    const toggle = await screen.findByRole('button', {
+      name: 'com.affine.localmind.workbench.orders.toggle',
+    });
+    const panes = document.querySelector<HTMLElement>(
+      '[data-work-order="true"]'
+    );
+    expect(panes?.dataset.view).toBe('chat');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(panes?.dataset.view).toBe('files');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Close order details' })
+    );
+    expect(panes?.dataset.view).toBe('chat');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(
+      screen.getByRole('tab', {
+        name: 'com.affine.localmind.workbench.orders.toggle',
+      })
+    );
+    expect(panes?.dataset.view).toBe('files');
+    expect(panes?.dataset.workOrderCollapsed).toBe('false');
+  });
+
+  test('received work-order toggle still collapses the adjacent pane on wide screens', async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList);
+    renderWorkbench('/project/work-orders/work-order-1');
+    const toggle = await screen.findByRole('button', {
+      name: 'com.affine.localmind.workbench.orders.toggle',
+    });
+    const panes = document.querySelector<HTMLElement>(
+      '[data-work-order="true"]'
+    );
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(toggle);
+    expect(panes?.dataset.workOrderCollapsed).toBe('true');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(panes?.dataset.workOrderCollapsed).toBe('false');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
   test('creates a manual blocker only after the panel submits and refreshes the projection', async () => {
     renderWorkbench();
 
@@ -1935,6 +1992,11 @@ describe('Intelligence workbench shell', () => {
   });
 
   test('opens the work order card only after this conversation sends a work order', async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList);
     const workOrderCard = () => screen.queryByTestId('work-order-panel');
     const toggle = () =>
       screen.queryByRole('button', {

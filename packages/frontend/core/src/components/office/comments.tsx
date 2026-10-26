@@ -6,6 +6,7 @@ import {
   Loading,
   Modal,
   Tooltip,
+  useConfirmModal,
 } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import type { GraphQLService } from '@affine/core/modules/cloud';
@@ -92,6 +93,7 @@ export function OfficeCommentsPanel({
   onOpenChange: (open: boolean) => void;
 }) {
   const i18n = useI18n();
+  const { openConfirmModal } = useConfirmModal();
   const projectId = owner?.kind === 'project' ? owner.projectId : undefined;
   const resolvedWorkspaceId =
     owner?.kind === 'workspace'
@@ -103,6 +105,15 @@ export function OfficeCommentsPanel({
     () => (projectId ? { projectId } : { workspaceId: resolvedWorkspaceId }),
     [projectId, resolvedWorkspaceId]
   );
+  // Focusing the composer clears the editor's browser selection. Keep the
+  // revision/range selected when this dialog opened until it closes again.
+  const [composer, setComposer] = useState({ open, scope, artifactId, anchor });
+  const composerChanged =
+    composer.open !== open ||
+    composer.scope !== scope ||
+    composer.artifactId !== artifactId;
+  const composerAnchor = composerChanged ? anchor : composer.anchor;
+  if (composerChanged) setComposer({ open, scope, artifactId, anchor });
   const pending = useRef(false);
   const commentsQuery = useQuery(
     {
@@ -184,7 +195,7 @@ export function OfficeCommentsPanel({
 
   const createComment = useCallback(async () => {
     const text = draft.trim();
-    if (!anchor || !text) return;
+    if (!composerAnchor || !text) return;
     await run('create', async () => {
       await graphql.gql({
         query: createOfficeCommentMutation,
@@ -195,14 +206,14 @@ export function OfficeCommentsPanel({
             content: {
               version: 'localmind-office-comment/v1',
               text,
-              anchor,
+              anchor: composerAnchor,
             },
           },
         },
       });
       setDraft('');
     });
-  }, [anchor, artifactId, draft, graphql, run, scope]);
+  }, [composerAnchor, artifactId, draft, graphql, run, scope]);
 
   return (
     <Modal
@@ -227,7 +238,9 @@ export function OfficeCommentsPanel({
           disabled={readOnly || !!pendingKey}
           className={styles.commentComposer}
         >
-          <div className={styles.commentAnchor}>{anchorLabel(anchor)}</div>
+          <div className={styles.commentAnchor}>
+            {anchorLabel(composerAnchor)}
+          </div>
           <textarea
             className={styles.textarea}
             value={draft}
@@ -238,7 +251,9 @@ export function OfficeCommentsPanel({
           />
           <Button
             variant="primary"
-            disabled={readOnly || !!pendingKey || !anchor || !draft.trim()}
+            disabled={
+              readOnly || !!pendingKey || !composerAnchor || !draft.trim()
+            }
             loading={pendingKey === 'create'}
             onClick={() => void createComment()}
           >
@@ -394,22 +409,27 @@ export function OfficeCommentsPanel({
                             ]()}
                             disabled={readOnly || !!pendingKey}
                             loading={pendingKey === `delete:${comment.id}`}
-                            onClick={() => {
-                              if (
-                                !window.confirm(
+                            onClick={() =>
+                              openConfirmModal({
+                                title:
+                                  i18n['com.affine.office.delete-comment'](),
+                                description:
                                   i18n[
                                     'com.affine.office.delete-this-comment-and-its-replies'
-                                  ]()
-                                )
-                              )
-                                return;
-                              run(`delete:${comment.id}`, () =>
-                                graphql.gql({
-                                  query: deleteOfficeCommentMutation,
-                                  variables: { id: comment.id },
-                                })
-                              ).catch(console.error);
-                            }}
+                                  ](),
+                                confirmText:
+                                  i18n['com.affine.office.delete-comment'](),
+                                cancelText: i18n['Cancel'](),
+                                confirmButtonOptions: { variant: 'error' },
+                                onConfirm: () =>
+                                  run(`delete:${comment.id}`, () =>
+                                    graphql.gql({
+                                      query: deleteOfficeCommentMutation,
+                                      variables: { id: comment.id },
+                                    })
+                                  ),
+                              })
+                            }
                           >
                             <DeleteIcon />
                           </IconButton>
@@ -539,22 +559,34 @@ export function OfficeCommentsPanel({
                                   loading={
                                     pendingKey === `delete-reply:${reply.id}`
                                   }
-                                  onClick={() => {
-                                    if (
-                                      !window.confirm(
+                                  onClick={() =>
+                                    openConfirmModal({
+                                      title:
                                         i18n[
                                           'com.affine.comment.reply.delete.confirm.title'
-                                        ]()
-                                      )
-                                    )
-                                      return;
-                                    run(`delete-reply:${reply.id}`, () =>
-                                      graphql.gql({
-                                        query: deleteOfficeCommentReplyMutation,
-                                        variables: { id: reply.id },
-                                      })
-                                    ).catch(console.error);
-                                  }}
+                                        ](),
+                                      description:
+                                        i18n[
+                                          'com.affine.comment.reply.delete.confirm.description'
+                                        ](),
+                                      confirmText:
+                                        i18n[
+                                          'com.affine.office.delete-reply'
+                                        ](),
+                                      cancelText: i18n['Cancel'](),
+                                      confirmButtonOptions: {
+                                        variant: 'error',
+                                      },
+                                      onConfirm: () =>
+                                        run(`delete-reply:${reply.id}`, () =>
+                                          graphql.gql({
+                                            query:
+                                              deleteOfficeCommentReplyMutation,
+                                            variables: { id: reply.id },
+                                          })
+                                        ),
+                                    })
+                                  }
                                 >
                                   <DeleteIcon />
                                 </IconButton>

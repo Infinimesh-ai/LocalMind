@@ -43,12 +43,20 @@ const texts = () => paragraphs().map(p => p.textContent);
 function setup({
   readOnly = false,
   initial = ['Before'],
-}: { readOnly?: boolean; initial?: string[] } = {}) {
+  initialHeading,
+  initialBytes,
+}: {
+  readOnly?: boolean;
+  initial?: string[];
+  initialHeading?: number;
+  initialBytes?: Uint8Array;
+} = {}) {
   let pkg = openDocxPackage(
-    createNativeFile({
-      format: 'docx',
-      paragraphs: initial.map(text => ({ text })),
-    }).bytes
+    initialBytes ??
+      createNativeFile({
+        format: 'docx',
+        paragraphs: initial.map(text => ({ text, heading: initialHeading })),
+      }).bytes
   );
   let sequence = 1;
   const guards = new Set<OfficeEditorDraft>();
@@ -550,6 +558,24 @@ describe('continuous DOCX editing', () => {
       },
     ]);
   });
+  test.each([4, 5, 6])(
+    'shows imported heading %s and saves a user change to normal body',
+    async level => {
+      const ctx = setup({ initialHeading: level });
+      await select(paragraphs()[0], 0);
+      const styles = screen.getByLabelText(
+        'Paragraph style'
+      ) as HTMLSelectElement;
+      expect(styles.value).toBe(`Heading${level}`);
+      expect(styles.selectedOptions[0]?.text).toBe(`Heading ${level}`);
+      fireEvent.change(styles, { target: { value: 'Normal' } });
+      await save(ctx);
+      expect(ctx.saved().body).toMatchObject([
+        { text: 'Before', properties: { styleId: 'Normal' } },
+      ]);
+      expect(styles.value).toBe('Normal');
+    }
+  );
   test.each(['Bold', 'Italic', 'Underline'])(
     'formats newly typed text with %s in one atomic save',
     async name => {
@@ -560,9 +586,9 @@ describe('continuous DOCX editing', () => {
       fireEvent.click(screen.getByRole('button', { name }));
       await save(ctx);
       expect(ctx.execute).toHaveBeenCalledTimes(1);
-      expect(ctx.execute.mock.calls[0][0].command.operation).toBe(
-        'office.document.edit'
-      );
+      expect(ctx.execute.mock.calls[0][0].command).toMatchObject({
+        operation: 'office.document.edit',
+      });
       expect(ctx.saved().body).toMatchObject([{ text: '新文字' }]);
     }
   );
@@ -729,6 +755,41 @@ describe('continuous DOCX editing', () => {
     });
     expect(ctx.guard().hasUnsavedChanges).toBe(false);
   });
+  test('navigation confirmation pauses autosave until cancel or explicit save', async () => {
+    vi.useFakeTimers();
+    const ctx = setup();
+    await select(paragraphs()[0], 6);
+    input('待确认');
+    let pause!: ReturnType<NonNullable<OfficeEditorDraft['pauseAutosave']>>;
+    act(() => {
+      pause = ctx.guard().pauseAutosave!();
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(16_000));
+    expect(ctx.execute).not.toHaveBeenCalled();
+    expect(ctx.guard().hasUnsavedChanges).toBe(true);
+    act(() => pause.resume());
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(ctx.execute).toHaveBeenCalledOnce();
+    input('丢弃');
+    act(() => {
+      pause = ctx.guard().pauseAutosave!();
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(16_000));
+    await act(async () => ctx.guard().discard());
+    act(() => pause.resume());
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(texts()).toEqual(['Before待确认']);
+    expect(ctx.execute).toHaveBeenCalledOnce();
+    await select(paragraphs()[0], 'Before待确认'.length);
+    input('显式保存');
+    act(() => {
+      pause = ctx.guard().pauseAutosave!();
+    });
+    await save(ctx);
+    expect(ctx.execute).toHaveBeenCalledTimes(2);
+    expect(ctx.guard().hasUnsavedChanges).toBe(false);
+    act(() => pause.resume());
+  });
   test('read-only mode cannot create a draft', async () => {
     const ctx = setup({ readOnly: true });
     await select(paragraphs()[0], 6);
@@ -776,4 +837,170 @@ describe('continuous DOCX editing', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(ctx.execute).not.toHaveBeenCalled();
   });
+  test('object dialog input preserves the document insertion position', async () => {
+    const ctx = setup();
+    await select(paragraphs()[0], 3);
+    fireEvent.click(screen.getByRole('button', { name: 'Shape' }));
+    const text = screen.getByRole('textbox', { name: 'Text' });
+    await act(async () => {
+      text.focus();
+      window.getSelection()?.removeAllRanges();
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+    fireEvent.change(text, { target: { value: 'Modal shape' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Insert' }));
+    await waitFor(() => expect(ctx.execute).toHaveBeenCalledOnce());
+    expect(ctx.execute.mock.calls[0][0].command).toMatchObject({
+      operation: 'office.document.object.insert',
+      target: { blockId: 'paragraph:1', offset: 3 },
+      object: { type: 'shape', text: 'Modal shape' },
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+  test('page setup preserves a selected section insertion target', async () => {
+    const ctx = setup();
+    await select(paragraphs()[0], 1, 3);
+    fireEvent.click(screen.getByRole('button', { name: 'Page setup' }));
+    const field = screen.getAllByRole('spinbutton')[0];
+    await act(async () => {
+      field.focus();
+      window.getSelection()?.removeAllRanges();
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Insert after selection' })
+    );
+    await waitFor(() => expect(ctx.execute).toHaveBeenCalledOnce());
+    expect(ctx.execute.mock.calls[0][0].command).toMatchObject({
+      operation: 'office.document.section.insert',
+      target: { type: 'paragraph', blockId: 'paragraph:1' },
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+  test('mail merge navigation applies field values through the revision command and retains the field', async () => {
+    const initial = openDocxPackage(
+      createNativeFile({ format: 'docx', paragraphs: [{ text: 'Before' }] })
+        .bytes
+    );
+    const xml = new TextDecoder()
+      .decode(initial.requirePart(initial.documentPart))
+      .replace(
+        /<w:p\b[^>]*>.*?<\/w:p>/s,
+        '<w:p><w:fldSimple w:instr="MERGEFIELD Customer"><w:r><w:t>Before</w:t></w:r></w:fldSimple></w:p>'
+      );
+    const ctx = setup({
+      initialBytes: initial.write(
+        new Map([[initial.documentPart, new TextEncoder().encode(xml)]])
+      ),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Mail merge' }));
+    expect(ctx.execute).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Customer'), {
+      target: { value: '海棠' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply field values' }));
+    await waitFor(() => expect(ctx.execute).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(ctx.execute.mock.calls[0][0].command).toMatchObject({
+      operation: 'office.document.mail_merge.apply',
+      expectedRevisionId: 'revision-1',
+      source: 'user',
+      values: { Customer: '海棠' },
+    });
+    expect(texts()).toContain('海棠');
+    expect(ctx.saved().references.mailMergeFields).toMatchObject([
+      { argument: 'Customer', mailMergeSupported: true },
+    ]);
+  });
+  test('an object-only paragraph is rendered instead of an empty line', async () => {
+    const ctx = setup({ initial: [''] });
+    await select(paragraphs()[0], 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Shape' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Insert' }));
+    await waitFor(() => expect(ctx.execute).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(paragraphs()[0].querySelector('svg path')).not.toBeNull();
+    expect(
+      paragraphs()[0].querySelector('span[contenteditable="false"]')
+    ).toBeTruthy();
+  });
+});
+
+function objectFixture() {
+  const pkg = openDocxPackage(
+    createNativeFile({ format: 'docx', paragraphs: [{ text: 'Object owner' }] })
+      .bytes
+  );
+  const paragraph = readDocxSemanticState(pkg).body[0];
+  return applyDocxCommand(pkg, {
+    version: 'localmind-office-command/v1',
+    commandId: 'insert',
+    idempotencyKey: 'insert',
+    artifactId: 'artifact',
+    expectedRevisionId: 'revision-1',
+    source: 'user',
+    operation: 'office.document.object.insert',
+    target: { blockId: paragraph.id, offset: 0 },
+    object: {
+      type: 'shape',
+      shape: 'ellipse',
+      widthPt: 100,
+      heightPt: 60,
+      text: 'Before object',
+    },
+  }).packageBytes;
+}
+
+test('previews and updates a shape in place while preserving its dimensions', async () => {
+  const value = setup({ initialBytes: objectFixture() });
+  expect(
+    screen.getByRole('img', { name: 'Shape' }).querySelector('path')
+  ).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit object' }));
+  expect((screen.getByLabelText('Width (pt)') as HTMLInputElement).value).toBe(
+    '100'
+  );
+  fireEvent.change(screen.getByLabelText('Text'), {
+    target: { value: 'After object' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(value.execute).toHaveBeenCalledTimes(1);
+  expect(value.execute.mock.calls[0][0].command).toMatchObject({
+    operation: 'office.document.object.update',
+    expectedRevisionId: 'revision-1',
+    object: {
+      type: 'shape',
+      shape: 'ellipse',
+      text: 'After object',
+      widthPt: 100,
+      heightPt: 60,
+    },
+  });
+  expect(value.saved().stats.objects).toBe(1);
+});
+
+test('object editing respects readonly and keeps a failed draft with its captured revision', async () => {
+  const value = setup({ initialBytes: objectFixture() });
+  fireEvent.click(screen.getByRole('button', { name: 'Edit object' }));
+  fireEvent.change(screen.getByLabelText('Text'), {
+    target: { value: 'Unsaved object' },
+  });
+  act(() => value.remoteUpdate());
+  value.execute.mockRejectedValue(new Error('revision conflict'));
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(value.execute).toHaveBeenCalledTimes(1));
+  expect(value.execute.mock.calls[0][0].command.expectedRevisionId).toBe(
+    'revision-1'
+  );
+  expect((screen.getByLabelText('Text') as HTMLInputElement).value).toBe(
+    'Unsaved object'
+  );
+  expect(screen.getByRole('dialog')).not.toBeNull();
+  cleanup();
+  setup({ readOnly: true, initialBytes: objectFixture() });
+  expect(
+    (screen.getByRole('button', { name: 'Edit object' }) as HTMLButtonElement)
+      .disabled
+  ).toBe(true);
 });

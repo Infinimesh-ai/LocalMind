@@ -31,6 +31,8 @@ export interface DocSyncDocState {
   synced: boolean;
   syncing: boolean;
   retrying: boolean;
+  /** a remote peer rejected this doc for permission and stopped syncing it */
+  permissionDenied: boolean;
   errorMessage: string | null;
 }
 
@@ -112,6 +114,7 @@ export class DocSyncImpl implements DocSync {
       return of({
         errorMessage: null,
         retrying: false,
+        permissionDenied: false,
         syncing: false,
         synced: true,
       });
@@ -122,6 +125,7 @@ export class DocSyncImpl implements DocSync {
           errorMessage:
             allPeers.find(peer => peer.errorMessage)?.errorMessage ?? null,
           retrying: allPeers.some(peer => peer.retrying),
+          permissionDenied: allPeers.some(peer => peer.permissionDenied),
           syncing: allPeers.some(peer => peer.syncing),
           synced: allPeers.every(peer => peer.synced),
         };

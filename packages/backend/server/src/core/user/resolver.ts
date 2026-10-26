@@ -15,6 +15,7 @@ import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import { isNil, omitBy } from 'lodash-es';
 
 import {
+  ActionForbidden,
   BadRequest,
   CannotDeleteOwnAccount,
   EventBus,
@@ -435,6 +436,20 @@ export class UserManagementResolver {
   })
   async banUser(@Args('id') id: string): Promise<UserType> {
     return sessionUser(await this.models.user.ban(id));
+  }
+
+  @Mutation(() => UserType, {
+    description:
+      'Suspend an user without deleting data; enableUser restores the same account',
+  })
+  async suspendUser(
+    @CurrentUser() me: CurrentUser,
+    @Args('id') id: string
+  ): Promise<UserType> {
+    if (me.id === id) throw new ActionForbidden();
+    if (!(await this.models.user.get(id, { withDisabled: true })))
+      throw new UserNotFound();
+    return sessionUser(await this.models.user.suspend(id));
   }
 
   @Mutation(() => UserType, {

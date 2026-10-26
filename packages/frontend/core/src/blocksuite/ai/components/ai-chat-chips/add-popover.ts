@@ -148,7 +148,10 @@ export class ChatPanelAddPopover extends SignalWatcher(
 
   private _focusSearchInput() {
     requestAnimationFrame(() => {
-      this.searchInput?.focus();
+      const target =
+        this.searchInput ??
+        this.renderRoot.querySelector<HTMLElement>('[data-index="0"]');
+      target?.focus();
     });
   }
 
@@ -305,16 +308,16 @@ export class ChatPanelAddPopover extends SignalWatcher(
   override connectedCallback() {
     super.connectedCallback();
     this._updateSearchGroup();
-    document.addEventListener('keydown', this._handleKeyDown);
+    this.addEventListener('keydown', this._handleKeyDown);
   }
 
   override firstUpdated() {
-    if (!this.attachmentsOnly) this._focusSearchInput();
+    this._focusSearchInput();
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    document.removeEventListener('keydown', this._handleKeyDown);
+    this.removeEventListener('keydown', this._handleKeyDown);
     this._menuGroupAbortController.abort();
   }
 
@@ -400,6 +403,7 @@ export class ChatPanelAddPopover extends SignalWatcher(
             .text=${name}
             hover=${this._activatedIndex === curIdx}
             @click=${() => action()?.catch(console.error)}
+            @focus=${() => (this._activatedIndex = curIdx)}
             @mousemove=${() => (this._activatedIndex = curIdx)}
           >
             ${icon}
@@ -556,31 +560,51 @@ export class ChatPanelAddPopover extends SignalWatcher(
   private readonly _handleKeyDown = (event: KeyboardEvent) => {
     if (
       isComposingKeyboardEvent(event) ||
-      (event.key === 'Enter' && event.repeat)
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey
     )
       return;
 
     const { key } = event;
+    const focusedItem = event
+      .composedPath()
+      .find(
+        (target): target is HTMLElement =>
+          target instanceof HTMLElement &&
+          target.matches('icon-button[data-index]') &&
+          this.contains(target)
+      );
+    const items = this._flattenMenuGroup;
+    const activeIndex = focusedItem
+      ? Number(focusedItem.dataset.index)
+      : this._activatedIndex;
 
     if (key === 'ArrowDown' || key === 'ArrowUp') {
       event.preventDefault();
-      const totalItems = this._flattenMenuGroup.length;
+      event.stopPropagation();
+      const totalItems = items.length;
       if (totalItems === 0) return;
 
       if (key === 'ArrowDown') {
-        this._activatedIndex = (this._activatedIndex + 1) % totalItems;
+        this._activatedIndex = (activeIndex + 1) % totalItems;
       } else if (key === 'ArrowUp') {
-        this._activatedIndex =
-          (this._activatedIndex - 1 + totalItems) % totalItems;
+        this._activatedIndex = (activeIndex - 1 + totalItems) % totalItems;
+      }
+      if (focusedItem) {
+        this.renderRoot
+          .querySelector<HTMLElement>(`[data-index="${this._activatedIndex}"]`)
+          ?.focus();
       }
       this._scrollItemIntoView();
-    } else if (key === 'Enter') {
+    } else if (key === 'Enter' || (key === ' ' && focusedItem)) {
       event.preventDefault();
-      this._flattenMenuGroup[this._activatedIndex]
-        .action()
-        ?.catch(console.error);
+      event.stopPropagation();
+      if (event.repeat) return;
+      items[activeIndex]?.action()?.catch(console.error);
     } else if (key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       this.abortController.abort();
     }
   };

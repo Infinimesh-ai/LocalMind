@@ -161,7 +161,8 @@ export class OfficeDocxCommandService {
     const command = parseOfficeCommand(input.command);
     if (
       command.operation !== 'office.document.text.format' &&
-      command.operation !== 'office.document.text.replace'
+      command.operation !== 'office.document.text.replace' &&
+      command.operation !== 'office.document.paragraph.text.set'
     ) {
       throw new Error(`Office DOCX command is invalid: ${command.operation}`);
     }

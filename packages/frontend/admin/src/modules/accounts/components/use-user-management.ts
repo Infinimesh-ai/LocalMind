@@ -3,6 +3,7 @@ import {
   useMutation,
 } from '@affine/admin/use-mutation';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { UserFriendlyError } from '@affine/error';
 import {
   adminUserAiProfileAssignmentQuery,
   createChangePasswordUrlMutation,
@@ -15,6 +16,7 @@ import {
   importUsersMutation,
   listUsersQuery,
   setAdminUserAiProfileAssignmentMutation,
+  suspendUserMutation,
   updateAccountFeaturesMutation,
   updateAccountMutation,
 } from '@affine/graphql';
@@ -84,9 +86,10 @@ export const useCreateUser = () => {
         toast(i18n['com.affine.admin.account-created-successfully']());
         return true;
       } catch (e) {
+        const error = UserFriendlyError.fromAny(e);
         toast.error(
           i18n['com.affine.admin.failed-to-create-account']() +
-            (e as Error).message
+            i18n[`error.${error.name}`](error.data)
         );
         return false;
       } finally {
@@ -277,6 +280,39 @@ export const useEnableUser = () => {
 
   return enableById;
 };
+export const useSuspendUser = () => {
+  const i18n = useI18n();
+  const { trigger: suspendUserById } = useMutation({
+    mutation: suspendUserMutation,
+  });
+
+  const revalidate = useMutateQueryResource();
+
+  const suspendById = useAsyncCallback(
+    async (id: string, callback?: () => void) => {
+      await suspendUserById({ id })
+        .then(async ({ suspendUser }) => {
+          await revalidate(listUsersQuery);
+          toast(
+            i18n['com.affine.admin.user-suspended']({
+              email: suspendUser.email,
+            })
+          );
+          callback?.();
+        })
+        .catch(e => {
+          toast.error(
+            i18n['com.affine.admin.failed-to-suspend-user']() +
+              UserFriendlyError.fromAny(e).message
+          );
+        });
+    },
+    [suspendUserById, revalidate, i18n]
+  );
+
+  return suspendById;
+};
+
 export const useDisableUser = () => {
   const i18n = useI18n();
   const { trigger: disableUserById } = useMutation({

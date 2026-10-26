@@ -2,6 +2,59 @@
 
 > 日期：2026-10-15 ｜ 状态：原始方案记录；现行交互以 2026-10-16 契约为准 ｜ 范围：前端 + 后端 + `@localmind/office`
 
+## 2026-10-20：页面验收中的章节导航与阅读恢复修复
+
+真实页面复现了两条状态错误：模板从末章选择首章后立即进入演示，会被平滑滚动的中间位置
+覆盖为第 6 章；自定义 v4 汇报在分步演示后返回阅读，已进入视口的标题和图表可能持续隐藏。
+前者保留用户选定的跳转目标，抵达、有界超时或手动滚动后恢复位置观察，同时忽略尚无尺寸的
+章节；后者在返回阅读时恢复全部可见视图中的 reveal 内容，再次演示仍按原步骤展示。
+
+旧报告只对精确识别的受信 shell/runtime SHA-256 及对应 CSP 做读取时兼容，保留正文、设计
+CSS、其余受信脚本和数据库原始 HTML。查看与下载共用兼容路径；任意未知脚本或缺失 CSP
+哈希不进入替换。沉浸全屏继续隐藏应用导航与底部控件，方向键先完成自定义分步展示再切章。
+
+在现有 Linux `localmind_hot_web` 容器中，runtime、web-shell、web-v4、deck、deck-viewer
+共 100 项聚焦测试通过；common/office 类型检查通过。真实页面复测原模板首章立即演示保持
+1/7、方向键切章及 Escape 返回阅读；原 QA80 存档通过顶部和内部全屏入口，返回第二章阅读
+后 24 个 reveal 元素及图表完整显示，HTML 下载成功。浏览器工具禁止打开本地 `file://`，
+离线文件实际演示尚未验证，不能以下载或合成测试代替。
+
+源码通过已有 bind mount 生效，未重建镜像、迁移数据库或改写历史汇报。自定义快速生成本轮
+真实成功。随后精修任务 QA81 在首次 timeout 后通过页面重试生成五章，界面确认模型视觉
+复核完成；图表数据展开、章节切换、全屏退出及 HTML 下载均经过页面操作。
+历史超时根因仍未确认，已补充不含提示词、来源正文或凭据的阶段/耗时/错误码诊断；
+未修改超时阈值，也未将一次重试成功视为可靠性问题完全修复或整体发布验收通过。
+
+## 2026-10-19：模板图库尺寸与 Safari 绘制修复
+
+图库改用按行排列的 Grid，替代下文原始方案中的 CSS 多列瀑布流。同一视口内的 10 张卡片
+等宽、等高，行列间距统一为 18px；随内容容器宽度切换 3 / 2 / 1 列。卡片保持 14px 圆角，
+封面按边框内侧的 13px 圆角直接裁切缩放 iframe；配置页选模版的封面使用其对应的 10px 内圆角。
+封面仍为 16:9 静态缩略图，文字完整换行，标签对齐底部，不改变汇报正文的流式布局。
+
+Safari 隔离对照页使用真实模板封面，恢复旧多列布局、卡片悬停位移与预览按钮的背景模糊后，
+复现里程碑卡片悬停时封面及内容消失、预览按钮仍可见的绘制故障。分别去掉背景模糊或卡片位移，
+均未再出现该故障。修复移除这些合成效果，保留边框、阴影与预览按钮淡入；封面直接裁切也修复
+原先依赖外层 `overflow` 时露出直角的问题。触摸设备始终显示预览入口，键盘聚焦仍可显示并打开预览。
+
+验证使用 macOS 上的真实 Safari 26.6.2（21624.5.1.11.3）与本地 `localhost:3011/reports`：
+
+- 桌面宽 1728px：3 列，10 张卡片均为 364 × 326.625px；响应式设计模式宽 753px：2 列，
+  均为 337.391 × 337.656px；宽 390px：1 列，均为 350 × 344.75px，无横向溢出。
+- 全部 10 张卡片悬停、滚动后回看、预览打开与关闭、键盘打开预览、选用模板进入配置页均通过。
+  覆盖当前浅色主题；窄视口是 macOS Safari 响应式设计模式，不等同于 iOS 实机验证。
+- Linux 复用 `localmind_hot_web`（`localmind-affine:dev-base`），下列两份测试共 6 项通过；
+  两个修改的源码文件通过 oxlint、Prettier，`git diff --check` 通过。
+
+```sh
+docker exec -w /workspace localmind_hot_web yarn vitest run packages/frontend/core/src/desktop/pages/report-decks/template-gallery.spec.tsx packages/frontend/core/src/desktop/pages/report-decks/config-page.spec.tsx
+docker exec -w /workspace localmind_hot_web yarn lint:ox packages/frontend/core/src/desktop/pages/report-decks/report-decks.css.ts packages/frontend/core/src/desktop/pages/report-decks/template-gallery.tsx
+docker exec -w /workspace localmind_hot_web yarn prettier --check packages/frontend/core/src/desktop/pages/report-decks/report-decks.css.ts packages/frontend/core/src/desktop/pages/report-decks/template-gallery.tsx
+```
+
+源码通过现有 bind mount 热更新生效；没有重建镜像、迁移数据库或创建新汇报。
+截图、Safari 几何读数和悬停隔离页位于 `.codex-artifacts/report-gallery-fix-20261019/`。
+
 ## 2026-10-19：自定义生成链路 v3
 
 自定义模式在一次提交内完成事实整理、设计规划、HTML/CSS 联合生成、真实浏览器截图与有界修正。

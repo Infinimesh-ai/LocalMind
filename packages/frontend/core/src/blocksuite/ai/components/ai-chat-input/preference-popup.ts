@@ -195,7 +195,7 @@ export class ChatInputPreference extends SignalWatcher(
     // model switch
     modelItems.push(
       menu.subMenu({
-        name: 'Model',
+        name: I18n['com.affine.ai.chat.preferences.model'](),
         prefix: AiOutlineIcon(),
         middleware: modelSubMenuMiddleware,
         postfix: html`
@@ -255,7 +255,7 @@ export class ChatInputPreference extends SignalWatcher(
 
     modelItems.push(
       menu.toggleSwitch({
-        name: 'Extended Thinking',
+        name: I18n['com.affine.ai.chat.preferences.thinking'](),
         prefix: ThinkingIcon(),
         on: this.extendedThinking,
         onChange: (value: boolean) => this.onExtendedThinkingChange?.(value),
@@ -265,7 +265,7 @@ export class ChatInputPreference extends SignalWatcher(
 
     searchItems.push(
       menu.toggleSwitch({
-        name: 'Workspace All Docs',
+        name: I18n['com.affine.ai.chat.preferences.workspace-docs'](),
         prefix: CloudWorkspaceIcon(),
         on:
           !!this.toolsConfigService.config.value.searchWorkspace &&
@@ -298,6 +298,7 @@ export class ChatInputPreference extends SignalWatcher(
     return html`<button
       @click=${this.openPreference}
       data-testid="chat-input-preference-trigger"
+      aria-label=${I18n['com.affine.ai.chat.preferences.label']()}
       class="chat-input-preference-trigger"
     >
       <span class="chat-input-preference-trigger-label">

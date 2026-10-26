@@ -11,6 +11,7 @@ fragment WorkspacePageTreeNode on WorkspacePageTreeItem {
   isContainer
   canRename
   canConvertToPage
+  convertToPageUnavailableReason
   folder { title metadataVersion createdAt createdBy updatedAt updatedBy }
   canOrganize
   defaultSortMode

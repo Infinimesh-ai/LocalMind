@@ -15,6 +15,9 @@ export interface InviteTeamMemberModalProps {
   setOpen: (value: boolean) => void;
   onConfirm: (params: { emails: string[] }) => void;
   isMutating: boolean;
+  inviteEmails: string;
+  setInviteEmails: (value: string) => void;
+  errors?: string[];
   copyTextToClipboard: (text: string) => Promise<boolean>;
   onGenerateInviteLink: (
     expireTime: WorkspaceInviteLinkExpireTime
@@ -36,6 +39,9 @@ export const InviteTeamMemberModal = ({
   setOpen,
   onConfirm,
   isMutating,
+  inviteEmails,
+  setInviteEmails,
+  errors,
   copyTextToClipboard,
   onGenerateInviteLink,
   onRevokeInviteLink,
@@ -43,11 +49,11 @@ export const InviteTeamMemberModal = ({
   invitationLink,
 }: InviteTeamMemberModalProps) => {
   const t = useI18n();
-  const [inviteEmails, setInviteEmails] = useState('');
   const [isValidEmail, setIsValidEmail] = useState(true);
   const [inviteMethod, setInviteMethod] = useState<InviteMethodType>('email');
 
   const handleConfirm = useCallback(() => {
+    if (isMutating) return;
     if (inviteMethod === 'link') {
       setOpen(false);
       return;
@@ -56,7 +62,7 @@ export const InviteTeamMemberModal = ({
     const invalidEmail = inviteEmailsArray.find(
       email => !emailRegex.test(email)
     );
-    if (invalidEmail) {
+    if (inviteEmailsArray.length === 0 || invalidEmail) {
       setIsValidEmail(false);
       return;
     }
@@ -65,14 +71,18 @@ export const InviteTeamMemberModal = ({
     onConfirm({
       emails: inviteEmailsArray,
     });
-  }, [inviteEmails, inviteMethod, onConfirm, setOpen]);
+  }, [inviteEmails, inviteMethod, isMutating, onConfirm, setOpen]);
+
+  useEffect(() => {
+    setIsValidEmail(true);
+  }, [inviteEmails]);
 
   useEffect(() => {
     if (!open) {
       setInviteEmails('');
       setIsValidEmail(true);
     }
-  }, [open]);
+  }, [open, setInviteEmails]);
 
   return (
     <ConfirmModal
@@ -116,6 +126,13 @@ export const InviteTeamMemberModal = ({
         onGenerateInviteLink={onGenerateInviteLink}
         onRevokeInviteLink={onRevokeInviteLink}
       />
+      {errors?.length ? (
+        <div className={styles.errorHint} role="alert">
+          {errors.map(message => (
+            <div key={message}>{message}</div>
+          ))}
+        </div>
+      ) : null}
     </ConfirmModal>
   );
 };

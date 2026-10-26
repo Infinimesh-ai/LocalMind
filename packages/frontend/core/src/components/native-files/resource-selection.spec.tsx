@@ -11,6 +11,7 @@ import {
 import type * as Infra from '@toeverything/infra';
 import type { ComponentProps, ReactNode } from 'react';
 import { useContext } from 'react';
+import { BehaviorSubject } from 'rxjs';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const state = vi.hoisted(() => ({
   confirm: vi.fn(),
   reportDeckAvailable: false,
   openReportDeck: vi.fn(),
+  readable: null as unknown,
 }));
 vi.mock('../report-deck-entry', () => ({
   useReportDeckEntryAvailable: () => state.reportDeckAvailable,
@@ -179,6 +181,7 @@ beforeEach(() => {
   const absent$ = new LiveData(undefined);
   const title$ = new LiveData('Page');
   const icon$ = new LiveData(() => null);
+  state.readable = new BehaviorSubject(new Set(['page']));
   state.service = {
     workspace: { id: 'workspace', flavour: 'affine-cloud', docCollection: {} },
     list: {
@@ -211,6 +214,8 @@ beforeEach(() => {
     ],
     get: async () => ({ originalPaths: ['Root'] }),
     can: async () => true,
+    // eslint-disable-next-line rxjs/finnish
+    readableDocIds$: () => state.readable,
     change: vi.fn(async () => true),
     // The mock keeps the production observable method name.
     // eslint-disable-next-line rxjs/finnish
@@ -242,7 +247,11 @@ beforeEach(() => {
     ],
     ready: true,
     loading: false,
-    service: { online: false, invalidate: vi.fn() },
+    service: {
+      online: false,
+      invalidate: vi.fn(),
+      reconcileTagMetadata: vi.fn(),
+    },
   };
   state.navigate.mockClear();
   state.confirm.mockClear();
@@ -278,6 +287,25 @@ function checkbox(name: string) {
 function pageCheckbox() {
   return screen.getByTestId('doc-list-item-select').querySelector('input')!;
 }
+
+test.each([false, true])(
+  'document rows in mixed=%s disappear on revocation and return on authorization',
+  async mixed => {
+    mount(false, mixed);
+    await screen.findByRole('button', { name: 'Image.png' });
+    await waitFor(() =>
+      expect(screen.queryAllByText('Page').length).toBeGreaterThan(0)
+    );
+    const readable$ = state.readable as BehaviorSubject<Set<string>>;
+    act(() => readable$.next(new Set()));
+    await waitFor(() => expect(screen.queryByText('Page')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Image.png' })).toBeTruthy();
+    act(() => readable$.next(new Set(['page'])));
+    await waitFor(() =>
+      expect(screen.queryAllByText('Page').length).toBeGreaterThan(0)
+    );
+  }
+);
 
 test('mixed selection retains earlier files and toggles each item without duplicates or navigation', async () => {
   mount();

@@ -18,6 +18,7 @@ import {
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { MoreVerticalIcon } from '@blocksuite/icons/rc';
+import { NativeFileTitleSchema } from '@localmind/office';
 import { useService, useServiceOptional } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
@@ -105,7 +106,7 @@ export function WorkspaceNativeActions({
   const [directoryVersion, setDirectoryVersion] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'rejected' | 'uncertain' | null>(null);
   const request = useRef<{
     key: string;
     metadataVersion: number;
@@ -120,11 +121,14 @@ export function WorkspaceNativeActions({
     restore: t['com.affine.localmind.native-files.restore'](),
     delete: t['com.affine.localmind.native-files.delete'](),
   };
+  const invalidName =
+    (action === 'rename' || action === 'copy') &&
+    !NativeFileTitleSchema.safeParse(name).success;
   const submit = async () => {
-    if (!action || pendingRef.current) return;
+    if (!action || pendingRef.current || invalidName) return;
     pendingRef.current = true;
     setPending(true);
-    setError(false);
+    setError(null);
     try {
       const input = { workspaceId, resourceId, kind };
       if (
@@ -200,11 +204,11 @@ export function WorkspaceNativeActions({
       if (pageTree?.enabled$.value) await pageTree.load(null);
       onChanged();
     } catch (error) {
-      if (
-        [400, 403, 404, 409].includes(UserFriendlyError.fromAny(error).status)
-      )
-        request.current = null;
-      setError(true);
+      const rejected = [400, 403, 404, 409].includes(
+        UserFriendlyError.fromAny(error).status
+      );
+      if (rejected) request.current = null;
+      setError(rejected ? 'rejected' : 'uncertain');
     } finally {
       pendingRef.current = false;
       setPending(false);
@@ -216,14 +220,14 @@ export function WorkspaceNativeActions({
     setName(title);
     setFolder(null);
     setRestoreElsewhere(false);
-    setError(false);
+    setError(null);
     if (next === 'move' && pageTree?.enabled$.value) {
       try {
         const location = await pageTree.locate(kind, resourceId);
         if (!location.parent) throw new Error('Resource unavailable');
         setTreeMove({ item: location.parent, action: 'move' });
       } catch {
-        setError(true);
+        setError('uncertain');
       }
       return;
     }
@@ -303,9 +307,18 @@ export function WorkspaceNativeActions({
               <Input
                 autoFocus
                 value={name}
-                onChange={setName}
+                onChange={value => {
+                  setName(value);
+                  setError(null);
+                }}
+                aria-invalid={invalidName}
                 disabled={pending || !!request.current}
               />
+              {invalidName && (
+                <span role="alert">
+                  {t['com.affine.localmind.native-files.invalidName']()}
+                </span>
+              )}
             </label>
           )}
           {action === 'restore' && (
@@ -349,7 +362,11 @@ export function WorkspaceNativeActions({
           )}
           {error && (
             <p role="alert">
-              {t['com.affine.localmind.native-files.retrySameRequest']()}
+              {error === 'rejected'
+                ? action === 'restore'
+                  ? t['com.affine.localmind.resources.restoreRejected']()
+                  : t['com.affine.localmind.project-files.operationFailed']()
+                : t['com.affine.localmind.native-files.retrySameRequest']()}
             </p>
           )}
           <div className={styles.actions}>
@@ -366,14 +383,14 @@ export function WorkspaceNativeActions({
                     pageTree?.enabled$.value &&
                     (action === 'restore' || (action === 'copy' && treeTarget))
                   )) ||
-                ((action === 'rename' || action === 'copy') && !name.trim())
+                invalidName
               }
-              onClick={() => void submit().catch(() => setError(true))}
+              onClick={() => void submit().catch(() => setError('uncertain'))}
             >
               {pending
                 ? t['Loading']()
                 : error
-                  ? t['com.affine.error.retry']()
+                  ? t['Retry']()
                   : action
                     ? labels[action]
                     : ''}

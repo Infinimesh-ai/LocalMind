@@ -703,6 +703,22 @@ test.serial(
         leaseId: held.leaseId,
       },
     });
+    const stopped = await call(
+      'project_doc_update',
+      {
+        doc_id: created.resourceId,
+        expected_content_version: 2,
+        content: 'Do not write this after editing ends',
+        lease_conflict: 'fail',
+      },
+      'stop-on-edit-conflict'
+    );
+    t.is(stopped.status, 'failed');
+    t.like(stopped, {
+      applied: false,
+      final: true,
+      automaticRetryScheduled: false,
+    });
     const waiting = await call(
       'project_doc_update',
       {
@@ -727,6 +743,17 @@ test.serial(
       leaseId: held.leaseId,
     });
     await app.models.copilotProjectAgentRuntime.resumeWaitingLeases();
+    await app
+      .get(CopilotProjectAgentRuntimeWorker)
+      .run({ projectId: project.id, runId: stopped.runId });
+    const stillStopped = await app.models.copilotProjectAgentRuntime.get({
+      ...editor,
+      runId: stopped.runId,
+    });
+    t.is(stillStopped.status, 'failed');
+    t.is(stillStopped.failureCode, 'project_edit_lease_conflict');
+    t.is(stillStopped.leaseRetryCount, 0);
+    t.is(stillStopped.projectExecutionResults.length, 1);
     await app
       .get(CopilotProjectAgentRuntimeWorker)
       .run({ projectId: project.id, runId: waiting.runId });

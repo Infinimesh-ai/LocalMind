@@ -77,6 +77,11 @@ function codeToError(error: UserFriendlyError) {
       I18n['error.COPILOT_BYOK_NOT_CONFIGURED']()
     );
   }
+  if (error.is('COPILOT_BYOK_CREDENTIAL_DISABLED')) {
+    return new ByokNotConfiguredError(
+      I18n['error.COPILOT_BYOK_CREDENTIAL_DISABLED']()
+    );
+  }
   switch (error.status) {
     case 401:
       return new UnauthorizedError();

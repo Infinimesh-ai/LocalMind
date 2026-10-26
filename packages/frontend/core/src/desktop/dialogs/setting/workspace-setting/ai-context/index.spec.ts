@@ -7,9 +7,24 @@ import {
   buildProjectUpdateInput,
   getDirectiveConditionsInput,
   getDirectiveContentUpdate,
+  getMemoryVisibilityLabelKey,
 } from './index';
 
 describe('AI context settings directive updates', () => {
+  test.each([
+    ['project', 'shared', 'sharedWithProject'],
+    ['project', 'private', 'onlyYou'],
+    ['project', 'legacy_private', 'onlyYou'],
+    ['document', 'shared', 'onlyYou'],
+    ['workspace', 'private', 'onlyYou'],
+  ])(
+    'labels %s/%s memory according to its sharing contract',
+    (scope, sharingStatus, label) => {
+      expect(getMemoryVisibilityLabelKey({ scope, sharingStatus })).toBe(
+        `com.affine.localmind.aiContext.${label}`
+      );
+    }
+  );
   test('updates project metadata independently of Workspace documents', () => {
     expect(
       buildProjectUpdateInput('project-1', {

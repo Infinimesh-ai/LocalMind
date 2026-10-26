@@ -24,32 +24,43 @@ type SignalReturnType = {
 export function getSignal(req: Request): SignalReturnType {
   const controller = new AbortController();
 
-  let hasEnded = false;
+  let closed: boolean | undefined;
   let callback: ((isAborted: boolean) => void) | undefined = undefined;
+  const response = req.res;
 
-  const onSocketEnd = () => {
-    hasEnded = true;
-  };
-  const onSocketClose = (hadError: boolean) => {
-    req.socket.off('end', onSocketEnd);
+  const finish = (aborted: boolean) => {
+    if (closed !== undefined) return;
+    closed = aborted;
+    req.off('aborted', onRequestAborted);
+    response?.off('finish', onResponseFinish);
+    response?.off('close', onResponseClose);
     req.socket.off('close', onSocketClose);
-    // NOTE: the connection is considered abnormally interrupted:
-    // 1. there is an error when the socket is closed.
-    // 2. the connection is closed directly without going through the normal end process (the client disconnects actively).
-    const aborted = hadError || !hasEnded;
-    if (aborted) {
-      controller.abort();
-    }
-
+    if (aborted) controller.abort();
     callback?.(aborted);
   };
+  const onRequestAborted = () => finish(true);
+  const onResponseFinish = () => finish(false);
+  const onResponseClose = () => finish(!response?.writableFinished);
+  const onSocketClose = () => finish(!response?.writableFinished);
 
-  req.socket.on('end', onSocketEnd);
+  // An SSE response can close while a proxy keeps the upstream socket alive.
+  // Request "close" is not used: it also fires after a normal request body.
+  req.on('aborted', onRequestAborted);
+  response?.on('finish', onResponseFinish);
+  response?.on('close', onResponseClose);
   req.socket.on('close', onSocketClose);
+  if (req.aborted || (response?.destroyed && !response.writableFinished)) {
+    finish(true);
+  } else if (response?.writableFinished) {
+    finish(false);
+  }
 
   return {
     signal: controller.signal,
-    onConnectionClosed: cb => (callback = cb),
+    onConnectionClosed: cb => {
+      callback = cb;
+      if (closed !== undefined) cb(closed);
+    },
   };
 }
 

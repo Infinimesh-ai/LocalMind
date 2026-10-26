@@ -17,8 +17,10 @@ import {
   type OfficeDocumentInsertObjectCommand,
   type OfficeDocumentInsertSectionCommand,
   type OfficeDocumentInsertTableCommand,
+  type OfficeDocumentMailMergeCommand,
   type OfficeDocumentPageLayoutCommand,
   type OfficeDocumentReviewResolveCommand,
+  type OfficeDocumentUpdateObjectCommand,
   type OfficeDocxCommand,
   officePackagePartUrl,
   type OfficeResourceOwner,
@@ -50,6 +52,7 @@ import {
   UndoIcon,
 } from '@blocksuite/icons/rc';
 import type { OfficeSelection } from '@localmind/office';
+import { docxSectionStory, type DocxStory } from '@localmind/office/docx';
 import { nanoid } from 'nanoid';
 import {
   type CSSProperties,
@@ -63,7 +66,9 @@ import {
 } from 'react';
 
 import * as styles from './document.css';
+import { DocumentMailMerge } from './document-mail-merge';
 import { DocumentNavigation } from './document-navigation';
+import { DocumentObject } from './document-object';
 import {
   type RegisterOfficeDraft,
   useOfficeDialogDraft,
@@ -211,9 +216,13 @@ function selectedTextFormat(
 function RunObject({
   content,
   packageUrl,
+  disabled,
+  onEdit,
 }: {
   content: Extract<DocxRunContent, { type: 'object' }>;
   packageUrl: string;
+  disabled: boolean;
+  onEdit?: () => void;
 }) {
   if (content.objectType === 'image' && content.part) {
     return (
@@ -231,13 +240,7 @@ function RunObject({
     );
   }
   return (
-    <span
-      contentEditable={false}
-      className={styles.inlineObjectPlaceholder}
-      title={content.description ?? content.name}
-    >
-      {content.objectType}
-    </span>
+    <DocumentObject content={content} disabled={disabled} onEdit={onEdit} />
   );
 }
 
@@ -247,15 +250,18 @@ function Paragraph({
   disabled,
   packageUrl,
   onCommit,
+  onObjectEdit,
 }: {
   paragraph: DocxParagraph;
   order: number;
   disabled: boolean;
   packageUrl: string;
   onCommit: (paragraph: DocxParagraph, text: string) => void;
+  onObjectEdit: ObjectEditHandler;
 }) {
   const i18n = useI18n();
   let runOffset = 0;
+  let objectIndex = 0;
   const outlineLevel = paragraph.properties?.outlineLevel;
   return (
     <p
@@ -305,7 +311,10 @@ function Paragraph({
           ?.alignment as CSSProperties['textAlign'],
       }}
     >
-      {paragraph.text.length ? (
+      {paragraph.text.length ||
+      paragraph.runs.some(run =>
+        run.content.some(content => content.type === 'object')
+      ) ? (
         paragraph.runs.map((run, index) => {
           const text = docxRunContentText(run.content);
           const offset = runOffset;
@@ -323,6 +332,11 @@ function Paragraph({
                     key={`${paragraph.id}:${index}:${contentIndex}`}
                     content={content}
                     packageUrl={packageUrl}
+                    disabled={disabled}
+                    onEdit={(() => {
+                      const index = objectIndex++;
+                      return () => onObjectEdit(paragraph.id, index, content);
+                    })()}
                   />
                 ) : (
                   <span key={`${paragraph.id}:${index}:${contentIndex}`}>
@@ -340,18 +354,26 @@ function Paragraph({
   );
 }
 
+type ObjectEditHandler = (
+  blockId: string,
+  objectIndex: number,
+  content: Extract<DocxRunContent, { type: 'object' }>
+) => void;
+
 function Blocks({
   blocks,
   paragraphOrder,
   editingDisabled,
   packageUrl,
   onParagraphCommit,
+  onObjectEdit,
 }: {
   blocks: readonly DocxBlock[];
   paragraphOrder: ReadonlyMap<string, number>;
   editingDisabled: boolean;
   packageUrl: string;
   onParagraphCommit: (paragraph: DocxParagraph, text: string) => void;
+  onObjectEdit: ObjectEditHandler;
 }) {
   const i18n = useI18n();
   return blocks.map(block => {
@@ -364,6 +386,7 @@ function Blocks({
           disabled={editingDisabled}
           packageUrl={packageUrl}
           onCommit={onParagraphCommit}
+          onObjectEdit={onObjectEdit}
         />
       );
     }
@@ -388,6 +411,7 @@ function Blocks({
                       editingDisabled={editingDisabled}
                       packageUrl={packageUrl}
                       onParagraphCommit={onParagraphCommit}
+                      onObjectEdit={onObjectEdit}
                     />
                   </td>
                 ))}
@@ -411,6 +435,7 @@ function Blocks({
             editingDisabled={editingDisabled}
             packageUrl={packageUrl}
             onParagraphCommit={onParagraphCommit}
+            onObjectEdit={onObjectEdit}
           />
         </section>
       );
@@ -456,6 +481,7 @@ async function fileAsBase64(file: File) {
 function ObjectInsertDialog({
   open,
   initialType,
+  initialObject,
   saving,
   onOpenChange,
   onSubmit,
@@ -463,6 +489,7 @@ function ObjectInsertDialog({
 }: {
   open: boolean;
   initialType: DocxObject['type'];
+  initialObject?: OfficeDocumentUpdateObjectCommand['object'];
   saving: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (object: DocxObject) => Promise<boolean>;
@@ -491,8 +518,31 @@ function ObjectInsertDialog({
   useEffect(() => {
     if (!open) return;
     setType(initialType);
+    if (initialObject) {
+      if ('widthPt' in initialObject) {
+        setWidth(String(initialObject.widthPt));
+        setHeight(String(initialObject.heightPt));
+      }
+      if (initialObject.type === 'shape') {
+        setShape(initialObject.shape);
+        setShapeText(initialObject.text ?? '');
+        setFillColor(initialObject.fillColor ?? '#FFFFFF');
+        setLineColor(initialObject.lineColor ?? '#000000');
+      } else if (initialObject.type === 'equation')
+        setEquation(initialObject.linearText);
+      else {
+        setChartType(initialObject.chartType);
+        setChartTitle(initialObject.title ?? '');
+        setCategories(initialObject.categories.join(', '));
+        setSeries(
+          initialObject.series
+            .map(series => `${series.name}: ${series.values.join(', ')}`)
+            .join('\n')
+        );
+      }
+    }
     setError(null);
-  }, [initialType, open]);
+  }, [initialType, initialObject, open]);
 
   const submit = useCallback(async () => {
     setError(null);
@@ -534,43 +584,56 @@ function ObjectInsertDialog({
           throw new Error(i18n['com.affine.office.enter-an-equation']());
         object = { type, linearText: equation.trim() };
       } else {
-        const categoryValues = categories
-          .split(',')
-          .map(value => value.trim())
-          .filter(Boolean);
+        const categoryValues =
+          initialObject?.type === 'chart' &&
+          categories === initialObject.categories.join(', ')
+            ? initialObject.categories
+            : categories
+                .split(',')
+                .map(value => value.trim())
+                .filter(Boolean);
         if (!categoryValues.length) {
           throw new Error(
             i18n['com.affine.office.enter-at-least-one-chart-category']()
           );
         }
-        const seriesValues = series
-          .split('\n')
-          .map(value => value.trim())
-          .filter(Boolean)
-          .map((line, index) => {
-            const separator = line.indexOf(':');
-            const name =
-              separator === -1
-                ? I18n['com.affine.office.series-number']({
-                    number: String(index + 1),
-                  })
-                : line.slice(0, separator).trim();
-            const values = (separator === -1 ? line : line.slice(separator + 1))
-              .split(',')
-              .map(value => Number(value.trim()));
-            if (
-              !name ||
-              values.length !== categoryValues.length ||
-              values.some(value => !Number.isFinite(value))
-            ) {
-              throw new Error(
-                I18n['com.affine.office.series-values-required']({
-                  number: String(index + 1),
-                })
-              );
-            }
-            return { name, values };
-          });
+        const seriesValues =
+          initialObject?.type === 'chart' &&
+          series ===
+            initialObject.series
+              .map(series => `${series.name}: ${series.values.join(', ')}`)
+              .join('\n')
+            ? initialObject.series
+            : series
+                .split('\n')
+                .map(value => value.trim())
+                .filter(Boolean)
+                .map((line, index) => {
+                  const separator = line.indexOf(':');
+                  const name =
+                    separator === -1
+                      ? I18n['com.affine.office.series-number']({
+                          number: String(index + 1),
+                        })
+                      : line.slice(0, separator).trim();
+                  const values = (
+                    separator === -1 ? line : line.slice(separator + 1)
+                  )
+                    .split(',')
+                    .map(value => Number(value.trim()));
+                  if (
+                    !name ||
+                    values.length !== categoryValues.length ||
+                    values.some(value => !Number.isFinite(value))
+                  ) {
+                    throw new Error(
+                      I18n['com.affine.office.series-values-required']({
+                        number: String(index + 1),
+                      })
+                    );
+                  }
+                  return { name, values };
+                });
         if (!seriesValues.length)
           throw new Error(
             i18n['com.affine.office.enter-at-least-one-series']()
@@ -584,6 +647,17 @@ function ObjectInsertDialog({
           widthPt: finiteNumber(width, 'Width'),
           heightPt: finiteNumber(height, 'Height'),
         };
+      }
+      if (initialObject?.type === 'chart' && object.type === 'chart') {
+        if (categories === initialObject.categories.join(', '))
+          object.categories = initialObject.categories;
+        if (
+          series ===
+          initialObject.series
+            .map(series => `${series.name}: ${series.values.join(', ')}`)
+            .join('\n')
+        )
+          object.series = initialObject.series;
       }
       const saved = await onSubmit(object);
       if (saved) onOpenChange(false);
@@ -602,6 +676,7 @@ function ObjectInsertDialog({
     image,
     imageDescription,
     imageName,
+    initialObject,
     lineColor,
     onOpenChange,
     onSubmit,
@@ -620,7 +695,11 @@ function ObjectInsertDialog({
   return (
     <Modal
       open={open}
-      title={i18n['com.affine.office.insert-document-object']()}
+      title={
+        initialObject
+          ? i18n['com.affine.office.edit-object']()
+          : i18n['com.affine.office.insert-document-object']()
+      }
       width={520}
       onOpenChange={onOpenChange}
     >
@@ -630,7 +709,7 @@ function ObjectInsertDialog({
           <select
             className={surfaceStyles.select}
             value={type}
-            disabled={saving}
+            disabled={saving || !!initialObject}
             onChange={event =>
               setType(event.target.value as DocxObject['type'])
             }
@@ -858,7 +937,9 @@ function ObjectInsertDialog({
             loading={saving}
             onClick={() => void submit()}
           >
-            {i18n['com.affine.ui.insert']()}{' '}
+            {initialObject
+              ? i18n['com.affine.editCollection.save']()
+              : i18n['com.affine.ui.insert']()}{' '}
           </Button>
         </div>
       </div>
@@ -1571,6 +1652,22 @@ function Toolbar({
         <option value="Heading3">
           {i18n['com.affine.office.heading-3']()}
         </option>
+        {[4, 5, 6].map(level => (
+          <option key={level} value={`Heading${level}`}>
+            {i18n['com.affine.office.heading-level']({ level: String(level) })}
+          </option>
+        ))}
+        {format.paragraphStyleId &&
+        ![
+          'Normal',
+          'Title',
+          'Subtitle',
+          ...[1, 2, 3, 4, 5, 6].map(level => `Heading${level}`),
+        ].includes(format.paragraphStyleId) ? (
+          <option value={format.paragraphStyleId}>
+            {format.paragraphStyleId}
+          </option>
+        ) : null}
       </select>
       <select
         className={styles.fontSelect}
@@ -1825,7 +1922,14 @@ export function DocumentEditor({
   const [objectDialogType, setObjectDialogType] = useState<
     DocxObject['type'] | null
   >(null);
+  const [objectEdit, setObjectEdit] = useState<{
+    blockId: string;
+    objectIndex: number;
+    revisionId: string;
+    object: OfficeDocumentUpdateObjectCommand['object'];
+  } | null>(null);
   const [pageLayoutOpen, setPageLayoutOpen] = useState(false);
+  const [mailMergeOpen, setMailMergeOpen] = useState(false);
   const [storyDialogKind, setStoryDialogKind] = useState<
     'header' | 'footer' | null
   >(null);
@@ -1894,24 +1998,8 @@ export function DocumentEditor({
       ),
     [paragraphs]
   );
-  const defaultHeader = useMemo(
-    () =>
-      state.stories.find(
-        story =>
-          story.kind === 'header' && (story.type ?? 'default') === 'default'
-      ),
-    [state.stories]
-  );
-  const defaultFooter = useMemo(
-    () =>
-      state.stories.find(
-        story =>
-          story.kind === 'footer' && (story.type ?? 'default') === 'default'
-      ),
-    [state.stories]
-  );
   const storyText = useCallback(
-    (story: typeof defaultHeader) =>
+    (story: DocxStory | undefined) =>
       story
         ? collectDocxParagraphs(story.blocks)
             .map(paragraph => paragraph.text)
@@ -1944,10 +2032,14 @@ export function DocumentEditor({
           command: JSON.parse(
             JSON.stringify({
               ...command,
-              expectedRevisionId: session.model.current.revision.id,
+              expectedRevisionId:
+                command.operation === 'office.document.object.update'
+                  ? command.expectedRevisionId
+                  : session.model.current.revision.id,
             }),
             (_key, value: unknown) =>
-              typeof value === 'string'
+              typeof value === 'string' &&
+              command.operation !== 'office.document.object.update'
                 ? (session.model.current.identities.find(
                     item => item.id === value
                   )?.blockId ?? value)
@@ -2141,6 +2233,23 @@ export function DocumentEditor({
     [commandBase, editPosition, executeImmediate, selection]
   );
 
+  const handleUpdateObject = useCallback(
+    async (object: DocxObject) => {
+      if (!objectEdit || object.type === 'image') return false;
+      return executeImmediate({
+        ...commandBase(),
+        operation: 'office.document.object.update',
+        expectedRevisionId: objectEdit.revisionId,
+        target: {
+          blockId: objectEdit.blockId,
+          objectIndex: objectEdit.objectIndex,
+        },
+        object,
+      } satisfies OfficeDocumentUpdateObjectCommand);
+    },
+    [objectEdit, executeImmediate, commandBase]
+  );
+
   const handleEditStory = useCallback(
     async (
       sectionIndex: number,
@@ -2159,6 +2268,16 @@ export function DocumentEditor({
     [commandBase, executeImmediate]
   );
 
+  const handleMailMerge = useCallback(
+    async (values: Record<string, string>) =>
+      await executeImmediate({
+        ...commandBase(),
+        operation: 'office.document.mail_merge.apply',
+        values,
+      } satisfies OfficeDocumentMailMergeCommand),
+    [commandBase, executeImmediate]
+  );
+
   const handleReview = useCallback(
     (action: OfficeDocumentReviewResolveCommand['action']) => {
       if (!state.review.changes.length) return;
@@ -2173,6 +2292,15 @@ export function DocumentEditor({
 
   const updateSelection = useCallback(() => {
     if (!rootRef.current || pendingSelectionRestore.current) return;
+    // Modal inputs own the browser selection while open. Keep the document
+    // insertion target until the dialog submits or closes.
+    if (
+      objectDialogType !== null ||
+      objectEdit !== null ||
+      pageLayoutOpen ||
+      storyDialogKind !== null
+    )
+      return;
     // Native select/color controls may move the browser selection outside the
     // document. Their commands still apply to the last document selection.
     if (
@@ -2234,6 +2362,10 @@ export function DocumentEditor({
         : null
     );
   }, [
+    objectDialogType,
+    objectEdit,
+    pageLayoutOpen,
+    storyDialogKind,
     onAiSelectionChange,
     onCommentAnchorChange,
     revision.id,
@@ -2298,6 +2430,7 @@ export function DocumentEditor({
     hasUnsavedChanges: session.dirty,
     save: session.save,
     discard: session.discard,
+    pauseAutosave: session.pauseAutosave,
   });
 
   const handleEditorKeyDown = (event: KeyboardEvent) => {
@@ -2405,6 +2538,15 @@ export function DocumentEditor({
                 </nav>
               </>
             ) : null}
+            {state.references.mailMergeFields.length ? (
+              <Button
+                variant="plain"
+                disabled={saving}
+                onClick={() => setMailMergeOpen(true)}
+              >
+                {i18n['com.affine.office.mail-merge']()}
+              </Button>
+            ) : null}
             {state.review.changes.length || state.review.comments.length ? (
               <section className={styles.reviewSummary}>
                 <div className={styles.navigationSectionTitle}>
@@ -2478,51 +2620,103 @@ export function DocumentEditor({
             tabIndex={0}
             aria-label={i18n['com.affine.office.document-pages']()}
           >
-            {pages.map(page => (
-              <article
-                className={styles.page}
-                key={page.index}
-                data-page-number={page.index + 1}
-                style={
-                  {
-                    '--office-page-width': `${page.widthPt}pt`,
-                    '--office-page-height': `${page.heightPt}pt`,
-                    '--office-margin-top': `${page.margins.topPt}pt`,
-                    '--office-margin-right': `${page.margins.rightPt}pt`,
-                    '--office-margin-bottom': `${page.margins.bottomPt}pt`,
-                    '--office-margin-left': `${page.margins.leftPt}pt`,
-                  } as CSSProperties
-                }
-              >
-                {defaultHeader ? (
-                  <div className={styles.pageHeader}>
-                    {storyText(defaultHeader)}
+            {pages.map(page => {
+              const header = docxSectionStory(
+                state,
+                page.sectionIndex,
+                'header',
+                page.sectionPageIndex === 0
+              );
+              const footer = docxSectionStory(
+                state,
+                page.sectionIndex,
+                'footer',
+                page.sectionPageIndex === 0
+              );
+              return (
+                <article
+                  className={styles.page}
+                  key={page.index}
+                  data-page-number={page.index + 1}
+                  data-section-number={page.sectionIndex + 1}
+                  style={
+                    {
+                      '--office-page-width': `${page.widthPt}pt`,
+                      '--office-page-height': `${page.heightPt}pt`,
+                      '--office-margin-top': `${page.margins.topPt}pt`,
+                      '--office-margin-right': `${page.margins.rightPt}pt`,
+                      '--office-margin-bottom': `${page.margins.bottomPt}pt`,
+                      '--office-margin-left': `${page.margins.leftPt}pt`,
+                    } as CSSProperties
+                  }
+                >
+                  {header ? (
+                    <div className={styles.pageHeader}>{storyText(header)}</div>
+                  ) : null}
+                  <div className={styles.pageContent} data-office-page-content>
+                    <Blocks
+                      blocks={page.blocks}
+                      paragraphOrder={paragraphOrder}
+                      editingDisabled={
+                        readOnly ||
+                        commandSaving ||
+                        session.model.current.conflict
+                      }
+                      packageUrl={revision.packageUrl}
+                      onParagraphCommit={() => {}}
+                      onObjectEdit={(blockId, objectIndex, content) => {
+                        if (
+                          readOnly ||
+                          saving ||
+                          !content.editableObject ||
+                          !content.objectData
+                        )
+                          return;
+                        setObjectEdit({
+                          blockId:
+                            session.model.current.identities.find(
+                              item => item.id === blockId
+                            )?.blockId ?? blockId,
+                          objectIndex,
+                          revisionId: revision.id,
+                          object: content.objectData,
+                        });
+                      }}
+                    />
                   </div>
-                ) : null}
-                <div className={styles.pageContent} data-office-page-content>
-                  <Blocks
-                    blocks={page.blocks}
-                    paragraphOrder={paragraphOrder}
-                    editingDisabled={
-                      readOnly ||
-                      commandSaving ||
-                      session.model.current.conflict
-                    }
-                    packageUrl={revision.packageUrl}
-                    onParagraphCommit={() => {}}
-                  />
-                </div>
-                {defaultFooter ? (
-                  <div className={styles.pageFooter}>
-                    {storyText(defaultFooter)}
-                  </div>
-                ) : null}
-                <span className={styles.pageNumber}>{page.index + 1}</span>
-              </article>
-            ))}
+                  {footer ? (
+                    <div className={styles.pageFooter}>{storyText(footer)}</div>
+                  ) : null}
+                  <span className={styles.pageNumber}>{page.index + 1}</span>
+                </article>
+              );
+            })}
           </main>
         </div>
       </div>
+      {mailMergeOpen ? (
+        <DocumentMailMerge
+          fields={state.references.mailMergeFields}
+          readOnly={readOnly}
+          saving={saving}
+          onSubmit={handleMailMerge}
+          onClose={() => setMailMergeOpen(false)}
+          registerDraft={registerDraft}
+        />
+      ) : null}
+      {objectEdit ? (
+        <ObjectInsertDialog
+          open
+          initialType={objectEdit.object.type}
+          initialObject={objectEdit.object}
+          saving={saving || readOnly}
+          onOpenChange={open => {
+            if (!open) setObjectEdit(null);
+          }}
+          onSubmit={handleUpdateObject}
+          registerDraft={registerDraft}
+        />
+      ) : null}
       {objectDialogType !== null ? (
         <ObjectInsertDialog
           open={objectDialogType !== null}

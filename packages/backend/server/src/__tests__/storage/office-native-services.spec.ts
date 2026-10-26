@@ -3,6 +3,11 @@ import { Readable } from 'node:stream';
 
 import { createNativeFile } from '@localmind/office';
 import {
+  applyDocxCommand,
+  openDocxPackage,
+  readDocxSemanticState,
+} from '@localmind/office/docx';
+import {
   createMinimalPdfFixture,
   createMinimalPptxFixture,
   createMinimalXlsxFixture,
@@ -47,6 +52,25 @@ function permissions(result: 'allow' | 'deny' = 'allow') {
 }
 
 async function nativeCases() {
+  const document = openDocxPackage(
+    createNativeFile({
+      format: 'docx',
+      paragraphs: [{ text: 'Object paragraph' }],
+    }).bytes
+  );
+  const paragraph = readDocxSemanticState(document).body[0];
+  const objectCommand = {
+    version: 'localmind-office-command/v1',
+    commandId: 'docx-object',
+    idempotencyKey: 'docx-object',
+    artifactId: 'artifact-docx',
+    expectedRevisionId: 'revision-docx',
+    source: 'user',
+    operation: 'office.document.object.insert',
+    target: { blockId: paragraph.id, offset: 0 },
+    object: { type: 'equation', linearText: 'original' },
+  };
+  const objectDocument = applyDocxCommand(document, objectCommand);
   return [
     {
       format: 'xlsx' as const,
@@ -138,6 +162,19 @@ async function nativeCases() {
         ],
       },
       secret: 'PRIVATE_DOCX_TEXT',
+    },
+    {
+      format: 'docx' as const,
+      bytes: objectDocument.packageBytes,
+      kind: OfficeArtifactKind.document,
+      fileName: 'object.docx',
+      secret: 'PRIVATE_OBJECT_TEXT',
+      command: {
+        ...objectCommand,
+        operation: 'office.document.object.update',
+        target: { blockId: objectDocument.state.body[0].id, objectIndex: 0 },
+        object: { type: 'equation', linearText: 'PRIVATE_OBJECT_TEXT' },
+      },
     },
   ];
 }
@@ -441,4 +478,58 @@ test('rejects stale revisions, altered bytes, and missing AI permission before w
     { message: 'permission denied' }
   );
   t.false((deniedModels.officeArtifact.get as Sinon.SinonStub).called);
+});
+
+test('object updates reject lost permission and a stale revision before storage', async t => {
+  const item = (await nativeCases()).find(
+    item => item.command.operation === 'office.document.object.update'
+  );
+  if (!item) throw new Error('Missing object command');
+  const get = Sinon.stub(),
+    put = Sinon.stub(),
+    appendRevision = Sinon.stub();
+  const storage = workspaceOfficeStorage({
+    get,
+    put,
+  } as unknown as WorkspaceBlobStorage);
+  const denied = permissions('deny');
+  const models = {
+    officeArtifact: {
+      get: Sinon.stub().resolves({
+        id: 'artifact-docx',
+        kind: OfficeArtifactKind.document,
+      }),
+      getCurrentRevision: Sinon.stub().resolves({ id: 'newer-revision' }),
+      appendRevision,
+    },
+  } as unknown as Models;
+  await t.throwsAsync(
+    new OfficeCommandService(
+      models,
+      storage,
+      denied.access,
+      nativeAccessFixture
+    ).execute({
+      workspaceId: 'workspace-1',
+      actorId: 'user-1',
+      command: item.command,
+    }),
+    { message: 'permission denied' }
+  );
+  await t.throwsAsync(
+    new OfficeCommandService(
+      models,
+      storage,
+      permissions().access,
+      nativeAccessFixture
+    ).execute({
+      workspaceId: 'workspace-1',
+      actorId: 'user-1',
+      command: item.command,
+    }),
+    { message: /revision conflict/ }
+  );
+  t.false(get.called);
+  t.false(put.called);
+  t.false(appendRevision.called);
 });

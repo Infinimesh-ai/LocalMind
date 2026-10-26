@@ -1360,12 +1360,14 @@ export class WorkspaceOrganizationService {
     operationId: string,
     action: 'trash' | 'restore' | 'delete'
   ) {
+    const nativeRows = (
+      await this.nativeDirectoryRows(workspaceId, nodes)
+    ).filter(row => row.type === 'file' || row.type === 'office');
+    const skippedPlacementIds = new Set<string>();
     const unique = new Map(
-      (await this.nativeDirectoryRows(workspaceId, nodes))
-        .filter(row => row.type === 'file' || row.type === 'office')
-        .map(row => [`${row.type}:${row.data}`, row])
+      nativeRows.map(row => [`${row.type}:${row.data}`, row])
     );
-    if (!unique.size) return;
+    if (!unique.size) return skippedPlacementIds;
     if (this.legacyAiWrite.getStore())
       throw new BadRequest(
         'This frozen directory tool cannot modify native resources; use the native resource tools'
@@ -1393,7 +1395,35 @@ export class WorkspaceOrganizationService {
         trash: true,
         deleted: true,
       });
-      if (resource.state.deletedAt) continue;
+      const placements = nativeRows.filter(
+        node => node.type === row.type && node.data === row.data
+      );
+      // The immutable folder manifest can outlive an explicit relocation.
+      // Never revive its old placement or delete a resource now owned by a
+      // different trash operation/location.
+      if (action !== 'trash' || resource.state.deletedAt) {
+        for (const placement of placements) {
+          const belongsToManifest =
+            !resource.state.deletedAt &&
+            !!resource.state.trashedAt &&
+            (resource.state.trashSourceId === operationId ||
+              (Array.isArray(resource.state.restoreLocations) &&
+                resource.state.restoreLocations.some(
+                  location =>
+                    location &&
+                    typeof location === 'object' &&
+                    !Array.isArray(location) &&
+                    location.folderId === (placement.parentId ?? null)
+                )));
+          if (!belongsToManifest) skippedPlacementIds.add(String(placement.id));
+        }
+        if (
+          placements.every(placement =>
+            skippedPlacementIds.has(String(placement.id))
+          )
+        )
+          continue;
+      }
       const location = await this.nativeResourceLocations({
         ...input,
         write: true,
@@ -1427,6 +1457,7 @@ export class WorkspaceOrganizationService {
         });
       }
     }
+    return skippedPlacementIds;
   }
 
   async placeNewNativeResource(
@@ -1626,6 +1657,11 @@ export class WorkspaceOrganizationService {
         const placements = raw.rows.filter(
           row => row.type === 'doc' && row.data === input.documentId
         );
+        if (!placements.length) {
+          const rights = directory.rootRights;
+          if (!rights.canRead || !rights.canWrite || !rights.canOrganize)
+            throw new ResourceError('permission_denied');
+        }
         const visible = new Map(
           directory.entries.map(entry => [String(entry.row.id), entry])
         );
@@ -2583,7 +2619,7 @@ export class WorkspaceOrganizationService {
           throw new Error(`Document ${documentId} can no longer be restored.`);
         }
       }
-      await this.changeFolderNativeResources(
+      const skippedNativePlacements = await this.changeFolderNativeResources(
         input.workspaceId,
         input.editorId,
         nodes,
@@ -2615,7 +2651,8 @@ export class WorkspaceOrganizationService {
       folders.doc.transact(() => {
         for (const node of nodes) {
           const stored = folders.doc.getMap<unknown>(String(node.id));
-          stored.delete('$$DELETED');
+          if (!skippedNativePlacements.has(String(node.id)))
+            stored.delete('$$DELETED');
           for (const key of FOLDER_TRASH_METADATA_KEYS) stored.delete(key);
         }
       });
@@ -2635,8 +2672,11 @@ export class WorkspaceOrganizationService {
         manifestFingerprint: fingerprint,
         restoredFolderCount: nodes.filter(record => record.type === 'folder')
           .length,
-        restoredPlacementCount: nodes.filter(record => record.type !== 'folder')
-          .length,
+        restoredPlacementCount: nodes.filter(
+          record =>
+            record.type !== 'folder' &&
+            !skippedNativePlacements.has(String(record.id))
+        ).length,
         restoredDocumentCount,
         leftInTrashDocumentCount: documentIds.length - restoredDocumentCount,
         changed: true,

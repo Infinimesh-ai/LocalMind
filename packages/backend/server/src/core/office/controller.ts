@@ -2,9 +2,11 @@ import { officeDownloadFileName } from '@localmind/office';
 import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { CallMetric } from '../../base';
+import { BadRequest, CallMetric } from '../../base';
 import { CurrentUser, type CurrentUser as CurrentUserType } from '../auth';
 import { OfficeArtifactService } from './artifact-service';
+import { officeFingerprint } from './evidence';
+import { officePdfExportResponse } from './pdf-export-response';
 
 @Controller('/api/workspaces')
 export class OfficeController {
@@ -49,20 +51,37 @@ export class OfficeController {
     @Param('workspaceId') workspaceId: string,
     @Param('artifactId') artifactId: string,
     @Param('revisionId') revisionId: string,
-    @Res() response: Response
+    @Res() response: Response,
+    @Query('view') view?: string
   ) {
-    const asset = await this.artifacts.readRevisionAsset(
-      workspaceId,
-      user.id,
-      artifactId,
-      revisionId,
-      'state'
-    );
+    if (view !== undefined && view !== 'layout-v2')
+      throw new BadRequest('Unknown Office state view');
+    const asset =
+      view === 'layout-v2'
+        ? await this.artifacts.readRevisionLayoutState(
+            workspaceId,
+            user.id,
+            artifactId,
+            revisionId
+          )
+        : await this.artifacts.readRevisionAsset(
+            workspaceId,
+            user.id,
+            artifactId,
+            revisionId,
+            'state'
+          );
     response.setHeader('content-type', 'application/json; charset=utf-8');
     response.setHeader('content-length', asset.bytes.byteLength);
     response.setHeader('last-modified', asset.revision.createdAt.toUTCString());
-    response.setHeader('etag', `"${asset.revision.stateFingerprint}"`);
-    response.setHeader('cache-control', 'private, max-age=31536000, immutable');
+    response.setHeader(
+      'etag',
+      `"${view ? officeFingerprint(asset.bytes) : asset.revision.stateFingerprint}"`
+    );
+    response.setHeader(
+      'cache-control',
+      view ? 'private, no-store' : 'private, max-age=31536000, immutable'
+    );
     response.send(asset.bytes);
   }
 
@@ -102,12 +121,17 @@ export class OfficeController {
     @Param('revisionId') revisionId: string,
     @Res() response: Response
   ) {
-    const asset = await this.artifacts.exportDocumentRevisionPdf(
-      workspaceId,
-      user.id,
-      artifactId,
-      revisionId
+    const asset = await officePdfExportResponse(
+      () =>
+        this.artifacts.exportDocumentRevisionPdf(
+          workspaceId,
+          user.id,
+          artifactId,
+          revisionId
+        ),
+      response
     );
+    if (!asset) return;
     response.setHeader('content-type', asset.mimeType);
     response.setHeader('content-length', asset.bytes.byteLength);
     response.setHeader('last-modified', asset.revision.createdAt.toUTCString());

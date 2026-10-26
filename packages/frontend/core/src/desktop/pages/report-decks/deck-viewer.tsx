@@ -5,6 +5,7 @@ import {
   getReportDecksPath,
 } from '@affine/core/desktop/route-paths';
 import { useReportDeckApi } from '@affine/core/modules/report-decks/api';
+import { deckAccessFailure } from '@affine/core/modules/report-decks/errors';
 import {
   useDeck,
   useDeckCommand,
@@ -32,7 +33,6 @@ import {
   type DeckDisplayMode,
   setDeckDisplayMode,
 } from '@localmind/office/report-deck';
-import { nanoid } from 'nanoid';
 import {
   type Ref,
   useCallback,
@@ -338,6 +338,11 @@ function SourcesPanel({ deck }: { deck: DeckDetail }) {
     <aside className={styles.sourcesPanel} aria-label={t('viewer.sources')}>
       <h2 className={styles.panelHeading}>{t('viewer.details')}</h2>
       <div className={styles.aiMeta}>
+        {deck.mode === 'custom' && deck.designMode && (
+          <span className={styles.pill}>
+            {t(`designMode.${deck.designMode}`)}
+          </span>
+        )}
         <span className={styles.pill}>
           {deck.mode === 'custom'
             ? t('mode.custom')
@@ -399,16 +404,49 @@ function ReadyCanvas({
 }) {
   const t = useDeckText();
   const html = useDeckHtml(deck);
+  const warnings = deck.quality?.warnings.filter(
+    warning =>
+      !deck.designMode ||
+      !['visual_partial', 'visual_unavailable'].includes(warning)
+  );
   return (
     <div className={styles.viewerCanvas} style={{ flexDirection: 'column' }}>
-      {!!deck.quality?.warnings.length && (
+      {deck.mode === 'custom' && deck.designMode && deck.quality && (
+        <div
+          className={styles.generationQuality}
+          role="status"
+          data-testid="deck-generation-quality"
+        >
+          <strong>
+            {t(
+              deck.designMode === 'fast'
+                ? 'designMode.fastComplete'
+                : deck.quality.visual === 'complete'
+                  ? 'designMode.refineComplete'
+                  : 'designMode.refineIncomplete'
+            )}
+          </strong>
+          <p>
+            {t(
+              deck.designMode === 'fast'
+                ? 'designMode.fastChecked'
+                : deck.quality.visual === 'complete'
+                  ? 'designMode.refineChecked'
+                  : deck.quality.visual === 'partial'
+                    ? 'quality.visual_partial'
+                    : 'quality.visual_unavailable'
+            )}
+          </p>
+        </div>
+      )}
+      {!!warnings?.length && (
         <div
           className={styles.muted}
           role="status"
           data-testid="deck-quality"
           style={{ padding: '12px 16px' }}
         >
-          {deck.quality.warnings.map(warning => (
+          {warnings.map(warning => (
             <p key={warning}>{t(`quality.${warning}`)}</p>
           ))}
         </div>
@@ -422,7 +460,9 @@ function ReadyCanvas({
           />
         ) : html.error ? (
           <div className={styles.gate} role="alert">
-            <p>{t('viewer.htmlFailed')}</p>
+            <p>
+              {t(`viewer.${deckAccessFailure(html.error) ?? 'htmlFailed'}`)}
+            </p>
             <button
               type="button"
               className={styles.button}
@@ -450,6 +490,8 @@ export function DeckViewer({ deckId }: { deckId: string }) {
   const api = useReportDeckApi();
   const { openConfirmModal } = useConfirmModal();
   const { deck, error, loading, refresh } = useDeck(deckId);
+  const accessFailure = deckAccessFailure(error);
+  const loadFailure = accessFailure ?? (error ? 'loadFailed' : 'notFound');
   const command = useDeckCommand();
   const [shareOpen, setShareOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -466,14 +508,6 @@ export function DeckViewer({ deckId }: { deckId: string }) {
       notify.error({ title: t('error.commandFailed') });
       return null;
     }
-  };
-  const regenerate = async () => {
-    const result = await run({
-      operation: 'regenerate',
-      deckId,
-      requestKey: nanoid(),
-    });
-    if (result?.deck) navigate(getReportDeckPath(result.deck.id));
   };
   const reconfigure = () =>
     navigate(
@@ -500,18 +534,12 @@ export function DeckViewer({ deckId }: { deckId: string }) {
           <Loading />
         ) : (
           <div className={styles.statusPanel} role="alert">
-            <h2 className={styles.cardTitle}>
-              {t(error ? 'viewer.loadFailed' : 'viewer.notFound')}
-            </h2>
+            <h2 className={styles.cardTitle}>{t(`viewer.${loadFailure}`)}</h2>
             <p className={styles.pageLead}>
-              {t(
-                error
-                  ? 'viewer.loadFailedDescription'
-                  : 'viewer.notFoundDescription'
-              )}
+              {t(`viewer.${loadFailure}Description`)}
             </p>
             <div className={styles.row} style={{ marginTop: 20 }}>
-              {error ? (
+              {error && !accessFailure ? (
                 <button
                   type="button"
                   className={styles.button}
@@ -550,6 +578,11 @@ export function DeckViewer({ deckId }: { deckId: string }) {
         <div className={styles.viewerTitle}>
           <h1>{deck.title || t(active ? 'untitledGenerating' : 'untitled')}</h1>
           <div className={styles.row}>
+            {deck.mode === 'custom' && deck.designMode && (
+              <span className={styles.pill}>
+                {t(`designMode.${deck.designMode}`)}
+              </span>
+            )}
             <DeckStatusChip
               status={deck.status}
               progress={deck.progress}
@@ -591,7 +624,7 @@ export function DeckViewer({ deckId }: { deckId: string }) {
             type="button"
             className={styles.button}
             disabled={command.pending}
-            onClick={() => void regenerate()}
+            onClick={reconfigure}
           >
             <RedoIcon />
             {t('action.regenerateSame')}
@@ -633,7 +666,7 @@ export function DeckViewer({ deckId }: { deckId: string }) {
                 busy={command.pending}
                 onRetry={() =>
                   void (deck.status === 'cancelled'
-                    ? regenerate()
+                    ? reconfigure()
                     : run({ operation: 'retry', deckId }))
                 }
                 onReconfigure={reconfigure}

@@ -58,3 +58,22 @@ test('advertised schema still describes structured content with examples', t => 
   t.true(Array.isArray(properties.content.anyOf));
   t.regex(String(properties.content.description), /not a JSON string/);
 });
+
+test('model schema and tool parsing support explicit normal DOCX paragraphs', t => {
+  const input = {
+    format: 'docx',
+    paragraphs: [{ text: 'Body', heading: null }],
+  };
+  for (const content of [input, JSON.stringify(input)]) {
+    const parsed = NativeFileCreateToolSchema.parse({ title: 'Body', content });
+    const xml = new TextDecoder().decode(
+      unzipSync(createNativeFile(parsed.content).bytes)['word/document.xml']
+    );
+    t.true(xml.includes('Body'));
+    t.false(xml.includes('w:pStyle'));
+  }
+  const schema = toToolJsonSchema(NativeFileCreateToolSchema);
+  const serialized = JSON.stringify(schema);
+  t.true(serialized.includes('null'));
+  t.regex(serialized, /Never use heading 6/);
+});

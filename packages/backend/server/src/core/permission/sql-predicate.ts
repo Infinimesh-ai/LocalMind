@@ -102,11 +102,9 @@ export class PermissionSqlPredicateBuilder {
         `JOIN ai_context_project_members project_member ON project_member.project_id = project_grant.project_id AND project_member.user_id = ?`,
         `WHERE project_grant.workspace_id = ? AND project_grant.doc_id = ${docIdColumn}`,
         `AND project_grant.status = 'active'`,
-        ...(input.projectId === undefined
-          ? []
-          : input.projectId === null
-            ? ['AND FALSE']
-            : ['AND project_grant.project_id = ?']),
+        ...(typeof input.projectId === 'string'
+          ? ['AND project_grant.project_id = ?']
+          : ['AND FALSE']),
         `AND (project_grant.level = ANY(?::text[]) OR dg.role = ANY(?::text[])))`,
         `))`,
       ].join(' '),
@@ -181,7 +179,7 @@ export class PermissionSqlPredicateBuilder {
               WHERE project_grant.workspace_id = ${input.workspaceId}
                 AND project_grant.doc_id = ${docIdColumn}
                 AND project_grant.status = 'active'
-                ${input.projectId === undefined ? Prisma.empty : input.projectId === null ? Prisma.sql`AND FALSE` : Prisma.sql`AND project_grant.project_id = ${input.projectId}`}
+                ${typeof input.projectId === 'string' ? Prisma.sql`AND project_grant.project_id = ${input.projectId}` : Prisma.sql`AND FALSE`}
                 AND (
                   project_grant.level = ANY(${Prisma.sql`${projectGrantLevels}::text[]`})
                   OR dg.role = ANY(${Prisma.sql`${nonMemberGrantRoles}::text[]`})

@@ -33,6 +33,9 @@ const state = vi.hoisted(() => ({
   queryConfig: undefined as ResourceQueryConfig | undefined,
   refreshing: false,
   catalogVisible: true,
+  catalogError: false,
+  catalogLoading: false,
+  refreshCatalog: vi.fn<() => Promise<void>>(),
   resourceEvents$: undefined as Subject<{ changed: true }> | undefined,
   accessEvents$: undefined as Subject<{ changed: true }> | undefined,
 }));
@@ -64,7 +67,9 @@ vi.mock('@affine/core/modules/workspace', () => ({
 vi.mock('@affine/core/modules/workspace-resources/use-resources', () => ({
   useWorkspaceResources: () => ({
     ready: true,
-    error: false,
+    error: state.catalogError,
+    loading: state.catalogLoading,
+    service: { refresh: state.refreshCatalog },
     items: state.catalogVisible ? [{ id: 'pdf', kind: 'office' }] : [],
   }),
 }));
@@ -161,6 +166,9 @@ beforeEach(() => {
   state.error = null;
   state.refreshing = false;
   state.catalogVisible = true;
+  state.catalogError = false;
+  state.catalogLoading = false;
+  state.refreshCatalog.mockReset().mockResolvedValue(undefined);
   state.mutate.mockReset().mockResolvedValue(undefined);
   state.resourceEvents$ = new Subject();
   state.accessEvents$ = new Subject();
@@ -231,6 +239,38 @@ test('a failed refresh has a retry control and preserves the draft through recov
   expect(
     screen.getByLabelText('Local Office draft').closest('[hidden]')
   ).toBeNull();
+});
+
+test('catalog refresh failures offer a complete retry without misreporting deletion or losing drafts', () => {
+  const view = render(<Component />);
+  const draft = screen.getByLabelText('Local Office draft') as HTMLInputElement;
+  fireEvent.change(draft, { target: { value: 'Keep this draft' } });
+  state.catalogError = true;
+  view.rerender(<Component />);
+  expect(screen.getByRole('alert').textContent).toContain(
+    'com.affine.error.unexpected-error.title'
+  );
+  expect(screen.getByRole('alert').textContent).not.toContain(
+    'com.affine.localmind.resources.unavailable'
+  );
+  expect(state.capabilities.canEdit).toBe(false);
+  expect(draft.closest('[hidden]')).toBeTruthy();
+  const retry = screen.getByRole('button', {
+    name: 'com.affine.error.retry',
+  }) as HTMLButtonElement;
+  fireEvent.click(retry);
+  expect(state.mutate).toHaveBeenCalledOnce();
+  expect(state.refreshCatalog).toHaveBeenCalledOnce();
+  state.catalogLoading = true;
+  view.rerender(<Component />);
+  expect(retry.disabled).toBe(true);
+  state.catalogError = false;
+  state.catalogLoading = false;
+  view.rerender(<Component />);
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(state.capabilities.canEdit).toBe(true);
+  expect(draft.value).toBe('Keep this draft');
+  expect(draft.closest('[hidden]')).toBeNull();
 });
 
 test('only typed temporary failures permit bounded automatic retries', () => {

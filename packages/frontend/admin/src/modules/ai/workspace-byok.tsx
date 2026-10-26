@@ -49,9 +49,10 @@ import {
   SearchIcon,
   Trash2Icon,
 } from 'lucide-react';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmDialog } from '../../components/shared/confirm-dialog';
 import { translateAdminText as text } from '../../localized-text';
 import { formatByokError } from './byok-feedback';
 import { WorkspaceAiProfilesEditor } from './workspace-ai-profiles';
@@ -129,7 +130,6 @@ function testFingerprint(draft: KeyDraft, customEndpointSupported: boolean) {
     apiKey: draft.apiKey.trim(),
     endpoint: customEndpointSupported ? draft.endpoint.trim() : undefined,
     id: draft.id ?? null,
-    modelId: draft.modelId.trim(),
     apiStyle: draft.apiStyle,
     expectedRevision: draft.expectedRevision,
     provider: draft.provider,
@@ -159,6 +159,11 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     null
   );
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [pendingAction, setPendingAction] = useState<'test' | 'save' | null>(
+    null
+  );
+  const [formError, setFormError] = useState<string | null>(null);
+  const requestPending = useRef(false);
   const { trigger: testConfig, isMutating: isTesting } = useMutation({
     mutation: testWorkspaceByokConfigMutation,
   });
@@ -183,72 +188,91 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     [draft, settings.customEndpointSupported]
   );
   const isTested = testedFingerprint === currentTestFingerprint;
-  const modelOptions = [
-    ...new Set([draft.modelId, ...availableModels].filter(Boolean)),
-  ];
+  const modelOptions = isTested
+    ? availableModels
+    : [draft.modelId].filter(Boolean);
+  const busy = pendingAction !== null || isTesting || isSaving;
   const canTest = Boolean(draft.id || draft.apiKey.trim());
   const canSave =
     settings.serverEntitled &&
     Boolean(draft.name.trim()) &&
-    Boolean(draft.modelId.trim()) &&
+    availableModels.includes(draft.modelId) &&
     Boolean(draft.id || draft.apiKey.trim()) &&
     isTested &&
-    !isSaving;
+    !busy;
 
   const resetDraft = () => {
     setDraft(emptyDraft(settings.keys.length, defaultProvider));
     setTestedFingerprint(null);
     setAvailableModels([]);
+    setFormError(null);
   };
 
+  const testInput = (modelId: string | null) => ({
+    apiKey: draft.apiKey.trim() || undefined,
+    configId: draft.id,
+    endpoint: settings.customEndpointSupported
+      ? draft.endpoint.trim() || null
+      : undefined,
+    modelId,
+    apiStyle: draft.provider === ByokProvider.openai ? draft.apiStyle : null,
+    expectedRevision: draft.expectedRevision,
+    provider: draft.provider,
+    storage: ByokKeyStorage.server,
+    workspaceId: scope.id,
+  });
+
   const handleTest = async () => {
-    if (!canTest || isTesting) return;
+    if (!canTest || busy || requestPending.current) return;
+    requestPending.current = true;
+    setPendingAction('test');
+    setFormError(null);
+    setTestedFingerprint(null);
+    setAvailableModels([]);
     try {
       const result = await testConfig({
-        input: {
-          apiKey: draft.apiKey.trim() || undefined,
-          configId: draft.id,
-          endpoint: settings.customEndpointSupported
-            ? draft.endpoint.trim() || null
-            : undefined,
-          modelId: draft.modelId.trim() || null,
-          apiStyle:
-            draft.provider === ByokProvider.openai ? draft.apiStyle : null,
-          expectedRevision: draft.expectedRevision,
-          provider: draft.provider,
-          storage: ByokKeyStorage.server,
-          workspaceId: scope.id,
-        },
+        input: testInput(null),
       });
       if (!result.testWorkspaceByokConfig.ok) {
-        setTestedFingerprint(null);
-        setAvailableModels([]);
-        await mutate();
-        toast.error(formatByokError(result.testWorkspaceByokConfig.message));
+        setFormError(formatByokError(result.testWorkspaceByokConfig.message));
         return;
       }
-      setAvailableModels(current => [
-        ...new Set([
-          ...current,
-          ...(result.testWorkspaceByokConfig.models ?? []),
-        ]),
-      ]);
+      const models = [...new Set(result.testWorkspaceByokConfig.models ?? [])];
+      if (!models.length) {
+        setFormError(
+          i18n['com.affine.admin.workspace-byok-model-list-empty']()
+        );
+        return;
+      }
+      setAvailableModels(models);
+      setDraft(current => ({
+        ...current,
+        modelId: models.includes(current.modelId) ? current.modelId : '',
+      }));
       setTestedFingerprint(currentTestFingerprint);
-      await mutate();
-      toast.success(i18n['com.affine.admin.byok-connection-verified']());
     } catch (testError) {
       console.error(testError);
-      setTestedFingerprint(null);
-      setAvailableModels([]);
-      toast.error(i18n['com.affine.admin.provider-test-failed']());
+      setFormError(i18n['com.affine.admin.provider-test-failed']());
+    } finally {
+      requestPending.current = false;
+      setPendingAction(null);
     }
   };
 
   const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canSave) return;
+    if (!canSave || requestPending.current) return;
+    requestPending.current = true;
+    setPendingAction('save');
+    setFormError(null);
+    let saved = false;
     try {
-      await upsertConfig({
+      const result = await testConfig({ input: testInput(draft.modelId) });
+      if (!result.testWorkspaceByokConfig.ok) {
+        setFormError(formatByokError(result.testWorkspaceByokConfig.message));
+        return;
+      }
+      const persisted = await upsertConfig({
         input: {
           apiKey: draft.apiKey.trim() || undefined,
           description: draft.description.trim() || null,
@@ -268,25 +292,57 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
           workspaceId: scope.id,
         },
       });
+      saved = true;
+      // Draft probes cannot change persisted validation state. Verify the exact
+      // saved revision without draft overrides before reporting it as ready.
+      let verificationError: string | null = null;
+      if (draft.enabled) {
+        try {
+          const verified = await testConfig({
+            input: {
+              configId: persisted.upsertWorkspaceByokConfig.id,
+              expectedRevision:
+                persisted.upsertWorkspaceByokConfig.configRevision,
+              provider: draft.provider,
+              storage: ByokKeyStorage.server,
+              workspaceId: scope.id,
+            },
+          });
+          if (!verified.testWorkspaceByokConfig.ok) {
+            verificationError = formatByokError(
+              verified.testWorkspaceByokConfig.message
+            );
+          }
+        } catch {
+          verificationError = i18n['com.affine.admin.provider-test-failed']();
+        }
+      }
       await mutate();
       resetDraft();
-      toast.success(i18n['com.affine.admin.workspace-ai-credential-saved']());
+      const savedMessage =
+        i18n['com.affine.admin.workspace-ai-credential-saved']();
+      if (verificationError) {
+        setFormError(`${savedMessage} ${verificationError}`);
+      } else {
+        toast.success(savedMessage);
+      }
     } catch (saveError) {
       console.error(saveError);
-      toast.error(
-        i18n['com.affine.admin.failed-to-save-workspace-ai-credential']()
+      setFormError(
+        saved
+          ? i18n['com.affine.admin.byok-saved-refresh-failed']()
+          : i18n['com.affine.admin.failed-to-save-workspace-ai-credential']()
       );
+    } finally {
+      requestPending.current = false;
+      setPendingAction(null);
     }
   };
 
+  const [pendingDelete, setPendingDelete] = useState<WorkspaceByokKey | null>(
+    null
+  );
   const handleDelete = async (key: WorkspaceByokKey) => {
-    if (
-      !window.confirm(
-        `Delete ${key.name}? AI routes using this credential will stop immediately.`
-      )
-    ) {
-      return;
-    }
     try {
       await deleteConfig({ workspaceId: scope.id, id: key.id });
       await mutate();
@@ -338,6 +394,25 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
 
   return (
     <div className="border-t border-border/70">
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={open => {
+          if (!open) setPendingDelete(null);
+        }}
+        title={i18n['com.affine.admin.delete-credential']()}
+        description={i18n[
+          'com.affine.admin.delete-workspace-ai-credential-confirm'
+        ]({
+          name: pendingDelete?.name ?? '',
+        })}
+        confirmText={i18n['com.affine.admin.delete-credential']()}
+        confirmButtonVariant="destructive"
+        onConfirm={() => {
+          const key = pendingDelete;
+          setPendingDelete(null);
+          if (key) handleDelete(key).catch(console.error);
+        }}
+      />
       <div className="grid gap-2 px-6 py-4 text-sm xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
         <div className="min-w-0">
           <div className="font-medium">
@@ -449,7 +524,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                         variant="ghost"
                         aria-label={`Move ${key.name} up`}
                         title={i18n['com.affine.keyboardShortcuts.moveUp']()}
-                        disabled={index === 0 || isReordering}
+                        disabled={index === 0 || isReordering || busy}
                         onClick={() => void moveKey(index, -1)}
                       >
                         <ArrowUpIcon size={16} />
@@ -461,7 +536,9 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                         aria-label={`Move ${key.name} down`}
                         title={i18n['com.affine.keyboardShortcuts.moveDown']()}
                         disabled={
-                          index === settings.keys.length - 1 || isReordering
+                          index === settings.keys.length - 1 ||
+                          isReordering ||
+                          busy
                         }
                         onClick={() => void moveKey(index, 1)}
                       >
@@ -473,10 +550,12 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                         variant="ghost"
                         aria-label={`Edit ${key.name}`}
                         title={i18n['com.affine.admin.edit-credential']()}
+                        disabled={busy}
                         onClick={() => {
                           setDraft(keyDraft(key));
                           setTestedFingerprint(null);
                           setAvailableModels([]);
+                          setFormError(null);
                         }}
                       >
                         <PencilIcon size={16} />
@@ -488,8 +567,8 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                         className="text-destructive hover:text-destructive"
                         aria-label={`Delete ${key.name}`}
                         title={i18n['com.affine.admin.delete-credential']()}
-                        disabled={isDeleting}
-                        onClick={() => void handleDelete(key)}
+                        disabled={isDeleting || busy}
+                        onClick={() => setPendingDelete(key)}
                       >
                         <Trash2Icon size={16} />
                       </Button>
@@ -517,242 +596,256 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
         className="space-y-4 border-t border-border/70 px-6 py-5"
         onSubmit={event => void handleSave(event)}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium">
-              {draft.id
-                ? i18n['com.affine.admin.edit-credential']()
-                : i18n['com.affine.admin.add-credential']()}
+        <fieldset disabled={busy} className="min-w-0 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium">
+                {draft.id
+                  ? i18n['com.affine.admin.edit-credential']()
+                  : i18n['com.affine.admin.add-credential']()}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {i18n[
+                  'com.affine.admin.provider-secrets-stay-encrypted-on-the-server-and-are-never-copied-to-user-records'
+                ]()}{' '}
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {i18n[
-                'com.affine.admin.provider-secrets-stay-encrypted-on-the-server-and-are-never-copied-to-user-records'
-              ]()}{' '}
-            </div>
+            {draft.id ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={resetDraft}
+              >
+                <PlusIcon size={16} />
+                {i18n['com.affine.admin.add-another']()}{' '}
+              </Button>
+            ) : null}
           </div>
-          {draft.id ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={resetDraft}
-            >
-              <PlusIcon size={16} />
-              {i18n['com.affine.admin.add-another']()}{' '}
-            </Button>
-          ) : null}
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor={`byok-provider-${scope.id}`}>
-              {i18n['com.affine.integration.calendar.caldav.field.provider']()}
-            </Label>
-            <Select
-              disabled={Boolean(draft.id)}
-              value={draft.provider}
-              onValueChange={value => {
-                setDraft(current => ({
-                  ...current,
-                  provider: value as ByokProvider,
-                  modelId: '',
-                }));
-                setTestedFingerprint(null);
-                setAvailableModels([]);
-              }}
-            >
-              <SelectTrigger id={`byok-provider-${scope.id}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {settings.allowedProviders.map(provider => (
-                  <SelectItem key={provider} value={provider}>
-                    {PROVIDER_LABELS[provider]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {draft.provider === ByokProvider.openai ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor={`byok-api-style-${scope.id}`}>
-                {i18n['com.affine.admin.byok-api-protocol']()}
+              <Label htmlFor={`byok-provider-${scope.id}`}>
+                {i18n[
+                  'com.affine.integration.calendar.caldav.field.provider'
+                ]()}
               </Label>
               <Select
-                value={draft.apiStyle}
-                disabled={isTesting || isSaving}
-                onValueChange={apiStyle => {
-                  setDraft(current => ({ ...current, apiStyle, modelId: '' }));
+                disabled={Boolean(draft.id)}
+                value={draft.provider}
+                onValueChange={value => {
+                  setDraft(current => ({
+                    ...current,
+                    provider: value as ByokProvider,
+                    modelId: '',
+                  }));
                   setTestedFingerprint(null);
                   setAvailableModels([]);
                 }}
               >
-                <SelectTrigger id={`byok-api-style-${scope.id}`}>
+                <SelectTrigger id={`byok-provider-${scope.id}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="responses">Responses</SelectItem>
-                  <SelectItem value="chat_completions">
-                    Chat Completions
-                  </SelectItem>
+                  {settings.allowedProviders.map(provider => (
+                    <SelectItem key={provider} value={provider}>
+                      {PROVIDER_LABELS[provider]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor={`byok-name-${scope.id}`}>
-              {i18n['com.affine.admin.credential-name']()}
-            </Label>
-            <Input
-              id={`byok-name-${scope.id}`}
-              value={draft.name}
-              placeholder={i18n['com.affine.admin.primary']()}
-              onChange={event =>
-                setDraft(current => ({ ...current, name: event.target.value }))
-              }
-            />
+            {draft.provider === ByokProvider.openai ? (
+              <div className="space-y-2">
+                <Label htmlFor={`byok-api-style-${scope.id}`}>
+                  {i18n['com.affine.admin.byok-api-protocol']()}
+                </Label>
+                <Select
+                  value={draft.apiStyle}
+                  disabled={isTesting || isSaving}
+                  onValueChange={apiStyle => {
+                    setDraft(current => ({
+                      ...current,
+                      apiStyle,
+                      modelId: '',
+                    }));
+                    setTestedFingerprint(null);
+                    setAvailableModels([]);
+                  }}
+                >
+                  <SelectTrigger id={`byok-api-style-${scope.id}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="responses">Responses</SelectItem>
+                    <SelectItem value="chat_completions">
+                      Chat Completions
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor={`byok-name-${scope.id}`}>
+                {i18n['com.affine.admin.credential-name']()}
+              </Label>
+              <Input
+                id={`byok-name-${scope.id}`}
+                value={draft.name}
+                placeholder={i18n['com.affine.admin.primary']()}
+                onChange={event =>
+                  setDraft(current => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2 xl:col-span-1">
+              <Label htmlFor={`byok-key-${scope.id}`}>
+                {i18n['com.affine.admin.api-key']()}
+              </Label>
+              <Input
+                id={`byok-key-${scope.id}`}
+                type="password"
+                autoComplete="new-password"
+                value={draft.apiKey}
+                placeholder={
+                  draft.id
+                    ? i18n[
+                        'com.affine.admin.leave-blank-to-keep-the-current-key'
+                      ]()
+                    : i18n['com.affine.page-properties.property.required']()
+                }
+                onChange={event => {
+                  setDraft(current => ({
+                    ...current,
+                    apiKey: event.target.value,
+                    modelId: '',
+                  }));
+                  setTestedFingerprint(null);
+                  setAvailableModels([]);
+                }}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor={`byok-endpoint-${scope.id}`}>
+                {i18n['com.affine.integration.external-mcp.field.endpoint']()}
+              </Label>
+              <Input
+                id={`byok-endpoint-${scope.id}`}
+                disabled={!settings.customEndpointSupported}
+                value={draft.endpoint}
+                placeholder={
+                  settings.customEndpointSupported
+                    ? i18n['com.affine.admin.optional-compatible-endpoint']()
+                    : i18n['com.affine.admin.custom-endpoints-are-disabled']()
+                }
+                onChange={event => {
+                  setDraft(current => ({
+                    ...current,
+                    endpoint: event.target.value,
+                    modelId: '',
+                  }));
+                  setTestedFingerprint(null);
+                  setAvailableModels([]);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`byok-model-options-${scope.id}`}>
+                {i18n['com.affine.admin.byok-available-models']()}
+              </Label>
+              <Select
+                value={draft.modelId}
+                disabled={!isTested || !modelOptions.length || busy}
+                onValueChange={value => {
+                  if (!value) return;
+                  setDraft(current => ({ ...current, modelId: value }));
+                  setFormError(null);
+                }}
+              >
+                <SelectTrigger id={`byok-model-options-${scope.id}`}>
+                  <SelectValue
+                    placeholder={i18n['com.affine.admin.byok-select-model']()}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {modelOptions.map(model => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2 xl:col-span-3">
+              <Label htmlFor={`byok-description-${scope.id}`}>
+                {i18n['com.affine.localmind.aiContext.description']()}
+              </Label>
+              <Textarea
+                id={`byok-description-${scope.id}`}
+                rows={3}
+                value={draft.description}
+                placeholder={i18n[
+                  'com.affine.admin.department-usage-or-ownership-notes'
+                ]()}
+                onChange={event =>
+                  setDraft(current => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor={`byok-model-options-${scope.id}`}>
-              {i18n['com.affine.admin.byok-available-models']()}
-            </Label>
-            <Select
-              value={draft.modelId}
-              disabled={!modelOptions.length || isTesting || isSaving}
-              onValueChange={value => {
-                if (!value) return;
-                setDraft(current => ({ ...current, modelId: value }));
-                setTestedFingerprint(null);
-              }}
-            >
-              <SelectTrigger id={`byok-model-options-${scope.id}`}>
-                <SelectValue
-                  placeholder={i18n['com.affine.admin.byok-select-model']()}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {modelOptions.map(model => (
-                  <SelectItem key={model} value={model}>
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 md:col-span-2 xl:col-span-1">
-            <Label htmlFor={`byok-key-${scope.id}`}>
-              {i18n['com.affine.admin.api-key']()}
-            </Label>
-            <Input
-              id={`byok-key-${scope.id}`}
-              type="password"
-              autoComplete="new-password"
-              value={draft.apiKey}
-              placeholder={
-                draft.id
-                  ? i18n[
-                      'com.affine.admin.leave-blank-to-keep-the-current-key'
-                    ]()
-                  : i18n['com.affine.page-properties.property.required']()
-              }
-              onChange={event => {
-                setDraft(current => ({
-                  ...current,
-                  apiKey: event.target.value,
-                  modelId: '',
-                }));
-                setTestedFingerprint(null);
-                setAvailableModels([]);
-              }}
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor={`byok-endpoint-${scope.id}`}>
-              {i18n['com.affine.integration.external-mcp.field.endpoint']()}
-            </Label>
-            <Input
-              id={`byok-endpoint-${scope.id}`}
-              disabled={!settings.customEndpointSupported}
-              value={draft.endpoint}
-              placeholder={
-                settings.customEndpointSupported
-                  ? i18n['com.affine.admin.optional-compatible-endpoint']()
-                  : i18n['com.affine.admin.custom-endpoints-are-disabled']()
-              }
-              onChange={event => {
-                setDraft(current => ({
-                  ...current,
-                  endpoint: event.target.value,
-                  modelId: '',
-                }));
-                setTestedFingerprint(null);
-                setAvailableModels([]);
-              }}
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2 xl:col-span-3">
-            <Label htmlFor={`byok-description-${scope.id}`}>
-              {i18n['com.affine.localmind.aiContext.description']()}
-            </Label>
-            <Textarea
-              id={`byok-description-${scope.id}`}
-              rows={3}
-              value={draft.description}
-              placeholder={i18n[
-                'com.affine.admin.department-usage-or-ownership-notes'
-              ]()}
-              onChange={event =>
-                setDraft(current => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-            />
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
-          <div className="flex items-center gap-3">
-            <Switch
-              id={`byok-enabled-${scope.id}`}
-              checked={draft.enabled}
-              onCheckedChange={enabled =>
-                setDraft(current => ({ ...current, enabled }))
-              }
-            />
-            <Label htmlFor={`byok-enabled-${scope.id}`}>
-              {i18n['com.affine.admin.use-this-credential-in-routing']()}{' '}
-            </Label>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
+            <div className="flex items-center gap-3">
+              <Switch
+                id={`byok-enabled-${scope.id}`}
+                checked={draft.enabled}
+                onCheckedChange={enabled =>
+                  setDraft(current => ({ ...current, enabled }))
+                }
+              />
+              <Label htmlFor={`byok-enabled-${scope.id}`}>
+                {i18n['com.affine.admin.use-this-credential-in-routing']()}{' '}
+              </Label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span role="status" className="text-xs text-muted-foreground">
+                {isValidating
+                  ? i18n['com.affine.admin.refreshing-2']()
+                  : isTested
+                    ? i18n['com.affine.admin.workspace-byok-catalog-loaded']()
+                    : i18n[
+                        'com.affine.admin.test-the-provider-configuration-before-saving'
+                      ]()}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canTest || busy}
+                onClick={() => void handleTest()}
+              >
+                {pendingAction === 'test'
+                  ? i18n['com.affine.admin.testing']()
+                  : i18n['com.affine.admin.test']()}
+              </Button>
+              <Button type="submit" disabled={!canSave}>
+                {pendingAction === 'save'
+                  ? i18n['com.affine.admin.saving']()
+                  : i18n['com.affine.admin.save-credential']()}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {isValidating
-                ? i18n['com.affine.admin.refreshing-2']()
-                : isTested
-                  ? i18n[
-                      'com.affine.admin.test-passed-for-this-provider-configuration'
-                    ]()
-                  : i18n[
-                      'com.affine.admin.test-the-provider-configuration-before-saving'
-                    ]()}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!canTest || isTesting}
-              onClick={() => void handleTest()}
-            >
-              {isTesting
-                ? i18n['com.affine.admin.testing']()
-                : i18n['com.affine.admin.test']()}
-            </Button>
-            <Button type="submit" disabled={!canSave}>
-              {isSaving
-                ? i18n['com.affine.admin.saving']()
-                : i18n['com.affine.admin.save-credential']()}
-            </Button>
-          </div>
-        </div>
+          {formError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {formError}
+            </p>
+          ) : null}
+        </fieldset>
       </form>
     </div>
   );

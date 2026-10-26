@@ -72,7 +72,7 @@ test.beforeEach(async t => {
   const project = await db.aiContextProject.create({
     data: {
       name: 'Independent imported copies',
-      aiPolicy: 'read_only',
+      aiPolicy: 'read_write',
       members: {
         create: [
           { userId: owner.id, role: 'owner' },
@@ -547,6 +547,80 @@ test('Office imports keep native type, source package and independent Artifact i
     (await t.context.models.officeArtifact.get(workspaceId, source.artifact.id))
       ?.revisionCounter,
     1
+  );
+});
+
+test('approved copies remain readable but cannot read or import new source versions after personal access is revoked', async t => {
+  const {
+    module,
+    db,
+    imports,
+    models,
+    projectId,
+    workspaceId,
+    actorId,
+    readerId,
+    sourceId,
+  } = t.context;
+  const source = {
+    projectId,
+    workspaceId,
+    actorId: readerId,
+    sourceResourceId: sourceId,
+    kind: 'page' as const,
+  };
+  const request =
+    await models.intelligenceWorkbenchAuthorization.requestProjectCopy({
+      projectId,
+      workspaceId,
+      docId: sourceId,
+      actorId: readerId,
+      requestKey: 'copy-before-revoke',
+    });
+  await models.intelligenceWorkbenchAuthorization.approveAccessRequest({
+    requestId: request.request.id,
+    actorUserId: actorId,
+  });
+  const copy = await imports.import({ ...source, requestKey: 'before-revoke' });
+  await db.docGrant.deleteMany({
+    where: {
+      workspaceId,
+      docId: sourceId,
+      principalType: 'user',
+      principalId: readerId,
+    },
+  });
+  await module
+    .get(DocWriter)
+    .pushDocUpdate(
+      workspaceId,
+      sourceId,
+      createDocWithMarkdown('Source document', 'AFTER_SOURCE_REVOKE', sourceId),
+      actorId
+    );
+  await t.throwsAsync(imports.authorizeSource(source));
+  await t.throwsAsync(
+    imports.import({ ...source, requestKey: 'after-revoke' })
+  );
+  const sources = await module
+    .get(ProjectResourceSourceResolver)
+    .projectResourceSources({ id: readerId } as never, projectId, copy.id);
+  t.deepEqual(sources, []);
+  t.truthy(
+    await module.get(ProjectResourceService).readDocument({
+      projectId,
+      actorId: readerId,
+      resourceId: copy.id,
+    })
+  );
+  t.is(await db.projectResource.count(), 1);
+  t.is(
+    (
+      await db.accessRequest.findUniqueOrThrow({
+        where: { id: request.request.id },
+      })
+    ).status,
+    'approved'
   );
 });
 

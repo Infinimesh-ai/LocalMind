@@ -323,3 +323,129 @@ node .codex-artifacts/page-tree-sync-fix-20261013/typecheck.mjs packages/backend
 本轮未验证生产规模多用户／大目录压力，不构成完整 B01—B40 重验或生产部署验收。
 没有 commit、push、PR、远端发布、永久删除或 volume 清理。Docker 状态为 Images
 26.23 GB、Local Volumes 17.86 GB、Build Cache 13.21 GB；宿主机剩余约 26 GiB。
+
+## 2026-10-19：侧栏单一拖放落点与自身下方抖动修复
+
+侧栏统一保存当前拖放目标。文件夹／页面行主体使用浅蓝底色和目标文字表示移入，
+行边缘和行间只显示一条同级插入线。上下边缘命中带最多 6px，原有 2px 行间距
+纳入下一行的命中范围；展开容器以整个子树之后的固定尾部区域表示其同级插入点。
+Office、普通文件和白板的行主体仍不接收下级。
+
+原根目录拖放提示插入列表顶部，会改变鼠标下方行的位置。现在根目录落点固定在
+树底部，提示不会撑开布局。拖到自身及相邻原位置不读取目录、不提交排序，也不
+切换排序模式；移入容器仍交由权威服务处理，不根据旧缓存跳过。结束、取消、
+离开树、窗口失焦和切换 Workspace 会清理提示，嵌套父子行不会同时保留高亮。
+
+本轮只改前端命中、反馈与回归测试，复用既有移动服务、权限、版本与撤销契约。
+未修改数据库、GraphQL 或内容存储。
+
+验证复用 `localmind_hot_web`（固定镜像 `localmind-affine:dev-base`）：
+
+```sh
+docker exec -w /workspace localmind_hot_web yarn vitest run packages/frontend/core/src/components/root-app-sidebar/page-tree-drag.spec.ts packages/frontend/core/src/components/root-app-sidebar/page-tree.spec.tsx packages/frontend/core/src/desktop/components/navigation-panel/tree/node.spec.tsx --maxWorkers=1
+docker exec -w /workspace localmind_hot_web yarn node .codex-artifacts/sidebar-drag-20261019/typecheck.mjs packages/frontend/core
+```
+
+46 项测试和 8 个改动文件的聚焦类型检查通过，包括单一提示、跨父级移动、
+展开子树同级排序、自身／原位置无操作、取消、失焦及移动失败。定向 oxlint、
+Prettier、设计静态检查和 `git diff --check` 通过。日志和类型检查脚本位于
+`.codex-artifacts/sidebar-drag-20261019/`。
+
+当前 `localhost:3011` 源码挂载实例已热更新。浏览器验证文档拖至自身下沿、
+展开文档末尾及根目录底部空白处，操作前后的目录行坐标与顺序相同，结束后
+没有遗留拖放提示。实际浏览器检查限于当前浅色桌面视口；跨目录成功／失败
+由组件测试覆盖，未在用户资源上执行这些移动，未重验深色主题和触屏设备。
+没有重建镜像、执行部署同步、删除数据卷或提交代码。
+
+### 同日补充：跨层级间隙归一化与文件夹名称遮挡
+
+用户确认蓝线是在鼠标微移时切换，并非同时残留。上一轮保留了末尾子项的
+after、父容器 6px 尾区和下一根节点 before 三个相邻落点，仍会在同一视觉间隙
+切换位置和归属。本轮移除父级尾区，由树根根据可见行统一解析落点；间隙两侧
+均归一为下一可见行的 before，采用该行的父级。在当前示例中，
+“How to use folder and Tags”与“未命名”之间固定为根目录、“未命名”之前。
+行主体继续表示移入该文件夹／页面；进入和移动事件使用相同解析，快速释放
+也不依赖下一次 dragover 才能接受目标。上节关于固定子树尾区的描述由此覆盖。
+
+文件夹名称遮挡来自旧拖放监听：canDrop 回调返回 false 仍会注册外部拖放，
+其提前接受分支绕过回调，写入 make-child 后触发覆盖文字的不透明伪元素。
+受控资源树现在使用字面量 canDrop=false、allowExternal=false，且不挂载旧
+覆盖层样式；其他树仍保留既有拖放功能。WorkbenchLink 将 draggable 传到实际
+链接元素，关闭链接默认拖动，避免与资源行争抢。
+
+验证继续复用 `localmind_hot_web` / `localmind-affine:dev-base`：
+
+```sh
+docker exec -w /workspace localmind_hot_web yarn vitest run packages/frontend/core/src/components/root-app-sidebar/page-tree-drag.spec.ts packages/frontend/core/src/components/root-app-sidebar/page-tree.spec.tsx packages/frontend/core/src/desktop/components/navigation-panel/tree/node.spec.tsx packages/frontend/core/src/modules/workbench/view/workbench-link.spec.tsx --maxWorkers=1
+docker exec -w /workspace localmind_hot_web yarn node .codex-artifacts/sidebar-drag-20261019/typecheck.mjs packages/frontend/core
+```
+
+48 项测试、10 个文件的聚焦类型检查和定向 oxlint 通过。新增回归逐像素覆盖
+末尾子项／父级／下一行之间的进入、移动与离开事件，以及真实 useDropTarget
+和外部适配器的注册／注销；不再用模拟 hook 掩盖旧监听问题。
+
+当前用户页面完成三次真实成功拖放：Getting Started 从间隙的中间和上沿
+分别放到根目录“未命名”之前，再直接拖入 First Folder。拖动期间 DOM 采样
+中 before 始终指向同一个节点、同一个纵坐标（目标行 top=384），没有旧
+tree-instruction。文件夹的名称保持 visible、opacity=1，覆盖伪元素为 none；
+活动蓝线与文件夹高亮均捕获真实截图。每次成功移动均通过 UI 撤销，已恢复原
+目录归属和顺序。另回归自身下沿拖动，17 次采样的四个行坐标完全相同，没有落点
+提示或移动。日志、采样和截图位于 `.codex-artifacts/sidebar-drag-20261019/`
+的 `*-followup.log`、`browser-*.json`、`gap-drag.png` 和 `folder-drag.png`。
+
+本轮实际浏览器覆盖当前浅色桌面视口，未重验深色主题或触屏。源码挂载实例已
+热更新，无镜像重建、部署同步、数据库变更、commit 或 push。诊断期间的临时
+事件日志代码已移除。
+
+## 2026-10-19：侧栏排序入口与操作按钮显示规则
+
+按确认方案，当前工作区展开时常驻根目录的新建和排序按钮；文件夹及页面的
+排序统一移入「… → 下级资源排序」，Word 等叶子资源不显示下级排序入口。
+旧文件夹树复用相同菜单。行尾固定保留 44px 的新建／更多操作区，按钮只在
+悬停、键盘聚焦或本行菜单打开时显示；触屏沿用无悬停设备的常显规则。
+展开容器的折叠箭头不触发菜单常显，避免展开／折叠两种状态的显示规则不一致。
+
+排序菜单继续复用既有偏好和选中状态。测试发现桌面子菜单没有向 Radix 传递
+`disabled`，已补齐普通菜单和右键菜单两条路径，确保未就绪／保存期间不能
+通过键盘或点击打开排序子菜单。
+
+验证复用 Linux 容器 `localmind_hot_web` / `localmind-affine:dev-base`：
+
+```sh
+docker exec -w /workspace localmind_hot_web yarn workspace @affine/i18n build
+docker exec -w /workspace localmind_hot_web yarn vitest run packages/frontend/core/src/components/root-app-sidebar/page-tree.spec.tsx packages/frontend/core/src/components/root-app-sidebar/page-tree-drag.spec.ts packages/frontend/core/src/components/root-app-sidebar/workspaces.spec.tsx packages/frontend/core/src/desktop/components/navigation-panel/tree/node.spec.tsx packages/frontend/core/src/desktop/components/navigation-panel/nodes/folder/sort-menu.spec.tsx packages/frontend/core/src/modules/organize/stores/folder-sorting.spec.ts --maxWorkers=1
+docker exec -w /workspace localmind_hot_web yarn vitest run packages/frontend/core/src/desktop/components/navigation-panel/nodes/folder/sort-menu.spec.tsx --maxWorkers=1
+docker exec -w /workspace localmind_hot_web yarn node .codex-artifacts/sidebar-sort-20261019/typecheck.mjs packages/frontend/core
+docker exec -w /workspace localmind_hot_web yarn node .codex-artifacts/sidebar-sort-20261019/typecheck.mjs packages/frontend/component
+```
+
+首轮测试定位禁用子菜单问题；修复后的定向复测通过，合计 62 项聚焦测试通过。
+验证覆盖根目录显示条件、展开／折叠容器的菜单入口、叶子资源、排序选中及切换、
+普通／右键菜单禁用行为，并回归既有拖放。类型检查限于本轮 11 个相关文件，
+不代表仓库全量类型检查；相关文件的 oxlint、Prettier 及 `git diff --check` 通过。
+
+实际浏览器检查使用用户当前工作区 `0f6a4941-4124-4e6a-96f2-97d36dc329c9/all`，
+浅色桌面视口为 753×901。Getting Started 和 First Folder 均从更多菜单进入
+三级排序选项；1.docx 菜单没有下级排序。根目录折叠后新建／排序按钮数量为 0，
+恢复展开后独立排序按钮为 1。已恢复原展开状态，未切换资源排序偏好。
+
+10 行资源的标题位置和尺寸在文档／文件夹悬停、菜单打开、鼠标移入菜单及恢复
+静置时完全一致；文件夹折叠后另对 8 行资源比较悬停和键盘聚焦，变化均为
+0 像素。新建菜单与更多菜单打开时，本行在无悬停、无焦点状态下操作区仍保持
+可见。样本和截图保存在 `.codex-artifacts/sidebar-sort-20261019/`。
+本轮未实测深色主题或触屏；源码挂载实例已热更新，未重建镜像、执行部署同步、
+修改数据库或提交代码。
+
+同日按后续反馈收紧菜单条件：仅有两个及以上可见直接下级资源的页面／文件夹显示
+排序入口，子文件夹也计入下级资源；零个或一个下级资源时不显示。子菜单移除左侧
+排序图标，保留右侧展开
+箭头。页面树在菜单挂载时复用目录层观察，折叠未加载的容器会按需读取，避免
+仅为了显示侧栏而遍历所有分支；目录加载和移除资源后入口随数据更新。旧文件夹
+树按可见子项数量采用相同规则。
+
+`page-tree.spec.tsx` 和 `sort-menu.spec.tsx` 定向运行共 16 项测试通过，聚焦类型、
+oxlint、Prettier 检查通过。用户当前 `/HyWzmNCbCF` 页面实测 Getting Started
+空页面及“222”空文件夹的排序项数量均为 0；First Folder 折叠时仍保留入口，
+恢复展开后可打开三项排序选项，菜单前方无图标。截图为同一证据目录中的
+`empty-page-menu.png` 和 `child-sort-without-icon.png`。原展开状态已恢复，
+未改变排序偏好。

@@ -49,6 +49,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { InAppBrowser } from '@capgo/inappbrowser';
 import {
   Framework,
+  type FrameworkProvider,
   FrameworkRoot,
   getCurrentStore,
   useLiveData,
@@ -100,7 +101,7 @@ framework.impl(NbstoreProvider, {
       },
     };
   },
-});
+} satisfies NbstoreProvider);
 const frameworkProvider = framework.provider();
 
 registerNativePreviewHandlers({
@@ -193,51 +194,53 @@ framework.impl(AIButtonProvider, {
   },
 });
 
-framework.scope(ServerScope).override(AuthProvider, resolver => {
-  const serverService = resolver.get(ServerService);
-  const endpoint = serverService.server.baseUrl;
-  return {
-    async signInMagicLink(email, linkToken, clientNonce) {
-      await Auth.signInMagicLink({
-        endpoint,
-        email,
-        token: linkToken,
-        clientNonce,
-      });
-    },
-    async signInOauth(code, state, _provider, clientNonce) {
-      await Auth.signInOauth({
-        endpoint,
-        code,
-        state,
-        clientNonce,
-      });
-      return {};
-    },
-    async signInPassword(credential) {
-      await Auth.signInPassword({
-        endpoint,
-        ...credential,
-      });
-    },
-    async signInOpenAppSignInCode(code) {
-      await Auth.signInOpenApp({
-        endpoint,
-        code,
-      });
-    },
-    async signOut() {
-      try {
-        await Auth.signOut({ endpoint });
-      } finally {
+framework
+  .scope(ServerScope)
+  .override(AuthProvider, (resolver: FrameworkProvider): AuthProvider => {
+    const serverService = resolver.get(ServerService);
+    const endpoint = serverService.server.baseUrl;
+    return {
+      async signInMagicLink(email, linkToken, clientNonce) {
+        await Auth.signInMagicLink({
+          endpoint,
+          email,
+          token: linkToken,
+          clientNonce,
+        });
+      },
+      async signInOauth(code, state, _provider, clientNonce) {
+        await Auth.signInOauth({
+          endpoint,
+          code,
+          state,
+          clientNonce,
+        });
+        return {};
+      },
+      async signInPassword(credential) {
+        await Auth.signInPassword({
+          endpoint,
+          ...credential,
+        });
+      },
+      async signInOpenAppSignInCode(code) {
+        await Auth.signInOpenApp({
+          endpoint,
+          code,
+        });
+      },
+      async signOut() {
+        try {
+          await Auth.signOut({ endpoint });
+        } finally {
+          await clearEndpointSession(endpoint);
+        }
+      },
+      async clearSession() {
         await clearEndpointSession(endpoint);
-      }
-    },
-    async clearSession() {
-      await clearEndpointSession(endpoint);
-    },
-  };
-});
+      },
+    };
+  });
 
 // ------ some apis for native ------
 (window as any).getCurrentServerBaseUrl = () => {

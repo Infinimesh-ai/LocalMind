@@ -35,6 +35,7 @@ query copilotContextDashboardGet($workspaceId: String!, $includeDisabled: Boolea
         sourceSessionId
         scope
         kind
+        sharingStatus
         status
         content
         factKey

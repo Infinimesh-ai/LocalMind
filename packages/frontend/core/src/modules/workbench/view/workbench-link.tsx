@@ -98,6 +98,7 @@ export const WorkbenchLink = forwardRef<HTMLAnchorElement, WorkbenchLinkProps>(
     return (
       <a
         {...other}
+        draggable={draggable}
         ref={node => {
           dragRef.current = node;
           if (typeof ref === 'function') {

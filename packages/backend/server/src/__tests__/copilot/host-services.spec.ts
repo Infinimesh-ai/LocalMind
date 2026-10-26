@@ -2,7 +2,10 @@ import test from 'ava';
 import Sinon from 'sinon';
 import { z } from 'zod';
 
-import { CopilotByokNotConfigured } from '../../base';
+import {
+  CopilotByokCredentialDisabled,
+  CopilotByokNotConfigured,
+} from '../../base';
 import { EMBEDDING_DIMENSIONS, type Models } from '../../models';
 import { CopilotAccessPolicy } from '../../plugins/copilot/access';
 import { CopilotAgentRuntimeLocalMindToolAgentAdapter } from '../../plugins/copilot/agent-runtime-localmind-tool-agent-adapter';
@@ -133,7 +136,11 @@ for (const matrixCase of turnRouteAccessCases) {
     const getProfiles = Sinon.stub().resolves(matrixCase.profiles);
     const access = new CopilotAccessPolicy(
       { checkQuota } as any,
-      { getProfiles } as any
+      {
+        getProfiles,
+        hasWorkspaceCredentialDisabledAfterFailure:
+          Sinon.stub().resolves(false),
+      } as any
     );
 
     const promise = access.resolveTurnRouteAccess({
@@ -225,7 +232,10 @@ test('CopilotAccessPolicy assertQuotaOrByok should require BYOK without checking
   const checkQuota = Sinon.stub().resolves(undefined);
   const access = new CopilotAccessPolicy(
     { checkQuota } as any,
-    { getProfiles: Sinon.stub().resolves([]) } as any
+    {
+      getProfiles: Sinon.stub().resolves([]),
+      hasWorkspaceCredentialDisabledAfterFailure: Sinon.stub().resolves(false),
+    } as any
   );
 
   await t.throwsAsync(
@@ -238,6 +248,33 @@ test('CopilotAccessPolicy assertQuotaOrByok should require BYOK without checking
     { instanceOf: CopilotByokNotConfigured }
   );
   Sinon.assert.notCalled(checkQuota);
+});
+
+test('CopilotAccessPolicy distinguishes a credential disabled after provider rejection', async t => {
+  const hasWorkspaceCredentialDisabledAfterFailure =
+    Sinon.stub().resolves(true);
+  const access = new CopilotAccessPolicy(
+    { checkQuota: Sinon.stub().resolves(undefined) } as any,
+    {
+      getProfiles: Sinon.stub().resolves([]),
+      hasWorkspaceCredentialDisabledAfterFailure,
+    } as any
+  );
+  const context = {
+    userId: 'user-1',
+    workspaceId: 'workspace-1',
+    featureKind: 'chat' as const,
+  };
+
+  await t.throwsAsync(access.resolveTurnRouteAccess(context), {
+    instanceOf: CopilotByokCredentialDisabled,
+  });
+  await t.throwsAsync(access.assertQuotaOrByok(context), {
+    instanceOf: CopilotByokCredentialDisabled,
+  });
+  Sinon.assert.calledWithMatch(hasWorkspaceCredentialDisabledAfterFailure, {
+    workspaceId: 'workspace-1',
+  });
 });
 
 test('ConversationHost should delegate empty no-message stream access', async t => {
@@ -808,6 +845,14 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
     'workspace_folder_rename',
     'workspace_folder_restore',
     'workspace_folder_trash',
+    'workspace_native_folder_create',
+    'workspace_native_folder_delete_permanently',
+    'workspace_native_folder_list',
+    'workspace_native_folder_move',
+    'workspace_native_folder_move_item',
+    'workspace_native_folder_rename',
+    'workspace_native_folder_restore',
+    'workspace_native_folder_trash',
   ]);
 });
 
@@ -1141,6 +1186,84 @@ test('ResponsePostprocessor should build text, object and image assistant turns'
     role: 'assistant',
     content: '',
     attachments: ['https://example.com/image.png'],
+  });
+});
+
+test('ConversationHost preserves partial content and tool evidence when generation is interrupted', async t => {
+  const turn: Turn = {
+    conversationId: 'session-1',
+    role: 'assistant',
+    content: 'Partial answer',
+    attachments: ['https://example.com/completed.png'],
+    renderTrace: [
+      { type: 'text-delta', textDelta: 'Partial answer' },
+      {
+        type: 'tool-result',
+        toolName: 'project_file_update',
+        toolCallId: 'completed-tool',
+        args: { resourceId: 'file-1' },
+        result: { sequence: 2 },
+      },
+    ],
+    toolEvents: [],
+    metadata: { generationStatus: 'complete', preserved: 'yes' },
+    createdAt: new Date(),
+  };
+  const appendTurn = Sinon.stub().callsFake(async input => ({
+    ...input.turn,
+    id: 'assistant-1',
+  }));
+  const host = new ConversationHost(
+    { appendTurn } as never,
+    {} as never,
+    {} as never,
+    {} as never
+  );
+  const session = {
+    config: { sessionId: 'session-1', userId: 'user-1' },
+    model: 'test-model',
+    pushPersistedTurn: Sinon.spy(),
+  };
+
+  const id = await host.persistAssistantTurn(session as never, turn, true);
+  const stored = appendTurn.firstCall.args[0].turn as Turn;
+  t.is(id, 'assistant-1');
+  t.is(stored.content, 'Partial answer');
+  t.deepEqual(stored.attachments, turn.attachments);
+  t.deepEqual(stored.renderTrace, turn.renderTrace);
+  t.is(stored.toolEvents[0]?.type, 'tool_result');
+  t.deepEqual(stored.metadata, {
+    generationStatus: 'aborted',
+    preserved: 'yes',
+  });
+  t.is(turn.metadata.generationStatus, 'complete');
+  t.is(session.pushPersistedTurn.callCount, 1);
+});
+
+test('ConversationHost records cancellation before the first token without fabricating an answer', async t => {
+  const turn = new ResponsePostprocessor().buildTextAssistantTurn(
+    'session-1',
+    ''
+  );
+  const appendTurn = Sinon.stub().callsFake(async input => ({
+    ...input.turn,
+    id: 'empty-1',
+  }));
+  const host = new ConversationHost(
+    { appendTurn } as never,
+    {} as never,
+    {} as never,
+    {} as never
+  );
+  const session = {
+    config: { sessionId: 'session-1', userId: 'user-1' },
+    model: 'test',
+    pushPersistedTurn: Sinon.spy(),
+  };
+  await host.persistAssistantTurn(session as never, turn, true);
+  t.is(appendTurn.firstCall.args[0].turn.content, '');
+  t.deepEqual(appendTurn.firstCall.args[0].turn.metadata, {
+    generationStatus: 'aborted',
   });
 });
 
@@ -2910,7 +3033,7 @@ test('ActionStreamHost should prepare image action routes and persist native att
       promptName: 'image.filter.sketch',
       promptConfig: {},
     },
-    finish: Sinon.stub().returns([{ role: 'user', content: 'fallback' }]),
+    finishAsync: Sinon.stub().resolves([{ role: 'user', content: 'fallback' }]),
   };
   const conversations = {
     prepareTurn: Sinon.stub().resolves({

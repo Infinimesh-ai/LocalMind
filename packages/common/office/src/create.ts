@@ -3,6 +3,23 @@ import { z } from 'zod';
 
 import { OFFICE_PACKAGE_MIME_TYPE } from './format';
 
+/** Shared naming contract for Workspace native files and their UI actions. */
+export const NativeFileTitleSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(480)
+  .refine(
+    value =>
+      [...value].every(
+        character =>
+          character.charCodeAt(0) >= 32 &&
+          character !== '/' &&
+          character !== '\\'
+      ),
+    'Invalid file name'
+  );
+
 const validXmlText = (value: string) =>
   Array.from(value).every(character => {
     const code = character.codePointAt(0) ?? 0;
@@ -34,7 +51,16 @@ export const NativeFileContentSchema = z.discriminatedUnion('format', [
           z
             .object({
               text,
-              heading: z.number().int().min(1).max(6).optional(),
+              heading: z
+                .number()
+                .int()
+                .min(1)
+                .max(6)
+                .nullable()
+                .optional()
+                .describe(
+                  'Heading level 1–6 only for headings. Use null (or omit) for normal body paragraphs. Never use heading 6 as a substitute for body text.'
+                ),
             })
             .strict()
         )

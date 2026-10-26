@@ -234,7 +234,7 @@ export const DeckQualitySchema = z
   .object({
     version: z.enum([REPORT_WEB_VERSION, 'report-web-v4']),
     artifactHash: hash,
-    visual: z.enum(['complete', 'partial', 'unavailable']),
+    visual: z.enum(['complete', 'partial', 'unavailable', 'not_requested']),
     warnings: z
       .array(
         z.enum([

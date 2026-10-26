@@ -37,6 +37,17 @@ mutation mutateWorkspaceDirectory(
   }
 }
 
+mutation moveWorkspaceDocument(
+  $workspaceId: ID!
+  $documentId: ID!
+  $expectedRevision: String!
+  $folderId: ID
+) {
+  moveWorkspaceDocument(workspaceId: $workspaceId, documentId: $documentId, expectedRevision: $expectedRevision, folderId: $folderId) {
+    revision
+  }
+}
+
 mutation reorderWorkspaceDirectory(
   $workspaceId: ID!
   $folderId: ID!

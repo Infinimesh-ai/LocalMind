@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { SidebarIcon } from '@blocksuite/icons/rc';
 import { CheckIcon, XIcon } from 'lucide-react';
 
@@ -50,6 +51,7 @@ export const RightPanelHeader = ({
   handleConfirm: () => void;
   canSave: boolean;
 }) => {
+  const t = useI18n();
   return (
     <div className="border-b border-border/60 bg-card/80 backdrop-blur-sm">
       <div className="flex h-14 items-center justify-between px-4">
@@ -58,8 +60,8 @@ export const RightPanelHeader = ({
           size="icon"
           className="h-7 w-7 text-muted-foreground hover:text-foreground"
           variant="ghost"
-          aria-label={`Close ${title}`}
-          title={`Close ${title}`}
+          aria-label={`${t['Close']()} ${title}`}
+          title={`${t['Close']()} ${title}`}
           onClick={handleClose}
         >
           <XIcon size={18} />
@@ -70,8 +72,8 @@ export const RightPanelHeader = ({
           size="icon"
           className="h-7 w-7 text-primary hover:text-primary"
           variant="ghost"
-          aria-label={`Save ${title}`}
-          title={`Save ${title}`}
+          aria-label={`${t['Save']()} ${title}`}
+          title={`${t['Save']()} ${title}`}
           onClick={handleConfirm}
           disabled={!canSave}
         >

@@ -19,13 +19,18 @@ import {
 @Injectable()
 export class WorkspacePageTreeModel extends BaseModel {
   async conversionAudience(workspaceId: string) {
+    return (await this.conversionAudienceBlocker(workspaceId)) === null;
+  }
+  /** Why converted pages could not keep the folder's effective audience. */
+  async conversionAudienceBlocker(workspaceId: string) {
     const policy = await this.db.workspaceAccessPolicy.findUnique({
       where: { workspaceId },
     });
-    return (
-      (policy?.memberDefaultDocRole ?? 'manager') === 'manager' &&
-      (policy?.visibility ?? 'private') === 'private'
-    );
+    if ((policy?.visibility ?? 'private') !== 'private')
+      return 'public_workspace' as const;
+    if ((policy?.memberDefaultDocRole ?? 'manager') !== 'manager')
+      return 'default_role_not_manager' as const;
+    return null;
   }
   async recordedResource(workspaceId: string, resourceId: string) {
     return this.db.workspacePageTreeOperation.findFirst({

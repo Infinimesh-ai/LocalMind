@@ -1,12 +1,31 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
-import { createNativeFile } from './create';
+import {
+  createNativeFile,
+  NativeFileContentSchema,
+  NativeFileTitleSchema,
+} from './create';
 import { openDocxPackage, readDocxSemanticState } from './docx';
 import { openPptxPackage, readPptxSemanticState } from './pptx';
 import { openXlsxPackage, readXlsxSemanticState } from './xlsx';
 
 describe('native file creation', () => {
+  it('shares trimmed native filename bounds without accepting paths or control characters', () => {
+    expect(NativeFileTitleSchema.parse(' 中文😀.txt ')).toBe('中文😀.txt');
+    expect(NativeFileTitleSchema.parse('a'.repeat(480))).toHaveLength(480);
+    for (const title of [
+      '',
+      '  ',
+      'a'.repeat(481),
+      'folder/name.txt',
+      'folder\\name.txt',
+      'line\nbreak.txt',
+      'null\u0000byte',
+    ])
+      expect(NativeFileTitleSchema.safeParse(title).success).toBe(false);
+  });
+
   it('creates deterministic DOCX paragraphs with escaped Unicode and headings', () => {
     const input = {
       format: 'docx' as const,
@@ -21,6 +40,33 @@ describe('native file creation', () => {
     expect(JSON.stringify(state)).toContain('你好 <&>');
     expect(JSON.stringify(state)).toContain('Heading2');
     expect(JSON.stringify(state)).toContain('第二行');
+  });
+
+  it('keeps explicit null and omitted DOCX body styles distinct from headings', () => {
+    const generated = createNativeFile({
+      format: 'docx',
+      paragraphs: [
+        { text: '标题六', heading: 6 },
+        { text: '正文', heading: null },
+        { text: '兼容正文' },
+      ],
+    });
+    const state = readDocxSemanticState(openDocxPackage(generated.bytes));
+    expect(state.body).toMatchObject([
+      { text: '标题六', properties: { styleId: 'Heading6' } },
+      { text: '正文' },
+      { text: '兼容正文' },
+    ]);
+    const xml = strFromU8(unzipSync(generated.bytes)['word/document.xml']);
+    expect(xml.match(/<w:pStyle /g)).toHaveLength(1);
+    for (const heading of [0, 7, 1.5, 'Normal']) {
+      expect(
+        NativeFileContentSchema.safeParse({
+          format: 'docx',
+          paragraphs: [{ text: 'Invalid', heading }],
+        }).success
+      ).toBe(false);
+    }
   });
 
   it('preserves workbook cell types, empty cells and literal formula-like strings', () => {

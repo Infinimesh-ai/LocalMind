@@ -152,6 +152,10 @@ export class AffineLink extends WithDisposable(ShadowlessElement) {
       @click=${this.openLink}
       @auxclick=${this.openLink}
       @mouseup=${this._onMouseUp}
+      @keydown=${(event: KeyboardEvent) => {
+        // Keep native link activation out of the editor's Enter keymaps.
+        if (event.key === 'Enter') event.stopPropagation();
+      }}
       ><v-text .str=${this.delta.insert}></v-text
     ></a>`;
   }

@@ -1,5 +1,8 @@
 import { notify, useConfirmModal } from '@affine/component';
-import { getReportDeckPath } from '@affine/core/desktop/route-paths';
+import {
+  getNewReportDeckPath,
+  getReportDeckPath,
+} from '@affine/core/desktop/route-paths';
 import {
   useDeckCommand,
   useDeckList,
@@ -10,7 +13,6 @@ import {
 } from '@affine/core/modules/report-decks/i18n';
 import type { DeckSummary } from '@affine/core/modules/report-decks/types';
 import { DeleteIcon, HistoryIcon, RedoIcon } from '@blocksuite/icons/rc';
-import { nanoid } from 'nanoid';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -35,18 +37,10 @@ export function HistoryList({ onCreate }: { onCreate: () => void }) {
     () => new Map(templates.map(item => [item.key, item.name])),
     [templates]
   );
-  const regenerate = async (deck: DeckSummary) => {
-    try {
-      const result = await command.run({
-        operation: 'regenerate',
-        deckId: deck.id,
-        requestKey: nanoid(),
-      });
-      if (result.deck) navigate(getReportDeckPath(result.deck.id));
-    } catch {
-      notify.error({ title: t('error.commandFailed') });
-    }
-  };
+  const regenerate = (deck: DeckSummary) =>
+    navigate(
+      `${getNewReportDeckPath()}?${new URLSearchParams({ from: deck.id })}`
+    );
   const remove = (deck: DeckSummary) =>
     openConfirmModal({
       title: t('delete.title'),
@@ -145,6 +139,9 @@ export function HistoryList({ onCreate }: { onCreate: () => void }) {
                             ''
                           }`}
                     </span>
+                    {deck.mode === 'custom' && deck.designMode && (
+                      <span>{t(`designMode.${deck.designMode}`)}</span>
+                    )}
                     <span>
                       {deck.excludedCount
                         ? t('history.sourcesExcluded', {

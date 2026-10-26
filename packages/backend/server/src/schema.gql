@@ -4732,6 +4732,7 @@ enum ErrorNames {
   COMMENT_ATTACHMENT_QUOTA_EXCEEDED
   COMMENT_NOT_FOUND
   COPILOT_ACTION_TAKEN
+  COPILOT_BYOK_CREDENTIAL_DISABLED
   COPILOT_BYOK_NOT_CONFIGURED
   COPILOT_CONTEXT_FILE_NOT_SUPPORTED
   COPILOT_DOCS_NOT_FOUND
@@ -5691,6 +5692,7 @@ type Mutation {
 
   """mention user in a doc"""
   mentionUser(input: MentionInput!): ID!
+  moveWorkspaceDocument(documentId: ID!, expectedRevision: String!, folderId: ID, workspaceId: ID!): WorkspaceDirectoryMutationType!
   mutateWorkspaceDirectory(changes: [WorkspaceDirectoryChangeInput!]!, expectedRevision: String!, workspaceId: ID!): WorkspaceDirectoryMutationType!
   mutateWorkspacePageTree(input: WorkspacePageTreeCommandInput!): WorkspacePageTreeReceipt!
   openWorkOrderConversation(workOrderId: ID!): WorkOrderConversationTargetType!
@@ -5859,6 +5861,11 @@ type Mutation {
   submitProjectWorkspaceImport(input: SubmitProjectWorkspaceImportInput!): ProjectWorkspaceImportTaskType!
   submitTranscriptTask(blob: Upload, blobId: String!, blobs: [Upload!], input: SubmitAudioTranscriptionInput, workspaceId: String!): TranscriptionResultType
   submitWorkOrderDelivery(expectedVersion: Int!, items: [WorkOrderDeliveryItemInput!]!, requestKey: String!, workOrderId: ID!): WorkOrderDeliveryResultType!
+
+  """
+  Suspend an user without deleting data; enableUser restores the same account
+  """
+  suspendUser(id: String!): UserType!
   testExternalMcpConversation(query: String!, workspaceId: String!): ExternalMcpToolCallResultType!
   testProjectByokConfig(input: ProjectByokConfigInput!): ProjectByokTestResultType!
   testWorkspaceByokConfig(input: TestWorkspaceByokConfigInput!): TestWorkspaceByokConfigResultType!
@@ -8433,6 +8440,11 @@ type WorkspacePageTreeItem {
   canConvertToPage: Boolean!
   canOrganize: Boolean!
   canRename: Boolean!
+
+  """
+  Why a folder cannot become a page: trashed, missing_rights, public_workspace or default_role_not_manager.
+  """
+  convertToPageUnavailableReason: String
   defaultSortMode: String
   documentType: String!
   folder: WorkspacePageTreeFolderMetadata

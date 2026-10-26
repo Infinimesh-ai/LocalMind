@@ -1,8 +1,12 @@
 /** @vitest-environment happy-dom */
+import {
+  downloadOfficePackage,
+  OfficePdfFontUnavailableError,
+} from '@affine/core/modules/office/client';
 import { UserFriendlyError } from '@affine/error';
 import { getOrCreateI18n } from '@affine/i18n';
 import type { OfficeSelection } from '@localmind/office';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import {
   isHistoricalOfficeRevision,
@@ -12,6 +16,39 @@ import {
 } from './shared';
 
 describe('Office error messages', () => {
+  test('explains font export limits for Workspace and Project without leaking document text', async () => {
+    const i18n = getOrCreateI18n();
+    await i18n.changeLanguage('zh-Hans');
+    try {
+      const error = new OfficePdfFontUnavailableError();
+      const expected =
+        'PDF 导出暂不支持文档中的部分字符。请下载原生 Office 文件以保留全部内容。';
+      expect(officeErrorMessage(error)).toBe(expected);
+      expect(
+        officeErrorMessage(error, { kind: 'project', projectId: 'project-1' })
+      ).toBe(expected);
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+  test('recognizes only the bounded font failure status and header', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('private document text', {
+          status: 422,
+          headers: { 'x-localmind-office-error': 'pdf-font-unavailable' },
+        })
+      )
+    );
+    try {
+      await expect(
+        downloadOfficePackage('/office/export/pdf', 'test.pdf')
+      ).rejects.toBeInstanceOf(OfficePdfFontUnavailableError);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   test('uses a localized, safe message for internal errors and arbitrary payloads', async () => {
     const i18n = getOrCreateI18n();
     await i18n.changeLanguage('zh-Hans');

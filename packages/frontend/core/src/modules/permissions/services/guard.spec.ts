@@ -1,5 +1,6 @@
+import { UserFriendlyError } from '@affine/error';
 import { Framework, LiveData } from '@toeverything/infra';
-import type { Subscription } from 'rxjs';
+import { firstValueFrom, type Subscription } from 'rxjs';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { GuardService } from './guard';
@@ -36,7 +37,7 @@ const createWorkspaceGuard = (admin = false) => {
   return { service, canWrite$, getWorkspacePermissions, isAdmin$ };
 };
 
-const createGuard = (access: 'read' | 'write') => {
+const createGuard = (access: 'read' | 'write', scoped = true) => {
   const getDocPermissions = vi.fn().mockResolvedValue({
     Doc_Read: true,
     Doc_Update: true,
@@ -45,10 +46,9 @@ const createGuard = (access: 'read' | 'write') => {
   const workspaceService = {
     workspace: {
       flavour: 'server-1',
-      openOptions: {
-        docScopeId: 'doc-1',
-        docScopeAccess: access,
-      },
+      openOptions: scoped
+        ? { docScopeId: 'doc-1', docScopeAccess: access }
+        : {},
     },
   };
   const workspacePermissionService = {
@@ -74,12 +74,91 @@ const createGuard = (access: 'read' | 'write') => {
   );
   const service = framework.provider().get(GuardService);
   services.push(service);
-  return { service, getDocPermissions };
+  return { service, getDocPermissions, workspaceService };
 };
 
 afterEach(() => {
   subscriptions.splice(0).forEach(subscription => subscription.unsubscribe());
   services.splice(0).forEach(service => service.dispose());
+});
+
+describe('GuardService indexed document visibility', () => {
+  test('never emits a cached grant while the current permission is unresolved or denied', async () => {
+    const { service, getDocPermissions } = createGuard('write', false);
+    await service.can('Doc_Read', 'doc-1');
+    let resolve!: (value: { Doc_Read: boolean }) => void;
+    getDocPermissions.mockImplementation(
+      () =>
+        new Promise(done => {
+          resolve = done;
+        })
+    );
+    const values: string[][] = [];
+    subscriptions.push(
+      service.readableDocIds$(['doc-1']).subscribe(ids => values.push([...ids]))
+    );
+    await vi.waitFor(() => expect(resolve).toBeDefined());
+    expect(values).toEqual([[]]);
+    resolve({ Doc_Read: false });
+    await vi.waitFor(() => expect(values.length).toBeGreaterThan(1));
+    expect(values.every(value => value.length === 0)).toBe(true);
+  });
+
+  test('removes a visible result when its observed ACL is revoked', async () => {
+    const { service, getDocPermissions } = createGuard('write', false);
+    let visible: ReadonlySet<string> = new Set();
+    subscriptions.push(
+      service.readableDocIds$(['doc-1']).subscribe(ids => {
+        visible = ids;
+      })
+    );
+    await vi.waitFor(() => expect(visible.has('doc-1')).toBe(true));
+    getDocPermissions.mockResolvedValue({ Doc_Read: false });
+    service.revalidateCan('Doc_Read', 'doc-1');
+    await vi.waitFor(() => expect(visible.has('doc-1')).toBe(false));
+  });
+
+  test('hides failed checks, deduplicates candidates and bounds concurrent lookups', async () => {
+    const { service, getDocPermissions } = createGuard('write', false);
+    let active = 0;
+    let maximum = 0;
+    getDocPermissions.mockImplementation(async id => {
+      maximum = Math.max(maximum, ++active);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      active--;
+      if (id === 'failed') throw new Error('Network unavailable');
+      return { Doc_Read: id !== 'denied' };
+    });
+    const ids = [
+      'failed',
+      'denied',
+      ...Array.from({ length: 9 }, (_, i) => String(i)),
+      '0',
+    ];
+    let visible: ReadonlySet<string> = new Set();
+    subscriptions.push(
+      service.readableDocIds$(ids).subscribe(value => {
+        visible = value;
+      })
+    );
+    await vi.waitFor(() => expect(visible.size).toBe(9));
+    expect(visible.has('failed')).toBe(false);
+    expect(visible.has('denied')).toBe(false);
+    expect(maximum).toBeLessThanOrEqual(4);
+    expect(getDocPermissions).toHaveBeenCalledTimes(11);
+  });
+
+  test('keeps local workspace search available without a server', async () => {
+    const { service, getDocPermissions, workspaceService } = createGuard(
+      'write',
+      false
+    );
+    workspaceService.workspace.flavour = 'local';
+    expect([
+      ...(await firstValueFrom(service.readableDocIds$(['local-doc']))),
+    ]).toEqual(['local-doc']);
+    expect(getDocPermissions).not.toHaveBeenCalled();
+  });
 });
 
 describe('GuardService workspace permissions', () => {
@@ -161,6 +240,58 @@ describe('GuardService workspace permissions', () => {
 });
 
 describe('GuardService document scope', () => {
+  test('refreshes an open member document and stops polling it after unmount', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, getDocPermissions } = createGuard('write', false);
+      const canWrite$ = service.can$('Doc_Update', 'doc-1');
+      const subscription = canWrite$.subscribe(() => {});
+      subscriptions.push(subscription);
+      await service.can('Doc_Update', 'doc-1');
+      expect(canWrite$.value).toBe(true);
+      getDocPermissions.mockResolvedValue({
+        Doc_Read: true,
+        Doc_Update: false,
+      });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(canWrite$.value).toBe(false);
+      subscription.unsubscribe();
+      getDocPermissions.mockClear();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(getDocPermissions).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test.each([401, 403, 404])(
+    'clears a cached grant when revalidation returns %s',
+    async status => {
+      const { service, getDocPermissions } = createGuard('write', false);
+      const canRead$ = service.can$('Doc_Read', 'doc-1');
+      const canWrite$ = service.can$('Doc_Update', 'doc-1');
+      subscriptions.push(
+        canRead$.subscribe(() => {}),
+        canWrite$.subscribe(() => {})
+      );
+      await service.can('Doc_Update', 'doc-1');
+      expect(canRead$.value).toBe(true);
+      expect(canWrite$.value).toBe(true);
+      getDocPermissions.mockRejectedValue(
+        new UserFriendlyError({
+          status,
+          code: 'ACCESS_DENIED',
+          type: 'ACCESS_DENIED',
+          name: 'ACCESS_DENIED',
+          message: 'Access revoked',
+        })
+      );
+      await expect(service.can('Doc_Update', 'doc-1')).resolves.toBe(false);
+      expect(canRead$.value).toBe(false);
+      expect(canWrite$.value).toBe(false);
+    }
+  );
+
   test('allows only read actions on the target document in read mode', async () => {
     const { service, getDocPermissions } = createGuard('read');
 

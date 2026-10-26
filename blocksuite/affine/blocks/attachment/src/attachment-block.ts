@@ -494,11 +494,21 @@ export class AttachmentBlockComponent extends CaptionedBlockComponent<Attachment
     const { name, footnoteIdentifier } = this.model.props;
     const icon = getAttachmentFileIcon(this.filetype);
 
+    // Read-only attachment citations (earlier AI replies) carry no trusted
+    // native target; activating them explains that instead of doing nothing.
+    const onClickCallback = this.store.readonly
+      ? (event: MouseEvent) => {
+          event.stopPropagation();
+          this.citationService.notifySourceUnavailable(this.model);
+        }
+      : undefined;
+
     return html`<affine-citation-card
       .icon=${icon}
       .citationTitle=${name}
       .citationIdentifier=${footnoteIdentifier}
       .active=${this.selected$.value}
+      .onClickCallback=${onClickCallback}
     ></affine-citation-card>`;
   };
 

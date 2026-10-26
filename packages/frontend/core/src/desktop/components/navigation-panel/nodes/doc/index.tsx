@@ -75,6 +75,13 @@ export const NavigationPanelDocNode = ({
     GuardService,
   });
   const navigationPanelService = useService(NavigationPanelService);
+  const readableDocs = useLiveData(
+    useMemo(
+      () =>
+        LiveData.from(guardService.readableDocIds$([docId]), new Set<string>()),
+      [guardService, docId]
+    )
+  );
   const { appSettings } = useAppSettingHelper();
 
   const active =
@@ -301,7 +308,7 @@ export const NavigationPanelDocNode = ({
     return operations;
   }, [additionalOperations, operations]);
 
-  if (isInTrash || !docRecord) {
+  if (isInTrash || !docRecord || !readableDocs.has(docId)) {
     return null;
   }
 

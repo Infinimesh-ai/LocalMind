@@ -48,11 +48,12 @@ import type {
   ProjectReportAiContext,
 } from '@localmind/office';
 import { useFramework, useLiveData, useService } from '@toeverything/infra';
-import { assignInlineVars } from '@vanilla-extract/dynamic';
+import { assignInlineVars, setElementVars } from '@vanilla-extract/dynamic';
 import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -171,8 +172,57 @@ export const WorkbenchConversation = ({
   );
   const [bodyReady, setBodyReady] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
+  const headerOverlayRef = useRef<HTMLDivElement>(null);
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const toolbarContainerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const overlay = headerOverlayRef.current;
+    const root = overlay?.parentElement;
+    if (!overlay || !root) return;
+    const measure = () => {
+      setElementVars(root, {
+        [styles.headerHeightVar]: `${overlay.getBoundingClientRect().height}px`,
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(overlay);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const container = contentContainerRef.current;
+    if (!bodyReady || !container) return;
+    let composer: HTMLElement | null = null;
+    let status: HTMLElement | null = null;
+    const measure = () => {
+      const composerHeight = composer?.getBoundingClientRect().height ?? 0;
+      const statusHeight = status?.getBoundingClientRect().height ?? 0;
+      setElementVars(container, {
+        [styles.composerHeightVar]: `${composerHeight}px`,
+        [styles.footerHeightVar]: `${composerHeight + statusHeight}px`,
+      });
+    };
+    const resizeObserver = new ResizeObserver(measure);
+    const observe = () => {
+      composer = container.querySelector('ai-chat-composer');
+      status = container.querySelector('ai-context-compaction-status');
+      if (!composer || !status) return;
+      resizeObserver.observe(composer);
+      resizeObserver.observe(status);
+      mutationObserver.disconnect();
+      measure();
+    };
+    // The Lit content mounts asynchronously inside the React host.
+    const mutationObserver = new MutationObserver(observe);
+    mutationObserver.observe(container, { childList: true, subtree: true });
+    observe();
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [bodyReady]);
   const blockerSuggestionConfirmation = useMemo<
     BlockerSuggestionConfirmation | undefined
   >(
@@ -599,7 +649,7 @@ export const WorkbenchConversation = ({
 
   return (
     <section
-      className={styles.root}
+      className={styles.floatingHeaderRoot}
       aria-label={t['com.affine.localmind.workbench.conversation']()}
       data-testid="workbench-conversation"
       style={assignInlineVars({
@@ -608,59 +658,63 @@ export const WorkbenchConversation = ({
         ),
       })}
     >
-      <header className={styles.header}>
-        <div className={styles.conversationIdentity}>
-          <strong title={activeSession?.title ?? undefined}>
-            {activeSession?.title ||
-              t['com.affine.localmind.workbench.v9.newConversation']()}
-          </strong>
-          <span>{selectedProjectName}</span>
-        </div>
-        <div className={styles.tools}>
-          {selectedCard ? (
-            <span className={styles.status} data-column={selectedCard.column}>
+      <div className={styles.headerOverlay} ref={headerOverlayRef}>
+        <header className={styles.header}>
+          <div className={styles.conversationIdentity}>
+            <strong title={activeSession?.title ?? undefined}>
+              {activeSession?.title ||
+                t['com.affine.localmind.workbench.v9.newConversation']()}
+            </strong>
+            <span>{selectedProjectName}</span>
+          </div>
+          <div className={styles.tools}>
+            {selectedCard ? (
+              <span className={styles.status} data-column={selectedCard.column}>
+                {t[
+                  selectedCard.column === 'todo'
+                    ? 'com.affine.localmind.workbench.v9.todo'
+                    : selectedCard.column === 'done'
+                      ? 'com.affine.localmind.workbench.v9.done'
+                      : 'com.affine.localmind.workbench.v9.progress'
+                ]()}
+              </span>
+            ) : null}
+            {selectedCard &&
+            selectedCard.column !== 'done' &&
+            selectedCard.scopeType !== 'work_order' &&
+            onCompleteConversation ? (
+              <Button onClick={() => void onCompleteConversation(selectedCard)}>
+                {t['com.affine.localmind.workbench.v9.markComplete']()}
+              </Button>
+            ) : null}
+            {headerActions}
+            <div ref={setToolbarContainer} />
+          </div>
+        </header>
+        {banner ? <div className={styles.banner}>{banner}</div> : null}
+        {configuration === 'missing' || configuration === 'error' ? (
+          <div role="status" className={styles.configuration}>
+            <span>
               {t[
-                selectedCard.column === 'todo'
-                  ? 'com.affine.localmind.workbench.v9.todo'
-                  : selectedCard.column === 'done'
-                    ? 'com.affine.localmind.workbench.v9.done'
-                    : 'com.affine.localmind.workbench.v9.progress'
+                configuration === 'missing'
+                  ? 'com.affine.localmind.project-byok.missing'
+                  : 'com.affine.localmind.project-byok.error'
               ]()}
             </span>
-          ) : null}
-          {selectedCard &&
-          selectedCard.column !== 'done' &&
-          selectedCard.scopeType !== 'work_order' &&
-          onCompleteConversation ? (
-            <Button onClick={() => void onCompleteConversation(selectedCard)}>
-              {t['com.affine.localmind.workbench.v9.markComplete']()}
-            </Button>
-          ) : null}
-          {headerActions}
-          <div ref={setToolbarContainer} />
-        </div>
-      </header>
-      {banner ? <div className={styles.banner}>{banner}</div> : null}
-      {configuration === 'missing' || configuration === 'error' ? (
-        <div role="status" className={styles.configuration}>
-          <span>
-            {t[
-              configuration === 'missing'
-                ? 'com.affine.localmind.project-byok.missing'
-                : 'com.affine.localmind.project-byok.error'
-            ]()}
-          </span>
-          {configuration === 'error' ? (
-            <Button onClick={projectModel.refresh}>{t['Retry']()}</Button>
-          ) : isAdmin ? (
-            <a href="/admin/ai/config">
-              {t['com.affine.localmind.project-byok.configure']()}
-            </a>
-          ) : (
-            <span>{t['com.affine.localmind.project-byok.contactAdmin']()}</span>
-          )}
-        </div>
-      ) : null}
+            {configuration === 'error' ? (
+              <Button onClick={projectModel.refresh}>{t['Retry']()}</Button>
+            ) : isAdmin ? (
+              <a href="/admin/ai/config">
+                {t['com.affine.localmind.project-byok.configure']()}
+              </a>
+            ) : (
+              <span>
+                {t['com.affine.localmind.project-byok.contactAdmin']()}
+              </span>
+            )}
+          </div>
+        ) : null}
+      </div>
       <div className={styles.content} ref={setContentContainer} />
       {documentPicker ? (
         <ProjectFilePicker

@@ -7,6 +7,8 @@ import test from 'ava';
 import Sinon from 'sinon';
 
 import { OFFICE_FORMATS, OfficeCommandService } from '../../core/office';
+import { ProjectOfficeResolver } from '../../core/office/project-resolver';
+import { OfficeResolver } from '../../core/office/resolver';
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
@@ -53,6 +55,15 @@ const batch = {
     },
   ],
 } as const;
+
+const userBatch = {
+  ...batch,
+  source: 'user' as const,
+  commands: batch.commands.map(command => ({
+    ...command,
+    source: 'user' as const,
+  })),
+};
 
 function fixture(options?: {
   currentRevisionId?: string;
@@ -153,6 +164,196 @@ test('previews an atomic batch without persistence and commits exactly one AI re
   t.is(revisionInput.operationSummary.commandCount, batch.commands.length);
   t.is(revisionInput.operationSummary.source, 'ai');
 });
+
+test('interactive user batch previews without writes and commits one user revision', async t => {
+  const f = fixture();
+  const input = {
+    workspaceId: 'workspace-1',
+    actorId: 'user-1',
+    command: userBatch,
+  };
+  const preview = await f.service.previewInteractive(input);
+  t.is(preview.summary.commandCount, 2);
+  t.false((f.storage.put as Sinon.SinonStub).called);
+  await f.service.executeInteractive(input);
+  t.true(f.appendRevision.calledOnce);
+  t.is(f.appendRevision.firstCall.args[0].origin, OfficeRevisionOrigin.user);
+  t.is(
+    f.appendRevision.firstCall.args[0].expectedParentRevisionId,
+    'revision-1'
+  );
+});
+
+test('interactive commands reject AI/system sources and mixed batch ownership before reading storage', async t => {
+  const f = fixture();
+  for (const invalid of [
+    command,
+    batch,
+    {
+      ...userBatch,
+      source: 'system',
+      commands: userBatch.commands.map(command => ({
+        ...command,
+        source: 'system',
+      })),
+    },
+    { ...userBatch, commands: [{ ...userBatch.commands[0], source: 'ai' }] },
+    {
+      ...userBatch,
+      commands: [{ ...userBatch.commands[0], artifactId: 'other-artifact' }],
+    },
+    {
+      ...userBatch,
+      commands: [
+        { ...userBatch.commands[0], expectedRevisionId: 'other-revision' },
+      ],
+    },
+  ]) {
+    await t.throwsAsync(
+      f.service.executeInteractive({
+        workspaceId: 'workspace-1',
+        actorId: 'user-1',
+        command: invalid,
+      })
+    );
+    await t.throwsAsync(
+      f.service.previewInteractive({
+        workspaceId: 'workspace-1',
+        actorId: 'user-1',
+        command: invalid,
+      })
+    );
+  }
+  t.false((f.storage.get as Sinon.SinonStub).called);
+  t.false((f.storage.put as Sinon.SinonStub).called);
+  t.false(f.appendRevision.called);
+});
+
+test('interactive paste remains atomic after a later invalid cell, ACL refusal or revision conflict', async t => {
+  for (const [options, command] of [
+    [
+      {},
+      {
+        ...userBatch,
+        commands: [
+          userBatch.commands[0],
+          {
+            ...userBatch.commands[1],
+            target: {
+              ...userBatch.commands[1].target,
+              sheetId: 'missing-sheet',
+            },
+          },
+        ],
+      },
+    ],
+    [{ permissionError: new Error('permission denied') }, userBatch],
+    [{ currentRevisionId: 'newer-revision' }, userBatch],
+  ] as const) {
+    const f = fixture(options);
+    await t.throwsAsync(
+      f.service.executeInteractive({
+        workspaceId: 'workspace-1',
+        actorId: 'user-1',
+        command,
+      })
+    );
+    t.false((f.storage.put as Sinon.SinonStub).called);
+    t.false(f.appendRevision.called);
+  }
+});
+
+test('interactive Project batch forwards its owner and edit lease to the shared executor', async t => {
+  const f = fixture();
+  const execute = Sinon.stub(f.service, 'executeBatch').resolves({
+    created: true,
+  } as never);
+  const lease = { kind: 'user' as const, tabId: 'tab-1', leaseId: 'lease-1' };
+  await f.service.executeInteractive({
+    projectId: 'project-1',
+    actorId: 'user-1',
+    editLease: lease,
+    command: userBatch,
+  });
+  t.like(execute.firstCall.args[0], {
+    projectId: 'project-1',
+    actorId: 'user-1',
+    editLease: lease,
+    batch: userBatch,
+  });
+});
+
+for (const project of [false, true]) {
+  test(`${project ? 'Project' : 'Workspace'} GraphQL endpoint uses the interactive batch guard for preview and execute`, async t => {
+    const ownership = project
+      ? { workspaceId: null, projectId: 'project-1' }
+      : { workspaceId: 'workspace-1', projectId: null };
+    const artifact = { id: 'artifact-1', ...ownership };
+    const revision = {
+      id: 'revision-2',
+      artifactId: artifact.id,
+      ...ownership,
+    };
+    const commands = {
+      previewInteractive: Sinon.stub().resolves({
+        artifact,
+        revision,
+        summary: { commandCount: 2 },
+      }),
+      executeInteractive: Sinon.stub().resolves({
+        created: true,
+        revision,
+        summary: { commandCount: 2 },
+      }),
+    };
+    const artifacts = { get: Sinon.stub().resolves({ artifact, revision }) };
+    const url = { link: (path: string) => path };
+    const actor = { id: 'user-1' } as never;
+    if (project) {
+      const resolver = new ProjectOfficeResolver(
+        artifacts as never,
+        {} as never,
+        commands as never,
+        url as never,
+        {} as never
+      );
+      const input = {
+        projectId: 'project-1',
+        command: userBatch,
+        editLease: { tabId: 'tab-1', leaseId: 'lease-1' },
+      };
+      await resolver.previewProjectOfficeCommand(actor, input);
+      await resolver.executeProjectOfficeCommand(actor, input);
+      t.like(commands.executeInteractive.firstCall.args[0], {
+        projectId: 'project-1',
+        actorId: 'user-1',
+        editLease: { kind: 'user', ...input.editLease },
+      });
+    } else {
+      const resolver = new OfficeResolver(
+        artifacts as never,
+        {} as never,
+        commands as never,
+        url as never
+      );
+      const input = { workspaceId: 'workspace-1', command: userBatch };
+      await resolver.previewOfficeCommand(actor, input);
+      await resolver.executeOfficeCommand(actor, input);
+      t.like(commands.executeInteractive.firstCall.args[0], {
+        workspaceId: 'workspace-1',
+        actorId: 'user-1',
+      });
+    }
+    t.deepEqual(
+      commands.previewInteractive.firstCall.args[0].command,
+      userBatch
+    );
+    t.deepEqual(
+      commands.executeInteractive.firstCall.args[0].command,
+      userBatch
+    );
+  });
+}
 
 test('live ACL rejection prevents both Office blobs and revisions on every attempt', async t => {
   const f = fixture({ permissionError: new Error('Workspace.Sync denied') });

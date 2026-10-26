@@ -530,6 +530,24 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
     this.requireLease(run, input);
     if (await this.cancellationRequested(run.id))
       return this.cancelCurrent(run);
+    const command = run.steps.find(step => step.stepKey === 'execute')?.input;
+    if (
+      run.workflow === PROJECT_AGENT_WORKFLOW &&
+      command &&
+      typeof command === 'object' &&
+      !Array.isArray(command) &&
+      command.editLeaseConflictPolicy === 'fail'
+    ) {
+      // The frozen user intent applies to both inline execution and workers.
+      // Legacy commands without this policy retain their original wait behavior.
+      await this.finish(
+        run,
+        null,
+        'project_edit_lease_conflict',
+        'The resource is being edited. This request stopped without changes and will not retry automatically.'
+      );
+      return this.read(input.projectId, input.runId);
+    }
     const waiting = await this.transition(
       run,
       'waiting_lease',

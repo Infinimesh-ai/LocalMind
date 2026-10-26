@@ -7,6 +7,7 @@ import {
 import {
   createNativeFile,
   NativeFileContentSchema,
+  NativeFileTitleSchema as nativeTitleSchema,
   officeDownloadFileName,
 } from '@localmind/office';
 import { Injectable } from '@nestjs/common';
@@ -51,21 +52,7 @@ import {
 import { OfficeImportService } from './import-service';
 import { OfficeResourceStorage } from './resource-storage';
 
-export const nativeTitleSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(480)
-  .refine(
-    value =>
-      [...value].every(
-        character =>
-          character.charCodeAt(0) >= 32 &&
-          character !== '/' &&
-          character !== '\\'
-      ),
-    'Invalid file name'
-  );
+export { nativeTitleSchema };
 export const nativeRequestKeySchema = z.string().min(1).max(256);
 const resourceResultSchema = z.object({
   id: z.string(),
@@ -324,6 +311,8 @@ export class WorkspaceNativeResourceService {
     return {
       ...this.describe(current),
       contentVersion: revision.sequence,
+      currentContentVersion: current.state.revision.sequence,
+      historical: revision.sequence !== current.state.revision.sequence,
       revisionId: revision.id,
       mimeType: revision.mimeType,
       byteSize: revision.byteSize,
@@ -744,14 +733,28 @@ export class WorkspaceNativeResourceService {
             .workspace(input.workspaceId)
             .assert('Workspace.Delete');
         const location = await this.organization.nativeResourceLocations(input);
-        if (input.action === 'restore' && input.folderId === undefined)
-          for (const saved of location.locations)
-            await this.organization.assertResourceFolder(
-              input.workspaceId,
-              input.actorId,
-              saved.folderId,
-              true
-            );
+        if (input.action === 'restore' && input.folderId === undefined) {
+          try {
+            for (const saved of location.locations)
+              await this.organization.assertResourceFolder(
+                input.workspaceId,
+                input.actorId,
+                saved.folderId,
+                true
+              );
+          } catch (error) {
+            // This rejection precedes any write, so the caller can select a
+            // different destination without treating the result as uncertain.
+            if (
+              error instanceof ResourceError &&
+              ['resource_not_found', 'permission_denied'].includes(error.code)
+            )
+              throw new BadRequest(
+                'Restore destination unavailable; choose another folder'
+              );
+            throw error;
+          }
+        }
         const result = await this.models.workspaceNativeResource.change({
           ...input,
           ...(input.action === 'trash'

@@ -35,12 +35,15 @@ pub(super) fn build_database_table<M: MapRead>(
   md_options: &DeltaToMdOptions,
 ) -> Option<DatabaseTable> {
   let columns = parse_database_columns(block)?;
-  let cells_map = block.get_value("prop:cells").and_then(|value| value.as_map_view())?;
+  let cells_map = block.get_value("prop:cells").and_then(|value| value.as_map_view());
   let child_ids = collect_child_ids(block);
 
   let mut rows = Vec::new();
   for child_id in child_ids {
-    let row_cells = cells_map.get_value(&child_id).and_then(|value| value.as_map_view());
+    let row_cells = cells_map
+      .as_ref()
+      .and_then(|cells| cells.get_value(&child_id))
+      .and_then(|value| value.as_map_view());
     let mut row = Vec::new();
 
     for column in columns.iter() {
@@ -211,6 +214,19 @@ fn parse_database_columns(block: &impl MapRead) -> Option<Vec<DatabaseColumn>> {
       });
     }
   }
+  // BlockSuite's fixed title property can be implicit: row titles live in the
+  // child paragraph, even when prop:columns only stores custom properties.
+  if !parsed.iter().any(|column| column.col_type == "title") {
+    parsed.insert(
+      0,
+      DatabaseColumn {
+        id: "title".into(),
+        name: Some("Title".into()),
+        col_type: "title".into(),
+        options: Vec::new(),
+      },
+    );
+  }
   Some(parsed)
 }
 
@@ -285,5 +301,80 @@ fn format_cell_value(value: &impl ValueRead, column: &DatabaseColumn) -> String 
       selected.join("")
     }
     _ => value_to_string(value).unwrap_or_default(),
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::collections::HashMap;
+
+  use y_octo::{Any, DocOptions, Value};
+
+  use super::*;
+
+  fn table(explicit_title: bool, with_cells: bool) -> DatabaseTable {
+    let doc = DocOptions::new().build();
+    let mut block = doc.create_map().unwrap();
+    let mut children = doc.create_array().unwrap();
+    children.push("row").unwrap();
+    block.insert("sys:children".into(), Value::Array(children)).unwrap();
+    let mut columns = doc.create_array().unwrap();
+    let mut amount = doc.create_map().unwrap();
+    amount.insert("id".into(), "amount").unwrap();
+    amount.insert("name".into(), "Amount").unwrap();
+    amount.insert("type".into(), "number").unwrap();
+    columns.push(Value::Map(amount)).unwrap();
+    if explicit_title {
+      let mut title = doc.create_map().unwrap();
+      title.insert("id".into(), "title").unwrap();
+      title.insert("name".into(), "Task").unwrap();
+      title.insert("type".into(), "title").unwrap();
+      columns.push(Value::Map(title)).unwrap();
+    }
+    block.insert("prop:columns".into(), Value::Array(columns)).unwrap();
+    if with_cells {
+      let mut cell = doc.create_map().unwrap();
+      cell.insert("value".into(), Any::Integer(0)).unwrap();
+      let mut row = doc.create_map().unwrap();
+      row.insert("amount".into(), Value::Map(cell)).unwrap();
+      let mut cells = doc.create_map().unwrap();
+      cells.insert("row".into(), Value::Map(row)).unwrap();
+      block.insert("prop:cells".into(), Value::Map(cells)).unwrap();
+    }
+    let mut row = doc.create_map().unwrap();
+    let mut text = doc.create_text().unwrap();
+    text.insert(0, "QA-Task").unwrap();
+    row.insert("prop:text".into(), Value::Text(text)).unwrap();
+    let context = DocContext {
+      block_pool: HashMap::from([("row".into(), row)]),
+      parent_lookup: HashMap::new(),
+      root_block_id: "database".into(),
+    };
+    build_database_table(&block, &context, &DeltaToMdOptions::new(None)).unwrap()
+  }
+
+  #[test]
+  fn implicit_title_is_rendered_without_shifting_zero_amount() {
+    let table = table(false, true);
+    assert_eq!(
+      table.columns.iter().map(|c| c.name.as_deref()).collect::<Vec<_>>(),
+      vec![Some("Title"), Some("Amount")]
+    );
+    assert_eq!(table.rows, vec![vec!["QA-Task", "0"]]);
+  }
+
+  #[test]
+  fn explicit_title_keeps_its_name_and_position() {
+    let table = table(true, true);
+    assert_eq!(
+      table.columns.iter().map(|c| c.name.as_deref()).collect::<Vec<_>>(),
+      vec![Some("Amount"), Some("Task")]
+    );
+    assert_eq!(table.rows, vec![vec!["0", "QA-Task"]]);
+  }
+
+  #[test]
+  fn title_survives_without_custom_cells() {
+    assert_eq!(table(false, false).rows, vec![vec!["QA-Task", ""]]);
   }
 }

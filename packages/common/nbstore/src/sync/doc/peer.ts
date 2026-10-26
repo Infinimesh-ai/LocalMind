@@ -60,6 +60,8 @@ interface PeerDocState {
   syncing: boolean;
   synced: boolean;
   retrying: boolean;
+  /** the remote rejected this doc for permission; it is never retried */
+  permissionDenied: boolean;
   errorMessage: string | null;
 }
 
@@ -238,6 +240,7 @@ export class DocSyncPeer {
             syncing: false,
             synced: true,
             retrying: false,
+            permissionDenied: false,
             errorMessage: null,
           });
           return;
@@ -248,7 +251,9 @@ export class DocSyncPeer {
             (!this.status.connectedDocs.has(docId) ||
               this.status.jobMap.has(docId)),
           synced: !docErrorMessage && !this.status.jobMap.has(docId),
-          retrying: this.status.retrying,
+          // A permission-denied doc is not retried, even if the peer retries.
+          retrying: !docErrorMessage && this.status.retrying,
+          permissionDenied: !!docErrorMessage,
           errorMessage: docErrorMessage ?? this.status.errorMessage,
         });
       };

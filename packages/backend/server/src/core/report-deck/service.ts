@@ -116,7 +116,13 @@ export class ReportDeckService {
   }
 
   private summary(row: ReportDeckSummaryRecord): DeckSummary {
+    const config = DeckConfigSchema.safeParse(row.config);
     return {
+      ...(config.success &&
+      config.data.mode === 'custom' &&
+      config.data.designMode
+        ? { designMode: config.data.designMode }
+        : {}),
       id: row.id,
       title: row.title,
       status: row.status as DeckSummary['status'],
@@ -274,6 +280,8 @@ export class ReportDeckService {
         if (prior) return { deck: await this.detailOf(prior) };
         const deck = await this.owned(ownerUserId, command.deckId);
         const config = DeckConfigSchema.parse(deck.config);
+        // Regeneration is a new submission; only retries retain the selection.
+        if (config.mode === 'custom') config.designMode = 'fast';
         return {
           deck: await this.create(ownerUserId, {
             requestKey: command.requestKey,
@@ -365,7 +373,15 @@ export class ReportDeckService {
     );
     if (prior) return this.detailOf(prior);
     this.assertEnabled();
-    const config = input.config;
+    const config = { ...input.config };
+    if (config.mode === 'custom' && this.config.reportDecks.customDesignV3) {
+      // Freeze the effective mode at creation, before the job starts.
+      config.designMode ??= this.config.reportDecks.webRefine
+        ? 'refine'
+        : 'fast';
+    } else if (config.designMode !== undefined) {
+      throw new BadRequest('Custom report generation modes are unavailable');
+    }
     if (config.mode === 'template' && !hasDeckTemplate(config.templateKey))
       throw new BadRequest('Report deck template is unavailable');
     if (input.sources.length > this.config.reportDecks.maxSources)

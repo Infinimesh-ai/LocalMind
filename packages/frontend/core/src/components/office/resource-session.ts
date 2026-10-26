@@ -47,6 +47,7 @@ export function useOfficeResourceSession(adapter: OfficeResourceAdapter) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const drafts = useRef(new Set<OfficeEditorDraft>());
   const decision = useRef<((allowed: boolean) => void) | null>(null);
+  const resumeAutosave = useRef<Array<() => void>>([]);
   const mounted = useRef(true);
   const version = useRef(0);
   const pending = useRef(false);
@@ -76,24 +77,63 @@ export function useOfficeResourceSession(adapter: OfficeResourceAdapter) {
     for (const draft of drafts.current) await draft.discard();
     setUnsaved(dirty());
   }, [dirty]);
-  const confirmUnsaved = useCallback(async () => {
-    if (!dirty()) return true;
-    if (decision.current) return false;
-    setConfirmOpen(true);
-    return new Promise<boolean>(resolve => {
-      decision.current = resolve;
-    });
-  }, [dirty]);
   const decide = useCallback((allowed: boolean) => {
+    for (const resume of resumeAutosave.current) resume();
+    resumeAutosave.current = [];
     decision.current?.(allowed);
     decision.current = null;
     setConfirmOpen(false);
   }, []);
+  const confirmUnsaved = useCallback(async () => {
+    if (!dirty()) return true;
+    if (decision.current) return false;
+    const result = new Promise<boolean>(resolve => {
+      decision.current = resolve;
+    });
+    const pauses = [...drafts.current].flatMap(draft => {
+      const pause = draft.pauseAutosave?.();
+      return pause ? [pause] : [];
+    });
+    resumeAutosave.current = pauses.map(pause => pause.resume);
+    const saving = pauses.flatMap(pause =>
+      pause.settled ? [pause.settled] : []
+    );
+    if (saving.length) {
+      // Already submitted writes cannot be discarded. Wait for them before
+      // offering a decision about the remaining unsaved draft.
+      await Promise.allSettled(saving);
+      if (mounted.current && decision.current) {
+        if (dirty()) setConfirmOpen(true);
+        else decide(true);
+      }
+    } else setConfirmOpen(true);
+    return result;
+  }, [decide, dirty]);
   const report = useCallback(
     (caught: unknown) => {
       if (mounted.current) setError(officeErrorMessage(caught, adapter.owner));
     },
     [adapter]
+  );
+  const preserveSelection = useCallback(
+    (nextState: NativeOfficeState, sequence: number) => {
+      setSelection(current => {
+        const valid = current && isOfficeSelectionAvailable(nextState, current);
+        setSelectionNotice(
+          current
+            ? valid
+              ? I18n['com.affine.office.selection-preserved']({
+                  version: String(sequence),
+                })
+              : I18n[
+                  'com.affine.office.selection-cleared-because-its-stable-target-is-not-present-in-the-new-revision'
+                ]()
+            : null
+        );
+        return valid ? current : null;
+      });
+    },
+    []
   );
   const apply = useCallback(
     (next: OfficeRevision, nextState: NativeOfficeState) => {
@@ -118,21 +158,7 @@ export function useOfficeResourceSession(adapter: OfficeResourceAdapter) {
       setHistorical(false);
       setConflict(false);
       setCommentAnchor(null);
-      setSelection(current => {
-        const valid = current && isOfficeSelectionAvailable(nextState, current);
-        setSelectionNotice(
-          current
-            ? valid
-              ? I18n['com.affine.office.selection-preserved']({
-                  version: String(next.sequence),
-                })
-              : I18n[
-                  'com.affine.office.selection-cleared-because-its-stable-target-is-not-present-in-the-new-revision'
-                ]()
-            : null
-        );
-        return valid ? current : null;
-      });
+      preserveSelection(nextState, next.sequence);
       setArtifact(current => {
         if (!current || next.sequence < current.currentRevision.sequence)
           return current;
@@ -151,7 +177,7 @@ export function useOfficeResourceSession(adapter: OfficeResourceAdapter) {
         return current;
       });
     },
-    [adapter]
+    [adapter, preserveSelection]
   );
   const load = useCallback(
     async (next: OfficeArtifact, selected: OfficeRevision, force = false) => {
@@ -174,13 +200,9 @@ export function useOfficeResourceSession(adapter: OfficeResourceAdapter) {
       setState(nextState);
       setCommentAnchor(null);
       setError(null);
-      setSelection(current =>
-        current && isOfficeSelectionAvailable(nextState, current)
-          ? current
-          : null
-      );
+      preserveSelection(nextState, selected.sequence);
     },
-    [adapter, dirty]
+    [adapter, dirty, preserveSelection]
   );
   const refresh = useCallback(
     async (force = false) => {
@@ -270,6 +292,8 @@ export function useOfficeResourceSession(adapter: OfficeResourceAdapter) {
       generation.current++;
       decision.current?.(false);
       decision.current = null;
+      for (const resume of resumeAutosave.current) resume();
+      resumeAutosave.current = [];
       window.clearInterval(timer);
       window.removeEventListener('beforeunload', beforeUnload);
     };

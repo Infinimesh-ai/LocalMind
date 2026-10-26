@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { CopilotByokNotConfigured } from '../../../base';
+import {
+  CopilotByokCredentialDisabled,
+  CopilotByokNotConfigured,
+} from '../../../base';
 import type { ReportDesignLease } from '../../../models/report-deck-design';
 import { ByokService } from '../byok/service';
 import type { ByokFeatureKind } from '../byok/types';
@@ -64,18 +67,23 @@ export class CopilotAccessPolicy {
     context: CopilotAccessContext
   ): Promise<CopilotTurnRouteAccess> {
     const byokProfiles = await this.getByokProfiles(context);
-    this.assertByokConfigured(byokProfiles);
+    await this.assertByokConfigured(byokProfiles, context);
     return { byokProfiles, quotaBackedRoutesAllowed: false };
   }
 
   async assertQuotaOrByok(context: CopilotAccessContext) {
     const byokProfiles = await this.getByokProfiles(context);
-    this.assertByokConfigured(byokProfiles);
+    await this.assertByokConfigured(byokProfiles, context);
   }
 
-  private assertByokConfigured(byokProfiles: CopilotProviderProfile[]) {
-    if (!byokProfiles.length) {
-      throw new CopilotByokNotConfigured();
+  private async assertByokConfigured(
+    byokProfiles: CopilotProviderProfile[],
+    context: CopilotAccessContext
+  ) {
+    if (byokProfiles.length) return;
+    if (await this.byok.hasWorkspaceCredentialDisabledAfterFailure(context)) {
+      throw new CopilotByokCredentialDisabled();
     }
+    throw new CopilotByokNotConfigured();
   }
 }

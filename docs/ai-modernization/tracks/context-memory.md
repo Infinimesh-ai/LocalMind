@@ -103,6 +103,14 @@ LocalMind already persists private user-owned context records with user,
 workspace, document, or project scope. Users can manage these records and the
 Automatic Memory preference under **Workspace settings > AI context**.
 
+Explicit memory requests also supply the chat model with a bounded server receipt
+from the current owned turn's writer events. It distinguishes durable adds and
+updates, identical existing facts, recall removal, contribution withdrawal,
+pending conflicts and unverified writes. Only fixed outcome labels, counts and
+scope descriptions enter this trusted policy; remembered content and arbitrary
+writer reasons do not. A receipt does not expand recall permissions, promise
+permanent retention or turn a pending conflict into a saved shared fact.
+
 The `context-planner/v5` slice adds the first production hardening layer:
 
 - a single scope resolver combines the conversation's primary document with

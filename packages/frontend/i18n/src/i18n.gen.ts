@@ -36,6 +36,22 @@ function createProxy(initValue: (key: string) => any) {
 }
 export function useAFFiNEI18N(): {
     /**
+      * `Pin chat`
+      */
+    ["com.affine.localmind.chat.pin"](): string;
+    /**
+      * `This source comes from an earlier reply and cannot be opened directly. Find it in the resource tree.`
+      */
+    ["com.affine.localmind.citation.sourceUnavailable"](): string;
+    /**
+      * `Could not load chat history. Please retry.`
+      */
+    ["com.affine.localmind.chat.historyFailed"](): string;
+    /**
+      * `Current document`
+      */
+    ["com.affine.localmind.chat.currentDocument"](): string;
+    /**
       * `Configuration was saved, but the settings could not be refreshed. Reload the settings to view the latest configuration.`
       */
     ["com.affine.admin.byok-saved-refresh-failed"](): string;
@@ -1107,6 +1123,26 @@ export function useAFFiNEI18N(): {
       * `Loading document`
       */
     ["com.affine.doc-save.loading"](): string;
+    /**
+      * `Local changes not submitted: you no longer have sync permission for this doc`
+      */
+    ["com.affine.doc-save.unsubmitted"](): string;
+    /**
+      * `You no longer have permission to sync this doc. Changes made on this device were not submitted to the server and will not be retried. Copy the local content if you want to keep it.`
+      */
+    ["com.affine.doc-sync.permission-denied.message"](): string;
+    /**
+      * `Copy local content`
+      */
+    ["com.affine.doc-sync.permission-denied.copy"](): string;
+    /**
+      * `Local content copied`
+      */
+    ["com.affine.doc-sync.permission-denied.copied"](): string;
+    /**
+      * `Copy failed. Select the content and copy it manually.`
+      */
+    ["com.affine.doc-sync.permission-denied.copy-failed"](): string;
     /**
       * `Saving to this device`
       */
@@ -11703,7 +11739,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.documentUpdate.dismissShort"](): string;
     /**
-      * `Manage your private AI memory and where it can be used.`
+      * `Manage your private memory, shared project memory, and where each can be used.`
       */
     ["com.affine.localmind.aiContext.subtitle"](): string;
     /**
@@ -11908,7 +11944,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.aiContext.ownership.memory.name"](): string;
     /**
-      * `Rules, summaries, and automatic memories belong only to your account.`
+      * `Workspace rules and memories are private to your account. Project Memory is shared with current project members; personal chats, attachments, and conversation summaries remain private.`
       */
     ["com.affine.localmind.aiContext.ownership.memory.description"](): string;
     /**
@@ -11923,6 +11959,10 @@ export function useAFFiNEI18N(): {
       * `Only you`
       */
     ["com.affine.localmind.aiContext.onlyYou"](): string;
+    /**
+      * `Shared with project members`
+      */
+    ["com.affine.localmind.aiContext.sharedWithProject"](): string;
     /**
       * `Manage members`
       */
@@ -12448,7 +12488,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.section.projects.title"](): string;
     /**
-      * `Create Context Projects and understand member and project boundaries.`
+      * `Create independent projects and understand member access and sharing boundaries.`
       */
     ["com.affine.localmind.help.section.projects.summary"](): string;
     /**
@@ -12620,15 +12660,15 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.memory.automatic.management"](): string;
     /**
-      * `Project Summary`
+      * `Project Memory`
       */
     ["com.affine.localmind.help.memory.project.name"](): string;
     /**
-      * `Keep the current user's stable project background`
+      * `Keep stable project knowledge shared by current project members`
       */
     ["com.affine.localmind.help.memory.project.purpose"](): string;
     /**
-      * `Managed by Context Project`
+      * `Members manage their own contributions; the project owner manages all shared records`
       */
     ["com.affine.localmind.help.memory.project.management"](): string;
     /**
@@ -12668,7 +12708,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.projects.create.title"](): string;
     /**
-      * `Owners and admins can create a Context Project in AI context and select between 1 and 100 workspace documents.`
+      * `Signed-in users can create a project from the project list. A project has its own documents and files; creating one does not require selecting workspace documents.`
       */
     ["com.affine.localmind.help.projects.create.description"](): string;
     /**
@@ -12676,7 +12716,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.projects.memory.title"](): string;
     /**
-      * `Each user can save their own Project Summary or project Rule. The scope is the project, but ownership remains with the person who created it.`
+      * `Each Project has a shared Memory for its current members. Members manage their own contributions, and the owner manages all shared records. Sharing Memory does not share personal chats, attachments, or conversation summaries.`
       */
     ["com.affine.localmind.help.projects.memory.description"](): string;
     /**
@@ -12684,7 +12724,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.projects.archive.title"](): string;
     /**
-      * `Archive a project when work ends. It can be deleted only after it is archived and no personal project memory refers to it.`
+      * `Project owners can archive and restore projects. Before permanent deletion, resolve project memory and any resources that still reference the project; follow the reason shown by the application.`
       */
     ["com.affine.localmind.help.projects.archive.description"](): string;
     /**
@@ -12692,15 +12732,15 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.permissions.lead"](): string;
     /**
-      * `Users can search and use only documents they can read. A Context Project never bypasses existing document permissions.`
+      * `Users can search and use only resources they can access. Project membership grants access to internal project resources; importing or publishing copies still requires permission on the source or destination.`
       */
     ["com.affine.localmind.help.permissions.description"](): string;
     /**
-      * `Rules, Automatic Memory, and Project Summaries belong only to the current user.`
+      * `Workspace rules and memories are private to the current user. Project Memory is shared with current project members.`
       */
     ["com.affine.localmind.help.permissions.item1"](): string;
     /**
-      * `Team or project scope controls where private memory is used; it does not make that memory shared.`
+      * `Project members can recall shared project knowledge, but cannot access another member’s personal chats, attachments, or conversation summaries through Memory.`
       */
     ["com.affine.localmind.help.permissions.item2"](): string;
     /**
@@ -12752,11 +12792,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.faq.oldMemory.answer"](): string;
     /**
-      * `Why can't a regular member create a Context Project?`
+      * `Who can create and manage a project?`
       */
     ["com.affine.localmind.help.faq.projectAccess.question"](): string;
     /**
-      * `A Context Project changes workspace-level document grouping, so only owners and admins can manage it. Regular members can still use projects they can access.`
+      * `Signed-in users can create their own projects. The creator becomes the owner and manages membership. Project members can read and edit internal resources; workspace permissions remain separate.`
       */
     ["com.affine.localmind.help.faq.projectAccess.answer"](): string;
     /**
@@ -12764,7 +12804,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.help.faq.projectDelete.question"](): string;
     /**
-      * `The project must be archived and no user's private project memory may still refer to it.`
+      * `Only the project owner can delete it. Project memory or other remaining references can prevent deletion. Resolve the specific dependency shown in the error before retrying; permanent deletion cannot be undone.`
       */
     ["com.affine.localmind.help.faq.projectDelete.answer"](): string;
     /**
@@ -14254,6 +14294,28 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.admin.agent-runtime-schema-readiness-gaps-none"](): string;
     /**
+      * `Suspend (reversible)`
+      */
+    ["com.affine.admin.suspend-reversible"](): string;
+    /**
+      * `Suspend account?`
+      */
+    ["com.affine.admin.suspend-account"](): string;
+    /**
+      * `Suspend`
+      */
+    ["com.affine.admin.suspend"](): string;
+    /**
+      * `User {{email}} suspended`
+      */
+    ["com.affine.admin.user-suspended"](options: {
+        readonly email: string;
+    }): string;
+    /**
+      * `Failed to suspend user: `
+      */
+    ["com.affine.admin.failed-to-suspend-user"](): string;
+    /**
       * `LocalMind brings docs, whiteboards and databases together in one workspace.`
       */
     ["com.affine.ui.onboarding-workspace"](): string;
@@ -15530,6 +15592,30 @@ export function useAFFiNEI18N(): {
       * `No Result`
       */
     ["com.affine.ai.action-label.no-result"](): string;
+    /**
+      * `Model`
+      */
+    ["com.affine.ai.chat.preferences.model"](): string;
+    /**
+      * `Extended thinking`
+      */
+    ["com.affine.ai.chat.preferences.thinking"](): string;
+    /**
+      * `Search and read workspace pages`
+      */
+    ["com.affine.ai.chat.preferences.workspace-docs"](): string;
+    /**
+      * `AI settings`
+      */
+    ["com.affine.ai.chat.preferences.label"](): string;
+    /**
+      * `Page reading is off. Enable “Search and read workspace pages” in AI settings to let AI read pages you can access.`
+      */
+    ["com.affine.ai.chat.preferences.workspace-docs-disabled"](): string;
+    /**
+      * `Generation stopped. The response may be incomplete.`
+      */
+    ["com.affine.ai.chat.generation-stopped"](): string;
     /**
       * `with your docs`
       */
@@ -18474,6 +18560,22 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.admin.delete-credential"](): string;
     /**
+      * `Delete {{name}}? AI routes using this credential will stop immediately.`
+      */
+    ["com.affine.admin.delete-workspace-ai-credential-confirm"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Delete AI profile`
+      */
+    ["com.affine.admin.delete-workspace-ai-profile"](): string;
+    /**
+      * `Delete {{name}}? User assignments to this profile will be cleared.`
+      */
+    ["com.affine.admin.delete-workspace-ai-profile-confirm"](options: {
+        readonly name: string;
+    }): string;
+    /**
       * `Text {{start}} to {{end}}`
       */
     ["com.affine.office.text-span"](options: Readonly<{
@@ -19445,6 +19547,14 @@ export function useAFFiNEI18N(): {
       * `The server could not complete the provider request. Check the address, server network and connection policy.`
       */
     ["com.affine.admin.byok-error-network"](): string;
+    /**
+      * `Model list loaded. Select a model, then save. The selected model will be verified automatically when saving.`
+      */
+    ["com.affine.admin.workspace-byok-catalog-loaded"](): string;
+    /**
+      * `The provider returned no models. Check the API key and endpoint, then test again.`
+      */
+    ["com.affine.admin.workspace-byok-model-list-empty"](): string;
     /**
       * `Model list loaded. Select a model, then verify and save to test an actual model request.`
       */
@@ -21176,6 +21286,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.v9.adoptDelivery"](): string;
     /**
+      * `This delivery version is now available to the source conversation.`
+      */
+    ["com.affine.localmind.workbench.v9.adoptDeliverySuccess"](): string;
+    /**
       * `Delivery details stay locked until every active work order in this dispatch is complete.`
       */
     ["com.affine.localmind.workbench.v9.waitForCompleteDispatch"](): string;
@@ -21877,6 +21991,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.resources.restoreOriginal"](): string;
     /**
+      * `The restore was rejected. Choose an available folder, or refresh and try again.`
+      */
+    ["com.affine.localmind.resources.restoreRejected"](): string;
+    /**
       * `This resource was deleted or is no longer accessible.`
       */
     ["com.affine.localmind.resources.unavailable"](): string;
@@ -22312,6 +22430,10 @@ export function useAFFiNEI18N(): {
         readonly mode: string;
     }): string;
     /**
+      * `Sort child resources`
+      */
+    ["com.affine.localmind.resource-display.childSort"](): string;
+    /**
       * `Sort {{name}} contents · Current: {{mode}}`
       */
     ["com.affine.localmind.resource-display.folderSortLabel"](options: Readonly<{
@@ -22500,6 +22622,26 @@ export function useAFFiNEI18N(): {
       * `Add editable content. Existing children, position and order will stay the same.`
       */
     ["com.affine.localmind.page-tree.convertToPageHint"](): string;
+    /**
+      * `Restore this folder from the trash before converting it.`
+      */
+    ["com.affine.localmind.page-tree.convertToPageUnavailable.trashed"](): string;
+    /**
+      * `You need permission to create documents and organize this folder.`
+      */
+    ["com.affine.localmind.page-tree.convertToPageUnavailable.missingRights"](): string;
+    /**
+      * `Unavailable in public workspaces: the new page could not keep this folder's access.`
+      */
+    ["com.affine.localmind.page-tree.convertToPageUnavailable.publicWorkspace"](): string;
+    /**
+      * `Unavailable because the workspace default member document role is not Manager.`
+      */
+    ["com.affine.localmind.page-tree.convertToPageUnavailable.defaultRole"](): string;
+    /**
+      * `This folder cannot be converted right now.`
+      */
+    ["com.affine.localmind.page-tree.convertToPageUnavailable.other"](): string;
     /**
       * `This folder is empty`
       */
@@ -26129,6 +26271,394 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.reportDeck.error.quality_failed"](): string;
     /**
+      * `Generation mode`
+      */
+    ["com.affine.localmind.reportDeck.designMode.label"](): string;
+    /**
+      * `Quick generation`
+      */
+    ["com.affine.localmind.reportDeck.designMode.fast"](): string;
+    /**
+      * `Refined generation`
+      */
+    ["com.affine.localmind.reportDeck.designMode.refine"](): string;
+    /**
+      * `Generate faster, with layout and interaction checks and corrections when needed.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.fastHint"](): string;
+    /**
+      * `Add screenshot reviews and refinement rounds. Takes longer and uses more model calls.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.refineHint"](): string;
+    /**
+      * `Both modes support web reading and full-screen presentation. Time depends on your sources and model.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.hint"](): string;
+    /**
+      * `{{count}} sources · {{mode}}`
+      */
+    ["com.affine.localmind.reportDeck.designMode.summary"](options: Readonly<{
+        count: string;
+        mode: string;
+    }>): string;
+    /**
+      * `This model declares image support. Review completion will be checked during generation.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.visionDeclared"](): string;
+    /**
+      * `Image recognition is unconfirmed. It will be checked when generation starts.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.visionUnknown"](): string;
+    /**
+      * `If visual review cannot finish, a report that passes basic checks is retained and marked as incompletely refined.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.visionFallback"](): string;
+    /**
+      * `Your administrator manages the project model. Contact them to change it.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.visionLocked"](): string;
+    /**
+      * `Quick generation complete`
+      */
+    ["com.affine.localmind.reportDeck.designMode.fastComplete"](): string;
+    /**
+      * `Refinement complete`
+      */
+    ["com.affine.localmind.reportDeck.designMode.refineComplete"](): string;
+    /**
+      * `Report generated; refinement incomplete`
+      */
+    ["com.affine.localmind.reportDeck.designMode.refineIncomplete"](): string;
+    /**
+      * `Layout and interactions checked. No model visual review was requested.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.fastChecked"](): string;
+    /**
+      * `Layout, interactions and model visual review completed.`
+      */
+    ["com.affine.localmind.reportDeck.designMode.refineChecked"](): string;
+    /**
+      * `Use {{min}}–{{max}} characters, or leave blank.`
+      */
+    ["com.affine.admin.optional-password-hint"](options: Readonly<{
+        min: string;
+        max: string;
+    }>): string;
+    /**
+      * `Duplicate email address.`
+      */
+    ["com.affine.admin.duplicate-email-address"](): string;
+    /**
+      * `The prompt catalog could not be loaded. Check your access to this workspace, select another workspace, or retry. Administrator status does not grant access to workspace content.`
+      */
+    ["com.affine.admin.runtime-prompts-unavailable"](): string;
+    /**
+      * `Enter a folder name.`
+      */
+    ["com.affine.localmind.resources.folderNameRequired"](): string;
+    /**
+      * `Waiting for the server rate limit; resumes automatically`
+      */
+    ["com.affine.localmind.project-files.upload.waitingForLimit"](): string;
+    /**
+      * `Open project`
+      */
+    ["com.affine.localmind.accessNotification.openProject"](): string;
+    /**
+      * `Sign in to view this report`
+      */
+    ["com.affine.localmind.reportDeck.viewer.unauthenticated"](): string;
+    /**
+      * `Your session has expired or you are signed out. Sign in and open the report again.`
+      */
+    ["com.affine.localmind.reportDeck.viewer.unauthenticatedDescription"](): string;
+    /**
+      * `You do not have access to this report`
+      */
+    ["com.affine.localmind.reportDeck.viewer.forbidden"](): string;
+    /**
+      * `Ask the report owner for access, or return to reports you can view.`
+      */
+    ["com.affine.localmind.reportDeck.viewer.forbiddenDescription"](): string;
+    /**
+      * `Circular reference: this formula refers to itself, directly or through another cell. Update its references.`
+      */
+    ["com.affine.office.formula-circular-reference"](): string;
+    /**
+      * `This formula contains a function that is not supported yet. Use a supported function or keep the value as text.`
+      */
+    ["com.affine.office.formula-unsupported-function"](): string;
+    /**
+      * `This formula cannot be calculated. Check its syntax, references, and supported functions. Your draft has been kept.`
+      */
+    ["com.affine.office.formula-invalid"](): string;
+    /**
+      * `This value does not meet the cell’s validation rule. Your draft has been kept.`
+      */
+    ["com.affine.office.validation-invalid"](): string;
+    /**
+      * `This cell uses a validation rule that is not supported yet. Your draft has been kept.`
+      */
+    ["com.affine.office.validation-unsupported"](): string;
+    /**
+      * `Category`
+      */
+    ["com.affine.office.chart-category"](): string;
+    /**
+      * `This chart’s type or data references cannot be previewed yet (up to 200 categories and 12 series). The original chart is preserved.`
+      */
+    ["com.affine.office.chart-preview-unsupported"](): string;
+    /**
+      * `Number format`
+      */
+    ["com.affine.office.number-format"](): string;
+    /**
+      * `General`
+      */
+    ["com.affine.office.number-format-general"](): string;
+    /**
+      * `Existing format {{id}}`
+      */
+    ["com.affine.office.number-format-preserved"](options: {
+        readonly id: string;
+    }): string;
+    /**
+      * `This format is preserved in the file. The grid shows its raw value; date and custom format previews are not supported.`
+      */
+    ["com.affine.office.number-format-raw-preview"](): string;
+    /**
+      * `Hide current row`
+      */
+    ["com.affine.office.current-row-hidden"](): string;
+    /**
+      * `Hide current column`
+      */
+    ["com.affine.office.current-column-hidden"](): string;
+    /**
+      * `PDF export cannot display some characters with the available fonts. Download the original Office file to preserve all content.`
+      */
+    ["com.affine.office.error.pdf-font-unavailable"](): string;
+    /**
+      * `Copy selected values; paste TSV up to 64 cells. Start formulas with =; prefix literal text with an apostrophe. Target formatting is preserved.`
+      */
+    ["com.affine.office.clipboard-help"](): string;
+    /**
+      * `Clipboard content exceeds 64 cells or 256 KiB of text. Split it into smaller ranges.`
+      */
+    ["com.affine.office.clipboard-limit"](): string;
+    /**
+      * `Use a rectangular TSV range with complete quoted fields. Nothing was pasted.`
+      */
+    ["com.affine.office.clipboard-shape"](): string;
+    /**
+      * `Copy and paste over merged cells is not supported. Unmerge them first. Nothing was changed.`
+      */
+    ["com.affine.office.clipboard-merged"](): string;
+    /**
+      * `Clipboard content or target range is invalid or unsupported. Nothing was pasted.`
+      */
+    ["com.affine.office.clipboard-invalid"](): string;
+    /**
+      * `Finish, retry or discard the pending edit before pasting again.`
+      */
+    ["com.affine.office.clipboard-pending"](): string;
+    /**
+      * `Retry paste`
+      */
+    ["com.affine.office.clipboard-retry"](): string;
+    /**
+      * `Discard paste draft`
+      */
+    ["com.affine.office.clipboard-discard"](): string;
+    /**
+      * `Selected values copied.`
+      */
+    ["com.affine.office.clipboard-copied"](): string;
+    /**
+      * `This workbook is read-only. Nothing was pasted.`
+      */
+    ["com.affine.office.clipboard-readonly"](): string;
+    /**
+      * `This account already belongs to the workspace or has a pending invitation. No new invitation was created.`
+      */
+    ["com.affine.localmind.invite.already-member"](): string;
+    /**
+      * `No workspace seats are available.`
+      */
+    ["com.affine.localmind.invite.no-seat"](): string;
+    /**
+      * `You cannot invite this account with the current workspace permissions or policy.`
+      */
+    ["com.affine.localmind.invite.forbidden"](): string;
+    /**
+      * `The invitation result could not be confirmed. Check the member list before retrying only addresses without an invitation.`
+      */
+    ["com.affine.localmind.invite.unconfirmed"](): string;
+    /**
+      * `Created {{count}} invitation(s)`
+      */
+    ["com.affine.localmind.invite.accepted"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Invitations appear as pending until the recipients join.`
+      */
+    ["com.affine.localmind.invite.pending"](): string;
+    /**
+      * `Could not read the CSV file. Your current invitation draft was kept.`
+      */
+    ["com.affine.localmind.invite.csv-failed"](): string;
+    /**
+      * `Invitation unavailable`
+      */
+    ["com.affine.localmind.invite.unavailable-title"](): string;
+    /**
+      * `This invitation has expired or been revoked. Ask the workspace administrator for a new invitation.`
+      */
+    ["com.affine.localmind.invite.unavailable"](): string;
+    /**
+      * `Could not confirm that you joined. Check your workspace list, then retry if needed.`
+      */
+    ["com.affine.localmind.invite.accept-failed"](): string;
+    /**
+      * `Invitations are temporarily limited by frequency or quota. Retry later or contact the administrator.`
+      */
+    ["com.affine.localmind.invite.throttled"](): string;
+    /**
+      * `Use 1–480 characters. Slashes, backslashes and control characters are not allowed.`
+      */
+    ["com.affine.localmind.native-files.invalidName"](): string;
+    /**
+      * `Moves the selected resources separately. The destination stays fixed after submission; retry only repeats failed items.`
+      */
+    ["com.affine.localmind.resources.batchMoveHint"](): string;
+    /**
+      * `Select either a parent or its descendants, and choose a destination outside the selection.`
+      */
+    ["com.affine.localmind.resources.batchMoveNested"](): string;
+    /**
+      * `Waiting`
+      */
+    ["com.affine.localmind.resources.batchMove.pending"](): string;
+    /**
+      * `Moved`
+      */
+    ["com.affine.localmind.resources.batchMove.success"](): string;
+    /**
+      * `Failed — retry available`
+      */
+    ["com.affine.localmind.resources.batchMove.failed"](): string;
+    /**
+      * `Question`
+      */
+    ["com.affine.localmind.workbench.v9.exchange.question"](): string;
+    /**
+      * `Answer`
+      */
+    ["com.affine.localmind.workbench.v9.exchange.answer"](): string;
+    /**
+      * `Refused`
+      */
+    ["com.affine.localmind.workbench.v9.exchange.refusal"](): string;
+    /**
+      * `Withdrawn`
+      */
+    ["com.affine.localmind.workbench.v9.exchange.cancellation"](): string;
+    /**
+      * `Recorded action`
+      */
+    ["com.affine.localmind.workbench.v9.exchange.recorded"](): string;
+    /**
+      * `Heading {{level}}`
+      */
+    ["com.affine.office.heading-level"](options: {
+        readonly level: string;
+    }): string;
+    /**
+      * `Mail merge`
+      */
+    ["com.affine.office.mail-merge"](): string;
+    /**
+      * `Only fields you edit will be applied. All occurrences of the same field name will be updated; field structure is retained.`
+      */
+    ["com.affine.office.mail-merge-help"](): string;
+    /**
+      * `This document has unsupported field structures or names, or more than 100 distinct fields. The original fields are preserved.`
+      */
+    ["com.affine.office.mail-merge-unsupported"](): string;
+    /**
+      * `Apply field values`
+      */
+    ["com.affine.office.mail-merge-apply"](): string;
+    /**
+      * `Earlier revisions still contain the original content and can be restored. This does not erase historical copies.`
+      */
+    ["com.affine.office.redaction-history-preserved"](): string;
+    /**
+      * `Annotation region`
+      */
+    ["com.affine.office.annotation-region"](): string;
+    /**
+      * `Signature region`
+      */
+    ["com.affine.office.signature-region"](): string;
+    /**
+      * `Redaction region`
+      */
+    ["com.affine.office.redaction-region"](): string;
+    /**
+      * `X (pt)`
+      */
+    ["com.affine.office.region-x"](): string;
+    /**
+      * `Y (pt)`
+      */
+    ["com.affine.office.region-y"](): string;
+    /**
+      * `Width (pt)`
+      */
+    ["com.affine.office.region-width"](): string;
+    /**
+      * `Height (pt)`
+      */
+    ["com.affine.office.region-height"](): string;
+    /**
+      * `Origin: bottom left of the page. The outline is a preview and is not saved in the file.`
+      */
+    ["com.affine.office.region-help"](): string;
+    /**
+      * `Preview region`
+      */
+    ["com.affine.office.preview-region"](): string;
+    /**
+      * `Adjust annotation region`
+      */
+    ["com.affine.office.edit-annotation-region"](): string;
+    /**
+      * `Apply region`
+      */
+    ["com.affine.office.apply-region"](): string;
+    /**
+      * `Redaction is not supported for cropped pages or pages with an offset origin. The original file has not been changed.`
+      */
+    ["com.affine.office.redaction-layout-unsupported"](): string;
+    /**
+      * `Edit object`
+      */
+    ["com.affine.office.edit-object"](): string;
+    /**
+      * `Linear equation notation`
+      */
+    ["com.affine.office.object-linear-equation"](): string;
+    /**
+      * `Pie preview uses the first series.`
+      */
+    ["com.affine.office.object-pie-first-series"](): string;
+    /**
+      * `Complex formatting is preserved; editing is unavailable.`
+      */
+    ["com.affine.office.object-preserved-readonly"](): string;
+    /**
       * `An internal error occurred.`
       */
     ["error.INTERNAL_SERVER_ERROR"](): string;
@@ -26737,6 +27267,10 @@ export function useAFFiNEI18N(): {
       * `No available AI provider is configured for this workspace. Contact your LocalMind instance administrator.`
       */
     ["error.COPILOT_BYOK_NOT_CONFIGURED"](): string;
+    /**
+      * `The workspace AI credential was disabled after the provider rejected it. Ask a workspace administrator to test and re-enable it.`
+      */
+    ["error.COPILOT_BYOK_CREDENTIAL_DISABLED"](): string;
     /**
       * `You have exceeded your blob size quota.`
       */
@@ -27562,6 +28096,14 @@ export const TypedTrans: {
       * `Enable the account? The email <strong>{{email}}</strong> can then be used to log in.`
       */
     ["com.affine.admin.enable-account-description"]: ComponentType<TypedTransProps<{
+        readonly email: string;
+    }, {
+        strong: JSX.Element;
+    }>>;
+    /**
+      * `<strong>{{email}}</strong> will be signed out everywhere and cannot sign in. Workspaces, documents and other data are kept, and enabling the account restores the same user.`
+      */
+    ["com.affine.admin.suspend-account-description"]: ComponentType<TypedTransProps<{
         readonly email: string;
     }, {
         strong: JSX.Element;

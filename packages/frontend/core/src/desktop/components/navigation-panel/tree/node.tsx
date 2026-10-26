@@ -110,6 +110,7 @@ interface WebNavigationPanelTreeNodeProps extends BaseNavigationPanelTreeNodePro
   dropEffect?: NavigationPanelTreeNodeDropEffect;
   rowRef?: (element: HTMLDivElement | null) => void;
   dropInstruction?: DropTargetTreeInstruction | null;
+  dropInsideLabel?: string;
 }
 
 /**
@@ -211,6 +212,7 @@ export const NavigationPanelTreeNode = ({
   dropEffect,
   rowRef,
   dropInstruction,
+  dropInsideLabel,
   ...otherProps
 }: WebNavigationPanelTreeNodeProps) => {
   const explorerIconService = useService(ExplorerIconService);
@@ -261,9 +263,9 @@ export const NavigationPanelTreeNode = ({
     }),
     [cid, dndData, externalDragData, canDrag]
   );
+  const controlledDrop = dropInstruction !== undefined;
   const handleCanDrop = useMemo<DropTargetOptions<AffineDNDData>['canDrop']>(
     () => args => {
-      if (dropInstruction !== undefined) return false;
       if (
         args.source.data.nativeResource &&
         args.treeInstruction?.type === 'make-child' &&
@@ -275,7 +277,7 @@ export const NavigationPanelTreeNode = ({
       }
       return (typeof canDrop === 'function' ? canDrop(args) : canDrop) ?? true;
     },
-    [canDrop, reorderable, dndData?.dropTarget.at, dropInstruction]
+    [canDrop, reorderable, dndData?.dropTarget.at]
   );
 
   const {
@@ -313,8 +315,10 @@ export const NavigationPanelTreeNode = ({
           setCollapsed(false);
         }
       },
-      canDrop: handleCanDrop,
-      allowExternal: true,
+      // A callback returning false still registers the external adapter, whose
+      // native-drag fallback bypasses it until drop. Disable registration itself.
+      canDrop: controlledDrop ? false : handleCanDrop,
+      allowExternal: !controlledDrop,
     }),
     [
       dndData?.dropTarget,
@@ -323,6 +327,7 @@ export const NavigationPanelTreeNode = ({
       lastInGroup,
       reorderable,
       handleCanDrop,
+      controlledDrop,
       cid,
       onDrop,
       collapsible,
@@ -338,6 +343,11 @@ export const NavigationPanelTreeNode = ({
         : null;
   const activeDraggedOver =
     dropInstruction === undefined ? draggedOver : !!dropInstruction;
+  const dropInside =
+    activeInstruction?.type === 'make-child' && dropInsideLabel !== undefined;
+  const dropAfterSubtree =
+    dropInstruction !== undefined &&
+    activeInstruction?.type === 'reorder-below';
   const attachRow = useCallback(
     (element: HTMLDivElement | null) => {
       dropTargetRef.current = element;
@@ -496,6 +506,7 @@ export const NavigationPanelTreeNode = ({
       data-active={active}
       data-disabled={disabled}
       data-collapsible={collapsible}
+      data-drop-inside={dropInside || undefined}
     >
       <div className={styles.toggleIcon}>
         {collapsible && (
@@ -553,6 +564,7 @@ export const NavigationPanelTreeNode = ({
               >
                 <IconButton
                   size="16"
+                  aria-label={t['com.affine.rootAppSidebar.more']()}
                   data-testid="navigation-panel-tree-node-operation-button"
                   style={{ marginLeft: 4 }}
                 >
@@ -580,9 +592,12 @@ export const NavigationPanelTreeNode = ({
     <Collapsible.Root
       open={!collapsed}
       onOpenChange={setCollapsed}
-      style={assignInlineVars({
-        [styles.levelIndent]: `${level * 20}px`,
-      })}
+      style={{
+        ...assignInlineVars({
+          [styles.levelIndent]: `${level * 20}px`,
+        }),
+        position: 'relative',
+      }}
       ref={rootRef}
       {...otherProps}
     >
@@ -593,7 +608,11 @@ export const NavigationPanelTreeNode = ({
         ))}
       >
         <div
-          className={clsx(styles.contentContainer, styles.draggedOverEffect)}
+          className={clsx(
+            styles.contentContainer,
+            dropInstruction === undefined && styles.draggedOverEffect
+          )}
+          style={dropInstruction === undefined ? undefined : { marginTop: 0 }}
           data-open={!collapsed}
           data-self-dragged-over={isSelfDraggedOver}
           ref={attachRow}
@@ -614,11 +633,18 @@ export const NavigationPanelTreeNode = ({
             <div className={styles.draggingContainer}>{content}</div>
           </CustomDragPreview>
           {activeInstruction &&
+            !dropInside &&
+            !dropAfterSubtree &&
             // Do not show drop indicator for self dragged over
             !(activeInstruction.type !== 'reparent' && isSelfDraggedOver) &&
             activeInstruction.type !== 'instruction-blocked' && (
               <DropIndicator instruction={activeInstruction} />
             )}
+          {dropInside && (
+            <div className={styles.dropInsideHint} role="status">
+              {dropInsideLabel}
+            </div>
+          )}
           {draggedOver &&
             dropEffect &&
             draggedOverPosition &&
@@ -646,6 +672,11 @@ export const NavigationPanelTreeNode = ({
           {collapsed ? null : children}
         </NavigationPanelTreeContext.Provider>
       </Collapsible.Content>
+      {dropAfterSubtree && (
+        <div className={styles.subtreeDropIndicator}>
+          <DropIndicator instruction={activeInstruction} />
+        </div>
+      )}
     </Collapsible.Root>
   );
 };

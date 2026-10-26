@@ -225,10 +225,8 @@ test('PermissionContextLoader reads only terminal permission tables', async t =>
   t.is(input.docs?.[0]?.explicitUserRole, 'manager');
   t.is(input.docs?.[0]?.memberDefaultRole, 'manager');
   t.is(input.docs?.[1]?.publicRole, 'external');
-  t.deepEqual(input.subject?.groupIds, ['project-1']);
-  t.deepEqual(input.docs?.[2]?.groupGrants, [
-    { groupId: 'project-1', role: 'reader' },
-  ]);
+  t.deepEqual(input.subject?.groupIds, []);
+  t.deepEqual(input.docs?.[2]?.groupGrants, []);
   t.true(input.docs?.[2]?.groupGrantsEnabled);
 });
 
@@ -264,7 +262,7 @@ test('PermissionContextLoader treats missing quota state as unknown and stale', 
   t.true(input.runtime?.stale);
 });
 
-test('AI permission scopes exclude unrelated project grants while retaining personal grants', async t => {
+test('default and explicit personal scopes exclude project grants while selected projects retain their own grants', async t => {
   const { loader, calls } = createLoader();
   const base = {
     userId: 'u1',
@@ -275,7 +273,10 @@ test('AI permission scopes exclude unrelated project grants while retaining pers
     ],
   };
   const personal = await loader.load({ ...base, projectId: null });
+  const defaultScope = await loader.load(base);
   t.is(calls.projectDocGrants, 0);
+  t.deepEqual(defaultScope.subject?.groupIds, []);
+  t.deepEqual(defaultScope.docs?.[1].groupGrants, []);
   t.is(personal.docs?.[0].explicitUserRole, 'manager');
   t.deepEqual(personal.subject?.groupIds, []);
   t.deepEqual(personal.docs?.[1].groupGrants, []);
@@ -287,6 +288,34 @@ test('AI permission scopes exclude unrelated project grants while retaining pers
   t.deepEqual(selected.docs?.[1].groupGrants, [
     { groupId: 'project-1', role: 'reader' },
   ]);
+});
+
+test('both SQL predicate forms exclude implicit project grants and bind an explicit project', t => {
+  const builder = new PermissionSqlPredicateBuilder();
+  const base = {
+    workspaceId: 'workspace',
+    userId: 'actor',
+    action: 'Doc.Read' as const,
+  };
+  for (const projectId of [undefined, null]) {
+    t.true(
+      builder.docReadable({ ...base, projectId }).sql.includes('AND FALSE')
+    );
+    t.true(
+      builder.docReadableSql({ ...base, projectId }).sql.includes('AND FALSE')
+    );
+  }
+  const selected = builder.docReadable({
+    ...base,
+    projectId: 'selected-project',
+  });
+  t.true(selected.sql.includes('AND project_grant.project_id = ?'));
+  t.true(selected.params.includes('selected-project'));
+  t.true(
+    builder
+      .docReadableSql({ ...base, projectId: 'selected-project' })
+      .values.includes('selected-project')
+  );
 });
 
 test('PermissionContextLoader memoizes quota runtime within a request', async t => {

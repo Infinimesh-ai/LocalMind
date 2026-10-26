@@ -412,6 +412,7 @@ test('PDF AI batch adds an annotation, rotates a page, and applies fixed-layout 
     await openPdfPackage(execution.downloadedPackage)
   );
   t.is(reopened.pages[0]?.annotations.length, 0);
+  t.deepEqual(reopened.formFields, []);
   t.is(reopened.pages[1]?.rotationDeg, 90);
   t.true(
     reopened.pages[1]?.annotations.some(

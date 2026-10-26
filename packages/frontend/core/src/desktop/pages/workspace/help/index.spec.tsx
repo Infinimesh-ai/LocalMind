@@ -2,6 +2,7 @@
  * @vitest-environment happy-dom
  */
 
+import { NavigateContext } from '@affine/core/components/hooks/use-navigate-helper';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -9,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HelpCenterPage } from './index';
 
 const navigate = vi.hoisted(() => vi.fn());
+const navigateWithinWorkspace = vi.hoisted(() => vi.fn());
 const openDialog = vi.hoisted(() => vi.fn());
 const WorkspaceDialogServiceToken = vi.hoisted(
   () => class WorkspaceDialogService {}
@@ -58,6 +60,11 @@ vi.mock('@affine/core/modules/dialogs', () => ({
   WorkspaceDialogService: WorkspaceDialogServiceToken,
 }));
 
+vi.mock('@affine/core/components/hooks/use-navigate-helper', async () => {
+  const { createContext } = await import('react');
+  return { NavigateContext: createContext(null) };
+});
+
 vi.mock('@affine/core/modules/workbench', () => ({
   ViewBody: ({ children }: PropsWithChildren) => (
     <div data-testid="view-body">{children}</div>
@@ -79,7 +86,7 @@ vi.mock('@toeverything/infra', () => ({
 }));
 
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => navigate,
+  useNavigate: () => navigateWithinWorkspace,
 }));
 
 describe('LocalMind help center', () => {
@@ -87,6 +94,7 @@ describe('LocalMind help center', () => {
 
   beforeEach(() => {
     navigate.mockReset();
+    navigateWithinWorkspace.mockReset();
     openDialog.mockReset();
   });
 
@@ -124,10 +132,15 @@ describe('LocalMind help center', () => {
   });
 
   test('opens AI chat and contextual workspace settings', () => {
-    render(<HelpCenterPage />);
+    render(
+      <NavigateContext.Provider value={navigate}>
+        <HelpCenterPage />
+      </NavigateContext.Provider>
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Open AI Chat' }));
     expect(navigate).toHaveBeenCalledWith('/project');
+    expect(navigateWithinWorkspace).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Manage AI context' }));
     expect(openDialog).toHaveBeenCalledWith('setting', {

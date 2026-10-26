@@ -464,6 +464,10 @@ export class LocalPageTreeAdapter {
         canRename: node.resource.kind === 'folder' && !node.resource.trashed,
         canConvertToPage:
           node.resource.kind === 'folder' && !node.resource.trashed,
+        convertToPageUnavailableReason:
+          node.resource.kind === 'folder' && node.resource.trashed
+            ? 'trashed'
+            : null,
         folder: node.folder ?? null,
         defaultSortMode: node.defaultSortMode ?? null,
       });

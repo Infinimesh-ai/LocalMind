@@ -1,4 +1,3 @@
-import { parseOfficeCommand } from '@localmind/office';
 import {
   Args,
   Field,
@@ -151,11 +150,10 @@ export class ProjectOfficeResolver {
     @CurrentUser() user: User,
     @Args('input') input: ProjectOfficeCommandInput
   ) {
-    const command = this.userCommand(input.command);
-    const result = await this.commands.preview({
+    const result = await this.commands.previewInteractive({
       projectId: input.projectId,
       actorId: user.id,
-      command,
+      command: input.command,
     });
     return {
       ...result,
@@ -170,14 +168,13 @@ export class ProjectOfficeResolver {
     @CurrentUser() user: User,
     @Args('input') input: ProjectOfficeCommandInput
   ) {
-    const command = this.userCommand(input.command);
-    const result = await this.commands.execute({
+    const result = await this.commands.executeInteractive({
       projectId: input.projectId,
       editLease: input.editLease
         ? { ...input.editLease, kind: 'user' }
         : undefined,
       actorId: user.id,
-      command,
+      command: input.command,
     });
     return {
       created: result.created,
@@ -185,19 +182,12 @@ export class ProjectOfficeResolver {
         await this.artifacts.get(
           { projectId: input.projectId },
           user.id,
-          command.artifactId
+          result.revision.artifactId
         )
       ),
       revision: this.revision(result.revision),
       summary: result.summary,
     };
-  }
-
-  private userCommand(input: unknown) {
-    const command = parseOfficeCommand(input);
-    if (command.source !== 'user')
-      throw new BadRequest('Interactive Office commands must use source=user');
-    return command;
   }
 
   private artifact(record: {

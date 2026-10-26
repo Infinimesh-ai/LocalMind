@@ -2,5 +2,6 @@ mutation inviteByEmails($workspaceId: String!, $emails: [String!]!) {
   inviteMembers(workspaceId: $workspaceId, emails: $emails) {
     email
     inviteId
+    error
   }
 }

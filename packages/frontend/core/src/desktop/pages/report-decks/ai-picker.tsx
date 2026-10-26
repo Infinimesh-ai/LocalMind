@@ -58,11 +58,13 @@ export function AiPicker({
   error,
   value,
   onChange,
+  designMode,
 }: {
   result: DeckAiOptionsResult | undefined;
   loading: boolean;
   error?: unknown;
   value: DeckAiChoice | null;
+  designMode?: 'fast' | 'refine';
   onChange: (value: DeckAiChoice | null) => void;
 }) {
   const t = useDeckText();
@@ -178,6 +180,24 @@ export function AiPicker({
             )}
           </div>
         ))}
+      {designMode === 'refine' && selected?.available && (
+        <div
+          className={styles.muted}
+          role="status"
+          data-testid="deck-vision-hint"
+        >
+          <p>
+            {t(
+              selected.models.find(model => model.id === modelId)?.vision ===
+                'declared'
+                ? 'designMode.visionDeclared'
+                : 'designMode.visionUnknown'
+            )}
+          </p>
+          <p>{t('designMode.visionFallback')}</p>
+          {selected.modelLocked && <p>{t('designMode.visionLocked')}</p>}
+        </div>
+      )}
       {fallbackFrom && selected && (
         <p className={styles.notice} data-tone="warning" role="status">
           <WarningIcon />

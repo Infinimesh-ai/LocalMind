@@ -566,6 +566,7 @@ test('doc sync peer stops retrying a doc when remote denies permission', async (
         syncing: false,
         synced: false,
         retrying: false,
+        permissionDenied: true,
         errorMessage: expect.stringContaining('No permission'),
       });
     });
@@ -922,6 +923,7 @@ test('doc sync clears a transient connection error after reconnecting', async ()
       () => {
         expect(states.at(-1)).toMatchObject({
           retrying: false,
+          permissionDenied: false,
           errorMessage: null,
         });
       },

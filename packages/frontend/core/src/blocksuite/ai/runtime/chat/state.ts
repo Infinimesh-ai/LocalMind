@@ -55,6 +55,7 @@ export type AIChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  params?: Record<string, unknown> | null;
   createdAt: string;
   streamObjects?: unknown[];
   attachments?: string[];

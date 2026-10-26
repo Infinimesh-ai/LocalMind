@@ -412,6 +412,17 @@ const IntelligenceWorkbench = ({
   const [fullscreen, setFullscreen] = useState(false);
   const [officeContext, setOfficeContext] = useState<OfficeAiContext>();
   const [mobileView, setMobileView] = useState<'files' | 'chat'>('files');
+  const [singlePane, setSinglePane] = useState(
+    () => window.matchMedia?.('screen and (max-width: 1040px)').matches ?? false
+  );
+  useEffect(() => {
+    const media = window.matchMedia?.('screen and (max-width: 1040px)');
+    if (!media) return;
+    const update = () => setSinglePane(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [workOrderPanelCollapsed, setWorkOrderPanelCollapsed] = useState(false);
   const [workOrderDraftState, setWorkOrderDraftState] = useState<{
     workOrderId: string;
@@ -1549,9 +1560,18 @@ const IntelligenceWorkbench = ({
   }, []);
 
   const secondaryViewLabel =
-    rightPanel.kind === 'context'
-      ? t['com.affine.localmind.workbench.v9.contextPanel']()
-      : t['com.affine.localmind.project-files.title']();
+    workOrderId || (activeOrder && rightPanel.kind === 'context')
+      ? t['com.affine.localmind.workbench.orders.toggle']()
+      : rightPanel.kind === 'context'
+        ? t['com.affine.localmind.workbench.v9.contextPanel']()
+        : t['com.affine.localmind.project-files.title']();
+
+  const receivedOrderExpanded =
+    !workOrderPanelCollapsed && (!singlePane || mobileView === 'files');
+  const sentOrderExpanded =
+    !ordersCollapsed &&
+    rightPanel.kind === 'context' &&
+    (!singlePane || mobileView === 'files');
 
   const visiblePanel =
     rightPanel.kind === 'context' && (!activeOrder || ordersCollapsed)
@@ -1900,7 +1920,12 @@ const IntelligenceWorkbench = ({
                 aria-selected={mobileView === 'files'}
                 aria-label={secondaryViewLabel}
                 tooltip={secondaryViewLabel}
-                onClick={() => setMobileView('files')}
+                onClick={() => {
+                  setMobileView('files');
+                  if (workOrderId) setWorkOrderPanelCollapsed(false);
+                  if (activeOrder && rightPanel.kind === 'context')
+                    setOrdersCollapsed(false);
+                }}
               />
               <IconButton
                 role="tab"
@@ -2047,14 +2072,19 @@ const IntelligenceWorkbench = ({
                   activeOrder ? (
                     <WorkOrderPanelToggle
                       direction="sent"
-                      expanded={!ordersCollapsed}
+                      expanded={sentOrderExpanded}
                       attention={
                         ordersCollapsed &&
                         sessionOrders.some(order =>
                           ['waiting_sender', 'delivered'].includes(order.status)
                         )
                       }
-                      onToggle={() => setOrdersCollapsed(value => !value)}
+                      onToggle={() => {
+                        setOrdersCollapsed(sentOrderExpanded);
+                        setMobileView(sentOrderExpanded ? 'chat' : 'files');
+                        if (!sentOrderExpanded)
+                          setRightPanel({ kind: 'context' });
+                      }}
                     />
                   ) : null
                 }
@@ -2120,7 +2150,10 @@ const IntelligenceWorkbench = ({
                             collaborationGraph.mutate(),
                           ])
                         }
-                        onCollapse={() => setOrdersCollapsed(true)}
+                        onCollapse={() => {
+                          setOrdersCollapsed(true);
+                          setMobileView('chat');
+                        }}
                       />
                     </div>
                   </div>
@@ -2221,14 +2254,17 @@ const IntelligenceWorkbench = ({
                     headerActions={
                       <WorkOrderPanelToggle
                         direction="received"
-                        expanded={!workOrderPanelCollapsed}
+                        expanded={receivedOrderExpanded}
                         attention={
                           workOrderPanelCollapsed &&
                           loadedWorkOrder.status === 'open'
                         }
-                        onToggle={() =>
-                          setWorkOrderPanelCollapsed(value => !value)
-                        }
+                        onToggle={() => {
+                          setWorkOrderPanelCollapsed(receivedOrderExpanded);
+                          setMobileView(
+                            receivedOrderExpanded ? 'chat' : 'files'
+                          );
+                        }}
                       />
                     }
                   />
@@ -2276,7 +2312,10 @@ const IntelligenceWorkbench = ({
                     onLoaded={onWorkOrderLoaded}
                     onChanged={conversationCards.refresh}
                     onDraftStateChange={onWorkOrderDraftStateChange}
-                    onCollapse={() => setWorkOrderPanelCollapsed(true)}
+                    onCollapse={() => {
+                      setWorkOrderPanelCollapsed(true);
+                      setMobileView('chat');
+                    }}
                   />
                 </div>
               </div>

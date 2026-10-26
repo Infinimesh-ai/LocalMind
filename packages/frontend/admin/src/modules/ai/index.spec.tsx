@@ -10913,6 +10913,31 @@ describe('AiPage', () => {
     expect(screen.getByText('Support bundles')).not.toBeNull();
   });
 
+  test('keeps the workspace selector usable after prompt catalog access is denied', () => {
+    const implementation = useQueryMock.getMockImplementation()!;
+    const retryCatalog = vi.fn();
+    useQueryMock.mockImplementation((options, config) =>
+      options?.query === getCopilotPromptsQuery
+        ? {
+            data: undefined,
+            error: new Error('Workspace access denied'),
+            isValidating: false,
+            mutate: retryCatalog,
+          }
+        : implementation(options, config)
+    );
+    renderAiPage();
+    expect(screen.getByRole('alert').textContent).toContain(
+      'The prompt catalog could not be loaded'
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Workspace ID' })
+    ).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(retryCatalog).toHaveBeenCalled();
+    expect(mutateMock).toHaveBeenCalled();
+  });
+
   test('queries prompt models for the admin diagnostics page', () => {
     renderAiPage();
 
@@ -10922,7 +10947,8 @@ describe('AiPage', () => {
         variables: {
           workspaceId: undefined,
         },
-      })
+      }),
+      expect.objectContaining({ suspense: false })
     );
     expect(useQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({

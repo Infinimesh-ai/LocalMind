@@ -89,6 +89,10 @@ import {
   ResourceMetadata,
 } from './resource-metadata';
 import {
+  type NamedMoveTarget,
+  ResourceMoveDialog,
+} from './resource-move-dialog';
+import {
   MixedDocRow,
   NativeTags,
   ResourceRowShell,
@@ -435,6 +439,18 @@ export function WorkspaceResourceExplorer({
   const [matchingDocs, setMatchingDocs] = useState(new Set<string>());
   const [droppedFiles, setDroppedFiles] = useState<File[]>();
   const guard = useService(GuardService);
+  const readableDocs = useLiveData(
+    useMemo(
+      () =>
+        LiveData.from(
+          guard.readableDocIds$(
+            trash ? [] : docGroups.flatMap(group => group.items)
+          ),
+          new Set<string>()
+        ),
+      [guard, docGroups, trash]
+    )
+  );
   const graphql = useServiceOptional(GraphQLService);
   const workspace = useService(WorkspaceService).workspace;
   const workspaceId = workspace.id;
@@ -452,6 +468,9 @@ export function WorkspaceResourceExplorer({
     mode: 'add' | 'remove';
     targets: NamedTagTarget[];
   } | null>(null);
+  const [moveTargets, setMoveTargets] = useState<NamedMoveTarget[] | null>(
+    null
+  );
   const selectionToggleRef = useRef<HTMLButtonElement>(null);
   const batchOperationRef = useRef<HTMLButtonElement>(null);
   const visibleGroups = useLiveData(context.groups$);
@@ -487,7 +506,7 @@ export function WorkspaceResourceExplorer({
       ? 44
       : 64 + visiblePropertyCount * 54 + (preference.showDocPreview ? 40 : 0);
   useEffect(() => {
-    if (resourceDisplay) catalog.service.invalidate();
+    if (resourceDisplay) catalog.service.reconcileTagMetadata(tags);
   }, [tags, catalog.service, resourceDisplay]);
   const [folders, setFolders] = useState<
     WorkspaceTrashedFoldersQuery['workspaceTrashedFolders']
@@ -596,13 +615,7 @@ export function WorkspaceResourceExplorer({
   useEffect(() => {
     const query = search.toLocaleLowerCase();
     if (!trash && preference.resourceProperties) {
-      if (
-        !docsAvailable ||
-        !catalog.ready ||
-        catalog.error ||
-        queryError ||
-        queryLoading
-      ) {
+      if (!docsAvailable || !catalog.ready || queryError || queryLoading) {
         context.groups$.next([]);
         return;
       }
@@ -611,7 +624,12 @@ export function WorkspaceResourceExplorer({
       const knownTags = new Set(tags.map(tag => tag.id));
       const rows: ResourceDisplayRecord[] = [];
       for (const doc of docMetadata) {
-        if (!allowedDocs.has(doc.id) || nativeIds.has(doc.id)) continue;
+        if (
+          !allowedDocs.has(doc.id) ||
+          !readableDocs.has(doc.id) ||
+          nativeIds.has(doc.id)
+        )
+          continue;
         const title = doc.title || untitled;
         const documentType = doc.mode === 'edgeless' ? 'edgeless' : 'page';
         const tagIds = (doc.meta.tags ?? []).filter(id => knownTags.has(id));
@@ -684,6 +702,7 @@ export function WorkspaceResourceExplorer({
           : group.items.filter(
               id =>
                 !nativeIds.has(id) &&
+                (trash || readableDocs.has(id)) &&
                 (!query ||
                   matchingDocs.has(id) ||
                   (docs.doc$(id).value?.title$.value ?? '')
@@ -750,6 +769,7 @@ export function WorkspaceResourceExplorer({
     context.groups$.next(result);
   }, [
     docGroups,
+    readableDocs,
     nativeItems,
     catalog.items,
     type,
@@ -1075,6 +1095,27 @@ export function WorkspaceResourceExplorer({
   return (
     <DocExplorerContext.Provider value={context}>
       <ResourceSelectionModeContext.Provider value={true}>
+        {moveTargets && (
+          <ResourceMoveDialog
+            targets={moveTargets}
+            returnFocus={batchOperationRef}
+            onClose={() => setMoveTargets(null)}
+            onResult={(succeeded, failed) => {
+              context.selectedDocIds$.next(failed);
+              setFailureNames(
+                moveTargets
+                  .filter(item => failed.includes(item.key))
+                  .map(item => item.title)
+              );
+              setResult(
+                t['com.affine.localmind.resources.batchResult']({
+                  success: String(succeeded.length),
+                  failed: String(failed.length),
+                })
+              );
+            }}
+          />
+        )}
         {tagDialog && (
           <ResourceTagDialog
             {...tagDialog}
@@ -1291,6 +1332,39 @@ export function WorkspaceResourceExplorer({
                         <>
                           {!trash && (
                             <>
+                              {lifecycle.online && (
+                                <MenuItem
+                                  disabled={
+                                    pending ||
+                                    !selected.length ||
+                                    selected.length > 100
+                                  }
+                                  onSelect={() =>
+                                    setMoveTargets(
+                                      selected.map(key => {
+                                        const native = byKey.get(key);
+                                        return native
+                                          ? {
+                                              key,
+                                              id: native.id,
+                                              kind: native.kind,
+                                              title: native.fileName,
+                                            }
+                                          : {
+                                              key,
+                                              id: key,
+                                              kind: 'doc',
+                                              title:
+                                                docs.doc$(key).value?.title$
+                                                  .value ?? untitled,
+                                            };
+                                      })
+                                    )
+                                  }
+                                >
+                                  {t['com.affine.localmind.page-tree.move']()}
+                                </MenuItem>
+                              )}
                               <MenuItem
                                 disabled={
                                   pending ||
@@ -1413,7 +1487,7 @@ export function WorkspaceResourceExplorer({
                   <div className={styles.toolbar} role="status">
                     {catalog.loading ||
                     queryLoading ||
-                    !catalog.ready ||
+                    (!catalog.ready && !catalog.error) ||
                     (!!preference.resourceProperties && !docsAvailable)
                       ? t['Loading']()
                       : catalog.error || queryError || folderError

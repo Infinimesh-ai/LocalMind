@@ -295,11 +295,16 @@ export const menuButtonItems = {
           <toggle-switch
             .on="${config.on}"
             .onChange="${onChange}"
+            @click=${(event: MouseEvent) => event.stopPropagation()}
           ></toggle-switch>
           ${config.postfix}
         `,
-        select: () => {
-          config.onChange(config.on);
+        select: element => {
+          const control = element.querySelector('toggle-switch');
+          if (control) {
+            control.on = !control.on;
+            onChange(control.on);
+          }
           return false;
         },
         class: config.class ?? {},

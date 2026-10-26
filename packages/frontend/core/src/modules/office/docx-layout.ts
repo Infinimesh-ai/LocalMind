@@ -1,20 +1,16 @@
+import {
+  docxPageGeometry,
+  docxSectionNeedsPage,
+  docxSectionNeedsParityPage,
+  docxSectionRanges,
+} from '@localmind/office/docx';
+
 import type {
   DocxBlock,
   DocxParagraph,
   DocxSection,
   OfficeDocxPage,
 } from './types';
-
-const DEFAULT_PAGE = {
-  widthPt: 612,
-  heightPt: 792,
-  margins: {
-    topPt: 72,
-    rightPt: 72,
-    bottomPt: 72,
-    leftPt: 72,
-  },
-};
 
 function paragraphUnits(paragraph: DocxParagraph) {
   const explicitLines = paragraph.text.split('\n').length;
@@ -55,23 +51,7 @@ function blockUnits(block: DocxBlock): number {
   }
 }
 
-function pageGeometry(section?: DocxSection) {
-  const widthPt = section?.pageSize?.widthPt ?? DEFAULT_PAGE.widthPt;
-  const heightPt = section?.pageSize?.heightPt ?? DEFAULT_PAGE.heightPt;
-  const landscape = section?.pageSize?.orientation === 'landscape';
-  return {
-    widthPt: landscape ? Math.max(widthPt, heightPt) : widthPt,
-    heightPt: landscape ? Math.min(widthPt, heightPt) : heightPt,
-    margins: {
-      topPt: section?.margins?.topPt ?? DEFAULT_PAGE.margins.topPt,
-      rightPt: section?.margins?.rightPt ?? DEFAULT_PAGE.margins.rightPt,
-      bottomPt: section?.margins?.bottomPt ?? DEFAULT_PAGE.margins.bottomPt,
-      leftPt: section?.margins?.leftPt ?? DEFAULT_PAGE.margins.leftPt,
-    },
-  };
-}
-
-function pageCapacity(page: ReturnType<typeof pageGeometry>) {
+function pageCapacity(page: ReturnType<typeof docxPageGeometry>) {
   const usableHeight = Math.max(
     144,
     page.heightPt - page.margins.topPt - page.margins.bottomPt
@@ -84,28 +64,66 @@ export function paginateDocxBlocks(
   sections: readonly DocxSection[],
   measuredHeights: ReadonlyMap<string, number> = new Map()
 ): OfficeDocxPage[] {
-  const geometry = pageGeometry(sections[0]);
-  const capacity = pageCapacity(geometry);
   const pages: OfficeDocxPage[] = [];
+  let geometry = docxPageGeometry(sections[0]);
   let current: DocxBlock[] = [];
   let used = 0;
+  let sectionIndex = 0;
+  let pageSectionIndex = 0;
+  let sectionPageIndex = 0;
 
   const flush = () => {
-    if (!current.length && pages.length) return;
-    pages.push({ index: pages.length, blocks: current, ...geometry });
+    pages.push({
+      index: pages.length,
+      sectionIndex: pageSectionIndex,
+      sectionPageIndex,
+      blocks: current,
+      ...geometry,
+    });
     current = [];
     used = 0;
+    sectionPageIndex++;
+    pageSectionIndex = sectionIndex;
+    geometry = docxPageGeometry(sections[sectionIndex]);
   };
 
-  for (const block of blocks) {
-    const forceBreak =
-      block.type === 'paragraph' && block.properties?.pageBreakBefore === true;
-    const measured = measuredHeights.get(block.id);
-    const units = measured ? (measured * 0.75) / 13.8 : blockUnits(block);
-    if ((forceBreak || used + units > capacity) && current.length) flush();
-    current.push(block);
-    used += units;
+  for (const range of docxSectionRanges(blocks, sections)) {
+    const section = sections[range.sectionIndex];
+    if (range.sectionIndex !== sectionIndex) {
+      const nextGeometry = docxPageGeometry(section);
+      const requiresPage =
+        docxSectionNeedsPage(section) ||
+        nextGeometry.widthPt !== geometry.widthPt ||
+        nextGeometry.heightPt !== geometry.heightPt;
+      if (requiresPage) {
+        flush();
+        if (docxSectionNeedsParityPage(section, pages.length + 1)) flush();
+        geometry = nextGeometry;
+        pageSectionIndex = range.sectionIndex;
+      }
+      sectionIndex = range.sectionIndex;
+      sectionPageIndex = 0;
+    }
+    for (const block of range.blocks) {
+      const forceBreak =
+        block.type === 'paragraph' &&
+        block.properties?.pageBreakBefore === true;
+      const measured = measuredHeights.get(block.id);
+      const units = measured ? (measured * 0.75) / 13.8 : blockUnits(block);
+      if (
+        (forceBreak || used + units > pageCapacity(geometry)) &&
+        current.length
+      )
+        flush();
+      current.push(block);
+      used += units;
+    }
   }
-  flush();
+  if (
+    current.length ||
+    !pages.length ||
+    pages.at(-1)?.sectionIndex !== sectionIndex
+  )
+    flush();
   return pages;
 }

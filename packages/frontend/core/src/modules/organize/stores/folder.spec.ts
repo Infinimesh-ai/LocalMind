@@ -84,6 +84,26 @@ describe('FolderStore links', () => {
     });
   }
 
+  test('rejects blank names before changing local folders or sending directory mutations', async () => {
+    createFolder('existing-folder');
+    expect(() => store.renameNode('existing-folder', ' \n ')).toThrow();
+    expect(db.folders.get('existing-folder')?.data).toBe('existing-folder');
+    expect(() => store.createFolder(null, '   ', 'a0')).toThrow();
+    await expect(
+      store.renameNodeAuthorized('existing-folder', '')
+    ).rejects.toThrow();
+    directoryState$.next({ mode: 'filtered', items: [], error: null });
+    await expect(
+      store.createFolderAuthorized(null, '\t', 'a0')
+    ).rejects.toThrow();
+    await expect(
+      store.renameNodeAuthorized('existing-folder', ' ')
+    ).rejects.toThrow();
+    expect(mutate).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(db.folders.find({ type: 'folder' })).toHaveLength(1);
+  });
+
   test('root document membership follows authorized links and permission changes', async () => {
     createFolder('private-folder');
     const link = store.createLink('private-folder', 'doc', 'doc-1', 'a0');

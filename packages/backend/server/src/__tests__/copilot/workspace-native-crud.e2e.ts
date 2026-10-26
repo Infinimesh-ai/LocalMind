@@ -8,6 +8,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import test from 'ava';
 
+import { BadRequest } from '../../base';
 import {
   WorkspaceNativeResourceAccess,
   WorkspaceOrganizationService,
@@ -128,6 +129,16 @@ test.serial(
       t.is(saved.contentVersion, 2);
       t.is((await service.save(input)).contentVersion, 2);
       t.is((await service.readText(identity)).text, input.text);
+      t.like(await service.readText(identity), {
+        contentVersion: 2,
+        currentContentVersion: 2,
+        historical: false,
+      });
+      t.like(await service.readText({ ...identity, sequence: 1 }), {
+        contentVersion: 1,
+        currentContentVersion: 2,
+        historical: true,
+      });
       await t.throwsAsync(service.save({ ...input, text: 'different' }));
       await t.throwsAsync(
         service.save({ ...input, requestKey: `stale-${format}` })
@@ -460,6 +471,80 @@ test.serial(
 );
 
 test.serial(
+  'restore rejects an unavailable original folder before writing and permits relocation',
+  async t => {
+    const { service, ...actor } = await fixture();
+    const organization = app.get(WorkspaceOrganizationService);
+    await organization.createResourceFolder({
+      ...actor,
+      folderId: 'missing-restore-parent',
+      parentId: null,
+      title: 'Temporary parent',
+      authorize: async () => {},
+    });
+    const created = await service.create({
+      ...actor,
+      title: 'restore.txt',
+      content: { format: 'txt', text: 'RESTORE-UNCHANGED' },
+      folderId: 'missing-restore-parent',
+      requestKey: 'create',
+    });
+    const identity = {
+      ...actor,
+      resourceId: created.id,
+      kind: 'file' as const,
+    };
+    await service.change({
+      ...identity,
+      action: 'trash',
+      expectedVersion: created.metadataVersion,
+      requestKey: 'trash',
+    });
+    await organization.trashFolderTree({
+      workspaceId: actor.workspaceId,
+      userId: actor.actorId,
+      editorId: actor.actorId,
+      folderId: 'missing-restore-parent',
+      expectedName: 'Temporary parent',
+      recursive: true,
+      authorizeDocument: async () => {},
+    });
+    const before = await service.get(identity, true);
+    const restore = {
+      ...identity,
+      action: 'restore' as const,
+      expectedVersion: before.metadataVersion,
+      requestKey: 'restore-request',
+    };
+    await t.throwsAsync(service.change(restore), {
+      instanceOf: BadRequest,
+      message: 'Restore destination unavailable; choose another folder',
+    });
+    const after = await service.get(identity, true);
+    t.is(after.metadataVersion, before.metadataVersion);
+    t.is(after.contentVersion, before.contentVersion);
+    t.is(after.revisionId, before.revisionId);
+    t.deepEqual(after.trashedAt, before.trashedAt);
+    // A rejected attempt wrote no receipt and did not reserve its request key.
+    const moved = await service.change({
+      ...restore,
+      folderId: null,
+      expectedDirectoryVersion: await organization.directoryRevision(
+        actor.workspaceId,
+        actor.actorId
+      ),
+    });
+    t.is(moved.id, created.id);
+    t.is(moved.contentVersion, before.contentVersion);
+    t.is((await service.readText(identity)).text, 'RESTORE-UNCHANGED');
+    t.is(
+      (await organization.nativeResourceLocations(identity)).placements.length,
+      0
+    );
+  }
+);
+
+test.serial(
   'native folder trash restores only its own children and explicit relocation restores a single file',
   async t => {
     const { service, ...actor } = await fixture();
@@ -471,7 +556,7 @@ test.serial(
       title: 'Native',
       authorize: async () => {},
     });
-    const files = [];
+    const files: Awaited<ReturnType<typeof service.create>>[] = [];
     for (const name of ['live', 'already-trashed'])
       files.push(
         await service.create({
@@ -531,6 +616,111 @@ test.serial(
     t.is((await service.readText(identity(1))).text, 'already-trashed');
   }
 );
+
+for (const kind of ['file', 'office'] as const) {
+  for (const folderId of [null, 'new-folder']) {
+    for (const finish of ['restore', 'delete'] as const) {
+      test.serial(
+        `relocated ${kind} at ${folderId ?? 'root'} stays independent of old folder ${finish}`,
+        async t => {
+          const { service, ...actor } = await fixture();
+          const organization = app.get(WorkspaceOrganizationService);
+          for (const id of ['old-folder', 'new-folder'])
+            await organization.createResourceFolder({
+              ...actor,
+              folderId: id,
+              parentId: null,
+              title: id,
+              authorize: async () => {},
+            });
+          const created = await service.create({
+            ...actor,
+            title: kind === 'file' ? 'relocated.txt' : 'relocated.docx',
+            content:
+              kind === 'file'
+                ? { format: 'txt', text: 'UNCHANGED' }
+                : { format: 'docx', paragraphs: [{ text: 'UNCHANGED' }] },
+            folderId: 'old-folder',
+            requestKey: 'create-relocated',
+          });
+          const ownChild = await service.create({
+            ...actor,
+            title: 'own-child.txt',
+            content: { format: 'txt', text: 'OWN-CHILD' },
+            folderId: 'old-folder',
+            requestKey: 'create-child',
+          });
+          const identity = { ...actor, kind, resourceId: created.id };
+          const trashed = await service.change({
+            ...identity,
+            action: 'trash',
+            expectedVersion: created.metadataVersion,
+            requestKey: 'independent-trash',
+          });
+          const oldFolder = {
+            workspaceId: actor.workspaceId,
+            userId: actor.actorId,
+            editorId: actor.actorId,
+            folderId: 'old-folder',
+            expectedName: 'old-folder',
+            authorizeDocument: async () => {},
+          };
+          await organization.trashFolderTree({ ...oldFolder, recursive: true });
+          const relocated = await service.change({
+            ...identity,
+            action: 'restore',
+            expectedVersion: trashed.metadataVersion,
+            folderId,
+            expectedDirectoryVersion: await organization.directoryRevision(
+              actor.workspaceId,
+              actor.actorId
+            ),
+            requestKey: 'relocate',
+          });
+          const ownIdentity = {
+            ...actor,
+            kind: 'file' as const,
+            resourceId: ownChild.id,
+          };
+          if (finish === 'restore') {
+            const restored = await organization.restoreFolderTree(oldFolder);
+            t.is(restored.restoredPlacementCount, 1);
+            await organization.restoreFolderTree(oldFolder);
+            t.is((await service.readText(ownIdentity)).text, 'OWN-CHILD');
+          } else {
+            // Being trashed again elsewhere must not make the old immutable
+            // manifest authoritative over this resource's deletion.
+            await service.change({
+              ...identity,
+              action: 'trash',
+              expectedVersion: relocated.metadataVersion,
+              requestKey: 'trash-at-new-location',
+            });
+            await organization.deleteFolderTreePermanently(oldFolder);
+            await t.throwsAsync(service.get(ownIdentity, true));
+            const current = await service.get(identity, true);
+            await service.change({
+              ...identity,
+              action: 'restore',
+              expectedVersion: current.metadataVersion,
+              requestKey: 'restore-at-new-location',
+            });
+          }
+          const current = await service.get(identity);
+          t.is(current.id, created.id);
+          t.is(current.contentVersion, created.contentVersion);
+          t.is(current.revisionId, created.revisionId);
+          t.deepEqual(
+            (
+              await organization.nativeResourceLocations(identity)
+            ).placements.map(row => row.parentId),
+            folderId ? [folderId] : []
+          );
+        }
+      );
+    }
+  }
+}
 
 test.serial(
   'copy receipts bind source identity and version even after subsequent source edits',

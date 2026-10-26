@@ -126,6 +126,52 @@ test('a direct update preserves whitespace inside unchanged inline formats', t =
   }
 });
 
+test('appending a paragraph after a daily log list preserves independent blocks', t => {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, createDocWithMarkdown('Log', DAILY_LOG_MARKDOWN, 'doc'));
+    const before = readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc));
+    t.true(before.contentWritable);
+    const blocks = doc.getMap<Y.Map<unknown>>('blocks');
+    const originalText = new Map(
+      [...blocks].flatMap(([id, block]) => {
+        const text = block.get('prop:text');
+        return text instanceof Y.Text ? [[id, text.toDelta()] as const] : [];
+      })
+    );
+    const paragraph = '追加说明保持为独立段落。';
+    const replacement = `${before.content.text.trimEnd()}\n\n${paragraph}\n\n- 新增日志证据\n`;
+    const validated = validateResourceMarkdown('Log', replacement, 'doc');
+    t.true(validated.contentWritable);
+    Y.applyUpdate(
+      doc,
+      updateResourceMarkdown(
+        Buffer.from(Y.encodeStateAsUpdate(doc)),
+        replacement,
+        'doc',
+        'editor'
+      )
+    );
+    const after = readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc));
+    t.true(after.contentWritable);
+    t.is(after.content.text, validated.content.text);
+    t.true(
+      [...blocks.values()].some(
+        block =>
+          block.get('sys:flavour') === 'affine:paragraph' &&
+          String(block.get('prop:text')) === paragraph
+      )
+    );
+    for (const [id, delta] of originalText) {
+      const text = blocks.get(id)?.get('prop:text');
+      t.true(text instanceof Y.Text);
+      if (text instanceof Y.Text) t.deepEqual(text.toDelta(), delta);
+    }
+  } finally {
+    doc.destroy();
+  }
+});
+
 test('a complete daily log accepts inline code ending with a space', t => {
   const markdown = DAILY_LOG_MARKDOWN.replace(
     '- 待更新事项',

@@ -1,4 +1,5 @@
 import { Button, IconButton } from '@affine/component';
+import { NavigateContext } from '@affine/core/components/hooks/use-navigate-helper';
 import { Header } from '@affine/core/components/pure/header';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import {
@@ -22,11 +23,11 @@ import {
   isValidElement,
   type ReactNode,
   useCallback,
+  useContext,
   useId,
   useMemo,
   useState,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import * as styles from './index.css';
 
@@ -375,7 +376,7 @@ export const filterGuideSections = (
 
 export const HelpCenterPage = () => {
   const t = useI18n();
-  const navigate = useNavigate();
+  const navigate = useContext(NavigateContext);
   const workspaceDialogService = useService(WorkspaceDialogService);
   const sectionIdPrefix = useId().replace(/:/g, '');
   const [query, setQuery] = useState('');
@@ -386,7 +387,8 @@ export const HelpCenterPage = () => {
   );
 
   const openAIChat = useCallback(() => {
-    navigate('/project');
+    if (navigate) void navigate('/project');
+    else window.location.assign('/project');
   }, [navigate]);
 
   const openAIContext = useCallback(() => {

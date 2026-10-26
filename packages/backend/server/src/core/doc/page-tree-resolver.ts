@@ -49,6 +49,12 @@ class WorkspacePageTreeItem {
   @Field() isContainer!: boolean;
   @Field() canRename!: boolean;
   @Field() canConvertToPage!: boolean;
+  @Field(() => String, {
+    nullable: true,
+    description:
+      'Why a folder cannot become a page: trashed, missing_rights, public_workspace or default_role_not_manager.',
+  })
+  convertToPageUnavailableReason!: string | null;
   @Field(() => WorkspacePageTreeFolderMetadata, { nullable: true })
   folder!: WorkspacePageTreeFolderMetadata | null;
   @Field(() => String, { nullable: true }) defaultSortMode!: string | null;
@@ -373,6 +379,8 @@ export class WorkspacePageTreeResolver {
         node.rights.canWrite &&
         node.rights.canOrganize,
       canConvertToPage: node.canConvertToPage,
+      convertToPageUnavailableReason:
+        node.convertToPageUnavailableReason ?? null,
       folder: node.folder ?? null,
       defaultSortMode: node.defaultSortMode ?? null,
     });
