@@ -68,6 +68,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.office.error.unavailable"](): string;
     /**
+      * `The file changed after this request was prepared. Reopen the current version, review it, and ask AI to make the change again. The old request cannot be resumed.`
+      */
+    ["com.affine.office.ai-revision-conflict"](): string;
+    /**
       * `This file has a newer version. Keep a copy of your unsaved text before reopening it.`
       */
     ["com.affine.office.error.conflict"](): string;
@@ -758,6 +762,10 @@ export function useAFFiNEI18N(): {
       * `Unsaved changes`
       */
     ["com.affine.localmind.project-files.unsaved"](): string;
+    /**
+      * `Could not preserve this text draft in the current tab. Copy your changes before signing out or closing the page.`
+      */
+    ["com.affine.localmind.project-files.draftStorageFailed"](): string;
     /**
       * `Reload`
       */
@@ -3489,7 +3497,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.history.back-to-page"](): string;
     /**
-      * `You are about to restore the current version of the doc to the latest version available. This action will overwrite any changes made prior to the latest version.`
+      * `The selected snapshot may be older than the current document. Restoring it replaces the current document content; save anything you need to keep first.`
       */
     ["com.affine.history.confirm-restore-modal.hint"](): string;
     /**
@@ -3521,7 +3529,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.history.empty-prompt.title"](): string;
     /**
-      * `Restore current version`
+      * `Selected`
+      */
+    ["com.affine.history.selected-version"](): string;
+    /**
+      * `Restore selected version`
       */
     ["com.affine.history.restore-current-version"](): string;
     /**
@@ -9569,7 +9581,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.accessRequest.failed"](): string;
     /**
-      * `Project copy permissions`
+      * `Project permissions`
       */
     ["com.affine.localmind.share.projectAccess.title"](): string;
     /**
@@ -12927,6 +12939,10 @@ export function useAFFiNEI18N(): {
       * `Retry`
       */
     ["com.affine.localmind.directoryPermissions.retry"](): string;
+    /**
+      * `The directory or its permissions changed while loading. Please retry.`
+      */
+    ["com.affine.localmind.directoryPermissions.snapshotChanged"](): string;
     /**
       * `Directory permissions are available to active workspace owners and administrators in synced workspaces.`
       */
@@ -21346,6 +21362,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.v9.proposalNotice"](): string;
     /**
+      * `The conversation is not ready. Wait for the response to finish and check your permission to send.`
+      */
+    ["com.affine.localmind.workbench.v9.proposalWaiting"](): string;
+    /**
       * `Optional`
       */
     ["com.affine.localmind.workbench.v9.proposalOptional"](): string;
@@ -21866,6 +21886,14 @@ export function useAFFiNEI18N(): {
       * `The operation could not be confirmed. Retry uses the same request to avoid duplicates.`
       */
     ["com.affine.localmind.native-files.retrySameRequest"](): string;
+    /**
+      * `The resource or directory may have changed. Check the destination and retry; refresh the page if it still fails.`
+      */
+    ["com.affine.localmind.native-files.destinationConflict"](): string;
+    /**
+      * `Too many requests. Wait a moment and retry the same operation.`
+      */
+    ["com.affine.localmind.native-files.rateLimited"](): string;
     /**
       * `Rename`
       */
@@ -26658,6 +26686,246 @@ export function useAFFiNEI18N(): {
       * `Complex formatting is preserved; editing is unavailable.`
       */
     ["com.affine.office.object-preserved-readonly"](): string;
+    /**
+      * `Instance administration rate limit reached (429 / too_many_requests). This change was not saved. Wait and retry.`
+      */
+    ["com.affine.admin.byok-update-rate-limited"](): string;
+    /**
+      * `Another administrator changed this configuration. Reload the latest settings before retrying.`
+      */
+    ["com.affine.admin.byok-update-conflict"](): string;
+    /**
+      * `Attachment source: {{name}}`
+      */
+    ["com.affine.localmind.chatAttachment.source"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `More content is available in the next chunk.`
+      */
+    ["com.affine.localmind.chatAttachment.more"](): string;
+    /**
+      * `Attachment uploaded; its source can be read directly. Semantic indexing failed. Ask AI to read this attachment directly, or ask the administrator to check the embedding model for semantic search.`
+      */
+    ["com.affine.localmind.chatAttachment.indexFailed"](): string;
+    /**
+      * `Attachment uploaded; its source can be read directly while semantic indexing is in progress.`
+      */
+    ["com.affine.localmind.chatAttachment.indexing"](): string;
+    /**
+      * `View upload progress`
+      */
+    ["com.affine.localmind.resources.upload.progress"](): string;
+    /**
+      * `Uploaded {{done}} / {{total}}`
+      */
+    ["com.affine.localmind.resources.upload.summary"](options: Readonly<{
+        done: string;
+        total: string;
+    }>): string;
+    /**
+      * `Uploads continue when you close this panel or navigate within this workspace. Refreshing or closing the browser ends unfinished uploads. Changing accounts cancels the queue.`
+      */
+    ["com.affine.localmind.resources.upload.background"](): string;
+    /**
+      * `Clear completed`
+      */
+    ["com.affine.localmind.resources.upload.clearDone"](): string;
+    /**
+      * `Waiting for the server rate limit; resumes automatically.`
+      */
+    ["com.affine.localmind.resources.upload.waitingForLimit"](): string;
+    /**
+      * `File too large. Office files support up to 512 MiB; other files up to 32 MiB.`
+      */
+    ["com.affine.localmind.resources.upload.reason.size"](): string;
+    /**
+      * `You cannot upload here. Check your destination permissions.`
+      */
+    ["com.affine.localmind.resources.upload.reason.permission"](): string;
+    /**
+      * `The destination or resource no longer exists. Choose another destination.`
+      */
+    ["com.affine.localmind.resources.upload.reason.missing"](): string;
+    /**
+      * `The destination changed. Retry to check its current version and permissions.`
+      */
+    ["com.affine.localmind.resources.upload.reason.conflict"](): string;
+    /**
+      * `The server result is unconfirmed. Retry reuses the original request to avoid duplicates.`
+      */
+    ["com.affine.localmind.resources.upload.reason.network"](): string;
+    /**
+      * `The upload timed out. Retry reuses the original request to avoid duplicates.`
+      */
+    ["com.affine.localmind.resources.upload.reason.timeout"](): string;
+    /**
+      * `The file is not valid UTF-8. Save it as UTF-8 and upload it again.`
+      */
+    ["com.affine.localmind.resources.upload.reason.encoding"](): string;
+    /**
+      * `The file format, content, or encryption could not be accepted. Check the file and upload again.`
+      */
+    ["com.affine.localmind.resources.upload.reason.invalid"](): string;
+    /**
+      * `Automatic retries reached the limit. Wait and retry manually.`
+      */
+    ["com.affine.localmind.resources.upload.reason.rateLimited"](): string;
+    /**
+      * `Upload failed for an unknown reason. You can retry the same request.`
+      */
+    ["com.affine.localmind.resources.upload.reason.unknown"](): string;
+    /**
+      * `Retry failed uploads`
+      */
+    ["com.affine.localmind.resources.upload.retryFailed"](): string;
+    /**
+      * `Existing project memories`
+      */
+    ["com.affine.localmind.share.projectMemory.title"](): string;
+    /**
+      * `Sharing allowed`
+      */
+    ["com.affine.localmind.share.projectMemory.active"](): string;
+    /**
+      * `Sharing revoked`
+      */
+    ["com.affine.localmind.share.projectMemory.inactive"](): string;
+    /**
+      * `Allow memory sharing`
+      */
+    ["com.affine.localmind.share.projectMemory.allow"](): string;
+    /**
+      * `Revoke memory sharing`
+      */
+    ["com.affine.localmind.share.projectMemory.revoke"](): string;
+    /**
+      * `Allow existing memories from this source to be shared in {{project}}. Memories disabled by source revocation recover automatically once all their sources are authorized. Deleted, expired and previously disabled memories remain unchanged. This does not grant access to the source document.`
+      */
+    ["com.affine.localmind.share.projectMemory.allowDescription"](options: {
+        readonly project: string;
+    }): string;
+    /**
+      * `Hide memories that depend on this source in {{project}}. Approved independent copies remain available.`
+      */
+    ["com.affine.localmind.share.projectMemory.revokeDescription"](options: {
+        readonly project: string;
+    }): string;
+    /**
+      * `Memory sharing updated`
+      */
+    ["com.affine.localmind.share.projectMemory.saved"](): string;
+    /**
+      * `Restored {{restored}} memories. {{deferred}} still require other source authorization or cannot recover because they expired or conflict with newer facts.`
+      */
+    ["com.affine.localmind.share.projectMemory.restored"](options: Readonly<{
+        restored: string;
+        deferred: string;
+    }>): string;
+    /**
+      * `Dependent memories are hidden from the project.`
+      */
+    ["com.affine.localmind.share.projectMemory.revoked"](): string;
+    /**
+      * `Memory sharing changed in another action. Refresh the permissions and confirm again.`
+      */
+    ["com.affine.localmind.share.projectMemory.conflict"](): string;
+    /**
+      * `The memory sharing update could not be confirmed. Refresh the permissions and retry.`
+      */
+    ["com.affine.localmind.share.projectMemory.retry"](): string;
+    /**
+      * `Could not confirm page creation`
+      */
+    ["com.affine.localmind.folderCreation.failed"](): string;
+    /**
+      * `Retry to continue the same creation without adding another page. Check your connection and folder permissions.`
+      */
+    ["com.affine.localmind.folderCreation.retryHint"](): string;
+    /**
+      * `Download compatible copy`
+      */
+    ["com.affine.office.download-compatible-xlsx"](): string;
+    /**
+      * `Download original revision`
+      */
+    ["com.affine.office.download-original-revision"](): string;
+    /**
+      * `This revision cannot be safely repaired. Download the original revision and open it in your spreadsheet application.`
+      */
+    ["com.affine.office.error.xlsx-compatibility-unavailable"](): string;
+    /**
+      * `Pause recall`
+      */
+    ["com.affine.localmind.project-memory.pause"](): string;
+    /**
+      * `Resume recall`
+      */
+    ["com.affine.localmind.project-memory.resume"](): string;
+    /**
+      * `This memory will stop being recalled for all project members. Its content and contributions remain available for review.`
+      */
+    ["com.affine.localmind.project-memory.pause-description"](): string;
+    /**
+      * `Resume recall for all project members. Current permissions, source authorization and version conflicts will be checked.`
+      */
+    ["com.affine.localmind.project-memory.resume-description"](): string;
+    /**
+      * `Recall paused`
+      */
+    ["com.affine.localmind.project-memory.paused-event"](): string;
+    /**
+      * `Recall resumed`
+      */
+    ["com.affine.localmind.project-memory.resumed-event"](): string;
+    /**
+      * `A credential with this name already exists for this provider in this workspace. Choose another name. Your draft has been kept.`
+      */
+    ["com.affine.admin.workspace-byok-name-conflict"](): string;
+    /**
+      * `Connection successful. Loaded {{count}} available models. Select a model to save.`
+      */
+    ["com.affine.admin.workspace-byok-test-succeeded"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Indexing service is unavailable. Check the provider configuration.`
+      */
+    ["com.affine.embedding.unavailable"](): string;
+    /**
+      * `{{count}} resources failed to index`
+      */
+    ["com.affine.embedding.failed"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Some older files have no recoverable source. Remove them from this list and upload them again.`
+      */
+    ["com.affine.embedding.reupload"](): string;
+    /**
+      * `Retry failed indexing`
+      */
+    ["com.affine.embedding.retry"](): string;
+    /**
+      * `Indexing retry requested`
+      */
+    ["com.affine.embedding.retry-queued"](): string;
+    /**
+      * `Could not retry indexing. Please try again.`
+      */
+    ["com.affine.embedding.retry-error"](): string;
+    /**
+      * `Draft text`
+      */
+    ["com.affine.office.draft-text"](): string;
+    /**
+      * `Copy draft text`
+      */
+    ["com.affine.office.copy-draft-text"](): string;
+    /**
+      * `Draft text copied. Compare it with the latest version before pasting.`
+      */
+    ["com.affine.office.draft-copied"](): string;
     /**
       * `An internal error occurred.`
       */

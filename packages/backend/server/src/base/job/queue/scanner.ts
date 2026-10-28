@@ -3,9 +3,17 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ModuleScanner } from '../../nestjs';
 import { getJobHandlerMetadata, JOB_SIGNAL } from './def';
 
+export interface JobExecution {
+  attempt: number;
+  maxAttempts: number;
+}
+
 interface JobHandler {
   name: string;
-  fn: (payload: any) => Promise<JOB_SIGNAL | undefined>;
+  fn: (
+    payload: any,
+    execution?: JobExecution
+  ) => Promise<JOB_SIGNAL | undefined>;
 }
 
 @Injectable()
@@ -64,11 +72,11 @@ export class JobHandlerScanner implements OnModuleInit {
 
           this.handlers[jobName] = {
             name: signature,
-            fn: (payload: any) => {
+            fn: (payload: any, execution?: JobExecution) => {
               // NOTE(@forehalo):
               //   we might create spies on the job handlers when testing,
               //   avoid reusing `fn` variable to fail the spies or stubs
-              return instance[method].bind(instance)(payload);
+              return instance[method].bind(instance)(payload, execution);
             },
           };
 

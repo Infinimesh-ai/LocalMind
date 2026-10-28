@@ -333,14 +333,15 @@ export async function inspectWebReport(
       )) as Array<{ id: string; top: number }>;
       for (const [index, box] of boxes.slice(0, 14).entries()) {
         signal.throwIfAborted();
-        // Move the chapter out of view and clear its revealed state so the
-        // runtime replays its entrance exactly as a reader would see it.
+        // Replay only elements that really left the observer viewport. A
+        // compact report may not scroll at all; clearing a still-intersecting
+        // element would hide it without another IntersectionObserver event.
         await frame.evaluate(
           `scrollTo({top:${index === boxes.length - 1 ? 0 : 'document.documentElement.scrollHeight'},behavior:'instant'})`
         );
         await settle(frame);
         await frame.evaluate(
-          `document.querySelectorAll('[data-chapter-id="${box.id}"] [data-rd-in]').forEach(el=>{el.style.transition='none';el.removeAttribute('data-rd-in');el.removeAttribute('data-rd-counted');el.style.removeProperty('--rd-delay');el.getBoundingClientRect();el.style.removeProperty('transition')})`
+          `document.querySelectorAll('[data-chapter-id="${box.id}"] [data-rd-in]').forEach(el=>{const r=el.getBoundingClientRect();if(r.bottom>0&&r.top<innerHeight*.92)return;el.style.transition='none';el.removeAttribute('data-rd-in');el.removeAttribute('data-rd-counted');el.style.removeProperty('--rd-delay');el.getBoundingClientRect();el.style.removeProperty('transition')})`
         );
         await settle(frame);
         await frame.evaluate(`scrollTo({top:${box.top},behavior:'instant'})`);

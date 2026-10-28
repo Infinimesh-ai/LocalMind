@@ -1,7 +1,10 @@
+import { DocxPackageError } from '@localmind/office/docx';
+import { OoxmlPackageError } from '@localmind/office/ooxml';
+import { PdfPackageError } from '@localmind/office/pdf';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
-import { readBufferWithLimit } from '../../base';
+import { BadRequest, readBufferWithLimit } from '../../base';
 import { Models } from '../../models';
 import {
   officeOwnerFromInput,
@@ -78,7 +81,7 @@ export class OfficeImportService {
             acl.assert('Workspace.CreateDoc'),
             acl.assert('Workspace.Blobs.Write'),
           ]);
-          await this.organization.assertResourceFolder(
+          await this.organization.assertResourceFolderAccess(
             owner,
             input.actorId,
             input.parentId ?? null,
@@ -227,7 +230,19 @@ export class OfficeImportService {
     }
 
     const sourceFingerprint = officeFingerprint(sourceBytes);
-    const semanticState = await readNativeOfficeState(policy, sourceBytes);
+    let semanticState;
+    try {
+      semanticState = await readNativeOfficeState(policy, sourceBytes);
+    } catch (error) {
+      if (
+        error instanceof DocxPackageError ||
+        error instanceof OoxmlPackageError ||
+        error instanceof PdfPackageError
+      ) {
+        throw new BadRequest('The file is invalid, unsupported, or encrypted');
+      }
+      throw error;
+    }
     const hash = sourceFingerprint.slice('sha256:'.length);
     const packageBlobKey = await this.storage.put(
       owner,

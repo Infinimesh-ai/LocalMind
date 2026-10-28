@@ -2,14 +2,10 @@ import { createHash } from 'node:crypto';
 
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 
-import {
-  FileUpload,
-  JobQueue,
-  PaginationInput,
-  sniffMime,
-} from '../../../base';
+import { FileUpload, PaginationInput, sniffMime } from '../../../base';
 import { ServerFeature, ServerService } from '../../../core';
 import { Models } from '../../../models';
+import { CopilotEmbeddingJob } from '../embedding/job';
 import { CopilotStorage } from '../storage';
 import { readStream } from '../utils';
 
@@ -20,7 +16,7 @@ export class CopilotWorkspaceService implements OnApplicationBootstrap {
   constructor(
     private readonly server: ServerService,
     private readonly models: Models,
-    private readonly queue: JobQueue,
+    private readonly jobs: CopilotEmbeddingJob,
     private readonly storage: CopilotStorage
   ) {}
 
@@ -92,14 +88,11 @@ export class CopilotWorkspaceService implements OnApplicationBootstrap {
   }
 
   async queueFileEmbedding(file: Jobs['copilot.embedding.files']) {
-    const { userId, workspaceId, blobId, fileId, fileName } = file;
-    await this.queue.add('copilot.embedding.files', {
-      userId,
-      workspaceId,
-      blobId,
-      fileId,
-      fileName,
-    });
+    await this.jobs.addFileEmbeddingQueue(file);
+  }
+
+  async retryEmbedding(workspaceId: string) {
+    return this.jobs.retryWorkspaceEmbedding(workspaceId);
   }
 
   async removeFile(workspaceId: string, fileId: string) {

@@ -69,9 +69,6 @@ export class ModelSelectionPolicy {
     selectedModel: string;
     matchedOptionalModel: boolean;
   } {
-    if (!input.defaultModel) {
-      throw new CopilotSessionInvalidInput('Model is required');
-    }
     const optionalModels = this.mergeAvailableModels(
       input.optionalModels,
       input.extraModels
@@ -83,6 +80,12 @@ export class ModelSelectionPolicy {
       input.routeContext ?? {},
       input.providerIds
     );
+    if (
+      !input.defaultModel &&
+      !(matched.matchedOptionalModel && matched.selectedModel)
+    ) {
+      throw new CopilotSessionInvalidInput('Model is required');
+    }
     return {
       selectedModel: matched.selectedModel ?? input.defaultModel,
       matchedOptionalModel: matched.matchedOptionalModel,

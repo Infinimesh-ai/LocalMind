@@ -28,7 +28,11 @@ const isolated = enabled ? test.serial : test.skip;
 let module: TestingApp, models: Models, db: PrismaClient;
 test.before(async () => {
   if (!enabled) return;
-  if (!process.env.DATABASE_URL?.includes('localmind_report_v3_postgres'))
+  if (
+    !process.env.DATABASE_URL?.includes('localmind_report_v3_postgres') &&
+    new URL(process.env.DATABASE_URL ?? 'postgres://invalid/').pathname !==
+      '/qa_repair_20261026'
+  )
     throw new Error('Disposable report test database required');
   module = await createTestingApp();
   models = module.get(Models);
@@ -95,7 +99,10 @@ function mapIds(
 }
 
 const refineScenario = test.macro(
-  async (t, reviewOutcome: 'complete' | 'failed' | 'partial') => {
+  async (
+    t,
+    reviewOutcome: 'complete' | 'failed' | 'partial' | 'count' | 'no-vision'
+  ) => {
     t.timeout(300000);
     const deck = await db.reportDeck.create({
       data: {
@@ -108,6 +115,9 @@ const refineScenario = test.macro(
             designMode: 'refine',
             length: 'standard',
             language: 'zh-CN',
+            ...(reviewOutcome === 'count'
+              ? { instructions: '用3个章节呈现' }
+              : {}),
           })
         ),
         aiScopeKind: 'workspace',
@@ -142,8 +152,19 @@ const refineScenario = test.macro(
       }),
       runStructured: async (name: string, params: { content: string }) =>
         respond(name, params.content, true),
-      runText: async (name: string, params: { content: string }) =>
-        respond(name, params.content, false),
+      runText: async (
+        name: string,
+        params: { content: string },
+        options: { attachments?: unknown[] }
+      ) => {
+        if (reviewOutcome === 'no-vision' && name.includes('Repair'))
+          t.is(
+            options.attachments?.length,
+            0,
+            'a failed visual probe must fall back to text-only repair'
+          );
+        return respond(name, params.content, false);
+      },
     } as unknown as PromptRuntime;
     async function respond(
       name: string,
@@ -151,6 +172,8 @@ const refineScenario = test.macro(
       structured: boolean
     ): Promise<unknown> {
       calls.push(name);
+      if (reviewOutcome === 'no-vision' && name.includes('Vision'))
+        throw new Error('Fixture image input unavailable');
       if (
         (reviewOutcome === 'failed' && /Critique|Motion/.test(name)) ||
         (reviewOutcome === 'partial' && name.includes('Motion'))
@@ -216,12 +239,14 @@ const refineScenario = test.macro(
       }
       if (name.includes('Build')) {
         const art = v4Artifact();
+        if (reviewOutcome === 'no-vision')
+          art.sharedCss += '.rd-hidden{opacity:0}';
         const text =
           `<rd-shared>${art.sharedCss}</rd-shared>\n` +
           art.chapters
             .map(
               ch =>
-                `<rd-chapter id="${ch.id}">${ch.html}<style>${ch.css}</style></rd-chapter>`
+                `<rd-chapter id="${ch.id}">${reviewOutcome === 'no-vision' ? ch.html.replace('<h2>', '<h2 class="rd-hidden">') : ch.html}<style>${ch.css}</style></rd-chapter>`
             )
             .join('\n');
         return mapIds(text, data.evidence.facts, data.evidence.datasets);
@@ -282,6 +307,20 @@ const refineScenario = test.macro(
           strengths: [],
         });
       if (name.includes('Repair')) {
+        if (
+          reviewOutcome === 'no-vision' ||
+          (reviewOutcome === 'count' &&
+            JSON.parse(content).previousError?.includes('exactly 3 chapters'))
+        )
+          return (
+            `<rd-repair>{"ops":[],"addressed":[],"unresolved":[]}</rd-repair>` +
+            data.chapters
+              .map(
+                (ch: { id: string; html: string; css: string }) =>
+                  `<rd-chapter id="${ch.id}">${ch.html.replace('class="rd-hidden"', '')}<style>${ch.css}</style></rd-chapter>`
+              )
+              .join('')
+          );
         const trend = data.chapters.find(
           (c: { id: string }) => c.id === 'rd-c-trend'
         ).html as string;
@@ -312,7 +351,7 @@ const refineScenario = test.macro(
       assertUsable: async () => {},
       designCapabilities: async () => ({
         modelId: 'fixture',
-        vision: true,
+        vision: reviewOutcome !== 'no-vision',
         structured: true,
         contextWindow: 200000,
       }),
@@ -341,6 +380,15 @@ const refineScenario = test.macro(
         where: { id: deck.id },
       });
       t.is(row.status, 'ready', row.errorCode ?? '');
+      if (reviewOutcome === 'count') {
+        t.is(row.slideCount, 3);
+        t.true(
+          contents['Report Web Repair v4'].some(value =>
+            value.includes('exactly 3 chapters')
+          )
+        );
+        return;
+      }
       const quality = row.quality as {
         visual: string;
         warnings: string[];
@@ -348,15 +396,20 @@ const refineScenario = test.macro(
       };
       t.is(
         quality.visual,
-        reviewOutcome === 'failed' ? 'unavailable' : 'partial'
+        reviewOutcome === 'failed' || reviewOutcome === 'no-vision'
+          ? 'unavailable'
+          : 'partial'
       );
       t.true(
         quality.warnings.includes(
-          reviewOutcome === 'failed' ? 'visual_unavailable' : 'visual_partial'
+          reviewOutcome === 'failed' || reviewOutcome === 'no-vision'
+            ? 'visual_unavailable'
+            : 'visual_partial'
         )
       );
       t.is((row.usage as { mode: string }).mode, 'refine');
-      if (reviewOutcome === 'failed') t.is(quality.checkedCaptures, 0);
+      if (reviewOutcome === 'failed' || reviewOutcome === 'no-vision')
+        t.is(quality.checkedCaptures, 0);
       else t.true(quality.checkedCaptures > 0);
       return;
     }
@@ -435,7 +488,13 @@ const refineScenario = test.macro(
     t.true(usage.behaviors.every(b => b.ok));
   }
 );
-for (const reviewOutcome of ['complete', 'failed', 'partial'] as const)
+for (const reviewOutcome of [
+  'complete',
+  'failed',
+  'partial',
+  'count',
+  'no-vision',
+] as const)
   isolated(
     `v4 refine: ${reviewOutcome} review, explicit mode, browser checks and recovery`,
     refineScenario,

@@ -9,7 +9,7 @@ import {
   Prisma,
 } from '@prisma/client';
 
-import { BadRequest, NotFound } from '../base';
+import { BadRequest, NotFound, ResourceConflict } from '../base';
 import { BaseModel } from './base';
 import {
   permissionDocumentLockKey,
@@ -730,6 +730,264 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     });
   }
 
+  async listMemorySourceAuthorizations(input: {
+    workspaceId: string;
+    docId: string;
+    actorUserId: string;
+  }) {
+    await this.requireSourceDecisionActor({
+      ...input,
+      userId: input.actorUserId,
+    });
+    const grants = await this.db.aiContextProjectGrant.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        docId: input.docId,
+        memorySources: { some: {} },
+        project: { status: 'active' },
+      },
+      include: {
+        project: { select: { name: true } },
+        memoryAuthorization: true,
+        _count: { select: { memorySources: true } },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 100,
+    });
+    return grants.map(grant => ({
+      grantId: grant.id,
+      projectId: grant.projectId,
+      projectName: grant.project.name,
+      status: grant.memoryAuthorization?.status ?? grant.status,
+      revision: grant.memoryAuthorization?.revision ?? 0,
+      memoryCount: grant._count.memorySources,
+    }));
+  }
+
+  @Transactional()
+  async setMemorySourceAuthorization(input: {
+    grantId: string;
+    actorUserId: string;
+    enabled: boolean;
+    expectedRevision: number;
+    requestKey: string;
+  }) {
+    const grantId = requireString(input.grantId, 'grantId');
+    const requestKey = requireString(input.requestKey, 'requestKey', 128);
+    if (
+      !Number.isSafeInteger(input.expectedRevision) ||
+      input.expectedRevision < 0
+    )
+      throw new BadRequest('Memory source revision is invalid');
+    const grant = await this.db.aiContextProjectGrant.findUnique({
+      where: { id: grantId },
+    });
+    if (!grant) throw new NotFound('Memory source not found');
+    await this.lockProjectDocumentAuthorization(grant);
+    await this.requireSourceDecisionActor({
+      ...grant,
+      userId: input.actorUserId,
+    });
+    await this.requireActiveProject(grant.projectId);
+    if (
+      !(await this.db.aiContextMemorySource.findFirst({
+        where: { projectGrantId: grant.id },
+      }))
+    )
+      throw new NotFound('Memory source not found');
+    if (input.enabled) {
+      const authority = await this.sourceDocumentCapability({
+        ...grant,
+        userId: input.actorUserId,
+      });
+      const doc = await this.models.doc.getMeta(grant.workspaceId, grant.docId);
+      if (
+        !authority.canShare ||
+        !doc ||
+        doc.blocked ||
+        !(await this.models.workspace.allowSharing(grant.workspaceId))
+      )
+        throw new BadRequest('Current source sharing authority is required');
+    }
+    const requestFingerprint = fingerprint([
+      input.actorUserId,
+      grant.id,
+      String(input.enabled),
+      String(input.expectedRevision),
+    ]);
+    const prior =
+      await this.db.aiProjectMemorySourceAuthorizationEvent.findUnique({
+        where: { grantId_requestKey: { grantId, requestKey } },
+      });
+    if (prior) {
+      if (prior.requestFingerprint !== requestFingerprint)
+        throw new BadRequest('Memory source request key was already used');
+      return prior;
+    }
+    const current = await this.db.aiProjectMemorySourceAuthorization.findUnique(
+      { where: { grantId } }
+    );
+    if ((current?.revision ?? 0) !== input.expectedRevision)
+      throw new ResourceConflict(
+        'Memory source authorization changed; reload first'
+      );
+    return this.transitionMemorySourceAuthorization({
+      grant,
+      enabled: input.enabled,
+      actorUserIdSnapshot: input.actorUserId,
+      requestKey,
+      requestFingerprint,
+      revision: (current?.revision ?? 0) + 1,
+    });
+  }
+
+  private async transitionMemorySourceAuthorization(input: {
+    grant: AiContextProjectGrant;
+    enabled: boolean;
+    actorUserIdSnapshot: string;
+    requestKey: string;
+    requestFingerprint: string;
+    revision: number;
+  }) {
+    const { grant } = input;
+    // All versions are locked in one order. Consent is evaluated again after
+    // waiting, so a concurrent edit, delete or another source revocation wins.
+    await this.db.$queryRaw`
+      SELECT memory.id FROM ai_context_memories memory
+      WHERE EXISTS (SELECT 1 FROM ai_context_memory_sources source
+        WHERE source.memory_id = memory.id AND source.project_grant_id = ${grant.id})
+      ORDER BY memory.id FOR UPDATE
+    `;
+    const status = input.enabled ? 'active' : 'revoked';
+    await this.db.aiProjectMemorySourceAuthorization.upsert({
+      where: { grantId: grant.id },
+      create: { grantId: grant.id, status, revision: input.revision },
+      update: { status, revision: input.revision },
+    });
+    const now = new Date();
+    let quarantinedCount = 0;
+    let deferredCount = 0;
+    const restoredMemories: Array<{
+      id: string;
+      revision: number;
+      quarantinedAt: string;
+    }> = [];
+    if (!input.enabled) {
+      const changed = await this.db.aiContextMemory.updateMany({
+        where: {
+          scope: 'project',
+          status: 'active',
+          sources: { some: { projectGrantId: grant.id } },
+        },
+        data: {
+          status: 'disabled',
+          quarantinedAt: now,
+          quarantineReason: 'memory_source_revoked',
+          quarantinedByProjectGrantId: grant.id,
+          revision: { increment: 1 },
+        },
+      });
+      quarantinedCount = changed.count;
+    } else {
+      const candidates = await this.db.aiContextMemory.findMany({
+        where: {
+          scope: 'project',
+          sharingStatus: 'shared',
+          status: 'disabled',
+          quarantineReason: {
+            in: [
+              'project_grant_revoked',
+              'source_document_deleted',
+              'memory_source_revoked',
+            ],
+          },
+          quarantinedAt: { not: null },
+          sources: { some: { projectGrantId: grant.id } },
+        },
+        orderBy: { id: 'asc' },
+      });
+      for (const memory of candidates) {
+        if (!memory.quarantinedAt) continue;
+        const unavailable = await this.db.$queryRaw<Array<{ id: string }>>`
+          SELECT project_grant_id AS id FROM ai_context_memory_sources
+          WHERE memory_id = ${memory.id}
+            AND NOT ai_project_memory_source_authorized(project_grant_id)
+        `;
+        if (
+          unavailable.length ||
+          (memory.expiresAt && memory.expiresAt <= now) ||
+          (memory.validUntil && memory.validUntil <= now)
+        ) {
+          deferredCount++;
+          continue;
+        }
+        // A newer fact may have been created while this version was hidden.
+        // Preserve it; a uniqueness collision must not roll back other restores.
+        await this.db.$executeRawUnsafe('SAVEPOINT memory_source_restore');
+        try {
+          await this.db.aiContextMemory.update({
+            where: {
+              id: memory.id,
+              revision: memory.revision,
+              status: 'disabled',
+            },
+            data: {
+              status: 'active',
+              quarantinedAt: null,
+              quarantineReason: null,
+              quarantinedByProjectGrantId: null,
+              revision: { increment: 1 },
+            },
+          });
+          restoredMemories.push({
+            id: memory.id,
+            revision: memory.revision,
+            quarantinedAt: memory.quarantinedAt.toISOString(),
+          });
+        } catch (error) {
+          await this.db.$executeRawUnsafe(
+            'ROLLBACK TO SAVEPOINT memory_source_restore'
+          );
+          if (
+            !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+            error.code !== 'P2002'
+          )
+            throw error;
+          deferredCount++;
+        }
+        await this.db.$executeRawUnsafe(
+          'RELEASE SAVEPOINT memory_source_restore'
+        );
+      }
+    }
+    // Evidence is append-only; deferred database guards bind every restoration
+    // to the exact predecessor revision and quarantine timestamp in this receipt.
+    const event = await this.db.aiProjectMemorySourceAuthorizationEvent.create({
+      data: {
+        grantId: grant.id,
+        revision: input.revision,
+        status,
+        actorUserIdSnapshot: input.actorUserIdSnapshot,
+        requestKey: input.requestKey,
+        requestFingerprint: input.requestFingerprint,
+        restoredMemories,
+        restoredCount: restoredMemories.length,
+        quarantinedCount,
+        deferredCount,
+      },
+    });
+    await this.db.aiProjectMemorySettings.upsert({
+      where: { projectId: grant.projectId },
+      create: {
+        projectId: grant.projectId,
+        autoMemoryEnabled: false,
+        projectMemoryRevision: 1,
+      },
+      update: { projectMemoryRevision: { increment: 1 } },
+    });
+    return event;
+  }
+
   @Transactional()
   async removeSourceDocumentAuthorizations(input: {
     workspaceId: string;
@@ -752,11 +1010,47 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       await this.lockProjectDocumentKey({ projectId, workspaceId, docId });
     }
     const grants = await this.db.aiContextProjectGrant.findMany({
-      where: { workspaceId, docId, status: 'active' },
+      where: {
+        workspaceId,
+        docId,
+        OR: [
+          { status: 'active' },
+          { memoryAuthorization: { status: 'active' } },
+        ],
+      },
       orderBy: [{ projectId: 'asc' }, { id: 'asc' }],
     });
+    // Shared-write source checks lock grants before recalled memories. Use the
+    // same order, while allowing FK key-share locks from memory corrections.
+    if (grants.length) {
+      await this.db.$queryRaw(Prisma.sql`
+        SELECT id FROM ai_context_project_grants
+        WHERE id IN (${Prisma.join(grants.map(grant => grant.id))})
+        ORDER BY id FOR NO KEY UPDATE
+      `);
+    }
     let quarantinedMemoryCount = 0;
     for (const grant of grants) {
+      const memoryConsent =
+        await this.db.aiProjectMemorySourceAuthorization.findUnique({
+          where: { grantId: grant.id },
+        });
+      if (memoryConsent?.status === 'active') {
+        const event = await this.transitionMemorySourceAuthorization({
+          grant,
+          enabled: false,
+          actorUserIdSnapshot: 'system:source-document-deleted',
+          requestKey: `source-deleted:${memoryConsent.revision}`,
+          requestFingerprint: fingerprint([
+            grant.id,
+            'source-deleted',
+            String(memoryConsent.revision),
+          ]),
+          revision: memoryConsent.revision + 1,
+        });
+        quarantinedMemoryCount += event.quarantinedCount;
+      }
+      if (grant.status !== 'active') continue;
       const revoked = await this.revokeProjectGrantInternal({
         grant,
         actorUserId: null,
@@ -1681,6 +1975,17 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     if (!actorUserIdSnapshot) {
       throw new Error('Project grant revocation requires actor provenance');
     }
+    // Serialize revocation with edits and historical restores, including
+    // inactive versions which are not changed by the quarantine update.
+    const affectedMemories = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT memory.id FROM ai_context_memories memory
+      WHERE EXISTS (
+        SELECT 1 FROM ai_context_memory_sources source
+        WHERE source.memory_id = memory.id
+          AND source.project_grant_id = ${input.grant.id}
+      )
+      ORDER BY memory.id FOR UPDATE
+    `;
     const quarantined = await this.db.aiContextMemory.updateMany({
       where: {
         scope: 'project',
@@ -1692,8 +1997,20 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         quarantinedAt: input.now,
         quarantineReason: reason ?? 'project_grant_revoked',
         quarantinedByProjectGrantId: input.grant.id,
+        revision: { increment: 1 },
       },
     });
+    if (affectedMemories.length) {
+      await this.db.aiProjectMemorySettings.upsert({
+        where: { projectId: input.grant.projectId },
+        create: {
+          projectId: input.grant.projectId,
+          autoMemoryEnabled: false,
+          projectMemoryRevision: 1,
+        },
+        update: { projectMemoryRevision: { increment: 1 } },
+      });
+    }
     const grant = await this.db.aiContextProjectGrant.update({
       where: { id: input.grant.id },
       data: {

@@ -235,6 +235,21 @@ export class ChatContentStreamObjects extends WithDisposable(
   ShadowlessElement
 ) {
   static override styles = css`
+    .attachment-source {
+      min-width: 0;
+      margin: 8px 0;
+      overflow-wrap: anywhere;
+    }
+    .attachment-source summary {
+      cursor: pointer;
+    }
+    .attachment-source pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      max-height: 24em;
+      overflow: auto;
+      font: inherit;
+    }
     .reasoning-wrapper {
       padding: 16px 20px;
       margin: 8px 0;
@@ -572,6 +587,7 @@ export class ChatContentStreamObjects extends WithDisposable(
     const id = draft.draftId;
     if (
       !actions ||
+      actions.canAct?.(draft) === false ||
       this.pendingWorkOrderDrafts.has(id) ||
       this.workOrderDecision(id)
     )
@@ -604,6 +620,7 @@ export class ChatContentStreamObjects extends WithDisposable(
     const feedback = this.workOrderFeedback.get(id)?.trim();
     if (
       !actions ||
+      actions.canAct?.(draft) === false ||
       !feedback ||
       this.pendingWorkOrderDrafts.has(id) ||
       this.workOrderDecision(id)
@@ -656,6 +673,7 @@ export class ChatContentStreamObjects extends WithDisposable(
     const revised = decision === 'revised';
     const cancelled = decision === 'cancelled';
     const failureMessage = this.workOrderDraftErrors.get(id);
+    const ready = actions.canAct?.(draft) !== false;
     const { labels } = actions;
     return html`<section
       class="work-order-proposal"
@@ -664,6 +682,11 @@ export class ChatContentStreamObjects extends WithDisposable(
     >
       <h4>${labels.title}</h4>
       <p class="work-order-proposal-meta">${labels.notice}</p>
+      ${!ready && !decision && labels.waiting
+        ? html`<p class="work-order-proposal-meta" role="status">
+            ${labels.waiting}
+          </p>`
+        : nothing}
       ${actions.sourceProjectName
         ? html`<p class="work-order-proposal-meta">
             ${labels.sourceProject}: ${actions.sourceProjectName}.
@@ -721,7 +744,7 @@ export class ChatContentStreamObjects extends WithDisposable(
         <textarea
           maxlength="2000"
           .value=${feedback}
-          ?disabled=${!!pending || !!decision}
+          ?disabled=${!!pending || !!decision || !ready}
           @input=${(event: Event) => {
             const value = (event.currentTarget as HTMLTextAreaElement).value;
             this.workOrderFeedback = new Map(this.workOrderFeedback).set(
@@ -746,7 +769,7 @@ export class ChatContentStreamObjects extends WithDisposable(
         </button>
         <button
           type="button"
-          ?disabled=${!!pending || !!decision || !feedback.trim()}
+          ?disabled=${!!pending || !!decision || !ready || !feedback.trim()}
           @click=${() => void this.requestWorkOrderRevision(draft)}
         >
           ${revised
@@ -758,7 +781,7 @@ export class ChatContentStreamObjects extends WithDisposable(
         <button
           type="button"
           data-primary="true"
-          ?disabled=${!!pending || !!decision}
+          ?disabled=${!!pending || !!decision || !ready}
           @click=${() => void this.sendWorkOrderDraft(draft)}
         >
           ${sent
@@ -1080,6 +1103,39 @@ export class ChatContentStreamObjects extends WithDisposable(
       );
     }
     switch (streamObject.toolName) {
+      case 'workspace_blob_read': {
+        const value = record(streamObject.result);
+        if (
+          streamObject.isError ||
+          !value ||
+          isToolError(value) ||
+          typeof value.fileName !== 'string' ||
+          value.fileName.length > 512 ||
+          typeof value.content !== 'string' ||
+          value.content.length > 8000
+        ) {
+          return this.renderReadOnlyResourceResult(
+            streamObject,
+            'workspace_blob_read'
+          );
+        }
+        return html`<details class="attachment-source">
+          <summary>
+            ${getOrCreateI18n().t(
+              'com.affine.localmind.chatAttachment.source',
+              { name: value.fileName }
+            )}
+          </summary>
+          <pre>${value.content}</pre>
+          ${value.hasMore === true
+            ? html`<p>
+                ${getOrCreateI18n().t(
+                  'com.affine.localmind.chatAttachment.more'
+                )}
+              </p>`
+            : nothing}
+        </details>`;
+      }
       case 'work_order_draft': {
         const proposal = this.renderWorkOrderDraft(streamObject);
         if (proposal) return proposal;

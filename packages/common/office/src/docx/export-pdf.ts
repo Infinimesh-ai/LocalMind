@@ -17,6 +17,7 @@ import {
 import { createUnicodePdfFont } from '../pdf/font';
 import type { DocxEditableObject } from './object-data';
 import { docxObjectPreview } from './object-preview';
+import { splitDocxParagraphPages } from './page-breaks';
 import {
   docxPageGeometry,
   docxSectionNeedsPage,
@@ -482,17 +483,193 @@ export async function exportDocxStateToPdf(
       }
     }
   };
-  const drawParagraph = async (paragraph: DocxParagraph) => {
-    if (
-      pageHasContent &&
-      (paragraph.properties?.pageBreakBefore ||
-        paragraph.runs.some(run =>
-          run.content.some(
-            content => content.type === 'break' && content.breakType === 'page'
-          )
-        ))
-    ) {
+  const drawInlineParagraph = async (paragraph: DocxParagraph) => {
+    type Item =
+      | { kind: 'glyph'; glyph: PdfGlyph; width: number; height: number }
+      | { kind: 'image'; image: PDFImage; width: number; height: number }
+      | {
+          kind: 'object';
+          graphic: ReturnType<typeof objectGraphic>;
+          width: number;
+          height: number;
+        };
+    const size = fontSize(paragraph);
+    const indent = paragraph.properties?.indent;
+    const left = layout.left + (indent?.leftPt ?? 0);
+    const available = Math.max(
+      1,
+      layout.width - left - layout.right - (indent?.rightPt ?? 0)
+    );
+    const firstIndent = (indent?.firstLinePt ?? 0) - (indent?.hangingPt ?? 0);
+    const tokens: Item[] = [];
+    for (const run of paragraph.runs) {
+      if (run.change === 'deleted') continue;
+      for (const content of run.content) {
+        if (content.type !== 'object') {
+          for (const glyph of paragraphGlyphs({
+            ...paragraph,
+            runs: [{ ...run, content: [content] }],
+          }))
+            tokens.push({
+              kind: 'glyph',
+              glyph,
+              width: glyph.width,
+              height: glyph.size,
+            });
+          continue;
+        }
+        const source = content.part
+          ? options.readPart?.(content.part)
+          : undefined;
+        const image = source
+          ? await embedImage(document, source, content.contentType)
+          : undefined;
+        if (image) {
+          const w = Math.max(1, content.widthPt ?? image.width);
+          const h = Math.max(1, content.heightPt ?? image.height);
+          const scale = Math.min(
+            1,
+            available / w,
+            (layout.height - layout.top - layout.bottom - 6) / h
+          );
+          tokens.push({
+            kind: 'image',
+            image,
+            width: w * scale,
+            height: h * scale,
+          });
+        } else if (content.objectData) {
+          const graphic = objectGraphic(content.objectData, available);
+          tokens.push({
+            kind: 'object',
+            graphic,
+            width: graphic.width,
+            height: graphic.height,
+          });
+        } else {
+          for (const glyph of storyGlyphs(`[${content.objectType}]`))
+            tokens.push({
+              kind: 'glyph',
+              glyph,
+              width: glyph.width,
+              height: glyph.size,
+            });
+        }
+      }
+    }
+    const lines: Item[][] = [];
+    let line: Item[] = [],
+      width = 0;
+    const flush = () => {
+      lines.push(line);
+      line = [];
+      width = 0;
+    };
+    for (const token of tokens) {
+      if (token.kind === 'glyph' && token.glyph.text === '\n') {
+        flush();
+        continue;
+      }
+      if (
+        line.length &&
+        width + token.width > available - (lines.length ? 0 : firstIndent)
+      )
+        flush();
+      line.push(token);
+      width += token.width;
+    }
+    flush();
+    const before = paragraph.properties?.spacing?.beforePt ?? 0;
+    ensureSpace(before + size * 1.25);
+    y -= before;
+    for (const [index, items] of lines.entries()) {
+      const offset = index === 0 ? firstIndent : 0;
+      const width = items.reduce((sum, item) => sum + item.width, 0);
+      // Match the editor's vertical-align: middle for inline object boxes.
+      const textSize = Math.max(
+        size,
+        ...items.filter(item => item.kind === 'glyph').map(item => item.height)
+      );
+      const middle = textSize * 0.25;
+      const objectHeight = Math.max(
+        0,
+        ...items.filter(item => item.kind !== 'glyph').map(item => item.height)
+      );
+      const ascent = Math.max(textSize, objectHeight / 2 + middle);
+      const descent = Math.max(textSize * 0.25, objectHeight / 2 - middle);
+      const height = Math.max(
+        paragraph.properties?.spacing?.linePt ?? size * 1.25,
+        ascent + descent
+      );
+      ensureSpace(height);
+      const baseline = y - ascent;
+      const alignment = paragraph.properties?.alignment;
+      let x =
+        left +
+        offset +
+        (alignment === 'center'
+          ? Math.max(0, (available - offset - width) / 2)
+          : alignment === 'right' || alignment === 'end'
+            ? Math.max(0, available - offset - width)
+            : 0);
+      const spaces = items.filter(
+        item => item.kind === 'glyph' && item.glyph.text === ' '
+      ).length;
+      const extra =
+        alignment === 'both' && index < lines.length - 1 && spaces
+          ? Math.max(0, available - offset - width) / spaces
+          : 0;
+      for (let cursor = 0; cursor < items.length; ) {
+        const item = items[cursor++];
+        if (item.kind === 'glyph') {
+          const glyphs = [item.glyph];
+          while (items[cursor]?.kind === 'glyph') {
+            const next = items[cursor++];
+            if (next.kind === 'glyph') glyphs.push(next.glyph);
+          }
+          const width = glyphs.reduce(
+            (sum, g) => sum + g.width + (g.text === ' ' ? extra : 0),
+            0
+          );
+          drawLine(
+            page,
+            glyphs,
+            x,
+            baseline + Math.max(...glyphs.map(g => g.size)),
+            width,
+            undefined,
+            extra > 0
+          );
+          x += width;
+        } else {
+          if (item.kind === 'image')
+            page.drawImage(item.image, {
+              x,
+              y: baseline + middle - item.height / 2,
+              width: item.width,
+              height: item.height,
+            });
+          else drawObject(item.graphic, x, baseline + middle + item.height / 2);
+          x += item.width;
+        }
+      }
+      y -= height;
+    }
+    y -= paragraph.properties?.spacing?.afterPt ?? Math.max(4, size * 0.35);
+    pageHasContent = true;
+  };
+  const drawParagraphFragment = async (paragraph: DocxParagraph) => {
+    if (pageHasContent && paragraph.properties?.pageBreakBefore) {
       addPage();
+    }
+    if (
+      paragraph.runs.some(
+        run =>
+          run.change !== 'deleted' && run.content.some(c => c.type === 'object')
+      )
+    ) {
+      await drawInlineParagraph(paragraph);
+      return;
     }
     const size = fontSize(paragraph);
     const indent = paragraph.properties?.indent;
@@ -527,53 +704,15 @@ export async function exportDocxStateToPdf(
       );
       y -= lineHeight;
     }
-    for (const run of paragraph.runs) {
-      if (run.change === 'deleted') continue;
-      for (const content of run.content) {
-        if (content.type !== 'object') continue;
-        const source = content.part
-          ? options.readPart?.(content.part)
-          : undefined;
-        const image = source
-          ? await embedImage(document, source, content.contentType)
-          : undefined;
-        if (image) {
-          const width = Math.min(
-            content.widthPt ?? image.width,
-            availableWidth
-          );
-          const height = Math.min(
-            content.heightPt ?? image.height,
-            width * (image.height / image.width)
-          );
-          ensureSpace(height + 6);
-          page.drawImage(image, {
-            x: layout.left,
-            y: y - height,
-            width,
-            height,
-          });
-          y -= height + 6;
-        } else if (content.objectData) {
-          const graphic = objectGraphic(content.objectData, availableWidth);
-          ensureSpace(graphic.height + 6);
-          drawObject(graphic, left, y);
-          y -= graphic.height + 6;
-        } else {
-          ensureSpace(18);
-          page.drawText(`[${content.objectType}]`, {
-            x: layout.left,
-            y: y - 10,
-            size: 9,
-            font: fonts.italic,
-            color: rgb(0.35, 0.39, 0.44),
-          });
-          y -= 18;
-        }
-      }
-    }
     y -= after;
     pageHasContent = true;
+  };
+
+  const drawParagraph = async (paragraph: DocxParagraph) => {
+    for (const [index, part] of splitDocxParagraphPages(paragraph).entries()) {
+      if (index) addPage();
+      await drawParagraphFragment(part.paragraph);
+    }
   };
 
   type CellItem =
@@ -776,12 +915,11 @@ export async function exportDocxStateToPdf(
           let top = y - padding;
           for (const item of items) {
             if (item.kind === 'line') {
-              const size = Math.max(9, ...item.glyphs.map(glyph => glyph.size));
               drawLine(
                 page,
                 item.glyphs,
                 cell.left + padding + item.left,
-                top - size,
+                top,
                 item.width,
                 item.alignment,
                 item.justify

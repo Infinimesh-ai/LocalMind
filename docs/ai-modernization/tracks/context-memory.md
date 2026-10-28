@@ -58,6 +58,28 @@ complete privacy scanning, authorized real-model summary evaluation, the browser
 interaction matrix and runtime cutover evidence. The strict model path has mock
 behavioral coverage but no real Project BYOK quality/cost/latency claim.
 
+## Source Revocation and Reauthorization (QA-143)
+
+The 2026-10-28 [execution record](../project-memory-source-reauthorization.execution.zh-CN.md)
+covers memory-only source consent, versioned immutable receipts, and automatic
+restoration of source-quarantined shared memories after all bound sources regain
+valid consent. Deleted, originally disabled, expired, otherwise quarantined, or
+superseded conflicting facts remain inactive. Historical document grants and
+independent copies retain their existing permissions. Linux migration, concurrency,
+GraphQL, frontend and real-page checks passed; open Project settings refresh through
+committed per-member invalidations and the existing reconciliation fallback. This
+closes TODO-01 only, without claiming the complete A01–A40 matrix or production rollout.
+
+## Historical Memory Cleanup (QA-123)
+
+Project settings now expose permission-checked pause/resume with the displayed
+revision. Content edits retain a paused record's state; retired, expired,
+source-ineligible or conflicting versions cannot be resumed. Status changes,
+Project invalidation and immutable actor/revision receipts commit together.
+The [execution record](../historical-project-memory-cleanup.execution.zh-CN.md)
+records the bounded historical inventory, Linux checks and page verification.
+This does not classify historical fact keys or restore overwritten facts (TODO-06).
+
 ## Implemented Foundation
 
 The 2026-09-16 [Workspace/Project AI 写入授权与工具作用域重构方案](../workspace-project-ai-write-authorization-remediation.zh-CN.md) supersedes the former actor-only destination policy for ordinary Workspace AI writes.
@@ -90,6 +112,23 @@ personal read permission before using cached attachment configuration.
 Prompt preparation and personal semantic attachment search use the same owned
 session lookup; attachment tools refresh that authorization and context on each
 execution, including after attachments are removed.
+Explicit-memory receipts now carry bounded server rejection categories and fixed
+recovery guidance. An unshared-source denial asks for a clean Project conversation
+or proper source authorization; it does not suggest toggling an already enabled
+automatic-contribution setting. Earlier durable receipts remain visible if a later
+decision fails. Error details and source contents do not enter the trusted receipt.
+When all rejected sources are previously recalled shared-memory revisions that
+were superseded, changed or withdrawn, the receipt reports `shared_memory_changed`
+and asks for a fresh Project conversation. The source authorization remains strict
+and its persisted audit reason stays `unshared_source`; historical proof is never
+silently rewritten to reference a newer shared-memory value.
+Workspace chat attachment reads use the owned immutable Blob source without an
+embedding dependency. Each tool call rechecks the conversation, personal document
+access and Workspace ACL before reading. Direct extraction is limited to 5 MB
+input and 2 MiB extracted characters, returning 8,000-character chunks with explicit
+continuation metadata; unsupported, oversized or missing sources return actionable
+errors. This does not make private attachments available to other sessions or
+Projects, and semantic retrieval still requires a configured embedding route.
 Automatic project-memory capture also excludes private file/blob attachments,
 invalid context configuration and any attached document outside current Project
 grants, even if the actor can no longer read that document. Append-only session
@@ -279,3 +318,9 @@ The focused contract must cover:
 Run the isolated Copilot typecheck, GraphQL generation, format/lint checks,
 host scope/v6 smokes, Docker-focused Copilot tests, native v6/v5/v4 baselines,
 and a disposable PostgreSQL migration check for changes to this track.
+
+## 2026-10-28 acceptance remediation
+
+`context-planner/v7` separates explicit active Rule instructions from reference memories and summaries. Rule bodies remain user-role input; they never gain platform or Workspace Policy authority. A directly conflicting explicit current user request takes precedence. All injected context remains within the bounded context budget. The v6 configuration and fingerprint remain available for historical replay. The acceptance investigation also found that collapsed citation sections could hide trailing response paragraphs; the Markdown adapter now groups citation definitions after the body without rewriting stored messages.
+
+Legacy `project:codename` keys can be inspected using `scripts/repair-legacy-memory-keys.ts`. Applying a reviewed fingerprint requires paused workers, a nonempty backup and an audit actor. Only independently provable personal facts are restored; disabled/deleted records and ambiguous source statements remain inactive or unchanged. Repair audit events cannot use ordinary writer undo. Evidence and rollout status: [acceptance remediation](../../localmind-acceptance-remaining.execution.zh-CN.md).

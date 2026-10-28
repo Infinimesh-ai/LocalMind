@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import { GraphQLError } from '@affine/error';
 import {
   adminWorkspaceByokScopesQuery,
   adminWorkspaceByokSettingsQuery,
@@ -231,6 +232,7 @@ describe('WorkspaceByokAdmin', () => {
     await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
     fireEvent.click(models);
     fireEvent.click(await screen.findByRole('option', { name: 'gpt-test' }));
+    vi.mocked(toast.success).mockClear();
     testConfigMock
       .mockResolvedValueOnce({ testWorkspaceByokConfig: { ok: true } })
       .mockResolvedValueOnce({
@@ -272,7 +274,11 @@ describe('WorkspaceByokAdmin', () => {
 
   test('shows an actionable error when the catalog contains no models', async () => {
     testConfigMock.mockResolvedValue({
-      testWorkspaceByokConfig: { ok: true, models: [] },
+      testWorkspaceByokConfig: {
+        ok: false,
+        models: [],
+        message: 'Provider returned an empty model catalog.',
+      },
     });
     render(<WorkspaceByokAdmin />);
     fireEvent.change(screen.getByLabelText('API key'), {
@@ -466,5 +472,129 @@ describe('WorkspaceByokAdmin', () => {
       })
     );
     expect(nativeConfirm).not.toHaveBeenCalled();
+  });
+  test('suggests an unused provider name and retains a draft during catalog refresh', () => {
+    const key = {
+      id: 'existing',
+      name: 'Primary',
+      provider: ByokProvider.openai,
+      sortOrder: 0,
+      enabled: true,
+      capabilities: [],
+      testStatus: ByokKeyTestStatus.untested,
+    } as (typeof settings.keys)[number];
+    settings.keys = [key, { ...key, id: 'second', name: 'Primary 2' }];
+    const view = render(<WorkspaceByokAdmin />);
+    const name = screen.getByLabelText('Credential name') as HTMLInputElement;
+    expect(name.value).toBe('Primary 3');
+    fireEvent.change(screen.getByLabelText('API key'), {
+      target: { value: 'synthetic-draft' },
+    });
+    settings.keys = [
+      ...settings.keys,
+      { ...key, id: 'third', name: 'Primary 3' },
+    ];
+    view.rerender(<WorkspaceByokAdmin />);
+    expect(name.value).toBe('Primary 3');
+    expect((screen.getByLabelText('API key') as HTMLInputElement).value).toBe(
+      'synthetic-draft'
+    );
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Choose another name'
+    );
+    expect(name.getAttribute('aria-invalid')).toBe('true');
+    fireEvent.change(name, { target: { value: 'Primary 4' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit Primary', exact: true })
+    );
+    expect(name.value).toBe('Primary');
+    expect(name.getAttribute('aria-invalid')).toBe('false');
+  });
+
+  test('explains a concurrent name collision and keeps the tested draft for retry', async () => {
+    const message =
+      'A BYOK credential with this name already exists for this workspace and provider.';
+    upsertConfigMock.mockRejectedValueOnce(
+      new GraphQLError(message, {
+        extensions: {
+          status: 400,
+          code: 'BAD_REQUEST',
+          type: 'BAD_REQUEST',
+          name: 'BAD_REQUEST',
+          message,
+        },
+      })
+    );
+    render(<WorkspaceByokAdmin />);
+    fireEvent.change(screen.getByLabelText('API key'), {
+      target: { value: 'synthetic-draft' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    const models = screen.getByRole('combobox', { name: 'Available models' });
+    await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(models);
+    fireEvent.click(await screen.findByRole('option', { name: 'gpt-test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save credential' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Choose another name'
+    );
+    expect((screen.getByLabelText('API key') as HTMLInputElement).value).toBe(
+      'synthetic-draft'
+    );
+    fireEvent.change(screen.getByLabelText('Credential name'), {
+      target: { value: 'Alternate' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save credential' }));
+    await waitFor(() => expect(upsertConfigMock).toHaveBeenCalledTimes(2));
+    expect(upsertConfigMock).toHaveBeenLastCalledWith({
+      input: expect.objectContaining({ name: 'Alternate' }),
+    });
+  });
+
+  test('announces each completed test and replaces success with actionable empty/failure results', async () => {
+    const { toast } = await import('sonner');
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+    render(<WorkspaceByokAdmin />);
+    fireEvent.change(screen.getByLabelText('API key'), {
+      target: { value: 'synthetic-draft' },
+    });
+    for (let count = 1; count <= 2; count++) {
+      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(count));
+    }
+    expect(toast.success).toHaveBeenLastCalledWith(
+      'Connection successful. Loaded 1 available models. Select a model to save.'
+    );
+    testConfigMock.mockResolvedValueOnce({
+      testWorkspaceByokConfig: {
+        ok: false,
+        models: [],
+        message: 'Provider returned an empty model catalog.',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('alert').textContent).toContain(
+      'returned no models'
+    );
+    testConfigMock.mockResolvedValueOnce({
+      testWorkspaceByokConfig: {
+        ok: false,
+        message: 'Provider service is unavailable.',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('alert').textContent).toContain('unavailable');
+    expect(
+      screen
+        .getByRole('button', { name: 'Save credential' })
+        .hasAttribute('disabled')
+    ).toBe(true);
+    expect((screen.getByLabelText('API key') as HTMLInputElement).value).toBe(
+      'synthetic-draft'
+    );
   });
 });

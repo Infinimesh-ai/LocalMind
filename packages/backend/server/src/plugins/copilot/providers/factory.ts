@@ -1568,7 +1568,8 @@ export class CopilotProviderFactory {
       byokProfiles = byokProfiles.map(profile => ({
         ...profile,
         modelDefinitions: profile.modelDefinitions?.map(definition =>
-          (definition.rawModelId ?? definition.id) === modelId
+          `${profile.id}/${definition.id}` === modelId ||
+          `${profile.id}/${definition.rawModelId ?? definition.id}` === modelId
             ? {
                 ...definition,
                 capabilities: definition.capabilities.map(capability => ({

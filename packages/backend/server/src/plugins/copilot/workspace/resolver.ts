@@ -203,6 +203,20 @@ export class CopilotWorkspaceEmbeddingConfigResolver {
     }
   }
 
+  @Mutation(() => Number, {
+    description: 'Retry up to 50 failed workspace indexing resources',
+  })
+  async retryWorkspaceEmbedding(
+    @CurrentUser() user: CurrentUser,
+    @Args('workspaceId') workspaceId: string
+  ): Promise<number> {
+    await this.ac
+      .user(user.id)
+      .workspace(workspaceId)
+      .assert('Workspace.Settings.Update');
+    return this.copilotWorkspace.retryEmbedding(workspaceId);
+  }
+
   @Mutation(() => Boolean, {
     name: 'removeWorkspaceEmbeddingFiles',
     complexity: 2,

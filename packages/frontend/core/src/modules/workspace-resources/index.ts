@@ -11,6 +11,13 @@ import { WorkspaceLifecycleService } from './lifecycle';
 import { WorkspaceResourceMoveService } from './move';
 import { WorkspaceResourcesService } from './service';
 import { WorkspaceResourceTagsService } from './tags';
+import { WorkspaceUploadsService } from './uploads';
+export { WorkspaceUploadsService };
+export type {
+  WorkspaceUpload,
+  WorkspaceUploadDestination,
+  WorkspaceUploadFailure,
+} from './uploads';
 export { WorkspaceResourceTagsService };
 export type { ResourceTagPatch, ResourceTagTarget } from './tags';
 export { WorkspaceLifecycleService };
@@ -22,6 +29,12 @@ export type { NativeResource, ResourceState } from './service';
 export function configureWorkspaceResourcesModule(framework: Framework) {
   framework
     .scope(WorkspaceScope)
+    .service(WorkspaceUploadsService, [
+      WorkspaceService,
+      WorkspaceServerService,
+      WorkspacePageTreeService,
+      WorkspaceResourcesService,
+    ])
     .service(WorkspaceResourceMoveService, [
       WorkspaceService,
       WorkspaceServerService,

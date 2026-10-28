@@ -769,7 +769,10 @@ export interface ContextMatchedFileChunk {
 
 export interface ContextWorkspaceEmbeddingStatus {
   __typename?: 'ContextWorkspaceEmbeddingStatus';
+  available: Scalars['Boolean']['output'];
   embedded: Scalars['SafeInt']['output'];
+  failed: Scalars['SafeInt']['output'];
+  retryable: Scalars['SafeInt']['output'];
   total: Scalars['SafeInt']['output'];
 }
 
@@ -926,6 +929,7 @@ export interface Copilot {
   workbenchAccessRequests: Array<CopilotAccessRequestType>;
   /** List reminder-only Blockers visible through active global Project membership. */
   workbenchBlockers: Array<CopilotBlockerType>;
+  workbenchMemorySourceAuthorizations: Array<CopilotMemorySourceAuthorizationType>;
   /** List project grants on source documents the current user may manage. */
   workbenchProjectGrantsForSource: Array<CopilotProjectGrantType>;
   /** List project invitations visible to the current user. */
@@ -1145,6 +1149,11 @@ export interface CopilotWorkbenchBlockersArgs {
   limit?: InputMaybe<Scalars['Int']['input']>;
   projectId?: InputMaybe<Scalars['ID']['input']>;
   statuses?: InputMaybe<Array<Scalars['String']['input']>>;
+}
+
+export interface CopilotWorkbenchMemorySourceAuthorizationsArgs {
+  docId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface CopilotWorkbenchProjectGrantsForSourceArgs {
@@ -2026,6 +2035,26 @@ export interface CopilotHistoriesTypeEdge {
 export interface CopilotInvalidContextDataType {
   __typename?: 'CopilotInvalidContextDataType';
   contextId: Scalars['String']['output'];
+}
+
+export interface CopilotMemorySourceAuthorizationResult {
+  __typename?: 'CopilotMemorySourceAuthorizationResult';
+  deferredCount: Scalars['Int']['output'];
+  id: Scalars['ID']['output'];
+  quarantinedCount: Scalars['Int']['output'];
+  restoredCount: Scalars['Int']['output'];
+  revision: Scalars['Int']['output'];
+  status: Scalars['String']['output'];
+}
+
+export interface CopilotMemorySourceAuthorizationType {
+  __typename?: 'CopilotMemorySourceAuthorizationType';
+  grantId: Scalars['ID']['output'];
+  memoryCount: Scalars['Int']['output'];
+  projectId: Scalars['ID']['output'];
+  projectName: Scalars['String']['output'];
+  revision: Scalars['Int']['output'];
+  status: Scalars['String']['output'];
 }
 
 export interface CopilotMessageNotFoundDataType {
@@ -5040,6 +5069,14 @@ export interface CreateUserInput {
   password?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface CreateWorkspaceFolderPageInput {
+  folderId: Scalars['ID']['input'];
+  primaryMode: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
 export interface CreateWorkspaceNativeResourceInput {
   blobKey?: InputMaybe<Scalars['String']['input']>;
   content?: InputMaybe<Scalars['JSONObject']['input']>;
@@ -6191,6 +6228,8 @@ export interface Mutation {
   beginEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
   cancelCopilotContextCompaction: CopilotContextCompactionTaskType;
   cancelEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
+  /** Cancel a pending chat submission without starting generation */
+  cancelPendingCopilotMessage: Scalars['Boolean']['output'];
   cancelProjectAgentTask: ProjectAgentTaskType;
   cancelSubscription: SubscriptionType;
   cancelWorkOrder: WorkOrderMutationResultType;
@@ -6268,6 +6307,7 @@ export interface Mutation {
   createUser: UserType;
   /** Create a new workspace */
   createWorkspace: WorkspaceType;
+  createWorkspaceFolderPage: WorkspaceFolderPageResult;
   createWorkspaceNativeResource: WorkspaceNativeResourceType;
   deactivateLicense: Scalars['Boolean']['output'];
   /** Approve or reject a persisted repair execution request that is waiting for approval. */
@@ -6420,6 +6460,8 @@ export interface Mutation {
   retryCopilotSessionDeletion: CopilotSessionDeletionType;
   retryProjectWorkspaceImport: ProjectWorkspaceImportTaskType;
   retryTranscriptTask: Maybe<TranscriptionResultType>;
+  /** Retry up to 50 failed workspace indexing resources */
+  retryWorkspaceEmbedding: Scalars['Int']['output'];
   revokeCommercialEntitlement: Scalars['Boolean']['output'];
   revokeDocUserRoles: Scalars['Boolean']['output'];
   revokeInviteLink: Scalars['Boolean']['output'];
@@ -6444,6 +6486,7 @@ export interface Mutation {
   setAdminUserAiProfileAssignment: Maybe<AdminUserAiProfileAssignmentType>;
   setBlob: Scalars['String']['output'];
   setCopilotContextProjectAiPolicy: CopilotProjectAiPolicyType;
+  setCopilotMemorySourceAuthorization: CopilotMemorySourceAuthorizationResult;
   setProjectByokEnabled: ProjectByokSettingsType;
   setWorkOrderByokEnabled: ProjectByokSettingsType;
   setWorkOrderDeliveryDraftItem: WorkOrderDeliveryDraftType;
@@ -6640,6 +6683,11 @@ export interface MutationCancelCopilotContextCompactionArgs {
 export interface MutationCancelEnterpriseAuthorizationArgs {
   sessionId: Scalars['ID']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationCancelPendingCopilotMessageArgs {
+  messageId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
 }
 
 export interface MutationCancelProjectAgentTaskArgs {
@@ -6918,6 +6966,10 @@ export interface MutationCreateUserArgs {
 
 export interface MutationCreateWorkspaceArgs {
   init?: InputMaybe<Scalars['Upload']['input']>;
+}
+
+export interface MutationCreateWorkspaceFolderPageArgs {
+  input: CreateWorkspaceFolderPageInput;
 }
 
 export interface MutationCreateWorkspaceNativeResourceArgs {
@@ -7418,6 +7470,10 @@ export interface MutationRetryTranscriptTaskArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationRetryWorkspaceEmbeddingArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationRevokeCommercialEntitlementArgs {
   targetId: Scalars['String']['input'];
   targetType: Scalars['String']['input'];
@@ -7528,6 +7584,10 @@ export interface MutationSetBlobArgs {
 
 export interface MutationSetCopilotContextProjectAiPolicyArgs {
   input: SetCopilotProjectAiPolicyInput;
+}
+
+export interface MutationSetCopilotMemorySourceAuthorizationArgs {
+  input: SetCopilotMemorySourceAuthorizationInput;
 }
 
 export interface MutationSetProjectByokEnabledArgs {
@@ -9626,6 +9686,13 @@ export enum ServerFeature {
   Payment = 'Payment',
 }
 
+export interface SetCopilotMemorySourceAuthorizationInput {
+  enabled: Scalars['Boolean']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  grantId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+}
+
 export interface SetCopilotProjectAiPolicyInput {
   policy: Scalars['String']['input'];
   projectId: Scalars['ID']['input'];
@@ -10613,6 +10680,13 @@ export interface WorkspaceDocMeta {
   createdBy: Maybe<EditorType>;
   updatedAt: Scalars['DateTime']['output'];
   updatedBy: Maybe<EditorType>;
+}
+
+export interface WorkspaceFolderPageResult {
+  __typename?: 'WorkspaceFolderPageResult';
+  documentId: Scalars['ID']['output'];
+  folderId: Scalars['ID']['output'];
+  replayed: Scalars['Boolean']['output'];
 }
 
 /** Workspace invite link expire time */
@@ -15161,6 +15235,16 @@ export type GetCopilotHistoriesQuery = {
       };
     };
   } | null;
+};
+
+export type CancelPendingCopilotMessageMutationVariables = Exact<{
+  sessionId: Scalars['String']['input'];
+  messageId: Scalars['String']['input'];
+}>;
+
+export type CancelPendingCopilotMessageMutation = {
+  __typename?: 'Mutation';
+  cancelPendingCopilotMessage: boolean;
 };
 
 export type CreateCopilotMessageMutationVariables = Exact<{
@@ -21102,6 +21186,15 @@ export type CopilotWorkbenchSourceAuthorizationGetQuery = {
     __typename?: 'UserType';
     copilot: {
       __typename?: 'Copilot';
+      workbenchMemorySourceAuthorizations: Array<{
+        __typename?: 'CopilotMemorySourceAuthorizationType';
+        grantId: string;
+        projectId: string;
+        projectName: string;
+        status: string;
+        revision: number;
+        memoryCount: number;
+      }>;
       workbenchAccessRequests: Array<{
         __typename?: 'CopilotAccessRequestType';
         id: string;
@@ -21973,6 +22066,20 @@ export type CreateSelfhostCustomerPortalMutationVariables = Exact<{
 export type CreateSelfhostCustomerPortalMutation = {
   __typename?: 'Mutation';
   createSelfhostWorkspaceCustomerPortal: string;
+};
+
+export type CreateWorkspaceFolderPageMutationVariables = Exact<{
+  input: CreateWorkspaceFolderPageInput;
+}>;
+
+export type CreateWorkspaceFolderPageMutation = {
+  __typename?: 'Mutation';
+  createWorkspaceFolderPage: {
+    __typename?: 'WorkspaceFolderPageResult';
+    documentId: string;
+    folderId: string;
+    replayed: boolean;
+  };
 };
 
 export type CreateWorkspaceMutationVariables = Exact<{ [key: string]: never }>;
@@ -26053,6 +26160,15 @@ export type RetryProjectWorkspaceImportMutation = {
   };
 };
 
+export type RetryWorkspaceEmbeddingMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type RetryWorkspaceEmbeddingMutation = {
+  __typename?: 'Mutation';
+  retryWorkspaceEmbedding: number;
+};
+
 export type RevokeDocUserRolesMutationVariables = Exact<{
   input: RevokeDocUserRoleInput;
 }>;
@@ -26222,6 +26338,23 @@ export type ServerConfigQuery = {
         maxLength: number;
       };
     };
+  };
+};
+
+export type SetCopilotMemorySourceAuthorizationMutationVariables = Exact<{
+  input: SetCopilotMemorySourceAuthorizationInput;
+}>;
+
+export type SetCopilotMemorySourceAuthorizationMutation = {
+  __typename?: 'Mutation';
+  setCopilotMemorySourceAuthorization: {
+    __typename?: 'CopilotMemorySourceAuthorizationResult';
+    id: string;
+    status: string;
+    revision: number;
+    restoredCount: number;
+    quarantinedCount: number;
+    deferredCount: number;
   };
 };
 
@@ -29042,6 +29175,11 @@ export type Mutations =
       response: WithdrawCopilotDocumentOperationMutation;
     }
   | {
+      name: 'cancelPendingCopilotMessageMutation';
+      variables: CancelPendingCopilotMessageMutationVariables;
+      response: CancelPendingCopilotMessageMutation;
+    }
+  | {
       name: 'createCopilotMessageMutation';
       variables: CreateCopilotMessageMutationVariables;
       response: CreateCopilotMessageMutation;
@@ -29290,6 +29428,11 @@ export type Mutations =
       name: 'createSelfhostCustomerPortalMutation';
       variables: CreateSelfhostCustomerPortalMutationVariables;
       response: CreateSelfhostCustomerPortalMutation;
+    }
+  | {
+      name: 'createWorkspaceFolderPageMutation';
+      variables: CreateWorkspaceFolderPageMutationVariables;
+      response: CreateWorkspaceFolderPageMutation;
     }
   | {
       name: 'createWorkspaceMutation';
@@ -29637,6 +29780,11 @@ export type Mutations =
       response: RetryProjectWorkspaceImportMutation;
     }
   | {
+      name: 'retryWorkspaceEmbeddingMutation';
+      variables: RetryWorkspaceEmbeddingMutationVariables;
+      response: RetryWorkspaceEmbeddingMutation;
+    }
+  | {
       name: 'revokeDocUserRolesMutation';
       variables: RevokeDocUserRolesMutationVariables;
       response: RevokeDocUserRolesMutation;
@@ -29685,6 +29833,11 @@ export type Mutations =
       name: 'sendVerifyEmailMutation';
       variables: SendVerifyEmailMutationVariables;
       response: SendVerifyEmailMutation;
+    }
+  | {
+      name: 'setCopilotMemorySourceAuthorizationMutation';
+      variables: SetCopilotMemorySourceAuthorizationMutationVariables;
+      response: SetCopilotMemorySourceAuthorizationMutation;
     }
   | {
       name: 'setWorkspacePublicByIdMutation';

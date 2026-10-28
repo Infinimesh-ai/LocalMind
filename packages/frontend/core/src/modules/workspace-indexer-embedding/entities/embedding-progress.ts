@@ -10,6 +10,9 @@ import type { LocalAttachmentFile } from '../types';
 interface Progress {
   embedded: number;
   total: number;
+  failed?: number;
+  retryable?: number;
+  available?: boolean;
 }
 
 export class EmbeddingProgress extends Entity {
@@ -33,7 +36,11 @@ export class EmbeddingProgress extends Entity {
         typeof event.embedded === 'number' &&
         typeof event.total === 'number'
       ) {
-        this.applyProgress({ embedded: event.embedded, total: event.total });
+        this.applyProgress({
+          ...event,
+          embedded: event.embedded,
+          total: event.total,
+        });
         return 'applied';
       }
       return 'revalidate';
@@ -63,6 +70,12 @@ export class EmbeddingProgress extends Entity {
     this.liveQuery.stop();
   }
 
+  retryFailed = async () => {
+    await this.store.retryFailed(this.workspaceService.workspace.id);
+    this.startEmbeddingProgress();
+    this.liveQuery.revalidate();
+  };
+
   getEmbeddingProgress = () => {
     if (this.started) {
       this.liveQuery.revalidate();
@@ -80,9 +93,6 @@ export class EmbeddingProgress extends Entity {
 
   private applyProgress(value: Progress | null) {
     this.progress$.next(value);
-    if (value && value.embedded === value.total && value.total > 0) {
-      this.stopEmbeddingProgress();
-    }
   }
 
   private async requestProgress(signal: AbortSignal) {

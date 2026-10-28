@@ -81,7 +81,6 @@ export function WorkspaceAiProfilesEditor({
     data: profileData,
     error: profileError,
     isValidating: profilesValidating,
-    mutate: mutateProfiles,
   } = useQuery({
     query: adminAiProfilesQuery,
     variables: { workspaceId: scope.id },
@@ -144,7 +143,7 @@ export function WorkspaceAiProfilesEditor({
         },
       });
       await Promise.all([
-        mutateProfiles(),
+        revalidateAssignments(adminAiProfilesQuery),
         revalidateAssignments(adminUserAiProfileAssignmentQuery),
       ]);
       resetDraft();
@@ -164,7 +163,7 @@ export function WorkspaceAiProfilesEditor({
     try {
       await deleteProfile({ workspaceId: scope.id, id: profile.id });
       await Promise.all([
-        mutateProfiles(),
+        revalidateAssignments(adminAiProfilesQuery),
         revalidateAssignments(adminUserAiProfileAssignmentQuery),
       ]);
       if (draft.id === profile.id) resetDraft();

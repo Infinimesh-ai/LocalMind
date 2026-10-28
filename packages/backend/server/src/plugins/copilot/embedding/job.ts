@@ -6,6 +6,7 @@ import {
   CopilotContextFileNotSupported,
   EventBus,
   JOB_SIGNAL,
+  type JobExecution,
   JobQueue,
   mapAnyError,
   OneDay,
@@ -74,11 +75,44 @@ export class CopilotEmbeddingJob {
     file: Jobs['copilot.embedding.files'],
     options?: { priority?: number }
   ) {
-    if (!this.supportEmbedding) return;
-
-    await this.queue.add('copilot.embedding.files', file, {
-      priority: options?.priority,
-    });
+    let requestId = file.requestId;
+    if (!file.contextId) {
+      requestId =
+        (await this.models.copilotWorkspace.queueEmbeddingTask(
+          file.workspaceId,
+          'file',
+          file.fileId,
+          { userId: file.userId, retry: true }
+        )) ?? undefined;
+      if (!requestId) return;
+    }
+    try {
+      await this.queue.add(
+        'copilot.embedding.files',
+        { ...file, requestId },
+        {
+          priority: options?.priority,
+          ...(requestId ? { jobId: `embedding-file-${requestId}` } : {}),
+        }
+      );
+    } catch (error) {
+      if (!requestId) throw error;
+      await this.models.copilotWorkspace.failEmbeddingTask(
+        file.workspaceId,
+        'file',
+        file.fileId,
+        requestId,
+        null,
+        true,
+        'queue_unavailable'
+      );
+      // The uploaded resource exists; expose its durable retry state instead of
+      // failing the upload and encouraging duplicate resource creation.
+      this.event.emit('workspace.file.embed.failed', {
+        ...file,
+        error: 'queue_unavailable',
+      });
+    }
   }
 
   @CallMetric('ai', 'addBlobEmbeddingQueue')
@@ -219,31 +253,86 @@ export class CopilotEmbeddingJob {
     docs: Events['workspace.doc.embedding'],
     options?: { contextId: string; priority: number }
   ) {
-    if (!this.supportEmbedding) return;
-
     for (const { workspaceId, docId } of docs) {
-      const jobId = `workspace:embedding:${workspaceId}:${docId}`;
-      const job = await this.queue.get(jobId, 'copilot.embedding.docs');
-      // if the job exists and is older than 5 minute, remove it
-      if (job && job.timestamp + 5 * 60 * 1000 < Date.now()) {
-        this.logger.verbose(`Removing old embedding job ${jobId}`);
-        await this.queue.remove(jobId, 'copilot.embedding.docs');
-      }
-
-      await this.queue.add(
-        'copilot.embedding.docs',
-        {
-          contextId: options?.contextId,
-          workspaceId,
-          docId,
-        },
-        {
-          jobId: `workspace:embedding:${workspaceId}:${docId}`,
-          priority: options?.priority ?? 1,
-          timestamp: Date.now(),
-        }
+      const requestId = await this.models.copilotWorkspace.queueEmbeddingTask(
+        workspaceId,
+        'doc',
+        docId,
+        { force: true }
       );
+      if (!requestId) continue;
+      try {
+        await this.queue.add(
+          'copilot.embedding.docs',
+          {
+            contextId: options?.contextId,
+            workspaceId,
+            docId,
+            requestId,
+          },
+          {
+            jobId: `embedding-doc-${requestId}`,
+            priority: options?.priority ?? 1,
+          }
+        );
+      } catch {
+        await this.models.copilotWorkspace.failEmbeddingTask(
+          workspaceId,
+          'doc',
+          docId,
+          requestId,
+          null,
+          true,
+          'queue_unavailable'
+        );
+        this.event.emit('workspace.doc.embed.failed', { workspaceId, docId });
+      }
     }
+  }
+
+  async retryWorkspaceEmbedding(workspaceId: string) {
+    const tasks =
+      await this.models.copilotWorkspace.listFailedEmbeddingTasks(workspaceId);
+    const docIds = new Set(
+      await this.models.copilotWorkspace.listEmbeddableDocIds(workspaceId)
+    );
+    const ignored = new Set(
+      await this.models.copilotWorkspace.checkIgnoredDocs(workspaceId, [
+        ...docIds,
+      ])
+    );
+    const root = await this.doc.getDoc(workspaceId, workspaceId);
+    const live = new Set(root ? await snapshotParser.docIds(root.bin) : []);
+    let count = 0;
+    for (const task of tasks) {
+      if (task.kind === 'file' && task.userId) {
+        const file = await this.models.copilotWorkspace.getFile(
+          workspaceId,
+          task.resourceId
+        );
+        if (!file) continue;
+        await this.addFileEmbeddingQueue({
+          userId: task.userId,
+          workspaceId,
+          fileId: file.fileId,
+          blobId: file.blobId,
+          fileName: file.fileName,
+        });
+        count++;
+      } else if (
+        task.kind === 'doc' &&
+        docIds.has(task.resourceId) &&
+        !ignored.has(task.resourceId) &&
+        live.has(task.resourceId) &&
+        (await this.models.workspace.allowEmbedding(workspaceId))
+      ) {
+        await this.addDocEmbeddingQueue([
+          { workspaceId, docId: task.resourceId },
+        ]);
+        count++;
+      }
+    }
+    return count;
   }
 
   @OnEvent('workspace.updated')
@@ -294,19 +383,9 @@ export class CopilotEmbeddingJob {
       const finalToBeEmbedDocIds = toBeEmbedDocIds.filter(docId =>
         allDocIds.has(docId)
       );
-      for (const docId of finalToBeEmbedDocIds) {
-        await this.queue.add(
-          'copilot.embedding.docs',
-          {
-            workspaceId,
-            docId,
-          },
-          {
-            jobId: `workspace:embedding:${workspaceId}:${docId}`,
-            priority: 1,
-          }
-        );
-      }
+      await this.addDocEmbeddingQueue(
+        finalToBeEmbedDocIds.map(docId => ({ workspaceId, docId }))
+      );
     } else {
       const controller = this.workspaceJobAbortController.get(workspaceId);
       if (controller) {
@@ -320,19 +399,14 @@ export class CopilotEmbeddingJob {
   async addDocEmbeddingQueueFromEvent(
     doc: Jobs['copilot.embedding.updateDoc']
   ) {
-    if (!this.supportEmbedding || !this.embeddingClient) return;
-
-    await this.queue.add(
-      'copilot.embedding.docs',
-      {
-        workspaceId: doc.workspaceId,
-        docId: doc.docId,
-      },
-      {
-        jobId: `workspace:embedding:${doc.workspaceId}:${doc.docId}`,
-        priority: 2,
-      }
-    );
+    if (
+      await this.models.copilotWorkspace.checkDocNeedEmbedded(
+        doc.workspaceId,
+        doc.docId
+      )
+    ) {
+      await this.addDocEmbeddingQueue([doc]);
+    }
   }
 
   private async deleteDocEmbedding(doc: {
@@ -342,6 +416,10 @@ export class CopilotEmbeddingJob {
     await this.queue.remove(
       `workspace:embedding:${doc.workspaceId}:${doc.docId}`,
       'copilot.embedding.docs'
+    );
+    await this.models.copilotWorkspace.removeDocEmbeddingTask(
+      doc.workspaceId,
+      doc.docId
     );
     await this.models.copilotContext.purgeWorkspaceEmbedding(
       doc.workspaceId,
@@ -413,65 +491,106 @@ export class CopilotEmbeddingJob {
   }
 
   @OnJob('copilot.embedding.files')
-  async embedPendingFile({
-    userId,
-    workspaceId,
-    contextId,
-    blobId,
-    fileId,
-    fileName,
-  }: Jobs['copilot.embedding.files']) {
-    if (!this.supportEmbedding || !this.embeddingClient) return;
-
+  async embedPendingFile(
+    payload: Jobs['copilot.embedding.files'],
+    execution?: JobExecution
+  ) {
+    const { userId, workspaceId, contextId, blobId, fileId, fileName } =
+      payload;
+    const tracked = !contextId;
+    const requestId =
+      payload.requestId ??
+      (tracked
+        ? await this.models.copilotWorkspace.queueEmbeddingTask(
+            workspaceId,
+            'file',
+            fileId,
+            { userId, retry: true }
+          )
+        : null);
+    const runId = requestId
+      ? await this.models.copilotWorkspace.startEmbeddingTask(
+          workspaceId,
+          'file',
+          fileId,
+          requestId
+        )
+      : null;
+    if (tracked && (!requestId || !runId)) return;
     try {
+      if (!this.supportEmbedding || !this.embeddingClient)
+        throw new Error('Embedding provider unavailable');
       const file = await this.readCopilotBlob(
         userId,
         workspaceId,
         blobId,
         fileName
       );
-
-      // no need to check if embeddings is empty, will throw internally
       const chunks = await this.embeddingClient.getFileChunks(file);
-      const total = chunks.reduce((acc, c) => acc + c.length, 0);
-
+      const embeddings: Embedding[] = [];
       for (const chunk of chunks) {
-        const embeddings = await this.embeddingClient.generateEmbeddings(
-          chunk,
-          this.workspaceIndexingOptions(workspaceId, undefined, userId)
-        );
-        if (contextId) {
-          // for context files
-          await this.models.copilotContext.insertFileEmbedding(
-            contextId,
-            fileId,
-            embeddings
-          );
-        } else {
-          // for workspace files
-          await this.models.copilotWorkspace.insertFileEmbeddings(
+        if (
+          requestId &&
+          runId &&
+          !(await this.models.copilotWorkspace.renewEmbeddingTask(
             workspaceId,
+            'file',
             fileId,
-            embeddings
-          );
-        }
+            requestId,
+            runId
+          ))
+        )
+          return;
+        embeddings.push(
+          ...(await this.embeddingClient.generateEmbeddings(
+            chunk,
+            this.workspaceIndexingOptions(workspaceId, undefined, userId)
+          ))
+        );
       }
-
+      if (contextId) {
+        await this.models.copilotContext.insertFileEmbedding(
+          contextId,
+          fileId,
+          embeddings
+        );
+      } else if (
+        requestId &&
+        runId &&
+        !(await this.models.copilotWorkspace.completeEmbeddingTask(
+          workspaceId,
+          'file',
+          fileId,
+          requestId,
+          runId,
+          embeddings
+        ))
+      )
+        return;
       this.event.emit('workspace.file.embed.finished', {
         contextId,
         workspaceId,
         fileId,
-        chunkSize: total,
+        chunkSize: embeddings.length,
       });
-    } catch (error: any) {
-      this.event.emit('workspace.file.embed.failed', {
-        contextId,
-        workspaceId,
-        fileId,
-        error: mapAnyError(error).message,
-      });
-
-      // passthrough error to job queue
+    } catch (error) {
+      const final = !execution || execution.attempt >= execution.maxAttempts;
+      if (requestId && runId)
+        await this.models.copilotWorkspace.failEmbeddingTask(
+          workspaceId,
+          'file',
+          fileId,
+          requestId,
+          runId,
+          final
+        );
+      if (final)
+        this.event.emit('workspace.file.embed.failed', {
+          contextId,
+          workspaceId,
+          fileId,
+          error: 'indexing_failed',
+        });
       throw error;
     }
   }
@@ -568,143 +687,111 @@ export class CopilotEmbeddingJob {
     return controller.signal;
   }
 
-  private normalize(s: string) {
-    return s.replaceAll(/[\p{White_Space}]+/gu, '');
-  }
-
   @OnJob('copilot.embedding.docs')
-  async embedPendingDocs({
-    contextId,
-    workspaceId,
-    docId,
-  }: Jobs['copilot.embedding.docs']) {
-    if (!this.supportEmbedding || !this.embeddingClient) return;
-    if (workspaceId === docId || docId.includes('$')) return;
-    const signal = this.getWorkspaceSignal(workspaceId);
-
+  async embedPendingDocs(
+    payload: Jobs['copilot.embedding.docs'],
+    execution?: JobExecution
+  ) {
+    const { contextId, workspaceId, docId } = payload;
+    if (
+      workspaceId === docId ||
+      docId.includes('$') ||
+      docId.includes(':settings:')
+    )
+      return;
+    const requestId =
+      payload.requestId ??
+      (await this.models.copilotWorkspace.queueEmbeddingTask(
+        workspaceId,
+        'doc',
+        docId,
+        { force: true, retry: true }
+      ));
+    if (!requestId) return;
+    const runId = await this.models.copilotWorkspace.startEmbeddingTask(
+      workspaceId,
+      'doc',
+      docId,
+      requestId
+    );
+    if (!runId) return;
     try {
+      if (!this.supportEmbedding || !this.embeddingClient)
+        throw new Error('Embedding provider unavailable');
+      const signal = this.getWorkspaceSignal(workspaceId);
+      if (signal.aborted) throw new Error('Workspace indexing stopped');
       const hasNewDoc = await this.models.doc.exists(
         workspaceId,
         docId.split(':space:')[1] || ''
       );
-      const needEmbedding =
-        await this.models.copilotWorkspace.checkDocNeedEmbedded(
-          workspaceId,
-          docId
-        );
-      this.logger.debug(
-        `Check if doc ${docId} in workspace ${workspaceId} needs embedding: ${needEmbedding}`
-      );
-      if (needEmbedding) {
-        if (signal.aborted) {
-          this.logger.debug(
-            `Doc ${docId} in workspace ${workspaceId} is aborted, skipping embedding.`
-          );
-          return;
-        }
-        // if doc id deprecated, skip embedding and fulfill empty embedding
-        const fragment = !hasNewDoc
-          ? await this.getDocFragment(workspaceId, docId)
-          : undefined;
-        if (!hasNewDoc && fragment) {
-          // fast fall for empty doc, journal is easily to create a empty doc
-          if (fragment.summary.trim()) {
-            const existsContent =
-              await this.models.copilotContext.getWorkspaceContent(
-                workspaceId,
-                docId
-              );
-            if (
-              existsContent &&
-              this.normalize(existsContent) === this.normalize(fragment.summary)
-            ) {
-              this.logger.debug(
-                `Doc ${docId} in workspace ${workspaceId} has no content change, skipping embedding.`
-              );
-              this.event.emit('workspace.doc.embed.finished', {
-                contextId,
-                workspaceId,
-                docId,
-              });
-              return;
-            }
-
-            const embeddings = await this.embeddingClient.getFileEmbeddings(
-              new File(
-                [fragment.summary],
-                `${fragment.title || 'Untitled'}.md`
-              ),
-              chunks => this.formatDocChunks(chunks, fragment),
-              this.workspaceIndexingOptions(workspaceId, signal)
-            );
-
-            for (const chunks of embeddings) {
-              await this.models.copilotContext.insertWorkspaceEmbedding(
-                workspaceId,
-                docId,
-                chunks
-              );
-            }
-            this.logger.debug(
-              `Doc ${docId} in workspace ${workspaceId} has summary, embedding done.`
-            );
-          } else {
-            // for empty doc, insert empty embedding
-            this.logger.debug(
-              `Doc ${docId} in workspace ${workspaceId} has no summary, fulfilling empty embedding.`
-            );
-            await this.models.copilotContext.fulfillEmptyEmbedding(
-              workspaceId,
-              docId
-            );
-          }
-        } else {
-          this.logger.debug(
-            `Doc ${docId} in workspace ${workspaceId} has no fragment, fulfilling empty embedding.`
-          );
-          await this.models.copilotContext.fulfillEmptyEmbedding(
-            workspaceId,
-            docId
-          );
-        }
+      const fragment = !hasNewDoc
+        ? await this.getDocFragment(workspaceId, docId)
+        : null;
+      let embeddings: Embedding[] = [];
+      if (fragment?.summary.trim()) {
+        embeddings = (
+          await this.embeddingClient.getFileEmbeddings(
+            new File([fragment.summary], `${fragment.title || 'Untitled'}.md`),
+            chunks => this.formatDocChunks(chunks, fragment),
+            this.workspaceIndexingOptions(workspaceId, signal)
+          )
+        ).flat();
       }
+      if (
+        !(await this.models.copilotWorkspace.completeEmbeddingTask(
+          workspaceId,
+          'doc',
+          docId,
+          requestId,
+          runId,
+          embeddings
+        ))
+      )
+        return;
       this.event.emit('workspace.doc.embed.finished', {
         contextId,
         workspaceId,
         docId,
       });
-    } catch (error: any) {
+    } catch (error) {
       if (
         error instanceof CopilotContextFileNotSupported &&
         error.message.includes('no content found')
       ) {
-        this.logger.debug(
-          `Doc ${docId} in workspace ${workspaceId} has no content, fulfilling empty embedding.`
-        );
-        // if the doc is empty, we still need to fulfill the embedding
-        await this.models.copilotContext.fulfillEmptyEmbedding(
-          workspaceId,
-          docId
-        );
-        this.event.emit('workspace.doc.embed.finished', {
+        if (
+          await this.models.copilotWorkspace.completeEmbeddingTask(
+            workspaceId,
+            'doc',
+            docId,
+            requestId,
+            runId,
+            []
+          )
+        ) {
+          this.event.emit('workspace.doc.embed.finished', {
+            contextId,
+            workspaceId,
+            docId,
+          });
+        }
+        return;
+      }
+      const final = !execution || execution.attempt >= execution.maxAttempts;
+      await this.models.copilotWorkspace.failEmbeddingTask(
+        workspaceId,
+        'doc',
+        docId,
+        requestId,
+        runId,
+        final
+      );
+      if (final)
+        this.event.emit('workspace.doc.embed.failed', {
           contextId,
           workspaceId,
           docId,
         });
-        return;
-      }
-
-      this.event.emit('workspace.doc.embed.failed', {
-        contextId,
-        workspaceId,
-        docId,
-      });
-
-      // log error and skip the job
-      this.logger.error(
-        `Error embedding doc ${docId} in workspace ${workspaceId}`,
-        error
-      );
+      throw error;
     }
   }
 

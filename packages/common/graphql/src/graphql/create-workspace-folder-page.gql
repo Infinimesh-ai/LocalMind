@@ -1,0 +1,7 @@
+mutation createWorkspaceFolderPage($input: CreateWorkspaceFolderPageInput!) {
+  createWorkspaceFolderPage(input: $input) {
+    documentId
+    folderId
+    replayed
+  }
+}

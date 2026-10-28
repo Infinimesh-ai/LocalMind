@@ -9,13 +9,14 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   gql: vi.fn(),
   notifyError: vi.fn(),
   notifySuccess: vi.fn(),
+  loggedIn: true,
 }));
 
 const tokens = vi.hoisted(() => ({
@@ -48,24 +49,31 @@ vi.mock('@affine/component', () => ({
 vi.mock('@affine/component/not-found-page', () => ({
   NoPermissionOrNotFound: ({
     requestAccess,
+    user,
+    signInComponent,
   }: {
+    user?: unknown;
+    signInComponent?: ReactNode;
     requestAccess?: {
       pending: boolean;
       requested: boolean;
       onRequest: () => void;
     };
-  }) => (
-    <button
-      type="button"
-      data-testid="request-access"
-      data-pending={String(requestAccess?.pending)}
-      data-requested={String(requestAccess?.requested)}
-      disabled={requestAccess?.pending || requestAccess?.requested}
-      onClick={requestAccess?.onRequest}
-    >
-      Request access
-    </button>
-  ),
+  }) =>
+    !user ? (
+      signInComponent
+    ) : (
+      <button
+        type="button"
+        data-testid="request-access"
+        data-pending={String(requestAccess?.pending)}
+        data-requested={String(requestAccess?.requested)}
+        disabled={requestAccess?.pending || requestAccess?.requested}
+        onClick={requestAccess?.onRequest}
+      >
+        Request access
+      </button>
+    ),
   NotFoundPage: () => <div />,
 }));
 
@@ -102,9 +110,10 @@ vi.mock('@affine/i18n', () => ({
 
 vi.mock('@toeverything/infra', () => ({
   FrameworkScope: ({ children }: PropsWithChildren) => children,
-  useLiveData: () => [
-    { account: { id: 'user-1' }, server: { scope: 'server-scope' } },
-  ],
+  useLiveData: () =>
+    state.loggedIn
+      ? [{ account: { id: 'user-1' }, server: { scope: 'server-scope' } }]
+      : [],
   useService: (token: unknown) => {
     if (token === tokens.ServersService) {
       // eslint-disable-next-line rxjs/finnish -- Mock key mirrors the ServersService API.
@@ -119,7 +128,11 @@ vi.mock('@toeverything/infra', () => ({
   },
 }));
 
-vi.mock('../auth/sign-in', () => ({ SignIn: () => <div /> }));
+vi.mock('../auth/sign-in', () => ({
+  SignIn: ({ redirectUrl }: { redirectUrl?: string }) => (
+    <div data-testid="sign-in" data-redirect-url={redirectUrl} />
+  ),
+}));
 
 import { PageNotFound } from './index';
 
@@ -128,9 +141,26 @@ describe('PageNotFound Project copy request', () => {
     state.gql.mockReset();
     state.notifyError.mockReset();
     state.notifySuccess.mockReset();
+    state.loggedIn = true;
+    window.history.replaceState(null, '', '/');
   });
 
   afterEach(cleanup);
+
+  test('anonymous private resource failures keep the exact path, query and fragment for sign-in', () => {
+    state.loggedIn = false;
+    const target = '/workspace/workspace-1/doc-1?mode=edgeless#block-1';
+    window.history.replaceState(null, '', target);
+    render(<PageNotFound />);
+    expect(screen.getByTestId('sign-in').dataset.redirectUrl).toBe(target);
+  });
+
+  test('an unrelated anonymous 404 does not start a resource sign-in flow', () => {
+    state.loggedIn = false;
+    window.history.replaceState(null, '', '/unknown-route');
+    render(<PageNotFound />);
+    expect(screen.queryByTestId('sign-in')).toBeNull();
+  });
 
   test('requires a selected Project and retries after a failed copy request', async () => {
     state.gql

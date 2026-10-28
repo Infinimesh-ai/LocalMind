@@ -457,7 +457,7 @@ export const HelpCenterPage = () => {
                   prefix={<AiOutlineIcon />}
                   onClick={openAIChat}
                 >
-                  {t['com.affine.localmind.help.openChat']()}
+                  {t['com.affine.localmind.workbench.systemRail.projects']()}
                 </Button>
                 <Button prefix={<SettingsIcon />} onClick={openAIContext}>
                   {t['com.affine.localmind.help.manageContext']()}

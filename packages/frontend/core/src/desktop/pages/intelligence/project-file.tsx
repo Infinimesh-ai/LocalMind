@@ -1,6 +1,7 @@
 import { Button, Loading, Modal } from '@affine/component';
 import { nativeFileError } from '@affine/core/components/native-files/file-error';
 import {
+  AuthService,
   FetchService,
   GraphQLService,
   ServerService,
@@ -9,6 +10,13 @@ import { downloadOfficePackage } from '@affine/core/modules/office';
 import { useProjectEditGuard } from '@affine/core/modules/project-resources/edit-guard';
 import { useProjectEditLease } from '@affine/core/modules/project-resources/edit-lease';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
+import {
+  clearProjectFileDraft,
+  projectFileDraftKey,
+  type ProjectFileTextDraft,
+  readProjectFileDraft,
+  writeProjectFileDraft,
+} from '@affine/core/modules/project-resources/file-draft';
 import {
   type ProjectFilePreview,
   readProjectFilePreview,
@@ -21,7 +29,7 @@ import {
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { DownloadIcon } from '@blocksuite/icons/rc';
-import { useService } from '@toeverything/infra';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useEffect, useRef, useState } from 'react';
 
 import * as styles from './project-files.css';
@@ -42,6 +50,16 @@ export function ProjectFile({
   const graphql = useService(GraphQLService);
   const lease = useProjectEditLease();
   const server = useService(ServerService).server;
+  const account = useLiveData(useService(AuthService).session.account$);
+  const draftKey =
+    account?.id && sequence === undefined
+      ? projectFileDraftKey(
+          server.serverMetadata.baseUrl,
+          account.id,
+          projectId,
+          resourceId
+        )
+      : null;
   const url = new URL(
     `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(resourceId)}${sequence === undefined ? '' : `?sequence=${sequence}`}`,
     server.serverMetadata.baseUrl
@@ -57,6 +75,7 @@ export function ProjectFile({
   const [replacement, setReplacement] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<unknown>();
+  const [draftStorageError, setDraftStorageError] = useState(false);
   const [remoteChanged, setRemoteChanged] = useState(false);
   const [suspended, setSuspended] = useState(false);
   const [comparison, setComparison] = useState<{
@@ -77,8 +96,25 @@ export function ProjectFile({
     replacement !== null || text !== savedText || pending.current !== null;
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
-  const latest = useRef({ title, lease, version, text, replacement });
-  latest.current = { title, lease, version, text, replacement };
+  const latest = useRef({
+    title,
+    lease,
+    version,
+    text,
+    savedText,
+    replacement,
+  });
+  latest.current = { title, lease, version, text, savedText, replacement };
+  const persistTextDraft = (draft: ProjectFileTextDraft | null) => {
+    if (!draftKey) return;
+    try {
+      if (draft) writeProjectFileDraft(draftKey, draft);
+      else clearProjectFileDraft(draftKey);
+      setDraftStorageError(false);
+    } catch {
+      setDraftStorageError(true);
+    }
+  };
   const writable =
     sequence === undefined && !!lease?.proof && !saving && !suspended;
   const refreshGeneration = useRef(0);
@@ -138,6 +174,18 @@ export function ProjectFile({
         : { text: current.text }),
     };
     pending.current = request;
+    if (request.text !== undefined) {
+      persistTextDraft({
+        version: current.version,
+        text: current.text,
+        savedText: current.savedText,
+        pending: {
+          requestKey: request.requestKey,
+          expectedContentVersion: request.expectedContentVersion,
+          text: request.text,
+        },
+      });
+    }
     try {
       if (request.file && !request.blobKey) {
         request.blobKey = (
@@ -165,6 +213,7 @@ export function ProjectFile({
       setVersion(result.saveProjectFile.sequence);
       latest.current.version = result.saveProjectFile.sequence;
       pending.current = null;
+      persistTextDraft(null);
       setReplacement(null);
       setSavedText(request.text ?? '');
       if (request.file) setText('');
@@ -173,7 +222,16 @@ export function ProjectFile({
       setRetry(value => value + 1);
     } catch (caught) {
       const failure = nativeFileError(caught);
-      if (failure.rejected) pending.current = null;
+      if (failure.rejected) {
+        pending.current = null;
+        if (request.text !== undefined)
+          persistTextDraft({
+            version: current.version,
+            text: current.text,
+            savedText: current.savedText,
+            pending: null,
+          });
+      }
       if (failure.conflict) setRemoteChanged(true);
       setSaveError(caught);
       throw caught;
@@ -190,6 +248,7 @@ export function ProjectFile({
     discard: async () => {
       if (savingRef.current) throw new Error('Wait for the current save');
       pending.current = null;
+      persistTextDraft(null);
       setReplacement(null);
       setText(savedText);
       dirtyRef.current = false;
@@ -201,6 +260,7 @@ export function ProjectFile({
     resume: () => setSuspended(false),
   });
   useEffect(() => {
+    if (!account?.id) return;
     const controller = new AbortController();
     let objectUrl: string | undefined;
     setPreview(null);
@@ -221,10 +281,24 @@ export function ProjectFile({
           setMediaUrl(objectUrl);
         }
         setPreview(result);
-        setVersion(contentVersion);
-        latest.current.version = contentVersion;
-        setText(result.kind === 'text' ? result.text : '');
-        setSavedText(result.kind === 'text' ? result.text : '');
+        let draft: ProjectFileTextDraft | null = null;
+        if (draftKey && result.kind === 'text' && contentVersion > 0) {
+          try {
+            draft = readProjectFileDraft(draftKey);
+            setDraftStorageError(false);
+          } catch {
+            setDraftStorageError(true);
+          }
+        }
+        const restoredVersion = draft?.version ?? contentVersion;
+        setVersion(restoredVersion);
+        latest.current.version = restoredVersion;
+        setText(draft?.text ?? (result.kind === 'text' ? result.text : ''));
+        setSavedText(
+          draft?.savedText ?? (result.kind === 'text' ? result.text : '')
+        );
+        pending.current = draft?.pending ?? null;
+        setRemoteChanged(!!draft && draft.version !== contentVersion);
       })
       .catch(caught => {
         if (!controller.signal.aborted) setError(caught);
@@ -233,7 +307,7 @@ export function ProjectFile({
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [fetcher, url, retry]);
+  }, [account?.id, draftKey, fetcher, url, retry]);
   const saveFailure = saveError ? nativeFileError(saveError) : null;
   return (
     <div className={styles.preview}>
@@ -292,6 +366,11 @@ export function ProjectFile({
           })}
         </p>
       ) : null}
+      {draftStorageError ? (
+        <div role="alert" className={styles.state}>
+          {t['com.affine.localmind.project-files.draftStorageFailed']()}
+        </div>
+      ) : null}
       {saveError || remoteChanged ? (
         <div role="alert" className={styles.state}>
           <span>
@@ -337,7 +416,24 @@ export function ProjectFile({
               <textarea
                 className={styles.fileText}
                 value={text}
-                onChange={event => setText(event.target.value)}
+                onChange={event => {
+                  const next = event.target.value;
+                  setText(next);
+                  persistTextDraft({
+                    version,
+                    text: next,
+                    savedText,
+                    pending:
+                      pending.current?.text !== undefined
+                        ? {
+                            requestKey: pending.current.requestKey,
+                            expectedContentVersion:
+                              pending.current.expectedContentVersion,
+                            text: pending.current.text,
+                          }
+                        : null,
+                  });
+                }}
               />
             </label>
           </>
@@ -352,6 +448,12 @@ export function ProjectFile({
             setVersion(comparison.version);
             latest.current.version = comparison.version;
             setSavedText(comparison.text ?? '');
+            persistTextDraft({
+              version: comparison.version,
+              text,
+              savedText: comparison.text ?? '',
+              pending: null,
+            });
             setSaveError(undefined);
             setRemoteChanged(false);
             setComparison(null);
@@ -377,7 +479,15 @@ export function ProjectFile({
               aria-label={title}
               value={text}
               readOnly={!writable || !!pending.current || !!replacement}
-              onChange={event => setText(event.target.value)}
+              onChange={event => {
+                const next = event.target.value;
+                setText(next);
+                persistTextDraft(
+                  next === savedText
+                    ? null
+                    : { version, text: next, savedText, pending: null }
+                );
+              }}
             />
           ) : (
             <pre className={styles.fileText}>{preview.text}</pre>

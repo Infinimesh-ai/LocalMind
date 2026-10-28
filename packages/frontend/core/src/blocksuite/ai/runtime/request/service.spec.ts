@@ -39,6 +39,7 @@ function createClient(
       | 'gql'
       | 'createSession'
       | 'createMessage'
+      | 'cancelPendingMessage'
       | 'getSessions'
       | 'getHistories'
       | 'chatTextStream'
@@ -52,6 +53,7 @@ function createClient(
       return `session:${options.promptName}`;
     }),
     createMessage: vi.fn().mockResolvedValue('message-1'),
+    cancelPendingMessage: vi.fn().mockResolvedValue(true),
     getSessions: vi.fn().mockResolvedValue([]),
     getHistories: vi.fn().mockResolvedValue([]),
     chatTextStream: vi.fn(() => createClosedEventSource()),
@@ -169,6 +171,10 @@ describe('runtime request transport', () => {
 
     expect(client.gql).not.toHaveBeenCalled();
     expect(client.chatTextStream).not.toHaveBeenCalled();
+    expect(client.cancelPendingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-1'
+    );
   });
 
   test('does not create an image stream after cancellation', async () => {

@@ -1,6 +1,7 @@
-import { Button, IconButton, Loading, Modal } from '@affine/component';
+import { Button, IconButton, Loading, Modal, notify } from '@affine/component';
 import type { GraphQLService } from '@affine/core/modules/cloud';
 import type { OfficeResourceOwner } from '@affine/core/modules/office';
+import { copyTextToClipboard } from '@affine/core/utils/clipboard';
 import {
   restoreProjectResourceVersionMutation,
   restoreWorkspaceNativeVersionMutation,
@@ -59,6 +60,7 @@ export function OfficeResourceSurface({
   const [deciding, setDeciding] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const { artifact, revision, state } = session;
+  const exportWorkbookCopy = adapter.exportWorkbookCopy;
   const header =
     artifact && revision ? (
       <OfficeResourceHeader
@@ -92,6 +94,12 @@ export function OfficeResourceSurface({
         onLatest={() => void session.run(() => session.selectRevision(null))}
         onDownload={() =>
           void session.run(() => adapter.download(artifact, revision))
+        }
+        onExportWorkbook={
+          artifact.kind === 'workbook' && exportWorkbookCopy
+            ? () =>
+                void session.run(() => exportWorkbookCopy(artifact, revision))
+            : undefined
         }
         onExportPdf={
           artifact.kind === 'document'
@@ -179,7 +187,11 @@ export function OfficeResourceSurface({
             kind={artifact.kind}
             state={state}
             renderDocument={value => (
-              <DocumentEditor {...editorProps} state={value} />
+              <DocumentEditor
+                {...editorProps}
+                latestRevisionId={artifact.currentRevision.id}
+                state={value}
+              />
             )}
             renderWorkbook={value => (
               <SpreadsheetEditor {...editorProps} state={value} />
@@ -276,10 +288,35 @@ export function OfficeResourceSurface({
           if (!open && !deciding) session.decide(false);
         }}
       >
+        {session.canCopyDraft ? (
+          <textarea
+            className={styles.draftPreview}
+            aria-label={t['com.affine.office.draft-text']()}
+            value={session.recoveryText()}
+            readOnly
+          />
+        ) : null}
         <div className={styles.draftActions}>
           <Button disabled={deciding} onClick={() => session.decide(false)}>
             {t['com.affine.localmind.project-files.cancel']()}
           </Button>
+          {session.canCopyDraft ? (
+            <Button
+              disabled={deciding}
+              onClick={() => {
+                void copyTextToClipboard(session.recoveryText())
+                  .then(copied => {
+                    if (!copied) throw new Error('Draft copy failed');
+                    notify.success({
+                      title: t['com.affine.office.draft-copied'](),
+                    });
+                  })
+                  .catch(session.report);
+              }}
+            >
+              {t['com.affine.office.copy-draft-text']()}
+            </Button>
+          ) : null}
           <Button
             disabled={deciding}
             onClick={() => {

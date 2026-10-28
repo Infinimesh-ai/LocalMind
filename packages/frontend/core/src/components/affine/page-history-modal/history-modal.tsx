@@ -351,7 +351,7 @@ const PageHistoryList = ({
                               <>
                                 <span>·</span>
                                 <div className={styles.historyItemCurrent}>
-                                  {t['current']()}
+                                  {t['com.affine.history.selected-version']()}
                                 </div>
                               </>
                             ) : null}

@@ -2,14 +2,16 @@ import { Button, Loading, notify, useConfirmModal } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
+import { UserFriendlyError } from '@affine/error';
 import {
   approveCopilotAccessRequestMutation,
   copilotWorkbenchSourceAuthorizationGetQuery,
   rejectCopilotAccessRequestMutation,
+  setCopilotMemorySourceAuthorizationMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useService } from '@toeverything/infra';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import * as styles from './project-access.css';
 
@@ -33,6 +35,10 @@ export const ProjectAccess = ({
     },
     { suspense: false, shouldRetryOnError: false }
   );
+  const memoryPending = useRef(false);
+  const memoryRequestKeys = useRef(new Map<string, string>());
+  const memorySources =
+    data?.currentUser?.copilot.workbenchMemorySourceAuthorizations ?? [];
   const requests = data?.currentUser?.copilot.workbenchAccessRequests ?? [];
   const grants =
     data?.currentUser?.copilot.workbenchProjectGrantsForSource ?? [];
@@ -74,6 +80,80 @@ export const ProjectAccess = ({
     },
     [graphqlService, mutate, pendingKey, reportError, t]
   );
+
+  const changeMemorySource = async (source: (typeof memorySources)[number]) => {
+    if (pendingKey || memoryPending.current) return;
+    memoryPending.current = true;
+    const enabled = source.status !== 'active';
+    const key = `${workspaceId}:${docId}:${source.grantId}:${source.revision}:${enabled}`;
+    const requestKey =
+      memoryRequestKeys.current.get(key) ?? crypto.randomUUID();
+    memoryRequestKeys.current.set(key, requestKey);
+    setPendingKey(`memory:${source.grantId}`);
+    try {
+      const response = await graphqlService.gql({
+        query: setCopilotMemorySourceAuthorizationMutation,
+        variables: {
+          input: {
+            grantId: source.grantId,
+            enabled,
+            expectedRevision: source.revision,
+            requestKey,
+          },
+        },
+      });
+      const result = response.setCopilotMemorySourceAuthorization;
+      notify.success({
+        title: t['com.affine.localmind.share.projectMemory.saved'](),
+        message: enabled
+          ? t['com.affine.localmind.share.projectMemory.restored']({
+              restored: String(result.restoredCount),
+              deferred: String(result.deferredCount),
+            })
+          : t['com.affine.localmind.share.projectMemory.revoked'](),
+      });
+      await mutate();
+    } catch (caught) {
+      notify.error({
+        title: t['com.affine.localmind.share.projectAccess.actionFailed'](),
+        message:
+          UserFriendlyError.fromAny(caught).status === 409
+            ? t['com.affine.localmind.share.projectMemory.conflict']()
+            : t['com.affine.localmind.share.projectMemory.retry'](),
+      });
+      await mutate().catch(() => {});
+    } finally {
+      memoryPending.current = false;
+      setPendingKey(null);
+    }
+  };
+
+  const confirmMemorySource = (source: (typeof memorySources)[number]) => {
+    const enabled = source.status !== 'active';
+    openConfirmModal({
+      title:
+        t[
+          enabled
+            ? 'com.affine.localmind.share.projectMemory.allow'
+            : 'com.affine.localmind.share.projectMemory.revoke'
+        ](),
+      description: t[
+        enabled
+          ? 'com.affine.localmind.share.projectMemory.allowDescription'
+          : 'com.affine.localmind.share.projectMemory.revokeDescription'
+      ]({ project: source.projectName }),
+      confirmText:
+        t[
+          enabled
+            ? 'com.affine.localmind.share.projectMemory.allow'
+            : 'com.affine.localmind.share.projectMemory.revoke'
+        ](),
+      cancelText: t['Cancel'](),
+      autoFocusConfirm: false,
+      confirmButtonOptions: { variant: enabled ? 'primary' : 'error' },
+      onConfirm: () => changeMemorySource(source),
+    });
+  };
 
   const levelName = (level: string) =>
     t[
@@ -217,6 +297,40 @@ export const ProjectAccess = ({
                   </div>
                 );
               })}
+            </div>
+          ) : null}
+
+          {memorySources.length > 0 ? (
+            <div className={styles.group}>
+              <h4>{t['com.affine.localmind.share.projectMemory.title']()}</h4>
+              {memorySources.map(source => (
+                <div className={styles.item} key={source.grantId}>
+                  <div className={styles.identity}>
+                    <strong title={source.projectName}>
+                      {source.projectName}
+                    </strong>
+                    <span>
+                      {t[
+                        source.status === 'active'
+                          ? 'com.affine.localmind.share.projectMemory.active'
+                          : 'com.affine.localmind.share.projectMemory.inactive'
+                      ]()}
+                    </span>
+                  </div>
+                  <Button
+                    size="custom"
+                    disabled={pendingKey !== null}
+                    loading={pendingKey === `memory:${source.grantId}`}
+                    onClick={() => confirmMemorySource(source)}
+                  >
+                    {t[
+                      source.status === 'active'
+                        ? 'com.affine.localmind.share.projectMemory.revoke'
+                        : 'com.affine.localmind.share.projectMemory.allow'
+                    ]()}
+                  </Button>
+                </div>
+              ))}
             </div>
           ) : null}
 

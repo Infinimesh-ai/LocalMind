@@ -7,6 +7,7 @@ import { CurrentUser, type CurrentUser as CurrentUserType } from '../auth';
 import { OfficeArtifactService } from './artifact-service';
 import { officeFingerprint } from './evidence';
 import { officePdfExportResponse } from './pdf-export-response';
+import { officeXlsxExportResponse } from './xlsx-export-response';
 
 @Controller('/api/workspaces')
 export class OfficeController {
@@ -142,5 +143,26 @@ export class OfficeController {
       .attachment(officeDownloadFileName(asset.artifact.title, 'pdf'))
       .type(asset.mimeType);
     response.send(asset.bytes);
+  }
+  @Get(
+    '/:workspaceId/office/artifacts/:artifactId/revisions/:revisionId/export/xlsx'
+  )
+  async exportXlsx(
+    @CurrentUser() user: CurrentUserType,
+    @Param('workspaceId') workspaceId: string,
+    @Param('artifactId') artifactId: string,
+    @Param('revisionId') revisionId: string,
+    @Res() response: Response
+  ) {
+    await officeXlsxExportResponse(
+      () =>
+        this.artifacts.exportWorkbookRevisionCopy(
+          workspaceId,
+          user.id,
+          artifactId,
+          revisionId
+        ),
+      response
+    );
   }
 }

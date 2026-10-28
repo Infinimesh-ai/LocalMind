@@ -3,6 +3,7 @@ import {
   docxSectionNeedsPage,
   docxSectionNeedsParityPage,
   docxSectionRanges,
+  splitDocxParagraphPages,
 } from '@localmind/office/docx';
 
 import type {
@@ -11,6 +12,18 @@ import type {
   DocxSection,
   OfficeDocxPage,
 } from './types';
+
+const fragments = new WeakMap<
+  DocxParagraph,
+  { offset: number; objectOffset: number }
+>();
+export const docxPageFragment = (paragraph: DocxParagraph) =>
+  fragments.get(paragraph);
+export const docxLayoutBlockKey = (block: DocxBlock) => {
+  const fragment =
+    block.type === 'paragraph' ? fragments.get(block) : undefined;
+  return fragment ? `${block.id}@${fragment.offset}` : block.id;
+};
 
 function paragraphUnits(paragraph: DocxParagraph) {
   const explicitLines = paragraph.text.split('\n').length;
@@ -105,18 +118,32 @@ export function paginateDocxBlocks(
       sectionPageIndex = 0;
     }
     for (const block of range.blocks) {
-      const forceBreak =
-        block.type === 'paragraph' &&
-        block.properties?.pageBreakBefore === true;
-      const measured = measuredHeights.get(block.id);
-      const units = measured ? (measured * 0.75) / 13.8 : blockUnits(block);
-      if (
-        (forceBreak || used + units > pageCapacity(geometry)) &&
-        current.length
-      )
-        flush();
-      current.push(block);
-      used += units;
+      const parts =
+        block.type === 'paragraph'
+          ? splitDocxParagraphPages(block)
+          : [{ paragraph: block, offset: 0, objectOffset: 0 }];
+      for (const [index, part] of parts.entries()) {
+        const block = part.paragraph;
+        if (parts.length > 1 && block.type === 'paragraph') {
+          fragments.set(block, {
+            offset: part.offset,
+            objectOffset: part.objectOffset,
+          });
+          if (index > 0) flush();
+        }
+        const forceBreak =
+          block.type === 'paragraph' &&
+          block.properties?.pageBreakBefore === true;
+        const measured = measuredHeights.get(docxLayoutBlockKey(block));
+        const units = measured ? (measured * 0.75) / 13.8 : blockUnits(block);
+        if (
+          (forceBreak || used + units > pageCapacity(geometry)) &&
+          current.length
+        )
+          flush();
+        current.push(block);
+        used += units;
+      }
     }
   }
   if (

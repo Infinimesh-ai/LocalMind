@@ -15,6 +15,16 @@ export type CopilotTaskAction =
   | 'reject'
   | 'resume';
 
+export function isStaleOfficeCommandFailure(
+  task: Pick<CopilotTask, 'workflow' | 'status' | 'failureMessage'>
+) {
+  return (
+    task.workflow === 'agent_runtime_office_command' &&
+    task.status === 'failed' &&
+    task.failureMessage === 'Office artifact revision conflict'
+  );
+}
+
 const activeStatuses = new Set(['queued', 'running']);
 const completedStatuses = new Set(['completed', 'cancelled']);
 

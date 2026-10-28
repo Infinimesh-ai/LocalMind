@@ -1967,3 +1967,48 @@ test('stream protocol failures record diagnostics without disabling or re-enabli
     'late errors must not overwrite diagnostics on a rotated key'
   );
 });
+
+test('workspace credential name collisions stay unique under concurrent creation and preserve revisions on rejected rename', async t => {
+  const { user, workspace } = await createUserWorkspace(t);
+  const model = t.context.models.copilotWorkspaceByokConfig;
+  const input = {
+    workspaceId: workspace.id,
+    provider: 'openai',
+    name: 'Primary',
+    description: null,
+    encryptedApiKey: 'synthetic-encrypted-key',
+    endpoint: null,
+    modelId: 'test-model',
+    sortOrder: 0,
+    enabled: true,
+    userId: user.id,
+  };
+  const results = await Promise.allSettled([
+    model.upsert(input),
+    model.upsert(input),
+  ]);
+  t.is(results.filter(result => result.status === 'fulfilled').length, 1);
+  const rejected = results.find(result => result.status === 'rejected');
+  t.is(
+    rejected?.status === 'rejected' ? rejected.reason.message : null,
+    'A BYOK credential with this name already exists for this workspace and provider.'
+  );
+  const second = await model.upsert({ ...input, name: 'Secondary' });
+  await t.throwsAsync(
+    model.upsert({
+      ...input,
+      id: second.id,
+      expectedRevision: second.configRevision,
+    }),
+    {
+      message:
+        'A BYOK credential with this name already exists for this workspace and provider.',
+    }
+  );
+  const unchanged = await model.get(second.id);
+  t.is(unchanged?.name, 'Secondary');
+  t.is(unchanged?.configRevision, second.configRevision);
+  await t.notThrowsAsync(model.upsert({ ...input, provider: 'gemini' }));
+  const another = await t.context.models.workspace.create(user.id);
+  await t.notThrowsAsync(model.upsert({ ...input, workspaceId: another.id }));
+});

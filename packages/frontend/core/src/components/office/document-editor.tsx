@@ -4,6 +4,8 @@ import {
   captureOfficeSelection,
   collectDocxParagraphs,
   type DocxBlock,
+  docxLayoutBlockKey,
+  docxPageFragment,
   type DocxParagraph,
   type DocxRunContent,
   docxRunContentText,
@@ -260,15 +262,17 @@ function Paragraph({
   onObjectEdit: ObjectEditHandler;
 }) {
   const i18n = useI18n();
-  let runOffset = 0;
-  let objectIndex = 0;
+  const fragment = docxPageFragment(paragraph);
+  let runOffset = fragment?.offset ?? 0;
+  let objectIndex = fragment?.objectOffset ?? 0;
   const outlineLevel = paragraph.properties?.outlineLevel;
   return (
     <p
-      id={`office-block-${encodeURIComponent(paragraph.id)}`}
+      id={`office-block-${encodeURIComponent(fragment?.offset ? docxLayoutBlockKey(paragraph) : paragraph.id)}`}
       className={styles.paragraph}
       data-office-block-id={paragraph.id}
-      data-office-layout-block={paragraph.id}
+      data-office-fragment-offset={fragment?.offset}
+      data-office-layout-block={docxLayoutBlockKey(paragraph)}
       data-office-order={order}
       data-created-resource-focus-target
       data-outline-level={outlineLevel}
@@ -1881,6 +1885,7 @@ function Toolbar({
 export function DocumentEditor({
   state: remoteState,
   revision,
+  latestRevisionId,
   artifactId,
   owner,
   graphql,
@@ -1892,6 +1897,7 @@ export function DocumentEditor({
 }: {
   state: DocxSemanticState;
   revision: Revision;
+  latestRevisionId?: string;
   artifactId: string;
   owner: OfficeResourceOwner;
   graphql: GraphQLService;
@@ -1950,6 +1956,7 @@ export function DocumentEditor({
     [i18n, owner]
   );
   const session = useDocumentSession({
+    latestRevisionId,
     remoteState,
     revision,
     artifactId,
@@ -2428,6 +2435,10 @@ export function DocumentEditor({
 
   useOfficeEditorDraft(registerDraft, {
     hasUnsavedChanges: session.dirty,
+    recoveryText: () =>
+      collectDocxParagraphs(session.state.body)
+        .map(paragraph => paragraph.text)
+        .join('\n'),
     save: session.save,
     discard: session.discard,
     pauseAutosave: session.pauseAutosave,

@@ -77,6 +77,8 @@ export function cellDisplay(
 ) {
   if (!cell) return '';
   if (cell.formula && cell.calculationError) {
+    if (cell.calculationError === 'XLSX formula references a missing worksheet')
+      return '#REF!';
     return cell.calculationError ===
       'XLSX formula contains a circular reference'
       ? '#CYCLE!'

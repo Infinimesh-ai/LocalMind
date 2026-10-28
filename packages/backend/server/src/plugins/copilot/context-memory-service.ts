@@ -1,3 +1,5 @@
+import { deriveContextMemoryFactKey } from '../../models/common/context-memory-fact-key';
+export { deriveContextMemoryFactKey } from '../../models/common/context-memory-fact-key';
 import { createHash } from 'node:crypto';
 
 import {
@@ -36,6 +38,9 @@ import {
   CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   CONTEXT_PLANNER_STRATEGY_VERSION,
   type ContextPlannerCheckpoint,
+  LAYERED_CONTEXT_PLANNER_STRATEGY_CONFIG,
+  LAYERED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+  LAYERED_CONTEXT_PLANNER_STRATEGY_VERSION,
   LEGACY_CONTEXT_PLANNER_STRATEGY_CONFIG,
   LEGACY_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION,
@@ -52,6 +57,39 @@ import {
 import { buildStructuredResponseContract } from './runtime/contracts';
 
 const MEMORY_WRITER_VERSION = 'structured-memory-writer/v3-shared-project';
+export type MemoryCaptureRejection =
+  | 'unshared_sources'
+  | 'shared_memory_changed'
+  | 'persisted_turn_missing'
+  | 'membership_changed'
+  | 'conversation_changed'
+  | 'invalid_scope'
+  | 'auto_memory_disabled'
+  | 'extraction_unavailable'
+  | 'write_failed';
+
+export function memoryCaptureRejection(error: unknown): MemoryCaptureRejection {
+  if (!(error instanceof Error)) return 'write_failed';
+  if (
+    error.message.startsWith(
+      'Shared Project memory previously recalled in this conversation changed or was withdrawn.'
+    )
+  )
+    return 'shared_memory_changed';
+  if (
+    error.message.includes(
+      'conversation contains private or unverified sources'
+    )
+  )
+    return 'unshared_sources';
+  if (error.message.includes('Project memory requires a persisted user turn'))
+    return 'persisted_turn_missing';
+  if (error.message.includes('Project memory membership changed'))
+    return 'membership_changed';
+  if (error.message.includes('Memory conversation owner does not match'))
+    return 'conversation_changed';
+  return 'write_failed';
+}
 const SECRET_PATTERN = new RegExp(
   [
     '\\b(password|passwd|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|private[_ -]?key|client[_ -]?secret|bearer)\\b\\s*(?:[:=]|\\bis\\b|是)',
@@ -87,6 +125,8 @@ const IMPLICIT_CANDIDATE_PATTERN =
   /\b(?:i|we|our|my)\s+(?:prefer|use|decided|selected|work|deploy|need)|\b(?:codename|deployment region|timezone)\b[^.!?\n]{0,80}(?:\bis\b|\bare\b|:|=)|我(?:们)?(?:喜欢|偏好|决定|选择|使用)|(?:代号|部署区域|时区)[^。！？\n]{0,80}(?:是|为|：|:|=)/iu;
 const IMPLICIT_QUESTION_OR_REQUEST_PATTERN =
   /^(?:please\s+)?(?:tell|show|explain|answer|reply|say)\b|\b(?:if|whether)\b|^(?:请)?(?:告诉|说明|解释|回答|回复)/iu;
+const MEMORY_REFERENCE_PATTERN =
+  /^(?:(?:它们|它|这些|这个|这件事|这项|上述(?:内容|事实)?)(?=$|[\s，,、；;：:。]|作为|并|供|用于)|(?:it|this|that|these)\b)/iu;
 
 const MemoryWriterDecisionSchema = z.object({
   operation: z.enum(['ADD', 'UPDATE', 'DELETE', 'NOOP']),
@@ -150,39 +190,10 @@ function stripExplicitDirective(content: string) {
   );
 }
 
-export function deriveContextMemoryFactKey(content: string) {
-  const normalized = normalize(content).toLocaleLowerCase();
-  if (
-    /\b(?:answer|respond|response|reply|preference)\b.*\b(?:english|chinese)\b|(?:english|chinese).*(?:answer|respond|response|reply)|(?:回答|回复).*(?:中文|英文)|(?:中文|英文).*(?:回答|回复)/iu.test(
-      normalized
-    )
-  ) {
-    return 'preference:response_language';
-  }
-  if (/\bdeployment region\b|部署区域/iu.test(normalized)) {
-    return 'project:deployment_region';
-  }
-  if (/\bcodename\b|代号/iu.test(normalized)) return 'project:codename';
-  if (/\btimezone\b|时区/iu.test(normalized)) return 'preference:timezone';
-
-  const fact = normalized.match(
-    /^(?:my |our |the )?([\p{L}\p{N}_ -]{2,80}?)\s*(?:is|are|=|:|：|是|为)\s*\S/iu
-  );
-  if (fact?.[1]) {
-    return `fact:${fact[1].replace(/\s+/g, '_').slice(0, 80)}`;
-  }
-  const terms = normalized
-    .replace(/[^\p{L}\p{N}_ -]+/gu, ' ')
-    .split(/\s+/u)
-    .filter(Boolean)
-    .slice(0, 8)
-    .join('_');
-  return terms ? `statement:${terms.slice(0, 120)}` : null;
-}
-
 export function extractExplicitMemoryDecisions(content: string) {
   const decisions: CopilotContextMemoryWriterDecision[] = [];
-  for (const candidate of splitMemoryCandidates(content)) {
+  const candidates = splitMemoryCandidates(content);
+  for (const [index, candidate] of candidates.entries()) {
     if (
       candidate.length > 500 ||
       /[?？]/u.test(candidate) ||
@@ -192,24 +203,45 @@ export function extractExplicitMemoryDecisions(content: string) {
     ) {
       continue;
     }
-    const value = stripExplicitDirective(candidate);
+    let value = stripExplicitDirective(candidate);
     if (!value) continue;
     const operation = EXPLICIT_DELETE_PATTERN.test(candidate)
       ? 'DELETE'
       : EXPLICIT_UPDATE_PATTERN.test(candidate)
         ? 'UPDATE'
         : 'ADD';
+    const reference =
+      operation === 'ADD' && MEMORY_REFERENCE_PATTERN.test(value);
+    if (reference) {
+      // Resolve only a single, factual preceding sentence in the same turn.
+      // Cross-turn or multi-sentence references require user clarification.
+      const preceding =
+        index === 1 && candidates.length === 2 ? candidates[0] : '';
+      value =
+        preceding &&
+        preceding.length <= 500 &&
+        !/[?？]/u.test(preceding) &&
+        !EXPLICIT_ADD_PATTERN.test(preceding) &&
+        !EXPLICIT_DELETE_PATTERN.test(preceding) &&
+        !EXPLICIT_UPDATE_PATTERN.test(preceding) &&
+        IMPLICIT_CANDIDATE_PATTERN.test(preceding)
+          ? preceding.replace(/[.!。！\s]+$/gu, '')
+          : '';
+    }
     decisions.push({
-      operation,
-      factKey: deriveContextMemoryFactKey(value),
-      content: operation === 'DELETE' ? null : value,
+      operation: reference && !value ? 'NOOP' : operation,
+      factKey: value ? deriveContextMemoryFactKey(value) : null,
+      content: operation === 'DELETE' || !value ? null : value,
       confidence: 1,
       importance: 0.8,
       sensitivity: 'private',
       validFrom: new Date(),
       validUntil: null,
       expiresAt: null,
-      reasonCode: 'explicit_user_directive',
+      reasonCode:
+        reference && !value
+          ? 'ambiguous_memory_reference'
+          : 'explicit_user_directive',
     });
   }
   return decisions.slice(0, 8);
@@ -355,6 +387,12 @@ export class ContextMemoryService implements OnModuleInit {
         fingerprint: CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
         status: 'active',
         config: CONTEXT_PLANNER_STRATEGY_CONFIG,
+      }),
+      this.models.copilotContextMemory.ensureStrategyRevision({
+        version: LAYERED_CONTEXT_PLANNER_STRATEGY_VERSION,
+        fingerprint: LAYERED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+        status: 'archived',
+        config: LAYERED_CONTEXT_PLANNER_STRATEGY_CONFIG,
       }),
       this.models.copilotContextMemory.ensureStrategyRevision({
         version: UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION,
@@ -930,9 +968,13 @@ export class ContextMemoryService implements OnModuleInit {
     turn?: Turn;
     scope?: ContextScopeResolution;
     modelId?: string;
+    onRejected?: (reason: MemoryCaptureRejection) => void;
   }) {
     if (!input.turn || input.turn.role !== 'user') return [];
     const workspaceId = input.workspaceId;
+    const events: Awaited<
+      ReturnType<Models['copilotContextMemory']['applyWriterDecision']>
+    >[] = [];
     try {
       const explicitDecisions = extractExplicitMemoryDecisions(
         input.turn.content
@@ -944,7 +986,10 @@ export class ContextMemoryService implements OnModuleInit {
         return [];
       }
       const projectIds = input.docId ? [] : (input.scope?.projectIds ?? []);
-      if (!workspaceId && projectIds.length !== 1) return [];
+      if (!workspaceId && projectIds.length !== 1) {
+        input.onRejected?.('invalid_scope');
+        return [];
+      }
       const session = await this.models.copilotSession.getMeta(input.sessionId);
       if (
         !session ||
@@ -953,14 +998,21 @@ export class ContextMemoryService implements OnModuleInit {
         (projectIds.length === 1 &&
           session.selectedContextProjectId !== projectIds[0])
       ) {
+        input.onRejected?.('conversation_changed');
         return [];
       }
       if (!explicitDecisions.length) {
-        if (projectIds.length === 1 && !session.allowMemoryCapture) return [];
+        if (projectIds.length === 1 && !session.allowMemoryCapture) {
+          input.onRejected?.('auto_memory_disabled');
+          return [];
+        }
         const settings = input.workspaceId
           ? await this.getSettings(input.userId, input.workspaceId)
           : await this.getProjectSettings(input.userId, projectIds[0]);
-        if (!settings.autoMemoryEnabled) return [];
+        if (!settings.autoMemoryEnabled) {
+          input.onRejected?.('auto_memory_disabled');
+          return [];
+        }
       }
       // A rejected project scope must never become a broader memory target.
       if (
@@ -970,6 +1022,7 @@ export class ContextMemoryService implements OnModuleInit {
             (projectIds.length !== 1 ||
               projectIds[0] !== input.scope.selectedProjectId)))
       ) {
+        input.onRejected?.('invalid_scope');
         return [];
       }
       const readableDocIds =
@@ -1000,13 +1053,17 @@ export class ContextMemoryService implements OnModuleInit {
                   },
                 ]
               : [];
-      if (!targets.length) return [];
+      if (!targets.length) {
+        input.onRejected?.('invalid_scope');
+        return [];
+      }
 
       const targetsWithSources = targets.map(target => ({
         ...target,
         sourceDocuments: undefined,
       }));
       if (targetsWithSources.some(target => workspaceId && target.projectId)) {
+        input.onRejected?.('invalid_scope');
         return [];
       }
 
@@ -1021,6 +1078,7 @@ export class ContextMemoryService implements OnModuleInit {
             sessionId: input.sessionId,
           });
         } catch (error) {
+          input.onRejected?.('extraction_unavailable');
           this.logger.warn(
             'Structured implicit memory extraction failed; the chat turn will continue',
             { sessionId: input.sessionId, error }
@@ -1029,7 +1087,6 @@ export class ContextMemoryService implements OnModuleInit {
         }
       }
 
-      const events = [];
       for (const [index, originalDecision] of decisions.entries()) {
         const decision = sanitizeContextMemoryWriterDecision(
           originalDecision,
@@ -1104,11 +1161,13 @@ export class ContextMemoryService implements OnModuleInit {
       }
       return events;
     } catch (error) {
+      const reasonCode = memoryCaptureRejection(error);
+      input.onRejected?.(reasonCode);
       this.logger.warn('Failed to capture durable context memory', {
         sessionId: input.sessionId,
-        error,
+        reasonCode,
       });
-      return [];
+      return events;
     }
   }
 

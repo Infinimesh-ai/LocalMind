@@ -4,6 +4,14 @@ query copilotWorkbenchSourceAuthorizationGet(
 ) {
   currentUser {
     copilot {
+      workbenchMemorySourceAuthorizations(workspaceId: $workspaceId, docId: $docId) {
+        grantId
+        projectId
+        projectName
+        status
+        revision
+        memoryCount
+      }
       workbenchAccessRequests(
         view: "source"
         workspaceId: $workspaceId

@@ -621,6 +621,19 @@ globalStyle(`${centerState} span`, {
   lineHeight: '20px',
 });
 
+export const draftPreview = style({
+  width: '100%',
+  minHeight: 120,
+  maxHeight: 280,
+  marginBottom: 16,
+  padding: 12,
+  color: 'inherit',
+  background: 'transparent',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 8,
+  resize: 'vertical',
+});
+
 export const draftActions = style({
   display: 'flex',
   gap: 8,

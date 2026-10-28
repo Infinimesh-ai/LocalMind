@@ -10,6 +10,7 @@ import {
   getWorkspaceDocPath,
 } from '@affine/core/desktop/route-paths';
 import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
+import { isStaleOfficeCommandFailure } from '@affine/core/modules/copilot-tasks/utils';
 import {
   projectErrorMessage,
   reportProjectError,
@@ -971,11 +972,13 @@ const GlobalTaskDetail = ({
             {t['com.affine.localmind.tasks.failure']()}
           </h2>
           <p className={styles.detailSectionText} data-failure="true">
-            {t['com.affine.localmind.project-error.failed']()}
+            {isStaleOfficeCommandFailure(task.run)
+              ? t['com.affine.office.ai-revision-conflict']()
+              : t['com.affine.localmind.project-error.failed']()}
           </p>
         </section>
       ) : null}
-      {task.run?.resultSummary ? (
+      {task.run?.resultSummary && !isStaleOfficeCommandFailure(task.run) ? (
         <section className={styles.detailSection}>
           <h2 className={styles.detailSectionTitle}>
             {t['com.affine.localmind.tasks.result']()}

@@ -11,7 +11,7 @@ import { metrics, wrapCallMetric } from '../../metrics';
 import { QueueRedis } from '../../redis';
 import { genRequestId } from '../../utils';
 import { JOB_SIGNAL, namespace, Queue, QUEUES } from './def';
-import { JobHandlerScanner } from './scanner';
+import { type JobExecution, JobHandlerScanner } from './scanner';
 
 @Injectable()
 export class JobExecutor implements OnModuleDestroy {
@@ -59,7 +59,8 @@ export class JobExecutor implements OnModuleDestroy {
   async run<T extends JobName>(
     name: T,
     payload: Jobs[T],
-    jobId?: string
+    jobId?: string,
+    execution?: JobExecution
   ): Promise<JOB_SIGNAL | undefined> {
     const ns = namespace(name);
     const handler = this.scanner.getHandler(name);
@@ -75,7 +76,7 @@ export class JobExecutor implements OnModuleDestroy {
         try {
           const ts = Date.now();
           this.logger.verbose(`Job started: ${signature}`, payload);
-          const ret = await handler.fn(payload);
+          const ret = await handler.fn(payload, execution);
           this.logger.verbose(`Job finished: ${signature}`, {
             signature,
             signal: ret,
@@ -135,7 +136,10 @@ export class JobExecutor implements OnModuleDestroy {
 
           return await cls.run(async () => {
             cls.set(CLS_ID, requestId);
-            return await this.run(job.name as JobName, payload, job.id);
+            return await this.run(job.name as JobName, payload, job.id, {
+              attempt: job.attemptsMade + 1,
+              maxAttempts: job.opts.attempts || 1,
+            });
           });
         },
         merge({}, this.config.job.queue, this.config.job.worker, queueOptions, {

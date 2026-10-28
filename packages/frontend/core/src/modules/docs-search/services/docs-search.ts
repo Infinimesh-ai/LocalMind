@@ -124,7 +124,8 @@ export class DocsSearchService extends Service {
   search$(
     query: string,
     prefer: IndexerPreferOptions = 'remote',
-    limit = 50
+    limit = 50,
+    options: { requireAllTerms?: boolean } = {}
   ): Observable<
     {
       docId: string;
@@ -134,6 +135,22 @@ export class DocsSearchService extends Service {
       blockContent?: string;
     }[]
   > {
+    // Resource filtering must require every whitespace/punctuation-separated
+    // term. The ranked search default intentionally matches any analyzed token,
+    // so an identifier such as NO_MATCH_FIXED_8412 otherwise matches "FIXED".
+    const terms = options.requireAllTerms
+      ? [...new Set(query.split(/[\s\p{P}\p{Z}]+/u).filter(Boolean))]
+      : [query];
+    if (!terms.length) return of([]);
+    const contentQuery = {
+      type: 'boolean' as const,
+      occur: 'must' as const,
+      queries: terms.map(match => ({
+        type: 'match' as const,
+        field: 'content' as const,
+        match,
+      })),
+    };
     return this.indexer
       .aggregate$(
         'block',
@@ -141,20 +158,12 @@ export class DocsSearchService extends Service {
           type: 'boolean',
           occur: 'must',
           queries: [
-            {
-              type: 'match',
-              field: 'content',
-              match: query,
-            },
+            contentQuery,
             {
               type: 'boolean',
               occur: 'should',
               queries: [
-                {
-                  type: 'match',
-                  field: 'content',
-                  match: query,
-                },
+                contentQuery,
                 {
                   type: 'boost',
                   boost: 1.5,

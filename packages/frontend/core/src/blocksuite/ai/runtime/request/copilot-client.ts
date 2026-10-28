@@ -7,6 +7,7 @@ import {
   addContextCategoryMutation,
   addContextDocMutation,
   addContextFileMutation,
+  cancelPendingCopilotMessageMutation,
   cleanupCopilotSessionMutation,
   cleanupProjectCopilotSessionsMutation,
   copilotContextSessionScopeQuery,
@@ -200,6 +201,14 @@ export class CopilotClient {
     } catch (err) {
       throw resolveError(err);
     }
+  }
+
+  async cancelPendingMessage(sessionId: string, messageId: string) {
+    const result = await this.gql({
+      query: cancelPendingCopilotMessageMutation,
+      variables: { sessionId, messageId },
+    });
+    return result.cancelPendingCopilotMessage;
   }
 
   async getSession(workspaceId: string, sessionId: string) {

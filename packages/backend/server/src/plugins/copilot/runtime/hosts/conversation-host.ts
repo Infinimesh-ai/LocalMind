@@ -8,7 +8,10 @@ import {
 } from '../../../../base';
 import { CopilotAccessPolicy } from '../../access';
 import { CompatSubmissionStore } from '../../compat/submission-store';
-import { ContextMemoryService } from '../../context-memory-service';
+import {
+  ContextMemoryService,
+  type MemoryCaptureRejection,
+} from '../../context-memory-service';
 import {
   canonicalizeTurnTrace,
   promptMessageFromTurn,
@@ -267,11 +270,17 @@ export class ConversationHost {
       retry,
       byokLeaseId
     );
+    if (appended.turn?.metadata.cancelledBeforeGeneration && !retry) {
+      throw new BadRequest(
+        'Message generation was cancelled before it started.'
+      );
+    }
     const currentUserMessage =
       session.stashTurns.findLast(turn => turn.role === 'user') ??
       appended.turn;
     let receipt: string | undefined;
     if (currentUserMessage) {
+      let rejection: MemoryCaptureRejection | undefined;
       const events = await this.contextMemory?.captureDurableTurn({
         userId,
         workspaceId: session.config.workspaceId,
@@ -280,16 +289,17 @@ export class ConversationHost {
         turn: currentUserMessage,
         scope: session.contextScope,
         modelId: session.model,
+        onRejected: reason => {
+          rejection = reason;
+        },
       });
       receipt = memoryCaptureReceipt({
         content: currentUserMessage.content,
         userId,
         workspaceId: session.config.workspaceId,
-        projectId:
-          !session.config.docId &&
-          session.contextScope?.projectIds?.length === 1
-            ? session.contextScope.projectIds[0]
-            : null,
+        projectId: !session.config.docId
+          ? (session.config.selectedContextProjectId ?? null)
+          : null,
         sessionId,
         turnId: currentUserMessage.id,
         documentScoped: Boolean(
@@ -297,6 +307,7 @@ export class ConversationHost {
           session.contextScope?.readableDocIds?.length === 1
         ),
         events: events ?? [],
+        rejection,
       });
       await session.refreshContextMemories(currentUserMessage.content);
     }

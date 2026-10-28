@@ -19,6 +19,7 @@ import type { Request, Response } from 'express';
 import {
   BehaviorSubject,
   catchError,
+  EMPTY,
   filter,
   finalize,
   from,
@@ -664,6 +665,12 @@ export class CopilotController implements BeforeApplicationShutdown {
       );
 
       info.model = prepared.model;
+      if (signal.aborted) {
+        for await (const _chunk of prepared.stream) {
+          /* persist cancellation */
+        }
+        return EMPTY;
+      }
       metrics.ai.counter('chat_stream_calls').add(1, { model: prepared.model });
       this.ongoingStreamCount$.next(this.ongoingStreamCount$.value + 1);
 
@@ -714,6 +721,12 @@ export class CopilotController implements BeforeApplicationShutdown {
       );
 
       info.model = prepared.model;
+      if (signal.aborted) {
+        for await (const _chunk of prepared.stream) {
+          /* persist cancellation */
+        }
+        return EMPTY;
+      }
       metrics.ai.counter('chat_object_stream_calls').add(1, {
         model: prepared.model,
       });

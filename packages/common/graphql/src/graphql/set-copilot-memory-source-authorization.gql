@@ -1,0 +1,10 @@
+mutation setCopilotMemorySourceAuthorization($input: SetCopilotMemorySourceAuthorizationInput!) {
+  setCopilotMemorySourceAuthorization(input: $input) {
+    id
+    status
+    revision
+    restoredCount
+    quarantinedCount
+    deferredCount
+  }
+}

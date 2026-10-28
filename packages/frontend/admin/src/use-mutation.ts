@@ -64,7 +64,9 @@ export function useMutation(
   );
 }
 
-// use this to revalidate all queries that match the filter
+// Invalidate every cached variant, including unmounted queries. Admin disables
+// mount revalidation, so merely revalidating mounted hooks leaves old data in
+// inactive lists and selectors. Clearing their data makes the next read fetch.
 export const useMutateQueryResource = () => {
   const { mutate } = useSWRConfig();
   const revalidateResource = useMemo(
@@ -75,17 +77,21 @@ export const useMutateQueryResource = () => {
           vars: RecursiveMaybeFields<QueryVariables<Q>>
         ) => boolean = _vars => true
       ) => {
-        return mutate(key => {
-          const res =
-            Array.isArray(key) &&
-            key[0] === 'cloud' &&
-            key[1] === query.id &&
-            varsFilter(key[2]);
-          if (res) {
-            console.debug('revalidate resource', key);
-          }
-          return res;
-        });
+        return mutate(
+          key => {
+            const res =
+              Array.isArray(key) &&
+              key[0] === 'cloud' &&
+              key[1] === query.id &&
+              varsFilter(key[2]);
+            if (res) {
+              console.debug('revalidate resource', key);
+            }
+            return res;
+          },
+          undefined,
+          { revalidate: true }
+        );
       },
     [mutate]
   );

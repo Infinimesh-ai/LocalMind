@@ -117,6 +117,10 @@ export function memoryEventLabel(
       return t['com.affine.localmind.workbench.fusion.eventUpdated']();
     case 'DELETE':
       return t['com.affine.localmind.workbench.fusion.eventDeleted']();
+    case 'PAUSE':
+      return t['com.affine.localmind.project-memory.paused-event']();
+    case 'RESUME':
+      return t['com.affine.localmind.project-memory.resumed-event']();
     case 'WITHDRAW':
       return t['com.affine.localmind.workbench.fusion.eventWithdrawn']();
     case 'PENDING_CONFLICT':

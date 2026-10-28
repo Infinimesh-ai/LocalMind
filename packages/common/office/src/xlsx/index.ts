@@ -1,4 +1,5 @@
 export * from './address';
+export * from './compatibility';
 export * from './edit';
 export * from './formula';
 export * from './package';

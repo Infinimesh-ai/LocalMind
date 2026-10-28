@@ -526,6 +526,20 @@ export class AIChatInput extends SignalWatcher(
     }
   }
 
+  protected override updated(changedProperties: PropertyValues): void {
+    super.updated(changedProperties);
+    if (!changedProperties.has('runtimeSnapshot')) return;
+    const previous = changedProperties.get('runtimeSnapshot') as
+      | AIChatSnapshot
+      | null
+      | undefined;
+    const text = this.runtimeSnapshot?.composer.text;
+    if (text && text !== previous?.composer.text && !this.textarea.value) {
+      this.textarea.value = text;
+      this.isInputEmpty = false;
+    }
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this._internalDropCleanup?.();

@@ -7,6 +7,11 @@ import {
   openDocxPackage,
   readDocxSemanticState,
 } from '@localmind/office/docx';
+import {
+  applyXlsxCommand,
+  openXlsxPackage,
+  readXlsxSemanticState,
+} from '@localmind/office/xlsx';
 import { OfficeArtifactKind } from '@prisma/client';
 import test from 'ava';
 import type { Response } from 'express';
@@ -27,12 +32,31 @@ function fixture(
   owner: OfficeOwner,
   legacy = true,
   legacyFields = false,
-  legacyObjects = false
+  legacyObjects = false,
+  format: 'docx' | 'xlsx' = 'docx',
+  legacyBreaks = false
 ) {
   let packageBytes = Buffer.from(
-    createNativeFile({ format: 'docx', paragraphs: [{ text: 'Layout view' }] })
-      .bytes
+    createNativeFile(
+      format === 'docx'
+        ? { format: 'docx', paragraphs: [{ text: 'Layout view' }] }
+        : { format: 'xlsx', sheets: [{ name: 'Budget', rows: [[1]] }] }
+    ).bytes
   );
+  if (format === 'xlsx')
+    packageBytes = Buffer.from(
+      applyXlsxCommand(openXlsxPackage(packageBytes), {
+        version: 'localmind-office-command/v1',
+        commandId: 'missing',
+        idempotencyKey: 'missing',
+        artifactId: 'artifact-1',
+        expectedRevisionId: 'revision-1',
+        source: 'user',
+        operation: 'office.workbook.cell.set',
+        target: { type: 'cell', sheetId: '1', address: 'B2' },
+        input: { type: 'formula', formula: "='NoSuchSheet'!A1" },
+      }).packageBytes
+    );
   if (legacyFields) {
     const pkg = openDocxPackage(packageBytes);
     const xml = Buffer.from(pkg.requirePart(pkg.documentPart))
@@ -62,10 +86,45 @@ function fixture(
       }).packageBytes
     );
   }
-  const state = readDocxSemanticState(openDocxPackage(packageBytes));
-  if (legacy)
+  if (legacyBreaks) {
+    const pkg = openDocxPackage(packageBytes);
+    packageBytes = Buffer.from(
+      applyDocxCommand(pkg, {
+        version: 'localmind-office-command/v1',
+        commandId: 'break',
+        idempotencyKey: 'break',
+        artifactId: 'artifact-1',
+        expectedRevisionId: 'revision-1',
+        source: 'user',
+        operation: 'office.document.break.insert',
+        target: { blockId: readDocxSemanticState(pkg).body[0].id, offset: 6 },
+        breakType: 'page',
+      }).packageBytes
+    );
+  }
+  const state =
+    format === 'docx'
+      ? readDocxSemanticState(openDocxPackage(packageBytes))
+      : readXlsxSemanticState(openXlsxPackage(packageBytes));
+  if (legacyBreaks && 'sections' in state) {
+    delete state.textLayoutVersion;
+    for (const p of state.body)
+      if (p.type === 'paragraph') {
+        p.text = p.text.replaceAll('\f', '\n');
+        p.editingSupported = false;
+      }
+  }
+  if (legacy && 'sections' in state)
     for (const section of state.sections) delete section.endParagraphId;
-  if (legacyFields)
+  if (legacy && 'sheets' in state) {
+    delete state.calculationVersion;
+    for (const cell of state.sheets[0].cells) {
+      if (!cell.formula) continue;
+      delete cell.calculationError;
+      cell.calculatedValue = null;
+    }
+  }
+  if (legacyFields && 'references' in state)
     for (const field of state.references.mailMergeFields)
       delete field.mailMergeSupported;
   const stateBytes = Buffer.from(
@@ -94,7 +153,10 @@ function fixture(
     officeArtifact: {
       get: Sinon.stub().resolves({
         id: 'artifact-1',
-        kind: OfficeArtifactKind.document,
+        kind:
+          format === 'docx'
+            ? OfficeArtifactKind.document
+            : OfficeArtifactKind.workbook,
       }),
       getRevision: Sinon.stub().resolves(revision),
     },
@@ -132,6 +194,73 @@ for (const owner of [
   { projectId: 'project-1' },
 ] satisfies OfficeOwner[]) {
   const label = typeof owner === 'string' ? 'Workspace' : 'Project';
+  test(`${label} derives editable page-break semantics without rewriting old revision evidence`, async t => {
+    const value = fixture(owner, false, false, false, 'docx', true);
+    const before = { ...value.revision };
+    const view = await value.service.readRevisionLayoutState(
+      owner,
+      'actor-1',
+      'artifact-1',
+      'revision-1'
+    );
+    const derived = JSON.parse(view.bytes.toString());
+    t.is(derived.textLayoutVersion, 2);
+    t.is(derived.body[0].text, 'Layout\f view');
+    t.true(derived.body[0].editingSupported);
+    t.false(value.storage.put.called);
+    t.deepEqual(value.revision, before);
+    const raw = await value.service.readRevisionAsset(
+      owner,
+      'actor-1',
+      'artifact-1',
+      'revision-1',
+      'state'
+    );
+    t.deepEqual(raw.bytes, value.stateBytes);
+    t.false(JSON.parse(raw.bytes.toString()).body[0].editingSupported);
+  });
+  test(`${label} derives missing-sheet errors for legacy workbooks without rewriting evidence`, async t => {
+    const value = fixture(owner, true, false, false, 'xlsx');
+    const view = await value.service.readRevisionLayoutState(
+      owner,
+      'actor-1',
+      'artifact-1',
+      'revision-1'
+    );
+    const derived = JSON.parse(view.bytes.toString());
+    t.is(derived.calculationVersion, 2);
+    t.is(
+      derived.sheets[0].cells.find(
+        (cell: { address: string }) => cell.address === 'B2'
+      ).calculationError,
+      'XLSX formula references a missing worksheet'
+    );
+    t.false(value.storage.put.called);
+    const raw = await value.service.readRevisionAsset(
+      owner,
+      'actor-1',
+      'artifact-1',
+      'revision-1',
+      'state'
+    );
+    t.deepEqual(raw.bytes, value.stateBytes);
+    t.is(
+      JSON.parse(raw.bytes.toString()).sheets[0].cells.find(
+        (cell: { address: string }) => cell.address === 'B2'
+      ).calculationError,
+      undefined
+    );
+    value.revision.packageFingerprint = 'sha256:invalid';
+    await t.throwsAsync(
+      value.service.readRevisionLayoutState(
+        owner,
+        'actor-1',
+        'artifact-1',
+        'revision-1'
+      ),
+      { message: /fingerprint does not match/ }
+    );
+  });
   test(`${label} derives legacy object previews without rewriting immutable state`, async t => {
     const value = fixture(owner, false, false, true);
     const view = await value.service.readRevisionLayoutState(

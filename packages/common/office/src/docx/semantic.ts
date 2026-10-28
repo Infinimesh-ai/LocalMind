@@ -23,6 +23,7 @@ import {
 
 export const DOCX_SEMANTIC_STATE_VERSION = 'localmind-office-docx-state/v1';
 export const DOCX_MODEL_VERSION = 'localmind-office-docx-model/v1';
+export const DOCX_TEXT_LAYOUT_VERSION = 2;
 
 export type DocxSemanticLimits = {
   maxBlocks: number;
@@ -276,6 +277,8 @@ export type DocxExternalRelationship = {
 };
 
 export type DocxSemanticState = {
+  /** Logical page breaks use form feed; line breaks continue to use newline. */
+  textLayoutVersion?: number;
   schemaVersion: typeof DOCX_SEMANTIC_STATE_VERSION;
   modelVersion: typeof DOCX_MODEL_VERSION;
   documentPart: string;
@@ -731,7 +734,7 @@ function runText(content: DocxRunContent[]) {
     .map(item => {
       if (item.type === 'text') return item.text;
       if (item.type === 'tab') return '\t';
-      if (item.type === 'break') return '\n';
+      if (item.type === 'break') return item.breakType === 'page' ? '\f' : '\n';
       if (item.type === 'noBreakHyphen') return '\u2011';
       if (item.type === 'softHyphen') return '\u00AD';
       return '';
@@ -1466,6 +1469,7 @@ export function readDocxSemanticState(
 
   return {
     schemaVersion: DOCX_SEMANTIC_STATE_VERSION,
+    textLayoutVersion: DOCX_TEXT_LAYOUT_VERSION,
     modelVersion: DOCX_MODEL_VERSION,
     documentPart: pkg.documentPart,
     body,

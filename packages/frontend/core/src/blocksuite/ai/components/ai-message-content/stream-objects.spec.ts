@@ -19,6 +19,34 @@ import {
   officeToolResultView,
 } from './stream-objects';
 
+test('attachment source is a bounded, escaped inline preview without a public Blob URL', () => {
+  const { container } = renderWorkOrderDraft(undefined, [
+    {
+      type: 'tool-result',
+      toolCallId: 'attachment-call',
+      toolName: 'workspace_blob_read',
+      args: { blob_id: 'file-1' },
+      result: {
+        fileId: 'file-1',
+        fileName: 'amounts.csv',
+        content: '项目,金额\n甲,19\n<script>bad()</script>',
+        chunk: 0,
+        hasMore: true,
+      },
+    },
+  ]);
+  const details = container.querySelector('details');
+  expect(details?.querySelector('summary')?.textContent).toContain(
+    'amounts.csv'
+  );
+  expect(details?.querySelector('pre')?.textContent).toContain(
+    '<script>bad()</script>'
+  );
+  expect(details?.querySelector('script')).toBeNull();
+  expect(details?.querySelector('a')).toBeNull();
+  expect(details?.textContent).toContain('next chunk');
+});
+
 const blockerSuggestion = {
   aiSuggestionId: 'b3b94f5e-936d-4d0e-875a-a0475f612f80',
   confirmationProof: 'hidden-signed-confirmation-proof',
@@ -225,6 +253,33 @@ beforeAll(async () => {
 });
 
 describe('Agent work-order proposal', () => {
+  test('waits for the conversation before accepting draft actions', async () => {
+    let ready = false;
+    const onSend = vi.fn(async () => {});
+    const onRequestRevision = vi.fn(async () => {});
+    const { container, rerender } = renderWorkOrderDraft({
+      canAct: () => ready,
+      onSend,
+      onRequestRevision,
+      labels: { ...proposalLabels, waiting: 'Wait for the response.' },
+    });
+    const feedback = container.querySelector('textarea');
+    const send = [...container.querySelectorAll('button')].find(button =>
+      button.textContent?.includes(proposalLabels.send)
+    );
+    expect(feedback?.disabled).toBe(true);
+    expect(send?.disabled).toBe(true);
+    expect(container.textContent).toContain('Wait for the response.');
+    send?.click();
+    expect(onSend).not.toHaveBeenCalled();
+    ready = true;
+    rerender();
+    expect(feedback?.disabled).toBe(false);
+    expect(send?.disabled).toBe(false);
+    send?.click();
+    await vi.waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+  });
+
   test('shows one card when the Agent returns the same draft twice', () => {
     const { container } = renderWorkOrderDraft(
       {

@@ -9,6 +9,7 @@ import {
   hasRetiredToolContract,
   ToolContractRetiredError,
 } from './common/copilot-tool-contract';
+import { isStaleOfficeCommandFailure } from './common/office-command-conflict';
 import type { CopilotRepairExecutionRecord } from './copilot-repair-execution';
 
 export type CopilotAgentRunStatus =
@@ -5348,6 +5349,11 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     existing: CopilotAgentRunRecord
   ) {
     if (hasRetiredToolContract(existing)) throw new ToolContractRetiredError();
+    if (isStaleOfficeCommandFailure(existing)) {
+      throw new Error(
+        'Office revision changed. Reopen the current file and submit a new edit request.'
+      );
+    }
     if (
       existing.status === 'cancelled' &&
       latestAgentRuntimeControlAction(existing) === 'abandon'

@@ -698,7 +698,10 @@ type ContextMatchedFileChunk {
 }
 
 type ContextWorkspaceEmbeddingStatus {
+  available: Boolean!
   embedded: SafeInt!
+  failed: SafeInt!
+  retryable: SafeInt!
   total: SafeInt!
 }
 
@@ -911,6 +914,7 @@ type Copilot {
   List reminder-only Blockers visible through active global Project membership.
   """
   workbenchBlockers(limit: Int = 50, projectId: ID, statuses: [String!]): [CopilotBlockerType!]!
+  workbenchMemorySourceAuthorizations(docId: String!, workspaceId: String!): [CopilotMemorySourceAuthorizationType!]!
 
   """List project grants on source documents the current user may manage."""
   workbenchProjectGrantsForSource(docId: String, limit: Int = 100, statuses: [String!], workspaceId: String!): [CopilotProjectGrantType!]!
@@ -1724,6 +1728,24 @@ type CopilotHistoriesTypeEdge {
 
 type CopilotInvalidContextDataType {
   contextId: String!
+}
+
+type CopilotMemorySourceAuthorizationResult {
+  deferredCount: Int!
+  id: ID!
+  quarantinedCount: Int!
+  restoredCount: Int!
+  revision: Int!
+  status: String!
+}
+
+type CopilotMemorySourceAuthorizationType {
+  grantId: ID!
+  memoryCount: Int!
+  projectId: ID!
+  projectName: String!
+  revision: Int!
+  status: String!
 }
 
 type CopilotMessageNotFoundDataType {
@@ -4441,6 +4463,14 @@ input CreateUserInput {
   password: String
 }
 
+input CreateWorkspaceFolderPageInput {
+  folderId: ID!
+  primaryMode: String!
+  requestKey: String!
+  title: String!
+  workspaceId: ID!
+}
+
 input CreateWorkspaceNativeResourceInput {
   blobKey: String
   content: JSONObject
@@ -5510,6 +5540,9 @@ type Mutation {
   beginEnterpriseAuthorization(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
   cancelCopilotContextCompaction(taskId: ID!): CopilotContextCompactionTaskType!
   cancelEnterpriseAuthorization(sessionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
+
+  """Cancel a pending chat submission without starting generation"""
+  cancelPendingCopilotMessage(messageId: String!, sessionId: String!): Boolean!
   cancelProjectAgentTask(projectId: String!, runId: String!): ProjectAgentTaskType!
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
   cancelWorkOrder(expectedVersion: Int!, reason: String, requestKey: String!, workOrderId: ID!): WorkOrderMutationResultType!
@@ -5609,6 +5642,7 @@ type Mutation {
 
   """Create a new workspace"""
   createWorkspace(init: Upload): WorkspaceType!
+  createWorkspaceFolderPage(input: CreateWorkspaceFolderPageInput!): WorkspaceFolderPageResult!
   createWorkspaceNativeResource(input: CreateWorkspaceNativeResourceInput!): WorkspaceNativeResourceType!
   deactivateLicense(workspaceId: String!): Boolean!
 
@@ -5828,6 +5862,9 @@ type Mutation {
   retryCopilotSessionDeletion(sessionId: ID!): CopilotSessionDeletionType!
   retryProjectWorkspaceImport(projectId: String!, runId: String!): ProjectWorkspaceImportTaskType!
   retryTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
+
+  """Retry up to 50 failed workspace indexing resources"""
+  retryWorkspaceEmbedding(workspaceId: String!): Int!
   revokeCommercialEntitlement(targetId: String!, targetType: String!): Boolean!
   revokeDocUserRoles(input: RevokeDocUserRoleInput!): Boolean!
   revokeInviteLink(workspaceId: String!): Boolean!
@@ -5852,6 +5889,7 @@ type Mutation {
   setAdminUserAiProfileAssignment(profileId: ID, userId: ID!): AdminUserAiProfileAssignmentType
   setBlob(blob: Upload!, docScopeId: String, workspaceId: String!): String!
   setCopilotContextProjectAiPolicy(input: SetCopilotProjectAiPolicyInput!): CopilotProjectAiPolicyType!
+  setCopilotMemorySourceAuthorization(input: SetCopilotMemorySourceAuthorizationInput!): CopilotMemorySourceAuthorizationResult!
   setProjectByokEnabled(enabled: Boolean!, expectedRevision: SafeInt!): ProjectByokSettingsType!
   setWorkOrderByokEnabled(enabled: Boolean!, expectedRevision: SafeInt!): ProjectByokSettingsType!
   setWorkOrderDeliveryDraftItem(blobIds: [ID!], expectedDraftVersion: Int!, requirementId: ID!, text: String, workOrderId: ID!): WorkOrderDeliveryDraftType!
@@ -7298,6 +7336,13 @@ enum ServerFeature {
   Payment
 }
 
+input SetCopilotMemorySourceAuthorizationInput {
+  enabled: Boolean!
+  expectedRevision: Int!
+  grantId: ID!
+  requestKey: String!
+}
+
 input SetCopilotProjectAiPolicyInput {
   policy: String!
   projectId: ID!
@@ -8216,6 +8261,12 @@ type WorkspaceDocMeta {
   createdBy: EditorType
   updatedAt: DateTime!
   updatedBy: EditorType
+}
+
+type WorkspaceFolderPageResult {
+  documentId: ID!
+  folderId: ID!
+  replayed: Boolean!
 }
 
 """Workspace invite link expire time"""

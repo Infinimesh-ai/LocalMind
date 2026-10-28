@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
 import {
   docxEditPatches,
   formatDocxRange,
+  isEditableParagraph,
   prepareDocxEditing,
   replaceDocxRange,
 } from './docx-session';
@@ -22,6 +23,61 @@ function setup() {
   return { pkg, ...prepareDocxEditing(readDocxSemanticState(pkg)) };
 }
 describe('DOCX editing model', () => {
+  test('toolbar page breaks stay editable and survive typing, formatting and persistence', () => {
+    const { pkg } = setup();
+    const before = readDocxSemanticState(pkg);
+    const broken = applyDocxCommand(pkg, {
+      version: 'localmind-office-command/v1',
+      commandId: 'page',
+      idempotencyKey: 'page',
+      source: 'user',
+      artifactId: 'a',
+      expectedRevisionId: 'r',
+      operation: 'office.document.break.insert',
+      target: { blockId: before.body[0].id, offset: 2 },
+      breakType: 'page',
+    });
+    const { state, identities } = prepareDocxEditing(broken.state);
+    const first = state.body[0];
+    if (first.type !== 'paragraph') throw new Error('expected paragraph');
+    expect(first.text).toBe('你好\f😀世界');
+    expect(isEditableParagraph(first)).toBe(true);
+    const pos = { blockId: first.id, offset: first.text.length };
+    const next = replaceDocxRange(
+      state,
+      { type: 'text_range', start: pos, end: pos },
+      '尾'
+    );
+    const formatted = formatDocxRange(
+      next.state,
+      {
+        type: 'text_range',
+        start: { blockId: first.id, offset: 3 },
+        end: { blockId: first.id, offset: 5 },
+      },
+      { bold: true }
+    );
+    const result = applyDocxCommand(openDocxPackage(broken.packageBytes), {
+      version: 'localmind-office-command/v1',
+      commandId: 'edit-page',
+      idempotencyKey: 'edit-page',
+      source: 'user',
+      artifactId: 'a',
+      expectedRevisionId: 'r',
+      operation: 'office.document.edit',
+      identities,
+      patches: docxEditPatches(state, formatted),
+    });
+    expect(result.state.body[0]).toMatchObject({
+      text: '你好\f😀世界尾',
+      editingSupported: true,
+    });
+    const xml = new TextDecoder().decode(
+      openDocxPackage(result.packageBytes).requirePart(pkg.documentPart)
+    );
+    expect(xml).toContain('type="page"');
+    expect(xml).not.toContain('\f');
+  });
   test('typing does not create an unbounded run for every keystroke', () => {
     let { state } = setup();
     for (let i = 0; i < 100; i++) {

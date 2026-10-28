@@ -32,6 +32,20 @@ reject affected edits explicitly; their existing OOXML is preserved. Filter
 rules remain in exported OOXML, but external Office display/round-trip fidelity
 has not been verified by the current browser acceptance run.
 
+Workspace and Project workbooks offer **Download compatibility copy** for the
+displayed current or historical revision, alongside **Download original version**.
+The derived XLSX repairs missing worksheet relationship namespace declarations
+across every sheet and conventional styles-part references from affected legacy
+exports. It never runs an editing command, recalculates cells, creates a revision
+or replaces stored package/state bytes. Source fingerprints remain immutable;
+the download carries its own fingerprint, source fingerprint and repair version.
+Both entry points enforce live resource ACL. Ambiguous styles, unsafe packages
+and signed packages requiring changes fail explicitly; original downloads remain
+available. Versioned filenames identify the selected revision. See the
+[QA-122 execution record](../ai-modernization/historical-xlsx-compatibility-export.execution.zh-CN.md)
+for browser downloads and LibreOffice/openpyxl validation; this is a bounded
+legacy repair, not a guarantee of arbitrary Excel feature fidelity.
+
 ## AI file creation
 
 The `workspace_file_create` and `project_file_create` tools generate real DOCX,
@@ -290,12 +304,25 @@ footers, notes, comments, revisions, pagination, and font measurement.
 BlockSuite rich text may supply reusable primitives, but it is not the DOCX
 layout or preservation model.
 
+AI appends a separate paragraph with `office.document.paragraph.insert`, using
+the current revision's top-level `afterBlockId`, exact `expectedText`, and new
+`text`. A newline in paragraph replacement remains a soft line break. Insertion
+preserves existing content and valid Word paragraph identities; positional
+legacy identities are made durable before inserting, so they cannot silently
+refer to a different paragraph. Missing, nested or changed anchors are rejected.
+
 ### Sheets
 
 Sheets owns workbook/worksheet state, sparse cells, formula ASTs, dependency
 graphs, deterministic calculation, style registries, named ranges, tables,
 filters, charts, and drawings. AI may author formulas and transformations, but
 only the calculation engine determines cell results.
+
+Missing worksheets produce a calculation error (`#REF!` in the grid), while an
+empty cell in an existing worksheet remains empty. Workbook reads use a
+versioned, authorized calculation view for older cached semantic states. The
+view is derived from fingerprint-verified source bytes; immutable state blobs,
+revision identities and raw state downloads are preserved.
 
 ### Slides
 
@@ -574,8 +601,14 @@ animation, or Microsoft Office-identical rendering. In particular:
   bytes for older revisions without modifying their stored state, fingerprints or
   raw download endpoints. Derived views are private and not cached.
   Pagination uses measured block heights with an estimated fallback. It is
-  still approximate: individual long paragraphs/tables are not split into page
-  fragments, and it is not a Word-identical layout engine. Nested content-control
+  still approximate: individual long paragraphs/tables are not split by measured
+  overflow, and it is not a Word-identical layout engine. Explicit inline page
+  breaks do split physical pages while retaining one source paragraph, object
+  indices and logical selection offsets. `textLayoutVersion=2` represents page
+  breaks with form feed and soft line breaks with newline; editing serializes
+  them back to native `w:br` types. Older page-break states are derived by the
+  authorized `layout-v2` view from fingerprint-verified package bytes without
+  rewriting stored revision evidence. Nested content-control
   section boundaries, multi-column layout, different margins within a continuous
   page and even-page story selection are not yet faithfully rendered.
 - Continuous editing only rebuilds paragraph structures fully represented by
@@ -587,7 +620,9 @@ animation, or Microsoft Office-identical rendering. In particular:
 - DOCX PDF export embeds the bundled Unicode font for Chinese and other
   supported non-Latin characters, with a bundled monochrome Noto Emoji fallback,
   preserves mixed run formatting, and wraps
-  paragraphs with their alignment and spacing. Missing glyphs fail explicitly
+  paragraphs with their alignment and spacing. Supported body inline objects
+  and surrounding text retain source order, middle alignment and paragraph
+  alignment; table text uses one top-to-baseline conversion. Missing glyphs fail explicitly
   instead of silently becoming `?`. CJK bold/italic use synthetic styling and
   the full embedded font increases PDF size. This remains a simplified layout
   pass: table cells retain text formatting, supported images, column-grid widths

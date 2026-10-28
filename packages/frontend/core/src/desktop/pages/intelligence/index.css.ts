@@ -622,8 +622,11 @@ export const orderSwitch = style({
 });
 globalStyle(`${orderSwitch} button`, {
   flex: '1 1 auto',
+  minWidth: 0,
+  maxWidth: '100%',
   minHeight: 28,
-  padding: '0 10px',
+  padding: '6px 10px',
+  overflowWrap: 'anywhere',
   border: 0,
   borderRadius: 9,
   background: 'transparent',

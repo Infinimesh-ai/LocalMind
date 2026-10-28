@@ -9,6 +9,9 @@ import {
   readBrowserWorkbenchState,
 } from './browser-state';
 
+const belongsToWorkbench = (pathname: string, basename: string) =>
+  pathname === basename || pathname.startsWith(basename + '/');
+
 /** Browser history owns the complete pane layout, including the source page. */
 export function useBindWorkbenchToBrowserRouter(
   workbench: Workbench,
@@ -20,19 +23,25 @@ export function useBindWorkbenchToBrowserRouter(
   const lastState = useRef('');
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  const locationRef = useRef(location);
+  locationRef.current = location;
 
   useLayoutEffect(() => {
-    const path = location.pathname + location.search + location.hash;
+    const pathname =
+      location.pathname === basename || location.pathname === basename + '/'
+        ? basename + '/all'
+        : location.pathname;
+    const path = pathname + location.search + location.hash;
     const saved = readBrowserWorkbenchState(location.state, basename, path);
     if (saved && JSON.stringify(saved) === lastState.current) return;
-    if (!location.pathname.startsWith(basename + '/')) return;
+    if (!belongsToWorkbench(location.pathname, basename)) return;
     applying.current = true;
     if (saved) {
       workbench.restoreViews(saved);
     } else {
       const view = workbench.activeView$.value;
       const next = {
-        pathname: location.pathname.slice(basename.length),
+        pathname: pathname.slice(basename.length),
         search: location.search,
         hash: location.hash,
       };
@@ -66,7 +75,10 @@ export function useBindWorkbenchToBrowserRouter(
       return captureWorkbenchState(workbench, basename);
     });
     const subscription = state$.subscribe(state => {
-      if (applying.current) {
+      if (
+        applying.current ||
+        !belongsToWorkbench(locationRef.current.pathname, basename)
+      ) {
         previous = state;
         return;
       }
@@ -96,7 +108,14 @@ export function useBindWorkbenchToBrowserRouter(
       pending = true;
       queueMicrotask(() => {
         pending = false;
-        if (disposed || applying.current) return;
+        if (
+          disposed ||
+          applying.current ||
+          !belongsToWorkbench(locationRef.current.pathname, basename)
+        ) {
+          replace = true;
+          return;
+        }
         const latest = captureWorkbenchState(workbench, basename);
         const serialized = JSON.stringify(latest);
         if (serialized !== lastState.current) {

@@ -20,6 +20,10 @@ const V2_FULLSCREEN_SCRIPT_HASH =
   'jQgUoKP//k3SXA8QwRH2vcq2iC7DpraroFqVlCQBFzQ=';
 const WEB_SCROLL_SCRIPT_HASH = 'PCRGc87DW2uqOrPGEgBdPmg9DdxMPSEqIB4KhL1J7IA=';
 const WEB_REVEAL_RUNTIME_HASH = 'N9dMp7b2wD2wk5mEmjfi0SaAXQdu3klMjYNs9WVuvdI=';
+const WEB_PRESENT_STEP_RUNTIME_HASH =
+  'NblolwZJ4ZkYhiamf5zS2y/p1cSFvD6M/DcxX/hcPiA=';
+const WEB_FIRST_STEP_RUNTIME_HASH =
+  'SEWTROV0Sp44fxqOtnJAkkDBCX5bYpJxN2KayBEv/9g=';
 const attr = (node: Element, name: string) =>
   node.attrs.find(a => a.name === name)?.value;
 const text = (node: Element) =>
@@ -46,6 +50,8 @@ export function upgradeDeckHtml(html: string): string {
   const replacements = new Map([
     [WEB_SCROLL_SCRIPT_HASH, DECK_SHELL_SCRIPT],
     [WEB_REVEAL_RUNTIME_HASH, REPORT_RUNTIME_SCRIPT],
+    [WEB_PRESENT_STEP_RUNTIME_HASH, REPORT_RUNTIME_SCRIPT],
+    [WEB_FIRST_STEP_RUNTIME_HASH, REPORT_RUNTIME_SCRIPT],
   ]);
   if (hashes.some(hash => replacements.has(hash))) {
     // Upgrade exact trusted runtimes and their CSP hashes at read time only.
@@ -56,6 +62,8 @@ export function upgradeDeckHtml(html: string): string {
     ]);
     const runtimeHashes = new Set([
       WEB_REVEAL_RUNTIME_HASH,
+      WEB_PRESENT_STEP_RUNTIME_HASH,
+      WEB_FIRST_STEP_RUNTIME_HASH,
       REPORT_RUNTIME_HASH,
     ]);
     const allowed = new Set([

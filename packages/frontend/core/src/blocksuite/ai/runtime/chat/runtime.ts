@@ -8,6 +8,7 @@ import { I18n } from '@affine/i18n';
 import { ByokNotConfiguredError } from '../../provider/error';
 import type { AIRequestService } from '../request';
 import type { AIChatAction, AIChatSendOptions } from './actions';
+import type { RejectedPromptRecovery } from './rejected-prompt-recovery';
 import type { AIChatSessionStrategy } from './session-strategy';
 import {
   type AIChatContextCompactionTask,
@@ -30,6 +31,7 @@ type RuntimeOptions = {
   strategy: AIChatSessionStrategy;
   chatSurface?: 'intelligence_workbench';
   projectId?: string | null;
+  rejectedPromptRecovery?: RejectedPromptRecovery;
 };
 
 type ContextStatus = 'finished' | 'processing' | 'failed';
@@ -494,6 +496,10 @@ export class AIChatRuntime {
   private async send(options: AIChatSendOptions, retryExisting = false) {
     const content = options.input || this.snapshot.composer.text;
     if (!content.trim() || !this.snapshot.uiPolicy.canSend) return;
+    const recovery = this.options.rejectedPromptRecovery;
+    const actorId = recovery?.actorId();
+    const recoveryScope = this.getScopeKey(this.snapshot.scope);
+    let recoverySessionId = this.snapshot.activeSessionId;
     const userMessage =
       (retryExisting ? this.getLastUserMessage() : null) ??
       this.createMessage('user', content, {
@@ -501,9 +507,11 @@ export class AIChatRuntime {
         ...options.userInfo,
       });
     this.sendOptions.set(userMessage, options);
+    const sendSnapshot = this.snapshot;
     const seq = ++this.requestSeq;
     this.streamAbortController?.abort();
-    this.streamAbortController = new AbortController();
+    const controller = new AbortController();
+    this.streamAbortController = controller;
     this.commit({
       status: 'loading',
       error: null,
@@ -519,37 +527,42 @@ export class AIChatRuntime {
       const session = await this.ensureSession({
         promptName: options.promptName,
       });
-      if (seq !== this.requestSeq) return;
+      if (seq !== this.requestSeq && !controller.signal.aborted) return;
       if (!session) {
         this.commit({ status: 'error', error: new Error('Session not found') });
         return;
       }
-      if (!this.snapshot.activeSessionId) {
+      recoverySessionId = session.sessionId;
+      const stillActive =
+        this.snapshot.activeTabId === sendSnapshot.activeTabId &&
+        this.getScopeKey(this.snapshot.scope) ===
+          this.getScopeKey(sendSnapshot.scope);
+      if (stillActive && !this.snapshot.activeSessionId) {
         this.openSessionObject(session, true);
       }
 
-      this.startContextCompactionPolling(session.sessionId, true);
+      if (!controller.signal.aborted) {
+        this.startContextCompactionPolling(session.sessionId, true);
+      }
 
       const stream = (await this.options.request.executeAction('chat', {
-        workspaceId: this.snapshot.scope.workspaceId,
+        workspaceId: sendSnapshot.scope.workspaceId,
         projectId:
-          this.snapshot.scope.kind === 'project'
-            ? this.snapshot.scope.projectId
+          sendSnapshot.scope.kind === 'project'
+            ? sendSnapshot.scope.projectId
             : undefined,
         docId:
-          'docId' in this.snapshot.scope
-            ? this.snapshot.scope.docId
-            : undefined,
+          'docId' in sendSnapshot.scope ? sendSnapshot.scope.docId : undefined,
         sessionId: session.sessionId,
         input: content,
         onMessageCreated: (messageId: string) =>
           this.submittedUserMessages.set(userMessage, messageId),
         contexts: options.contexts,
-        attachments: options.attachments ?? this.snapshot.composer.attachments,
-        contextId: this.snapshot.composer.context.contextId,
-        reasoning: options.reasoning ?? this.snapshot.composer.reasoning,
-        toolsConfig: options.toolsConfig ?? this.snapshot.composer.toolsConfig,
-        modelId: options.modelId ?? this.snapshot.composer.modelId,
+        attachments: options.attachments ?? sendSnapshot.composer.attachments,
+        contextId: sendSnapshot.composer.context.contextId,
+        reasoning: options.reasoning ?? sendSnapshot.composer.reasoning,
+        toolsConfig: options.toolsConfig ?? sendSnapshot.composer.toolsConfig,
+        modelId: options.modelId ?? sendSnapshot.composer.modelId,
         officeContext: options.officeContext,
         ...(options.reportContext
           ? { reportContext: options.reportContext }
@@ -561,7 +574,7 @@ export class AIChatRuntime {
           ? { chatSurface: this.options.chatSurface }
           : {}),
         stream: true,
-        signal: this.streamAbortController.signal,
+        signal: controller.signal,
       })) as AsyncIterable<string>;
 
       for await (const chunk of stream) {
@@ -569,7 +582,19 @@ export class AIChatRuntime {
         this.appendAssistantContent(chunk);
         this.commit({ status: 'transmitting' });
       }
-      if (seq !== this.requestSeq) return;
+      if (seq !== this.requestSeq) {
+        if (
+          controller.signal.aborted &&
+          this.snapshot.activeSessionId === session.sessionId
+        ) {
+          this.commit({
+            tabs: this.markActiveTabHasMessages(this.snapshot.tabs),
+          });
+          await this.bindActiveSessionToDoc().catch(console.error);
+        }
+        return;
+      }
+      if (actorId) recovery?.clear(actorId, recoveryScope, session.sessionId);
       this.commit({
         status: 'success',
         tabs: this.markActiveTabHasMessages(this.snapshot.tabs),
@@ -582,7 +607,22 @@ export class AIChatRuntime {
       await this.refreshLastMessageId(session.sessionId).catch(console.error);
       await this.bindActiveSessionToDoc().catch(console.error);
     } catch (error) {
-      if (seq !== this.requestSeq) return;
+      if (seq !== this.requestSeq) {
+        if (
+          controller.signal.aborted &&
+          this.snapshot.activeSessionId === recoverySessionId
+        ) {
+          this.commit({ status: 'error', error: this.toError(error) });
+        }
+        return;
+      }
+      if (
+        error instanceof ByokNotConfiguredError &&
+        actorId &&
+        recoverySessionId
+      ) {
+        recovery?.write(actorId, recoveryScope, recoverySessionId, content);
+      }
       this.commit({ status: 'error', error: this.toError(error) });
     }
   }
@@ -610,6 +650,9 @@ export class AIChatRuntime {
       return;
     }
     const seq = ++this.requestSeq;
+    const recovery = this.options.rejectedPromptRecovery;
+    const actorId = recovery?.actorId();
+    const recoveryScope = this.getScopeKey(this.snapshot.scope);
     this.streamAbortController?.abort();
     this.streamAbortController = new AbortController();
     this.commit({
@@ -642,6 +685,12 @@ export class AIChatRuntime {
         this.commit({ status: 'transmitting' });
       }
       if (seq === this.requestSeq) {
+        if (actorId)
+          recovery?.clear(
+            actorId,
+            recoveryScope,
+            this.snapshot.activeSessionId
+          );
         this.commit({ status: 'success' });
         await this.refreshLastMessageId(this.snapshot.activeSessionId).catch(
           console.error
@@ -2067,8 +2116,11 @@ export class AIChatRuntime {
 
   private isEmbeddingCompleted(status: unknown) {
     if (!status || typeof status !== 'object') return false;
-    const { embedded, total } = status as EmbeddingStatus;
-    return embedded === total;
+    const { embedded, total, failed, available } = status as EmbeddingStatus & {
+      failed?: number;
+      available?: boolean;
+    };
+    return available !== false && !failed && embedded === total;
   }
 
   private getContextItemKey(item: AIChatContextItem) {
@@ -2175,6 +2227,15 @@ export class AIChatRuntime {
         : this.snapshot.sessions.map(item =>
             item.sessionId === result.session.sessionId ? result.session : item
           );
+    const recovery = this.options.rejectedPromptRecovery;
+    const actorId = recovery?.actorId();
+    const recoveredText = actorId
+      ? recovery?.read(
+          actorId,
+          this.getScopeKey(this.snapshot.scope),
+          result.session.sessionId
+        )
+      : undefined;
     this.commit({
       tabs,
       sessions,
@@ -2186,7 +2247,10 @@ export class AIChatRuntime {
         : ((result.session.messages ?? []) as AIChatMessage[]).slice(),
       ...(shouldResetComposer
         ? {
-            composer: createInitialComposerState(),
+            composer: {
+              ...createInitialComposerState(),
+              text: recoveredText ?? '',
+            },
             contextCompaction: createInitialContextCompactionState(),
           }
         : {}),
@@ -2311,6 +2375,14 @@ export class AIChatRuntime {
             : undefined,
         sessionIds: [sessionId],
       });
+    const recovery = this.options.rejectedPromptRecovery;
+    const actorId = recovery?.actorId();
+    if (actorId)
+      recovery?.clear(
+        actorId,
+        this.getScopeKey(this.snapshot.scope),
+        sessionId
+      );
     await this.closeTab(sessionId);
   }
 

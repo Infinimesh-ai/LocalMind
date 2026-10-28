@@ -279,6 +279,15 @@ class ContextWorkspaceEmbeddingStatus {
 
   @Field(() => SafeIntResolver)
   embedded!: number;
+
+  @Field(() => SafeIntResolver)
+  failed!: number;
+
+  @Field(() => SafeIntResolver)
+  retryable!: number;
+
+  @Field(() => Boolean)
+  available!: boolean;
 }
 
 @ObjectType()
@@ -463,13 +472,10 @@ export class CopilotContextRootResolver {
       .allowLocal()
       .assert('Workspace.Copilot');
 
-    if (this.context.canEmbedding) {
-      const { total, embedded } =
-        await this.models.copilotWorkspace.getEmbeddingStatus(workspaceId);
-      return { total, embedded };
-    }
-
-    return { total: 0, embedded: 0 };
+    return {
+      ...(await this.models.copilotWorkspace.getEmbeddingStatus(workspaceId)),
+      available: this.context.canEmbedding,
+    };
   }
 }
 

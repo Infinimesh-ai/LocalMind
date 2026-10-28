@@ -32,6 +32,7 @@ export type OfficeResourceHeaderProps = {
   onComments?: () => void;
   onDownload: () => void;
   onExportPdf?: () => void;
+  onExportWorkbook?: () => void;
   onHistory: () => void;
   onLatest: () => void;
   onPrint: () => void;
@@ -53,6 +54,7 @@ export function OfficeResourceHeader({
   onComments,
   onDownload,
   onExportPdf,
+  onExportWorkbook,
   onHistory,
   onLatest,
   onPrint,
@@ -159,13 +161,26 @@ export function OfficeResourceHeader({
             </IconButton>
           </Tooltip>
         ) : null}
+        {onExportWorkbook && capabilities?.canDownload !== false ? (
+          <Button variant="plain" disabled={busy} onClick={onExportWorkbook}>
+            {i18n['com.affine.office.download-compatible-xlsx']()}
+          </Button>
+        ) : null}
         {capabilities?.canDownload !== false ? (
           <IconButton
             size="24"
             onClick={onDownload}
             disabled={busy}
-            tooltip={i18n['com.affine.office.download-native-office-file']()}
-            aria-label={i18n['com.affine.office.download-native-office-file']()}
+            tooltip={i18n[
+              kind === 'workbook'
+                ? 'com.affine.office.download-original-revision'
+                : 'com.affine.office.download-native-office-file'
+            ]()}
+            aria-label={i18n[
+              kind === 'workbook'
+                ? 'com.affine.office.download-original-revision'
+                : 'com.affine.office.download-native-office-file'
+            ]()}
           >
             <DownloadIcon />
           </IconButton>

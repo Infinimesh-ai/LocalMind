@@ -27,6 +27,7 @@ import {
 
 export const XLSX_SEMANTIC_STATE_VERSION = 'localmind-office-xlsx-state/v1';
 export const XLSX_MODEL_VERSION = 'localmind-office-xlsx-model/v1';
+export const XLSX_CALCULATION_VERSION = 2;
 
 export type XlsxCellValue = string | number | boolean | null;
 
@@ -134,6 +135,7 @@ export type XlsxCellStyle = {
 export type XlsxSemanticState = {
   schemaVersion: typeof XLSX_SEMANTIC_STATE_VERSION;
   modelVersion: typeof XLSX_MODEL_VERSION;
+  calculationVersion?: typeof XLSX_CALCULATION_VERSION;
   workbookPart: string;
   activeSheetIndex: number;
   sheets: XlsxWorksheet[];
@@ -730,18 +732,24 @@ function parseWorksheet(
 }
 
 function calculateSheets(sheets: XlsxWorksheet[]) {
-  const sheetByName = new Map(sheets.map(sheet => [sheet.name, sheet]));
+  const sheetByName = new Map(
+    sheets.map(sheet => [sheet.name.toLowerCase(), sheet])
+  );
   const values = new Map<string, XlsxFormulaValue>();
   const visiting = new Set<string>();
   const key = (sheet: string, address: string) => `${sheet}\0${address}`;
   const resolve = (sheetName: string, address: string): XlsxFormulaValue => {
+    const sheet = sheetByName.get(sheetName.toLowerCase());
+    if (!sheet)
+      throw new OoxmlPackageError(
+        'XLSX formula references a missing worksheet'
+      );
     const normalized = parseCellAddress(address).address;
-    const cacheKey = key(sheetName, normalized);
+    const cacheKey = key(sheet.name, normalized);
     if (values.has(cacheKey)) return values.get(cacheKey) ?? null;
     if (visiting.has(cacheKey))
       throw new OoxmlPackageError('XLSX formula contains a circular reference');
-    const sheet = sheetByName.get(sheetName);
-    const cell = sheet?.cells.find(
+    const cell = sheet.cells.find(
       candidate => candidate.address === normalized
     );
     if (!cell) return null;
@@ -944,6 +952,7 @@ export function readXlsxSemanticState(
   return {
     schemaVersion: XLSX_SEMANTIC_STATE_VERSION,
     modelVersion: XLSX_MODEL_VERSION,
+    calculationVersion: XLSX_CALCULATION_VERSION,
     workbookPart: pkg.mainPart,
     activeSheetIndex,
     sheets,

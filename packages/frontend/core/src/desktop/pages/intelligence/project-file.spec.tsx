@@ -1,5 +1,6 @@
 /** @vitest-environment happy-dom */
 import type { ProjectEditGuard } from '@affine/core/modules/project-resources/edit-guard';
+import * as fileDraft from '@affine/core/modules/project-resources/file-draft';
 import { GraphQLError } from '@affine/error';
 import { projectResourceQuery, saveProjectFileMutation } from '@affine/graphql';
 import {
@@ -10,6 +11,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import type * as Infra from '@toeverything/infra';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
@@ -20,19 +22,26 @@ const state = vi.hoisted(() => ({
   gql: vi.fn(),
   refresh: () => undefined as unknown,
   guard: null as ProjectEditGuard | null,
+  accountId: 'user-1',
 }));
 vi.mock('@affine/core/modules/cloud', () => ({
+  AuthService: class {},
   FetchService: class {},
   GraphQLService: class {},
   ServerService: class {},
 }));
-vi.mock('@toeverything/infra', () => {
+vi.mock('@toeverything/infra', async importOriginal => {
+  const { LiveData } = await importOriginal<typeof Infra>();
   const service = {
     fetch: state.fetch,
     gql: state.gql,
     server: { serverMetadata: { baseUrl: 'http://localhost:3011' } },
+    session: { account$: new LiveData(null) },
   };
-  return { useService: () => service };
+  return {
+    useService: () => service,
+    useLiveData: () => ({ id: state.accountId }),
+  };
 });
 vi.mock('@affine/core/modules/office', () => ({
   downloadOfficePackage: vi.fn(),
@@ -80,12 +89,115 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.fetch.mockReset();
   state.gql.mockReset();
+  state.accountId = 'user-1';
+  sessionStorage.clear();
   vi.spyOn(URL, 'createObjectURL').mockImplementation(state.create);
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation(state.revoke);
 });
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+test('restores the same account text draft after unmount and login, without exposing it to another account', async () => {
+  state.fetch.mockImplementation(() => Promise.resolve(fileResponse(1)));
+  const view = render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  fireEvent.change(await screen.findByRole('textbox', { name: 'test.txt' }), {
+    target: { value: 'unsaved private draft' },
+  });
+  view.unmount();
+  state.accountId = 'user-2';
+  const other = render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  expect(
+    (
+      (await screen.findByRole('textbox', {
+        name: 'test.txt',
+      })) as HTMLTextAreaElement
+    ).value
+  ).toBe('initial');
+  other.unmount();
+  state.accountId = 'user-1';
+  render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  expect(
+    (
+      (await screen.findByRole('textbox', {
+        name: 'test.txt',
+      })) as HTMLTextAreaElement
+    ).value
+  ).toBe('unsaved private draft');
+  expect(state.guard?.hasUnsavedChanges).toBe(true);
+});
+
+test('restored draft with a changed remote version requires comparison', async () => {
+  state.fetch.mockImplementationOnce(() => Promise.resolve(fileResponse(1)));
+  const view = render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  fireEvent.change(await screen.findByRole('textbox', { name: 'test.txt' }), {
+    target: { value: 'local changes' },
+  });
+  view.unmount();
+  state.fetch.mockImplementation(() =>
+    Promise.resolve(fileResponse(2, 'remote changes'))
+  );
+  render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  await screen.findByText('com.affine.localmind.native-files.remoteChanged');
+  expect(
+    (screen.getByRole('textbox', { name: 'test.txt' }) as HTMLTextAreaElement)
+      .value
+  ).toBe('local changes');
+});
+
+test('retains the same save identity after an ambiguous failure and remount', async () => {
+  state.fetch.mockImplementation(() => Promise.resolve(fileResponse(1)));
+  state.gql
+    .mockRejectedValueOnce(new Error('connection lost'))
+    .mockResolvedValueOnce({ saveProjectFile: { sequence: 2 } });
+  const view = render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  fireEvent.change(await screen.findByRole('textbox', { name: 'test.txt' }), {
+    target: { value: 'pending draft' },
+  });
+  fireEvent.click(screen.getByText('com.affine.localmind.project-files.save'));
+  await screen.findByText('com.affine.localmind.native-files.error.failed');
+  const first = state.gql.mock.calls[0][0].variables.input;
+  view.unmount();
+  render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  const restored = (await screen.findByRole('textbox', {
+    name: 'test.txt',
+  })) as HTMLTextAreaElement;
+  expect(restored.value).toBe('pending draft');
+  expect(restored.readOnly).toBe(true);
+  fireEvent.click(screen.getByText('com.affine.localmind.project-files.save'));
+  await waitFor(() => expect(state.gql).toHaveBeenCalledTimes(2));
+  expect(state.gql.mock.calls[1][0].variables.input).toEqual(first);
+});
+
+test('warns when local draft storage is unavailable', async () => {
+  state.fetch.mockImplementation(() => Promise.resolve(fileResponse(1)));
+  render(
+    <ProjectFile projectId="project" resourceId="file" title="test.txt" />
+  );
+  const editor = await screen.findByRole('textbox', { name: 'test.txt' });
+  vi.spyOn(fileDraft, 'writeProjectFileDraft').mockImplementation(() => {
+    throw new Error('quota');
+  });
+  fireEvent.change(editor, { target: { value: 'cannot persist' } });
+  expect(
+    await screen.findByText(
+      'com.affine.localmind.project-files.draftStorageFailed'
+    )
+  ).toBeTruthy();
 });
 test('the edit guard observes save and discard synchronously before React commits', async () => {
   state.fetch.mockImplementation(() =>

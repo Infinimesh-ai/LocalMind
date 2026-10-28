@@ -60,6 +60,10 @@ import { ensurePromptResponseSchemaHash } from '../runtime/contracts/structured-
 import { PromptRuntime } from '../runtime/prompt-runtime';
 import { awaitReportCall } from './bounds';
 import {
+  chapterCountErrors,
+  requestedChapterCount,
+} from './chapter-constraint';
+import {
   EvidenceExtractionSchema,
   type EvidenceFact,
   EvidenceFactSchema,
@@ -640,7 +644,11 @@ export class ReportWebV4Pipeline {
       sourceHash
     );
     run.sourceCoverage = evidence.coverage;
-    const maxChapters = deckSlideRange(config).max;
+    const requestedChapters = requestedChapterCount(config.instructions);
+    const maxChapters = Math.max(
+      deckSlideRange(config).max,
+      requestedChapters ?? 0
+    );
 
     await this.progress(run, 'compose', 'planning');
     let derived: DerivedValue[] = [];
@@ -653,6 +661,7 @@ export class ReportWebV4Pipeline {
           ...deckConfigPayload(config),
           slideRange: undefined,
           chapterLimit: maxChapters,
+          requestedChapterCount: requestedChapters,
         },
         instructions: config.instructions,
         customStyle: config.customStyle ?? '',
@@ -680,7 +689,11 @@ export class ReportWebV4Pipeline {
           datasets: evidence.datasets,
           maxChapters,
         });
-        if (lint.errors.length) throw new StageFeedback(lint.errors);
+        const errors = [
+          ...lint.errors,
+          ...chapterCountErrors(config.instructions, value.chapters.length),
+        ];
+        if (errors.length) throw new StageFeedback(errors);
       }),
       { schema: ReportExperiencePlanSchema }
     );
@@ -693,6 +706,11 @@ export class ReportWebV4Pipeline {
     const best = fast
       ? await this.fast(run, plan, evidence, derived)
       : await this.refine(run, plan, evidence, derived, maxChapters);
+    if (
+      chapterCountErrors(config.instructions, best.artifact.chapters.length)
+        .length
+    )
+      throw new ReportDesignError('quality_failed');
     if (errorsOf(best.issues).length)
       throw new ReportDesignError('quality_failed');
 
@@ -1150,6 +1168,8 @@ export class ReportWebV4Pipeline {
           kind: f.kind,
           status: f.status,
           timeScope: f.timeScope,
+          source: f.sourceTitle,
+          role: f.role,
           text: f.text,
           quote: f.quote,
         })),
@@ -1179,7 +1199,13 @@ export class ReportWebV4Pipeline {
       evidence: { facts: evidence.facts, datasets: evidence.datasets, derived },
       language: run.snapshot.config.language,
     });
-    return describe(errorsOf(out.issues));
+    return [
+      ...describe(errorsOf(out.issues)),
+      ...chapterCountErrors(
+        run.snapshot.config.instructions,
+        plan.chapters.length
+      ),
+    ];
   }
 
   private chaptersFromBundle(
@@ -1390,6 +1416,39 @@ export class ReportWebV4Pipeline {
     if (browser.artifactHash !== rendered.hash)
       throw new ReportDesignError('quality_failed');
     const issues = [...rendered.issues, ...browser.issues];
+    // Fixed check classifications only: never log source text, HTML or provider errors.
+    const hardIssues = errorsOf(issues);
+    if (hardIssues.length)
+      this.logger.warn(
+        JSON.stringify({
+          event: 'report_quality_checks_failed',
+          deckId: run.lease.deckId,
+          candidate: label,
+          checks: hardIssues.slice(0, 24).map(issue => ({
+            category: issue.category,
+            viewport: ['desktop', 'mobile', 'narrow', 'present'].includes(
+              issue.viewport
+            )
+              ? issue.viewport
+              : 'fallback',
+            check: issue.evidence.includes('clipped by an ancestor')
+              ? 'text_clipped'
+              : issue.evidence.includes('extends beyond the viewport')
+                ? 'text_overflow'
+                : issue.evidence.includes('wider than the viewport')
+                  ? 'document_overflow'
+                  : issue.evidence.includes('invisible or has zero size')
+                    ? 'text_invisible'
+                    : issue.evidence.includes('ancestor hides')
+                      ? 'ancestor_hidden'
+                      : issue.evidence.includes('remain invisible')
+                        ? 'motion_hidden'
+                        : issue.evidence.includes('script error')
+                          ? 'runtime_error'
+                          : 'other',
+          })),
+        })
+      );
     for (const failed of browser.behaviors.filter(b => !b.ok))
       issues.push({
         id: `behavior-${issues.length}`,
@@ -1631,19 +1690,21 @@ export class ReportWebV4Pipeline {
     ].filter(id => ids.includes(id));
     const allowed = [...new Set(wanted)].slice(0, 6);
     if (!allowed.length) allowed.push(...ids.slice(0, Math.min(3, ids.length)));
-    const images = [
-      ...candidate.browser.captures.filter(
-        c => c.kind === 'sheet' && c.viewport === 'desktop'
-      ),
-      ...candidate.browser.captures
-        .filter(
-          c =>
-            c.kind === 'detail' &&
-            allowed.includes(c.chapterId) &&
-            c.viewport !== 'present'
-        )
-        .slice(0, 5),
-    ];
+    const images = run.vision
+      ? [
+          ...candidate.browser.captures.filter(
+            c => c.kind === 'sheet' && c.viewport === 'desktop'
+          ),
+          ...candidate.browser.captures
+            .filter(
+              c =>
+                c.kind === 'detail' &&
+                allowed.includes(c.chapterId) &&
+                c.viewport !== 'present'
+            )
+            .slice(0, 5),
+        ]
+      : [];
     const deterministic = describe(
       candidate.issues.filter(
         i => !i.chapterId || allowed.includes(i.chapterId)
@@ -1655,6 +1716,9 @@ export class ReportWebV4Pipeline {
       'Repair',
       {
         config: deckConfigPayload(run.snapshot.config),
+        requestedChapterCount: requestedChapterCount(
+          run.snapshot.config.instructions
+        ),
         plan: candidate.plan,
         allowedChapterIds: allowed,
         chapters: candidate.artifact.chapters.filter(ch =>
@@ -1727,6 +1791,12 @@ export class ReportWebV4Pipeline {
           strictComposition: false,
         });
         feedback.push(...lint.errors);
+        feedback.push(
+          ...chapterCountErrors(
+            run.snapshot.config.instructions,
+            applied.plan.chapters.length
+          )
+        );
         const remaining = new Set(applied.plan.chapters.map(ch => ch.id));
         const required = allowed.filter(
           id =>

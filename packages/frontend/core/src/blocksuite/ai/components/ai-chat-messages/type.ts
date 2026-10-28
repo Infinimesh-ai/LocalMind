@@ -131,6 +131,7 @@ export function workOrderDraftFromToolResult(
 
 export type WorkOrderProposalActions = {
   sourceProjectName?: string;
+  canAct?: (draft: WorkOrderAgentDraft) => boolean;
   onSend: (draft: WorkOrderAgentDraft) => Promise<void>;
   onRequestRevision: (
     draft: WorkOrderAgentDraft,
@@ -162,6 +163,7 @@ export type WorkOrderProposalActions = {
     cancel: string;
     cancelled: string;
     failed: string;
+    waiting?: string;
   };
 };
 

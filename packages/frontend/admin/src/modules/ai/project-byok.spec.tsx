@@ -18,7 +18,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { formatByokError } from './byok-feedback';
+import { formatByokError, formatByokMutationError } from './byok-feedback';
 
 const state = vi.hoisted(() => ({
   configured: false,
@@ -428,4 +428,72 @@ test('Chinese diagnostics distinguish model, quota, rate limit, timeout and ambi
   expect(formatByokError('Provider service is unavailable.')).toContain(
     '服务暂时不可用'
   );
+});
+
+test('rate-limited Project restore keeps the old state and offers an explicit retry with the same intended change', async () => {
+  await getOrCreateI18n().changeLanguage('zh-Hans');
+  state.configured = true;
+  state.enabled = false;
+  state.revision = 22;
+  state.toggle.mockRejectedValueOnce(
+    new GraphQLError('Too many requests', {
+      extensions: {
+        status: 429,
+        type: 'too_many_requests',
+        code: 'too_many_request',
+        name: 'too_many_request',
+      },
+    })
+  );
+  render(<ProjectByokAdmin />);
+  fireEvent.click(screen.getByRole('switch', { name: '启用项目 AI' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(
+      '429 / too_many_requests'
+    )
+  );
+  expect(screen.getByRole('alert').textContent).toContain('本次更改未保存');
+  expect(
+    screen
+      .getByRole('switch', { name: '启用项目 AI' })
+      .getAttribute('aria-checked')
+  ).toBe('false');
+  expect(state.reload).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: '重试', exact: true }));
+  await waitFor(() => expect(state.toggle).toHaveBeenCalledTimes(2));
+  expect(state.toggle).toHaveBeenLastCalledWith({
+    expectedRevision: 22,
+    enabled: true,
+  });
+  await waitFor(() => expect(state.reload).toHaveBeenCalledOnce());
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+test('successful Project toggle is not reported as failed when the subsequent settings refresh fails', async () => {
+  state.configured = true;
+  state.enabled = false;
+  state.reload.mockRejectedValue(new Error('offline'));
+  render(<ProjectByokAdmin />);
+  fireEvent.click(screen.getByRole('switch', { name: 'Project AI enabled' }));
+  await screen.findByText(
+    /Configuration was saved, but the settings could not be refreshed/
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(state.toggle).toHaveBeenCalledTimes(1);
+});
+
+test('toggle diagnostics retain only bounded known reasons, including revision conflicts', () => {
+  expect(
+    formatByokMutationError(
+      new Error('Project BYOK changed. Reload the settings and try again.')
+    )
+  ).toContain('Another administrator');
+  expect(
+    formatByokMutationError(new Error('upstream secret-key private body'))
+  ).not.toContain('secret-key');
+  expect(
+    formatByokMutationError(
+      new Error('Provider rate limit exceeded while testing the key.')
+    )
+  ).toContain('provider rate limit');
 });

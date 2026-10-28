@@ -15,6 +15,30 @@ afterEach(() => {
 });
 
 describe('resolveOfficeTextRange', () => {
+  test('maps and restores one paragraph across physical page fragments', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<p data-office-block-id="a" data-office-order="0" data-office-fragment-offset="0">Alpha</p><p data-office-block-id="a" data-office-order="0" data-office-fragment-offset="6">Beta</p>';
+    document.body.append(root);
+    const paragraphs = root.querySelectorAll('p');
+    const selection = window.getSelection();
+    const first = paragraphs[0].firstChild,
+      second = paragraphs[1].firstChild;
+    if (!first || !second) throw new Error('missing fixture text');
+    selection?.setBaseAndExtent(first, 4, second, 2);
+    expect(resolveOfficeTextRange(root, selection)).toEqual({
+      type: 'text_range',
+      start: { blockId: 'a', offset: 4 },
+      end: { blockId: 'a', offset: 8 },
+    });
+    const bookmark = {
+      anchor: { blockId: 'a', offset: 8 },
+      focus: { blockId: 'a', offset: 8 },
+    };
+    expect(restoreOfficeSelection(root, bookmark)).toBe(true);
+    expect(selection?.anchorNode).toBe(paragraphs[1].firstChild);
+    expect(selection?.anchorOffset).toBe(2);
+  });
   test('maps a forward DOM selection to stable paragraph offsets', () => {
     const root = document.createElement('div');
     root.innerHTML = [

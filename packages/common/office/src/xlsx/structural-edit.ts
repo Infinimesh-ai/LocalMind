@@ -255,6 +255,15 @@ function worksheetXml(pkg: OoxmlOpcPackage, sheet: XlsxWorksheet) {
     pkg.limits.maxXmlPartBytes
   );
   const root = rootContent(xml, 'worksheet', sheet.part);
+  // Repair older LocalMind sheets that emitted r:id without binding r. Do not
+  // replace an existing binding from an imported worksheet.
+  const rootAttributes = attributes(root.root);
+  if (!('xmlns:r' in rootAttributes)) {
+    root.root[':@'] = {
+      ...rootAttributes,
+      'xmlns:r': OFFICE_RELATIONSHIP_NAMESPACE,
+    };
+  }
   const sheetData = ensureContainer(root.content, root.prefix, 'sheetData', [
     'sheetCalcPr',
     'sheetProtection',
@@ -350,6 +359,8 @@ const CHART_CONTENT_TYPE =
   'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
 const CHART_RELATIONSHIP =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+const OFFICE_RELATIONSHIP_NAMESPACE =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
 function emptyStylesPart() {
   return new TextEncoder().encode(
@@ -362,17 +373,39 @@ function ensureStylesPart(pkg: OoxmlOpcPackage, output: PackageChanges) {
     .getRelationships(pkg.mainPart)
     .find(item => relationshipTypeName(item.type) === 'styles');
   if (relationship?.resolvedTarget) {
+    if (
+      /^xl\/styles\d+\.xml$/.test(relationship.resolvedTarget) &&
+      !pkg.hasPart('xl/styles.xml')
+    ) {
+      // Retain the original part for any other references; future edits use
+      // the canonical relationship and a copy of the same style definitions.
+      deleteRelationship(pkg, output, pkg.mainPart, relationship.id);
+      appendRelationship(pkg, output, pkg.mainPart, {
+        id: relationship.id,
+        type: relationship.type,
+        target: relativeOoxmlTarget(pkg.mainPart, 'xl/styles.xml'),
+      });
+      writeContentType(pkg, output, {
+        kind: 'override',
+        partName: 'xl/styles.xml',
+        contentType: STYLES_CONTENT_TYPE,
+      });
+      return {
+        part: 'xl/styles.xml',
+        bytes: pkg.requirePart(relationship.resolvedTarget),
+      };
+    }
     return {
       part: relationship.resolvedTarget,
       bytes: pkg.requirePart(relationship.resolvedTarget),
     };
   }
-  const part = nextOoxmlPartName(
-    pkg.listParts().map(item => item.path),
-    'xl',
-    'styles',
-    'xml'
-  );
+  const parts = pkg.listParts().map(item => item.path);
+  // Some consumers look for the conventional styles path even when the OPC
+  // relationship points at another valid name.
+  const part = parts.includes('xl/styles.xml')
+    ? nextOoxmlPartName(parts, 'xl', 'styles', 'xml')
+    : 'xl/styles.xml';
   const relationshipId = nextOoxmlRelationshipId(
     pkg.getRelationships(pkg.mainPart)
   );
@@ -1418,6 +1451,7 @@ function setTable(
     );
     children(tableParts).push(
       createElement(worksheet.root.prefix, 'tablePart', [], {
+        'xmlns:r': OFFICE_RELATIONSHIP_NAMESPACE,
         'r:id': relationshipId,
       })
     );
@@ -1638,6 +1672,7 @@ function addChart(
     });
     worksheet.root.content.push(
       createElement(worksheet.root.prefix, 'drawing', [], {
+        'xmlns:r': OFFICE_RELATIONSHIP_NAMESPACE,
         'r:id': relationshipId,
       })
     );

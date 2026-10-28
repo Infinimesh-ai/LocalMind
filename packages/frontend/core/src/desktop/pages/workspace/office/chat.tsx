@@ -61,6 +61,7 @@ import {
   type CopilotTask,
   type CopilotTaskAction,
   isCopilotTaskActionDisabled,
+  isStaleOfficeCommandFailure,
 } from '../../../../modules/copilot-tasks/utils';
 import * as styles from './chat.css';
 import type { OfficeArtifact, OfficeRevision } from './shared';
@@ -186,21 +187,6 @@ function approvalDetails(task: CopilotTask) {
       typeof approval?.commandCount === 'number' ? approval.commandCount : null,
     impact,
   };
-}
-
-function actionLabel(action: CopilotTaskAction) {
-  switch (action) {
-    case 'approve':
-      return 'Approve';
-    case 'reject':
-      return 'Reject';
-    case 'cancel':
-      return 'Cancel';
-    case 'resume':
-      return 'Resume';
-    case 'abandon':
-      return 'Abandon';
-  }
 }
 
 function OfficeTaskPanel({
@@ -386,9 +372,13 @@ function OfficeTaskPanel({
                   <p className={styles.taskReason}>{details.reason}</p>
                 ) : null}
                 {task.failureMessage ? (
-                  <p className={styles.taskError}>{task.failureMessage}</p>
+                  <p className={styles.taskError}>
+                    {isStaleOfficeCommandFailure(task)
+                      ? i18n['com.affine.office.ai-revision-conflict']()
+                      : task.failureMessage}
+                  </p>
                 ) : null}
-                {task.resultSummary ? (
+                {task.resultSummary && !isStaleOfficeCommandFailure(task) ? (
                   <p className={styles.taskReason}>{task.resultSummary}</p>
                 ) : null}
                 {task.availableActions.length ? (
@@ -416,7 +406,9 @@ function OfficeTaskPanel({
                           })}
                           onClick={() => void control(task, action)}
                         >
-                          {actionLabel(action)}
+                          {i18n.t(
+                            'com.affine.localmind.tasks.action.' + action
+                          )}
                         </Button>
                       )
                     )}

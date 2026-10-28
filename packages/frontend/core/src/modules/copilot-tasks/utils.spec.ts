@@ -6,12 +6,31 @@ import {
   filterCopilotTasks,
   getCopilotTaskFilter,
   isCopilotTaskActionDisabled,
+  isStaleOfficeCommandFailure,
 } from './utils';
 
 const task = (id: string, status: string, abandoned = false) =>
   ({ id, status, abandoned }) as CopilotTask;
 
 describe('Copilot Tasks utilities', () => {
+  test('identifies stale Office requests without changing other failures', () => {
+    const stale = {
+      workflow: 'agent_runtime_office_command',
+      status: 'failed',
+      failureMessage: 'Office artifact revision conflict',
+    };
+    expect(isStaleOfficeCommandFailure(stale)).toBe(true);
+    expect(isStaleOfficeCommandFailure({ ...stale, status: 'queued' })).toBe(
+      false
+    );
+    expect(
+      isStaleOfficeCommandFailure({ ...stale, failureMessage: 'network error' })
+    ).toBe(false);
+    expect(isStaleOfficeCommandFailure({ ...stale, workflow: 'other' })).toBe(
+      false
+    );
+  });
+
   test('groups task statuses into product filters', () => {
     const tasks = [
       task('queued', 'queued'),

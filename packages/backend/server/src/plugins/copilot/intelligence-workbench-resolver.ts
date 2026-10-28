@@ -65,6 +65,34 @@ type PresentableAccessRequest = AccessRequest & {
 };
 
 @ObjectType()
+class CopilotMemorySourceAuthorizationType {
+  @Field(() => ID) grantId!: string;
+  @Field(() => ID) projectId!: string;
+  @Field(() => String) projectName!: string;
+  @Field(() => String) status!: string;
+  @Field(() => Int) revision!: number;
+  @Field(() => Int) memoryCount!: number;
+}
+
+@InputType()
+class SetCopilotMemorySourceAuthorizationInput {
+  @Field(() => ID) grantId!: string;
+  @Field(() => Boolean) enabled!: boolean;
+  @Field(() => Int) expectedRevision!: number;
+  @Field(() => String) requestKey!: string;
+}
+
+@ObjectType()
+class CopilotMemorySourceAuthorizationResult {
+  @Field(() => ID) id!: string;
+  @Field(() => String) status!: string;
+  @Field(() => Int) revision!: number;
+  @Field(() => Int) restoredCount!: number;
+  @Field(() => Int) quarantinedCount!: number;
+  @Field(() => Int) deferredCount!: number;
+}
+
+@ObjectType()
 export class CopilotAccessRequestType {
   @Field(() => String, { nullable: true }) projectName!: string | null;
   @Field(() => String, { nullable: true }) requesterName!: string | null;
@@ -1006,6 +1034,46 @@ export class IntelligenceWorkbenchResolver {
       .allowLocal()
       .docs(grants, 'Doc.Users.Manage');
     return permitted.map(grant => this.presentGrant(grant));
+  }
+
+  @ResolveField(() => [CopilotMemorySourceAuthorizationType], { complexity: 2 })
+  async workbenchMemorySourceAuthorizations(
+    @Parent() copilot: CopilotType,
+    @CurrentUser() user: CurrentUserType,
+    @Args('workspaceId') workspaceId: string,
+    @Args('docId') docId: string
+  ) {
+    if (copilot.workspaceId)
+      throw new BadRequest('Memory source consent requires user-level Copilot');
+    await this.ac
+      .user(user.id)
+      .doc(workspaceId, docId)
+      .assert('Doc.Users.Manage');
+    return this.models.intelligenceWorkbenchAuthorization.listMemorySourceAuthorizations(
+      {
+        workspaceId,
+        docId,
+        actorUserId: user.id,
+      }
+    );
+  }
+
+  @Mutation(() => CopilotMemorySourceAuthorizationResult)
+  async setCopilotMemorySourceAuthorization(
+    @CurrentUser() user: CurrentUserType,
+    @Args('input') input: SetCopilotMemorySourceAuthorizationInput
+  ) {
+    const grant = await this.db.aiContextProjectGrant.findUnique({
+      where: { id: input.grantId },
+    });
+    if (!grant) throw new NotFoundException('Memory source not found');
+    await this.ac
+      .user(user.id)
+      .doc(grant.workspaceId, grant.docId)
+      .assert('Doc.Users.Manage');
+    return this.models.intelligenceWorkbenchAuthorization.setMemorySourceAuthorization(
+      { ...input, actorUserId: user.id }
+    );
   }
 
   @Mutation(() => CopilotAccessRequestType)

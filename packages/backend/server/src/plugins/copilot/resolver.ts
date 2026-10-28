@@ -48,6 +48,7 @@ import {
   type PromptRegistryPublishGateVerdict,
   type UpdateChatSession,
 } from '../../models';
+import { isStaleOfficeCommandFailure } from '../../models/common/office-command-conflict';
 import type {
   CopilotActionRunAgentRuntimeDiagnosticsManifest,
   CopilotActionRunAgentRuntimeDiagnosticsManifestExportMetadata,
@@ -5552,7 +5553,9 @@ export function projectCopilotTask(
           run.status === 'waiting_for_location'
         ? ['cancel']
         : run.status === 'failed'
-          ? ['resume', 'abandon']
+          ? isStaleOfficeCommandFailure(run)
+            ? ['abandon']
+            : ['resume', 'abandon']
           : run.status === 'cancelled' &&
               controlAction !== 'abandon' &&
               controlAction !== 'reject'
@@ -26329,9 +26332,13 @@ export class CopilotResolver {
 
     return histories.map(h => ({
       ...h,
-      // filter out empty messages
+      // Keep terminal cancellation and tool evidence even without answer text.
       messages: h.messages.filter(
-        m => m.content || m.attachments?.length
+        m =>
+          m.content ||
+          m.attachments?.length ||
+          m.streamObjects?.length ||
+          m.params?.generationStatus === 'aborted'
       ) as ChatMessageType[],
     }));
   }
@@ -26382,9 +26389,13 @@ export class CopilotResolver {
     return paginate(
       histories.map(h => ({
         ...h,
-        // filter out empty messages
+        // Keep terminal cancellation and tool evidence even without answer text.
         messages: h.messages.filter(
-          m => m.content || m.attachments?.length
+          m =>
+            m.content ||
+            m.attachments?.length ||
+            m.streamObjects?.length ||
+            m.params?.generationStatus === 'aborted'
         ) as ChatMessageType[],
       })),
       'updatedAt',
@@ -26735,6 +26746,17 @@ export class CopilotResolver {
 
   private transformToSessionType(session: Omit<ChatHistory, 'messages'>) {
     return { id: session.sessionId, ...session };
+  }
+
+  @Mutation(() => Boolean, {
+    description: 'Cancel a pending chat submission without starting generation',
+  })
+  async cancelPendingCopilotMessage(
+    @CurrentUser() user: CurrentUser,
+    @Args('sessionId') sessionId: string,
+    @Args('messageId') messageId: string
+  ): Promise<boolean> {
+    return await this.inbox.cancelPendingMessage(user.id, sessionId, messageId);
   }
 }
 

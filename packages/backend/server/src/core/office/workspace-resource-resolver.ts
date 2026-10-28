@@ -12,8 +12,9 @@ import {
 import { GraphQLJSONObject } from 'graphql-scalars';
 import { z } from 'zod';
 
-import { Throttle } from '../../base';
+import { ResourceConflict, Throttle } from '../../base';
 import { CurrentUser, type CurrentUser as User } from '../auth';
+import { ResourceError } from '../doc/resource-types';
 import { WorkspaceNativeResourceService } from './workspace-resource-service';
 
 @ObjectType()
@@ -241,17 +242,28 @@ export class WorkspaceNativeResourceResolver {
 
   @Mutation(() => WorkspaceNativeResourceType)
   @Throttle('strict')
-  changeWorkspaceNativeResource(
+  async changeWorkspaceNativeResource(
     @CurrentUser() user: User,
     @Args('input') input: ChangeWorkspaceNativeResourceInput
   ) {
-    return this.resources.change({
-      ...input,
-      ...this.identity(input, user.id),
-      action: z
-        .enum(['rename', 'move', 'trash', 'restore', 'delete'])
-        .parse(input.action),
-    });
+    try {
+      return await this.resources.change({
+        ...input,
+        ...this.identity(input, user.id),
+        action: z
+          .enum(['rename', 'move', 'trash', 'restore', 'delete'])
+          .parse(input.action),
+      });
+    } catch (error) {
+      // The service transaction has rolled back before it propagates a
+      // directory conflict, so this is a definite rejection, not a timeout.
+      if (
+        error instanceof ResourceError &&
+        error.code === 'directory_version_conflict'
+      )
+        throw new ResourceConflict('Directory changed; reload before moving');
+      throw error;
+    }
   }
 
   @Mutation(() => WorkspaceNativeResourceType)

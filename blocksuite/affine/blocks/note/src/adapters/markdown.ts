@@ -65,19 +65,23 @@ const createNoteBlockMarkdownAdapterMatcher = (
         }
       });
 
-      // if there are footnoteDefinition nodes, add a heading node to the noteAst before the first footnoteDefinition node
-      const footnoteDefinitionIndex = noteAst.children.findIndex(child =>
-        isFootnoteDefinitionNode(child)
-      );
-      if (footnoteDefinitionIndex !== -1) {
-        noteAst.children.splice(footnoteDefinitionIndex, 0, {
-          type: 'heading',
-          depth: 6,
-          data: {
-            collapsed: true,
+      // Keep body content outside the collapsed Sources section, including text
+      // emitted after citation definitions in streamed AI responses.
+      const definitions = noteAst.children.filter(isFootnoteDefinitionNode);
+      if (definitions.length) {
+        const body = noteAst.children.filter(
+          child => !isFootnoteDefinitionNode(child)
+        );
+        noteAst.children = [
+          ...body,
+          {
+            type: 'heading',
+            depth: 6,
+            data: { collapsed: true },
+            children: [{ type: 'text', value: 'Sources' }],
           },
-          children: [{ type: 'text', value: 'Sources' }],
-        });
+          ...definitions,
+        ];
       }
     },
   },

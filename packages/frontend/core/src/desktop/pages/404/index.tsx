@@ -74,6 +74,11 @@ export const PageNotFound = ({
   // not using workbench location or router location deliberately
   // strip the origin
   const currentUrl = window.location.href.replace(window.location.origin, '');
+  // Private document links can fail through the anonymous sharing loader with
+  // a timeout or an indistinguishable 404. Keep authentication on this URL so
+  // signing in can resolve the resource with the user's actual permissions.
+  const authenticateResource =
+    !firstLogged && currentUrl.startsWith('/workspace/');
 
   const requestAccess = useCallback(async () => {
     if (!accessRequest || !graphqlService || requestPending || !projectId)
@@ -178,7 +183,7 @@ export const PageNotFound = ({
           </Button>
         </Modal>
       ) : null}
-      {noPermission ? (
+      {noPermission || authenticateResource ? (
         <NoPermissionOrNotFound
           user={firstLogged?.account}
           onBack={handleBackButtonClick}

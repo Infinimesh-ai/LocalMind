@@ -84,6 +84,17 @@ runtime cancellation and the business conversation's completed state remain
 separate concepts. Source changes and engineering checks do not establish full
 browser acceptance until stop, reload and subsequent-message flows pass.
 
+The 2026-10-26 repair also covers cancellation before the first output: the
+submission acknowledgement is independent of generation cancellation. An owned,
+never-accepted submission can be cancelled through `cancelPendingCopilotMessage`,
+which atomically stores the user turn and an empty aborted assistant turn under
+the same submission lock used by generation acceptance. Replays do not start a
+cancelled submission; explicit retry remains possible. Accepted streams retain
+their own partial-result persistence in `finally`, including consumer return and
+aborts during preparation. History reads retain aborted empty turns and emitted
+tool evidence instead of filtering them out as empty content. This cancellation
+endpoint cannot approve, retry, or expand a tool's authority.
+
 ## Responses Tool Argument Stream Repair (2026-10-19)
 
 The OpenAI Responses parser now preserves whitespace-only tool argument deltas,

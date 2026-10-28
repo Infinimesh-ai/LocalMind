@@ -1,21 +1,16 @@
-import { Tabs, Tooltip, useConfirmModal } from '@affine/component';
-import { Button } from '@affine/component/ui/button';
+import { Tabs, useConfirmModal } from '@affine/component';
 import { Menu } from '@affine/component/ui/menu';
 import { ServerService } from '@affine/core/modules/cloud';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import { WorkspacePermissionService } from '@affine/core/modules/permissions';
 import { WorkspaceQuotaService } from '@affine/core/modules/quota';
-import { ShareInfoService } from '@affine/core/modules/share-doc';
 import type { WorkspaceMetadata } from '@affine/core/modules/workspace';
 import { ServerDeploymentType, SubscriptionPlan } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import type { Store } from '@blocksuite/affine/store';
-import { LockIcon, PublishIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import {
-  forwardRef,
   type PropsWithChildren,
-  type Ref,
   useCallback,
   useEffect,
   useMemo,
@@ -25,6 +20,7 @@ import {
 import * as styles from './index.css';
 import { InviteMemberEditor } from './invite-member-editor/invite-member-editor';
 import { MemberManagement } from './member-management';
+import { DefaultShareButton } from './share-button';
 import { ShareExport } from './share-export';
 import { SharePage } from './share-page';
 
@@ -204,44 +200,6 @@ export const ShareMenuContent = (props: ShareMenuProps) => {
   );
 };
 
-const DefaultShareButton = forwardRef(function DefaultShareButton(
-  props: { disabled?: boolean; tooltip?: string },
-  ref: Ref<HTMLButtonElement>
-) {
-  const t = useI18n();
-  const shareInfoService = useService(ShareInfoService);
-  const shared = useLiveData(shareInfoService.shareInfo.isShared$);
-
-  useEffect(() => {
-    if (props.disabled) {
-      return;
-    }
-    shareInfoService.shareInfo.revalidate();
-  }, [props.disabled, shareInfoService]);
-
-  const tooltip =
-    props.tooltip ??
-    (shared
-      ? t['com.affine.share-menu.option.link.readonly.description']()
-      : t['com.affine.share-menu.option.link.no-access.description']());
-
-  return (
-    <Tooltip content={tooltip}>
-      <Button
-        ref={ref}
-        className={styles.button}
-        variant="primary"
-        disabled={props.disabled}
-      >
-        <div className={styles.buttonContainer}>
-          {shared ? <PublishIcon fontSize={16} /> : <LockIcon fontSize={16} />}
-          {t['com.affine.share-menu.shareButton']()}
-        </div>
-      </Button>
-    </Tooltip>
-  );
-});
-
 const LocalShareMenu = (props: ShareMenuProps) => {
   if (props.disabled) {
     return (
@@ -263,9 +221,9 @@ const LocalShareMenu = (props: ShareMenuProps) => {
         onOpenChange: props.onOpenShareModal,
       }}
     >
-      <div data-testid="local-share-menu-button">
-        {props.children || <DefaultShareButton />}
-      </div>
+      {props.children || (
+        <DefaultShareButton data-testid="local-share-menu-button" />
+      )}
     </Menu>
   );
 };
@@ -291,9 +249,9 @@ const CloudShareMenu = (props: ShareMenuProps) => {
         onOpenChange: props.onOpenShareModal,
       }}
     >
-      <div data-testid="cloud-share-menu-button">
-        {props.children || <DefaultShareButton />}
-      </div>
+      {props.children || (
+        <DefaultShareButton data-testid="cloud-share-menu-button" />
+      )}
     </Menu>
   );
 };

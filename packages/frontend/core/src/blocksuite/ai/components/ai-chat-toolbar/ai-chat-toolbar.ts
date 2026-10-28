@@ -46,6 +46,9 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
   accessor onPinChanged: (() => void) | undefined;
 
   @property({ attribute: false })
+  accessor onNewConversation: (() => void) | undefined;
+
+  @property({ attribute: false })
   accessor docDisplayConfig!: DocDisplayConfig;
 
   @property({ attribute: false })
@@ -210,7 +213,8 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
   private readonly onPlusClick = async () => {
     const confirm = await this.unpinConfirm();
     if (confirm) {
-      await this.runtime.dispatch({ type: 'createNewSession' });
+      if (this.onNewConversation) this.onNewConversation();
+      else await this.runtime.dispatch({ type: 'createNewSession' });
     }
   };
 

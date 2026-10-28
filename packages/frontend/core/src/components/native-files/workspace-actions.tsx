@@ -104,9 +104,12 @@ export function WorkspaceNativeActions({
   const [folder, setFolder] = useState<string | null>(null);
   const [treeTarget, setTreeTarget] = useState<PageTreeTarget | null>(null);
   const [directoryVersion, setDirectoryVersion] = useState<string | null>(null);
+  const [directoryRefresh, setDirectoryRefresh] = useState(0);
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
-  const [error, setError] = useState<'rejected' | 'uncertain' | null>(null);
+  const [error, setError] = useState<
+    'conflict' | 'rate-limited' | 'rejected' | 'uncertain' | null
+  >(null);
   const request = useRef<{
     key: string;
     metadataVersion: number;
@@ -204,11 +207,22 @@ export function WorkspaceNativeActions({
       if (pageTree?.enabled$.value) await pageTree.load(null);
       onChanged();
     } catch (error) {
-      const rejected = [400, 403, 404, 409].includes(
-        UserFriendlyError.fromAny(error).status
-      );
+      const status = UserFriendlyError.fromAny(error).status;
+      const rejected = [400, 403, 404, 409].includes(status);
       if (rejected) request.current = null;
-      setError(rejected ? 'rejected' : 'uncertain');
+      if (status === 409 && needsFolder) {
+        setDirectoryVersion(null);
+        setDirectoryRefresh(value => value + 1);
+      }
+      setError(
+        status === 429
+          ? 'rate-limited'
+          : status === 409 && needsFolder
+            ? 'conflict'
+            : rejected
+              ? 'rejected'
+              : 'uncertain'
+      );
     } finally {
       pendingRef.current = false;
       setPending(false);
@@ -341,6 +355,7 @@ export function WorkspaceNativeActions({
               ['restore', 'copy'].includes(action ?? '')
             ) && (
               <WorkspaceNativeFolderSelect
+                key={directoryRefresh}
                 workspaceId={workspaceId}
                 value={folder}
                 disabled={pending || !!request.current}
@@ -362,11 +377,17 @@ export function WorkspaceNativeActions({
           )}
           {error && (
             <p role="alert">
-              {error === 'rejected'
-                ? action === 'restore'
-                  ? t['com.affine.localmind.resources.restoreRejected']()
-                  : t['com.affine.localmind.project-files.operationFailed']()
-                : t['com.affine.localmind.native-files.retrySameRequest']()}
+              {error === 'rate-limited'
+                ? t['com.affine.localmind.native-files.rateLimited']()
+                : error === 'conflict'
+                  ? t['com.affine.localmind.native-files.destinationConflict']()
+                  : error === 'rejected'
+                    ? action === 'restore'
+                      ? t['com.affine.localmind.resources.restoreRejected']()
+                      : t[
+                          'com.affine.localmind.project-files.operationFailed'
+                        ]()
+                    : t['com.affine.localmind.native-files.retrySameRequest']()}
             </p>
           )}
           <div className={styles.actions}>

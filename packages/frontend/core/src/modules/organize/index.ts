@@ -6,12 +6,13 @@ import { WorkspaceDBService } from '../db';
 import { WorkspaceDialogService } from '../dialogs';
 import { DocsService } from '../doc';
 import { DocDisplayMetaService } from '../doc-display-meta';
-import { NbstoreService } from '../storage';
+import { GlobalState, NbstoreService } from '../storage';
 import { TagService } from '../tag';
 import { WorkspaceScope, WorkspaceService } from '../workspace';
 import { WorkspaceResourcesService } from '../workspace-resources';
 import { FolderNode } from './entities/folder-node';
 import { FolderTree } from './entities/folder-tree';
+import { WorkspaceFolderPageService } from './services/folder-page';
 import { OrganizeService } from './services/organize';
 import { WorkspacePageTreeService } from './services/page-tree';
 import { DirectoryAccessStore } from './stores/directory-access';
@@ -20,13 +21,23 @@ import { FolderSortingStore } from './stores/folder-sorting';
 
 export type { FolderNode } from './entities/folder-node';
 export type { FolderSortMode } from './folder-sorting';
+export { WorkspaceFolderPageService } from './services/folder-page';
 export { OrganizeService } from './services/organize';
 export { WorkspacePageTreeService } from './services/page-tree';
+export { DIRECTORY_SNAPSHOT_CHANGED } from './stores/directory-access';
 
 export function configureOrganizeModule(framework: Framework) {
   framework
     .scope(WorkspaceScope)
     .service(OrganizeService)
+    .service(WorkspaceFolderPageService, [
+      WorkspaceService,
+      WorkspaceServerService,
+      GlobalState,
+      DocsService,
+      DirectoryAccessStore,
+      FolderStore,
+    ])
     .service(WorkspacePageTreeService, [
       WorkspaceService,
       WorkspaceServerService,

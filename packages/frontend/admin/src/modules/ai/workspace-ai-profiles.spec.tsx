@@ -134,6 +134,9 @@ describe('WorkspaceAiProfilesEditor', () => {
       });
     });
     expect(revalidateAssignmentsMock).toHaveBeenCalledWith(
+      adminAiProfilesQuery
+    );
+    expect(revalidateAssignmentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'adminUserAiProfileAssignmentQuery' })
     );
   });

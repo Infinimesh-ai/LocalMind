@@ -4,6 +4,8 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { PPTX_PRESENTATION_CONTENT_TYPE } from './pptx';
 import { XLSX_WORKBOOK_CONTENT_TYPE } from './xlsx';
 
+export { createLegacyXlsxCompatibilityFixture } from './xlsx/compatibility.fixture';
+
 const RELATIONSHIPS_CONTENT_TYPE =
   'application/vnd.openxmlformats-package.relationships+xml';
 

@@ -1,9 +1,11 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { Inject, Injectable, OnApplicationBootstrap } from '@nestjs/common';
 
 import {
+  BadRequest,
+  BlobQuotaExceeded,
   Cache,
   CopilotInvalidContext,
-  NoCopilotProviderAvailable,
+  OneMB,
   OnEvent,
 } from '../../../base';
 import { PermissionService } from '../../../core/permission';
@@ -15,12 +17,15 @@ import {
   ContextFile,
   Models,
 } from '../../../models';
+import { parseDoc } from '../../../native';
 import { CopilotEmbeddingClientService } from '../embedding/client';
 import type {
   EmbeddingCallOptions,
   EmbeddingClient,
   EmbeddingRouteContext,
 } from '../embedding/types';
+import { CopilotStorage } from '../storage';
+import { readStream } from '../utils';
 import { readableContextDocPredicate } from './readable-doc-predicate';
 import { ContextSession } from './session';
 
@@ -28,6 +33,8 @@ const CONTEXT_SESSION_KEY = 'context-session';
 
 @Injectable()
 export class CopilotContextService implements OnApplicationBootstrap {
+  @Inject(CopilotStorage)
+  private readonly storage!: CopilotStorage;
   private supportEmbedding = false;
   private client: EmbeddingClient | undefined;
 
@@ -152,13 +159,6 @@ export class CopilotContextService implements OnApplicationBootstrap {
   }
 
   async get(id: string): Promise<ContextSession> {
-    if (!this.embeddingClient) {
-      throw new NoCopilotProviderAvailable(
-        { modelId: 'embedding' },
-        'embedding client not configured'
-      );
-    }
-
     const context = await this.getCachedSession(id);
     if (context) return context;
     const config = await this.models.copilotContext.getConfig(id);
@@ -166,6 +166,89 @@ export class CopilotContextService implements OnApplicationBootstrap {
       return this.cacheSession(id, config);
     }
     throw new CopilotInvalidContext({ contextId: id });
+  }
+
+  /** Read an owned conversation attachment without requiring a vector index. */
+  async readOwnedFileContent(
+    userId: string,
+    contextId: string,
+    fileId: string,
+    chunk = 0
+  ) {
+    if (!Number.isSafeInteger(chunk) || chunk < 0) {
+      throw new BadRequest('Attachment chunk must be a non-negative integer.');
+    }
+    const context = await this.getOwnedContext(userId, contextId);
+    await this.permission.assertWorkspace({
+      userId,
+      workspaceId: context.workspaceId,
+      action: 'Workspace.Read',
+      allowLocal: true,
+    });
+    const file = context.getFile(fileId);
+    if (!file)
+      throw new BadRequest('Attachment is not bound to this conversation.');
+    const { body } = await this.storage.get(
+      userId,
+      context.workspaceId,
+      file.blobId
+    );
+    if (!body)
+      throw new BadRequest(
+        'Attachment source is missing. Upload it again in this conversation.'
+      );
+    let buffer: Buffer;
+    try {
+      buffer = await readStream(body, 5 * OneMB);
+    } catch (error) {
+      throw new BadRequest(
+        error instanceof BlobQuotaExceeded
+          ? 'Attachment exceeds the 5 MB direct-reading limit. Split the file and upload it again; semantic search requires a configured embedding model.'
+          : 'Attachment source could not be loaded. Retry reading it, or upload the file again.'
+      );
+    }
+    let text: string;
+    if (/\.(?:csv|tsv|txt|md|markdown|json|log)$/i.test(file.name)) {
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+      } catch {
+        throw new BadRequest(
+          'Attachment text is not valid UTF-8. Save the original as CSV UTF-8 or UTF-8 text and upload it again. Renaming the extension does not convert the encoding.'
+        );
+      }
+      if (text.includes('\0'))
+        throw new BadRequest(
+          'Attachment contains binary or unsupported text encoding. Export it as UTF-8 text and upload it again.'
+        );
+    } else {
+      try {
+        text = (await parseDoc(file.name, buffer)).chunks
+          .toSorted((a, b) => a.index - b.index)
+          .map(part => part.content)
+          .join('\n');
+      } catch {
+        throw new BadRequest(
+          'Attachment format could not be extracted. Export a supported text/document format up to 5 MB and upload it again.'
+        );
+      }
+    }
+    if (text.length > 2 * OneMB)
+      throw new BadRequest(
+        'Extracted attachment text is too large. Split the document and upload it again.'
+      );
+    const chunkLength = 8_000;
+    const start = chunk * chunkLength;
+    if (!text.trim() || start >= text.length)
+      throw new BadRequest(
+        'Attachment is empty or the requested chunk does not exist.'
+      );
+    return {
+      content: text.slice(start, start + chunkLength),
+      chunk,
+      hasMore: start + chunkLength < text.length,
+      chunkCount: Math.ceil(text.length / chunkLength),
+      readMode: 'source' as const,
+    };
   }
 
   async getOwnedContext(

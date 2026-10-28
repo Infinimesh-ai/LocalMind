@@ -69,7 +69,7 @@ export function Component() {
         title={resource?.title ?? t['com.affine.rootAppSidebar.files']()}
       />
       <ViewHeader>
-        <div className={styles.toolbar}>
+        <div className={styles.fileHeader}>
           <strong className={styles.name}>{resource?.title}</strong>
           {resource && !query.error && (
             <WorkspaceNativeActions

@@ -16,6 +16,7 @@ import { OfficeArtifactKind } from '@prisma/client';
 import test from 'ava';
 import Sinon from 'sinon';
 
+import { BadRequest } from '../../base';
 import {
   OFFICE_FORMATS,
   OfficeCommandService,
@@ -311,6 +312,60 @@ test('rejects MIME mismatch and denied import permissions before persistence', a
     { message: 'permission denied' }
   );
   t.false((deniedModels.blob.get as Sinon.SinonStub).called);
+});
+
+test('reports malformed native packages as a safe bad request before persistence', async t => {
+  for (const format of ['docx', 'xlsx', 'pptx', 'pdf'] as const) {
+    const policy = OFFICE_FORMATS[format];
+    const bytes = Buffer.from('not a valid office package');
+    const createOrReuseImported = Sinon.stub();
+    const models = {
+      blob: {
+        get: Sinon.stub().resolves({
+          size: bytes.byteLength,
+          mime: policy.mimeType,
+          status: 'completed',
+          deletedAt: null,
+        }),
+      },
+      officeArtifact: { createOrReuseImported },
+    } as unknown as Models;
+    const storage = {
+      get: Sinon.stub().resolves({
+        body: Readable.from(bytes),
+        metadata: {
+          contentType: policy.mimeType,
+          contentLength: bytes.byteLength,
+          lastModified: new Date(),
+        },
+      }),
+      put: Sinon.stub(),
+    } as unknown as WorkspaceBlobStorage;
+    const { access } = permissions();
+    const service = new OfficeImportService(
+      withNativeStateFixture(models),
+      workspaceOfficeStorage(storage),
+      access,
+      nativeTransactionFixture,
+      nativeDirectoryFixture,
+      nativeAccessFixture
+    );
+    const error = await t.throwsAsync(
+      service.import({
+        workspaceId: 'workspace-1',
+        actorId: 'user-1',
+        sourceBlobKey: `imports/test.${format}`,
+        title: 'Test',
+        sourceFileName: `test.${format}`,
+        importIdempotencyKey: `invalid-${format}`,
+      }),
+      { instanceOf: BadRequest }
+    );
+    t.is(error?.status, 400);
+    t.is(error?.message, 'The file is invalid, unsupported, or encrypted');
+    t.false((storage.put as Sinon.SinonStub).called);
+    t.false(createOrReuseImported.called);
+  }
 });
 
 test('previews and executes all four formats with immutable evidence', async t => {

@@ -43,7 +43,11 @@ export function WorkOrderNotificationItem({
   };
   const destination =
     body.viewerRole === 'sender' && body.sourceProjectId && body.sourceSessionId
-      ? getProjectConversationPath(body.sourceProjectId, body.sourceSessionId)
+      ? getProjectConversationPath(
+          body.sourceProjectId,
+          body.sourceSessionId,
+          body.workOrderId
+        )
       : getWorkOrderPath(body.workOrderId);
 
   return (

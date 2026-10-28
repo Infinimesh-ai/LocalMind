@@ -13,6 +13,14 @@ import type { ButtonHTMLAttributes, PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
+  memorySources: [] as Array<{
+    grantId: string;
+    projectName: string;
+    status: string;
+    revision: number;
+  }>,
+  queryError: undefined as Error | undefined,
+  queryLoading: false,
   confirm: vi.fn(),
   gql: vi.fn(),
   mutate: vi.fn(),
@@ -25,6 +33,7 @@ const tokens = vi.hoisted(() => ({
   approve: Symbol('approve'),
   query: Symbol('query'),
   reject: Symbol('reject'),
+  memory: Symbol('memory'),
 }));
 
 vi.mock('@affine/component', () => ({
@@ -51,6 +60,7 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
     data: {
       currentUser: {
         copilot: {
+          workbenchMemorySourceAuthorizations: state.memorySources,
           workbenchAccessRequests: [
             {
               id: 'request-1',
@@ -81,8 +91,8 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
         },
       },
     },
-    error: undefined,
-    isLoading: false,
+    error: state.queryError,
+    isLoading: state.queryLoading,
     mutate: state.mutate,
   }),
 }));
@@ -99,6 +109,7 @@ vi.mock('@affine/graphql', () => ({
   approveCopilotAccessRequestMutation: tokens.approve,
   copilotWorkbenchSourceAuthorizationGetQuery: tokens.query,
   rejectCopilotAccessRequestMutation: tokens.reject,
+  setCopilotMemorySourceAuthorizationMutation: tokens.memory,
 }));
 
 vi.mock('@affine/i18n', () => ({
@@ -126,6 +137,9 @@ import { ProjectAccess } from './project-access';
 
 describe('ProjectAccess', () => {
   beforeEach(() => {
+    state.memorySources = [];
+    state.queryError = undefined;
+    state.queryLoading = false;
     state.confirm.mockReset();
     state.gql.mockReset();
     state.mutate.mockReset();
@@ -197,4 +211,119 @@ describe('ProjectAccess', () => {
     expect(state.confirm.mock.calls[0][0].description).toBe('Quarterly plan');
     expect(state.gql).not.toHaveBeenCalled();
   });
+});
+
+const memoryKey = 'com.affine.localmind.share.projectMemory.';
+
+test('memory reauthorization confirms scope, prevents duplicate submits and reports partial restoration', async () => {
+  state.memorySources = [
+    {
+      grantId: 'memory-grant',
+      projectName: '共享项目',
+      status: 'revoked',
+      revision: 4,
+    },
+  ];
+  state.gql.mockReset();
+  state.mutate.mockResolvedValue(undefined);
+  let resolve!: (value: unknown) => void;
+  state.gql.mockImplementation(
+    () =>
+      new Promise(done => {
+        resolve = done;
+      })
+  );
+  render(<ProjectAccess workspaceId="workspace-1" docId="doc-1" />);
+  fireEvent.click(screen.getByRole('button', { name: memoryKey + 'allow' }));
+  const options = state.confirm.mock.calls.at(-1)![0];
+  expect(options.description).toContain(memoryKey + 'allowDescription');
+  const first = options.onConfirm();
+  await options.onConfirm();
+  expect(state.gql).toHaveBeenCalledTimes(1);
+  expect(state.gql.mock.calls[0][0]).toMatchObject({
+    query: tokens.memory,
+    variables: {
+      input: { grantId: 'memory-grant', enabled: true, expectedRevision: 4 },
+    },
+  });
+  resolve({
+    setCopilotMemorySourceAuthorization: { restoredCount: 2, deferredCount: 1 },
+  });
+  await first;
+  expect(state.notifySuccess).toHaveBeenCalledWith({
+    title: memoryKey + 'saved',
+    message: memoryKey + 'restored 2 1',
+  });
+  cleanup();
+});
+
+test('memory consent retry retains the request identity after unknown response and refreshes current state', async () => {
+  state.memorySources = [
+    {
+      grantId: 'memory-grant',
+      projectName: 'Project',
+      status: 'active',
+      revision: 5,
+    },
+  ];
+  state.gql.mockReset();
+  state.mutate.mockReset().mockResolvedValue(undefined);
+  state.notifyError.mockReset();
+  state.gql.mockRejectedValue(new TypeError('Network failed'));
+  render(<ProjectAccess workspaceId="workspace-1" docId="doc-1" />);
+  fireEvent.click(screen.getByRole('button', { name: memoryKey + 'revoke' }));
+  const options = state.confirm.mock.calls.at(-1)![0];
+  await options.onConfirm();
+  await options.onConfirm();
+  expect(state.gql).toHaveBeenCalledTimes(2);
+  expect(state.gql.mock.calls[0][0].variables.input.requestKey).toBe(
+    state.gql.mock.calls[1][0].variables.input.requestKey
+  );
+  expect(state.mutate).toHaveBeenCalledTimes(2);
+  expect(state.notifyError).toHaveBeenCalledTimes(2);
+  cleanup();
+});
+
+test('source authorization has loading and retryable error states', async () => {
+  state.memorySources = [];
+  state.queryLoading = true;
+  const rendered = render(
+    <ProjectAccess workspaceId="workspace-1" docId="doc-1" />
+  );
+  expect(screen.getByTestId('loading')).not.toBeNull();
+  state.queryLoading = false;
+  state.queryError = new Error('unavailable');
+  rendered.rerender(<ProjectAccess workspaceId="workspace-1" docId="doc-1" />);
+  expect(screen.getByRole('alert')).not.toBeNull();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'com.affine.localmind.workbench.retry' })
+  );
+  await waitFor(() => expect(state.mutate).toHaveBeenCalled());
+  state.queryError = undefined;
+  cleanup();
+});
+
+test('stale consent versions show a specific conflict and reload source permissions', async () => {
+  state.memorySources = [
+    {
+      grantId: 'memory-grant',
+      projectName: 'Project',
+      status: 'active',
+      revision: 5,
+    },
+  ];
+  state.gql
+    .mockReset()
+    .mockRejectedValue(Object.assign(new Error('changed'), { status: 409 }));
+  state.mutate.mockReset().mockResolvedValue(undefined);
+  state.notifyError.mockReset();
+  render(<ProjectAccess workspaceId="workspace-1" docId="doc-1" />);
+  fireEvent.click(screen.getByRole('button', { name: memoryKey + 'revoke' }));
+  await state.confirm.mock.calls.at(-1)![0].onConfirm();
+  expect(state.notifyError).toHaveBeenCalledWith({
+    title: 'com.affine.localmind.share.projectAccess.actionFailed',
+    message: memoryKey + 'conflict',
+  });
+  expect(state.mutate).toHaveBeenCalledTimes(1);
+  cleanup();
 });

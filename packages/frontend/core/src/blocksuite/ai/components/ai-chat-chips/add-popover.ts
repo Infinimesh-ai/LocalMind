@@ -180,7 +180,11 @@ export class ChatPanelAddPopover extends SignalWatcher(
   };
 
   private readonly _addFileChip = async () => {
-    const files = await openFilesWith('Documents');
+    // Attachments only need immutable file bytes, not retained filesystem handles.
+    const files = await openFilesWith('Documents', true, {
+      fileSystemAccess: false,
+      snapshot: true,
+    });
     if (!files || files.length === 0) return;
 
     this.abortController.abort();

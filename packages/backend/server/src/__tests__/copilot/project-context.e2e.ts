@@ -748,9 +748,13 @@ test.serial(
         content: 'Remember that the project codename is Juniper.',
       },
     });
+    let rejectedReason: string | undefined;
     t.deepEqual(
       await service.captureDurableTurn({
         ...input,
+        onRejected: reason => {
+          rejectedReason = reason;
+        },
         turn: TurnSchema.parse({
           id: blockedMessage.id,
           conversationId: scope.sessionId,
@@ -761,6 +765,7 @@ test.serial(
       }),
       []
     );
+    t.is(rejectedReason, 'unshared_sources');
     t.is(await db.aiContextMemory.count(), 1);
     t.true(
       (await db.aiSharedWriteSourceCheck.count({
@@ -785,6 +790,82 @@ test.serial(
       []
     );
     t.is(await db.workspace.count(), 0);
+  }
+);
+
+test.serial(
+  'native Project memory reports stale recalled revisions without weakening source authorization',
+  async t => {
+    const { db, ...scope } = await fixture();
+    const service = app.get(ContextMemoryService);
+    const resolution = await app.get(ContextScopeResolver).resolve({
+      userId: scope.actorId,
+      workspaceId: null,
+      sessionId: scope.sessionId,
+      selectedProjectId: scope.projectId,
+    });
+    const capture = async (
+      content: string,
+      onRejected?: (reason: string) => void
+    ) => {
+      const message = await db.aiSessionMessage.create({
+        data: { sessionId: scope.sessionId, role: 'user', content },
+      });
+      return service.captureDurableTurn({
+        userId: scope.actorId,
+        workspaceId: null,
+        sessionId: scope.sessionId,
+        scope: resolution,
+        turn: TurnSchema.parse({
+          id: message.id,
+          conversationId: scope.sessionId,
+          role: 'user',
+          content,
+          createdAt: message.createdAt,
+        }),
+        onRejected,
+      });
+    };
+    const [created] = await capture(
+      'Remember that the project codename is Juniper.'
+    );
+    const memory = await db.aiContextMemory.findUniqueOrThrow({
+      where: { id: created!.memoryId! },
+    });
+    await app.models.copilotContext.recordRecalledMemorySources({
+      ...scope,
+      workspaceId: null,
+      memories: [{ id: memory.id, content: memory.content }],
+    });
+    const [updated] = await capture(
+      'Remember that the project codename is Birch.'
+    );
+    t.is(updated?.operation, 'UPDATE');
+    let rejected: string | undefined;
+    const blocked = await capture(
+      'Remember that the review marker is REVIEW_NEW_FACT.',
+      reason => {
+        rejected = reason;
+      }
+    );
+    t.deepEqual(blocked, []);
+    t.is(rejected, 'shared_memory_changed');
+    t.is(
+      await db.aiSharedWriteSourceCheck.count({
+        where: {
+          sessionId: scope.sessionId,
+          allowed: false,
+          reasonCode: 'unshared_source',
+        },
+      }),
+      1
+    );
+    t.is(
+      await db.aiContextMemory.count({
+        where: { projectId: scope.projectId, status: 'active' },
+      }),
+      1
+    );
   }
 );
 

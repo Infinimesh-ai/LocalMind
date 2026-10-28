@@ -377,6 +377,15 @@ export function useOfficeResourceSession(adapter: OfficeResourceAdapter) {
     commentAnchor,
     unsaved,
     confirmOpen,
+    canCopyDraft: [...drafts.current].some(
+      draft => draft.hasUnsavedChanges && !!draft.recoveryText
+    ),
+    recoveryText: () =>
+      [...drafts.current]
+        .filter(draft => draft.hasUnsavedChanges)
+        .map(draft => draft.recoveryText?.() ?? '')
+        .filter(Boolean)
+        .join('\n\n'),
     registerDraft,
     dirty,
     save,

@@ -26,6 +26,7 @@ import {
   type CopilotTaskAction,
   type CopilotTaskFilter,
   isCopilotTaskActionDisabled,
+  isStaleOfficeCommandFailure,
 } from '../../../../modules/copilot-tasks/utils';
 import { GlobalWorkbenchTasks } from './global-workbench-tasks';
 import * as styles from './index.css';
@@ -401,12 +402,14 @@ const TaskDetail = ({
             {t['com.affine.localmind.tasks.failure']()}
           </h2>
           <p className={styles.detailSectionText} data-failure="true">
-            {task.failureMessage}
+            {isStaleOfficeCommandFailure(task)
+              ? t['com.affine.office.ai-revision-conflict']()
+              : task.failureMessage}
           </p>
         </section>
       ) : null}
 
-      {task.resultSummary ? (
+      {task.resultSummary && !isStaleOfficeCommandFailure(task) ? (
         <section className={styles.detailSection}>
           <h2 className={styles.detailSectionTitle}>
             {t['com.affine.localmind.tasks.result']()}

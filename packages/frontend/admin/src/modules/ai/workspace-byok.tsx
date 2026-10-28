@@ -54,7 +54,7 @@ import { toast } from 'sonner';
 
 import { ConfirmDialog } from '../../components/shared/confirm-dialog';
 import { translateAdminText as text } from '../../localized-text';
-import { formatByokError } from './byok-feedback';
+import { formatByokError, formatByokMutationError } from './byok-feedback';
 import { WorkspaceAiProfilesEditor } from './workspace-ai-profiles';
 
 type WorkspaceScope = QueryResponse<
@@ -93,9 +93,14 @@ const TEST_STATUS_LABELS: Record<ByokKeyTestStatus, string> = {
 };
 
 function emptyDraft(
-  sortOrder: number,
+  keys: ReadonlyArray<Pick<WorkspaceByokKey, 'name' | 'provider'>>,
   provider = ByokProvider.openai
 ): KeyDraft {
+  const names = new Set(
+    keys.filter(key => key.provider === provider).map(key => key.name)
+  );
+  let name = 'Primary';
+  for (let suffix = 2; names.has(name); suffix++) name = `Primary ${suffix}`;
   return {
     apiKey: '',
     description: '',
@@ -103,9 +108,9 @@ function emptyDraft(
     endpoint: '',
     modelId: '',
     apiStyle: 'responses',
-    name: 'Primary',
+    name,
     provider,
-    sortOrder,
+    sortOrder: keys.length,
   };
 }
 
@@ -153,7 +158,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
   const settings = data.adminWorkspaceByokSettings;
   const defaultProvider = settings.allowedProviders[0] ?? ByokProvider.openai;
   const [draft, setDraft] = useState<KeyDraft>(() =>
-    emptyDraft(settings.keys.length, defaultProvider)
+    emptyDraft(settings.keys, defaultProvider)
   );
   const [testedFingerprint, setTestedFingerprint] = useState<string | null>(
     null
@@ -177,12 +182,6 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     mutation: reorderWorkspaceByokConfigsMutation,
   });
 
-  useEffect(() => {
-    setDraft(emptyDraft(settings.keys.length, defaultProvider));
-    setTestedFingerprint(null);
-    setAvailableModels([]);
-  }, [defaultProvider, scope.id, settings.keys.length]);
-
   const currentTestFingerprint = useMemo(
     () => testFingerprint(draft, settings.customEndpointSupported),
     [draft, settings.customEndpointSupported]
@@ -193,7 +192,14 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     : [draft.modelId].filter(Boolean);
   const busy = pendingAction !== null || isTesting || isSaving;
   const canTest = Boolean(draft.id || draft.apiKey.trim());
+  const duplicateName = settings.keys.some(
+    key =>
+      key.id !== draft.id &&
+      key.provider === draft.provider &&
+      key.name === draft.name.trim()
+  );
   const canSave =
+    !duplicateName &&
     settings.serverEntitled &&
     Boolean(draft.name.trim()) &&
     availableModels.includes(draft.modelId) &&
@@ -201,8 +207,12 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     isTested &&
     !busy;
 
-  const resetDraft = () => {
-    setDraft(emptyDraft(settings.keys.length, defaultProvider));
+  const resetDraft = (
+    keys: ReadonlyArray<
+      Pick<WorkspaceByokKey, 'name' | 'provider'>
+    > = settings.keys
+  ) => {
+    setDraft(emptyDraft(keys, defaultProvider));
     setTestedFingerprint(null);
     setAvailableModels([]);
     setFormError(null);
@@ -222,6 +232,11 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     workspaceId: scope.id,
   });
 
+  const reportTestFailure = (message: string) => {
+    setFormError(message);
+    toast.error(message);
+  };
+
   const handleTest = async () => {
     if (!canTest || busy || requestPending.current) return;
     requestPending.current = true;
@@ -234,12 +249,14 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
         input: testInput(null),
       });
       if (!result.testWorkspaceByokConfig.ok) {
-        setFormError(formatByokError(result.testWorkspaceByokConfig.message));
+        reportTestFailure(
+          formatByokError(result.testWorkspaceByokConfig.message)
+        );
         return;
       }
       const models = [...new Set(result.testWorkspaceByokConfig.models ?? [])];
       if (!models.length) {
-        setFormError(
+        reportTestFailure(
           i18n['com.affine.admin.workspace-byok-model-list-empty']()
         );
         return;
@@ -250,9 +267,13 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
         modelId: models.includes(current.modelId) ? current.modelId : '',
       }));
       setTestedFingerprint(currentTestFingerprint);
+      toast.success(
+        i18n['com.affine.admin.workspace-byok-test-succeeded']({
+          count: models.length,
+        })
+      );
     } catch (testError) {
-      console.error(testError);
-      setFormError(i18n['com.affine.admin.provider-test-failed']());
+      reportTestFailure(formatByokMutationError(testError));
     } finally {
       requestPending.current = false;
       setPendingAction(null);
@@ -317,8 +338,13 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
           verificationError = i18n['com.affine.admin.provider-test-failed']();
         }
       }
-      await mutate();
-      resetDraft();
+      const refreshed = await mutate();
+      resetDraft(
+        refreshed?.adminWorkspaceByokSettings.keys ?? [
+          ...settings.keys,
+          { name: draft.name.trim(), provider: draft.provider },
+        ]
+      );
       const savedMessage =
         i18n['com.affine.admin.workspace-ai-credential-saved']();
       if (verificationError) {
@@ -327,11 +353,10 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
         toast.success(savedMessage);
       }
     } catch (saveError) {
-      console.error(saveError);
       setFormError(
         saved
           ? i18n['com.affine.admin.byok-saved-refresh-failed']()
-          : i18n['com.affine.admin.failed-to-save-workspace-ai-credential']()
+          : formatByokMutationError(saveError)
       );
     } finally {
       requestPending.current = false;
@@ -615,7 +640,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={resetDraft}
+                onClick={() => resetDraft()}
               >
                 <PlusIcon size={16} />
                 {i18n['com.affine.admin.add-another']()}{' '}
@@ -637,6 +662,11 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                   setDraft(current => ({
                     ...current,
                     provider: value as ByokProvider,
+                    name:
+                      current.name ===
+                      emptyDraft(settings.keys, current.provider).name
+                        ? emptyDraft(settings.keys, value as ByokProvider).name
+                        : current.name,
                     modelId: '',
                   }));
                   setTestedFingerprint(null);
@@ -692,14 +722,28 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
               <Input
                 id={`byok-name-${scope.id}`}
                 value={draft.name}
+                aria-invalid={duplicateName}
+                aria-describedby={
+                  duplicateName ? `byok-name-error-${scope.id}` : undefined
+                }
                 placeholder={i18n['com.affine.admin.primary']()}
-                onChange={event =>
+                onChange={event => {
+                  setFormError(null);
                   setDraft(current => ({
                     ...current,
                     name: event.target.value,
-                  }))
-                }
+                  }));
+                }}
               />
+              {duplicateName ? (
+                <p
+                  id={`byok-name-error-${scope.id}`}
+                  role="alert"
+                  className="text-sm text-destructive"
+                >
+                  {i18n['com.affine.admin.workspace-byok-name-conflict']()}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2 md:col-span-2 xl:col-span-1">
               <Label htmlFor={`byok-key-${scope.id}`}>
@@ -815,13 +859,15 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span role="status" className="text-xs text-muted-foreground">
-                {isValidating
-                  ? i18n['com.affine.admin.refreshing-2']()
-                  : isTested
-                    ? i18n['com.affine.admin.workspace-byok-catalog-loaded']()
-                    : i18n[
-                        'com.affine.admin.test-the-provider-configuration-before-saving'
-                      ]()}
+                {pendingAction === 'test'
+                  ? i18n['com.affine.admin.testing']()
+                  : isValidating
+                    ? i18n['com.affine.admin.refreshing-2']()
+                    : isTested
+                      ? i18n['com.affine.admin.workspace-byok-catalog-loaded']()
+                      : i18n[
+                          'com.affine.admin.test-the-provider-configuration-before-saving'
+                        ]()}
               </span>
               <Button
                 type="button"
@@ -952,7 +998,7 @@ export function WorkspaceByokAdmin() {
       </CardContent>
       {selectedScope ? (
         <div key={selectedScope.id}>
-          <WorkspaceByokEditor scope={selectedScope} />
+          <WorkspaceByokEditor key={selectedScope.id} scope={selectedScope} />
           <WorkspaceAiProfilesEditor scope={selectedScope} />
         </div>
       ) : null}

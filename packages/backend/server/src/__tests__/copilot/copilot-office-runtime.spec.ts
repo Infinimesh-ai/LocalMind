@@ -328,7 +328,7 @@ test('revalidates persisted Office turn context and injects fixed-layout planner
       userId: 'user-1',
       workspaceId: 'workspace-1',
     },
-    finish,
+    finishAsync: finish,
   };
   const conversations = {
     prepareTurn: Sinon.stub().resolves({
@@ -432,7 +432,7 @@ test('supports the object stream transport used by Office AI Chat', async t => {
       userId: 'user-1',
       workspaceId: 'workspace-1',
     },
-    finish,
+    finishAsync: finish,
   };
   const conversations = {
     prepareTurn: Sinon.stub().resolves({
@@ -502,3 +502,96 @@ test('supports the object stream transport used by Office AI Chat', async t => {
     false
   );
 });
+
+for (const responseMode of ['text', 'object'] as const) {
+  for (const phase of [
+    'before-token',
+    'partial',
+    'consumer-return',
+    'provider-error',
+  ] as const) {
+    test(`chat ${responseMode} persists cancellation at ${phase} without marking provider errors successful`, async t => {
+      let aborted = phase === 'before-token';
+      const session = {
+        config: {
+          sessionId: 'session-1',
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+        },
+        finishAsync: async () => [],
+      };
+      const persist = Sinon.stub().resolves();
+      const partial =
+        responseMode === 'text'
+          ? 'partial'
+          : { type: 'text-delta', textDelta: 'partial' };
+      const stream = async function* () {
+        if (phase !== 'before-token') yield partial;
+        if (phase !== 'provider-error') aborted = true;
+        throw new Error('stream interrupted');
+      };
+      const orchestrator = new TurnOrchestrator(
+        {
+          prepareTurn: async () => ({ session, params: {} }),
+          buildLatestTurnPromptParams: () => ({}),
+        } as never,
+        { getOwnedBySessionId: async () => null } as never,
+        {} as never,
+        {
+          selectChat: async () => ({ model: 'test', providerOptions: {} }),
+        } as never,
+        { streamText: stream, streamObject: stream } as never,
+        {} as never,
+        { persistTextResult: persist, persistObjectResult: persist } as never,
+        {} as never
+      );
+      const result =
+        responseMode === 'text'
+          ? await orchestrator.streamText(
+              'user-1',
+              'session-1',
+              {},
+              undefined,
+              () => aborted
+            )
+          : await orchestrator.streamObject(
+              'user-1',
+              'session-1',
+              {},
+              undefined,
+              () => aborted
+            );
+      if (phase === 'consumer-return') {
+        const iterator = result.stream[Symbol.asyncIterator]();
+        t.false((await iterator.next()).done);
+        aborted = true;
+        await iterator.return?.(undefined);
+      } else if (phase === 'before-token') {
+        for await (const _chunk of result.stream)
+          t.fail('cancelled request generated output');
+      } else {
+        await t.throwsAsync(async () => {
+          for await (const _chunk of result.stream) {
+            /* consume */
+          }
+        });
+      }
+      if (phase === 'provider-error') {
+        t.false(persist.called);
+      } else {
+        t.true(persist.calledOnce);
+        t.is(persist.firstCall.args[2], true);
+        t.deepEqual(
+          persist.firstCall.args[1],
+          responseMode === 'text'
+            ? phase === 'before-token'
+              ? ''
+              : partial
+            : phase === 'before-token'
+              ? []
+              : [partial]
+        );
+      }
+    });
+  }
+}

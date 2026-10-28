@@ -28,7 +28,7 @@ import { type FormEvent, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ConfirmDialog } from '../../components/shared/confirm-dialog';
-import { formatByokError } from './byok-feedback';
+import { formatByokError, formatByokMutationError } from './byok-feedback';
 
 type Settings = QueryResponse<
   typeof adminProjectByokSettingsQuery
@@ -69,6 +69,10 @@ function ProjectByokForm({
     ok: boolean;
     message: string;
   } | null>(null);
+  const [pendingChange, setPendingChange] = useState<{
+    kind: 'project' | 'workOrder';
+    enabled: boolean;
+  } | null>(null);
   const { trigger: test, isMutating: testing } = useMutation({
     mutation: testProjectByokConfigMutation,
   });
@@ -99,6 +103,7 @@ function ProjectByokForm({
   const handleTest = async () => {
     if (busy || !canTest) return;
     setFeedback(null);
+    setPendingChange(null);
     clearModelList();
     try {
       const { testProjectByokConfig: result } = await test({ input });
@@ -129,6 +134,7 @@ function ProjectByokForm({
     event.preventDefault();
     if (busy || !canSubmit) return;
     setFeedback(null);
+    setPendingChange(null);
     try {
       await save({ input });
     } catch (error) {
@@ -163,48 +169,58 @@ function ProjectByokForm({
       return;
     }
     setFeedback(null);
+    setPendingChange(null);
     try {
       await setEnabled({ expectedRevision: settings.revision, enabled });
-      toast.success(
-        enabled
-          ? i18n['com.affine.admin.project-ai-enabled-2']()
-          : i18n['com.affine.admin.project-ai-disabled']()
-      );
-      await onSaved();
-    } catch {
+    } catch (error) {
       setFeedback({
         ok: false,
-        message:
-          i18n[
-            'com.affine.admin.update-failed-reload-the-settings-and-check-the-provider-connection'
-          ](),
+        message: formatByokMutationError(error),
       });
+      setPendingChange({ kind: 'project', enabled });
+      return;
     }
+    toast.success(
+      enabled
+        ? i18n['com.affine.admin.project-ai-enabled-2']()
+        : i18n['com.affine.admin.project-ai-disabled']()
+    );
+    await onSaved().catch(() =>
+      setFeedback({
+        ok: true,
+        message: i18n['com.affine.admin.byok-saved-refresh-failed'](),
+      })
+    );
   };
 
   const handleWorkOrderEnabled = async (enabled: boolean) => {
     if (busy || !settings.configured || !settings.enabled) return;
     setFeedback(null);
+    setPendingChange(null);
     try {
       await setWorkOrderEnabled({
         expectedRevision: settings.revision,
         enabled,
       });
-      toast.success(
-        enabled
-          ? i18n['com.affine.admin.work-order-ai-enabled']()
-          : i18n['com.affine.admin.work-order-ai-disabled']()
-      );
-      await onSaved();
-    } catch {
+    } catch (error) {
       setFeedback({
         ok: false,
-        message:
-          i18n[
-            'com.affine.admin.update-failed-reload-the-settings-and-check-the-provider-connection'
-          ](),
+        message: formatByokMutationError(error),
       });
+      setPendingChange({ kind: 'workOrder', enabled });
+      return;
     }
+    toast.success(
+      enabled
+        ? i18n['com.affine.admin.work-order-ai-enabled']()
+        : i18n['com.affine.admin.work-order-ai-disabled']()
+    );
+    await onSaved().catch(() =>
+      setFeedback({
+        ok: true,
+        message: i18n['com.affine.admin.byok-saved-refresh-failed'](),
+      })
+    );
   };
 
   return (
@@ -215,7 +231,10 @@ function ProjectByokForm({
         );
       }}
       className="space-y-5"
-      onChange={() => setFeedback(null)}
+      onChange={() => {
+        setFeedback(null);
+        setPendingChange(null);
+      }}
     >
       <div className="flex flex-wrap items-center gap-3">
         <Switch
@@ -398,6 +417,22 @@ function ProjectByokForm({
         >
           {feedback.message}
         </p>
+      ) : null}
+      {feedback && !feedback.ok && pendingChange ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          onClick={() => {
+            const request =
+              pendingChange.kind === 'project'
+                ? handleEnabled(pendingChange.enabled, true)
+                : handleWorkOrderEnabled(pendingChange.enabled);
+            void request.catch(console.error);
+          }}
+        >
+          {i18n['com.affine.admin.ui.retry']()}
+        </Button>
       ) : null}
       {modelListUnavailable ? (
         <p role="status" className="text-sm text-muted-foreground">

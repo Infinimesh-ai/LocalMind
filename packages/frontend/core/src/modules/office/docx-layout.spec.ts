@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { paginateDocxBlocks } from './docx-layout';
+import { docxPageFragment, paginateDocxBlocks } from './docx-layout';
 import type { DocxBlock, DocxSection } from './types';
 
 const paragraph = (
@@ -18,6 +18,32 @@ const paragraph = (
 });
 
 describe('paginateDocxBlocks', () => {
+  test('splits inline page breaks into source-addressed fragments, including a trailing blank page', () => {
+    const block = paragraph('p1', 'Before\fAfter\f');
+    if (block.type !== 'paragraph') throw new Error('expected paragraph');
+    block.runs = [
+      {
+        content: [
+          { type: 'text', text: 'Before' },
+          { type: 'break', breakType: 'page' },
+          { type: 'text', text: 'After' },
+          { type: 'break', breakType: 'page' },
+        ],
+      },
+    ];
+    const pages = paginateDocxBlocks([block, paragraph('p2', 'Tail')], []);
+    expect(
+      pages.map(p => p.blocks.map(b => (b.type === 'paragraph' ? b.text : '')))
+    ).toEqual([['Before'], ['After'], ['', 'Tail']]);
+    expect(
+      pages
+        .flatMap(p => p.blocks)
+        .filter(b => b.id === 'p1')
+        .map(b => (b.type === 'paragraph' ? docxPageFragment(b)?.offset : null))
+    ).toEqual([0, 7, 13]);
+    expect(block.text).toBe('Before\fAfter\f');
+    expect(pages[0].blocks[0].id).toBe('p1');
+  });
   const sections = (type?: string): DocxSection[] => [
     {
       index: 0,

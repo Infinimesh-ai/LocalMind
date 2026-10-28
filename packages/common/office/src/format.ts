@@ -30,6 +30,13 @@ export function officeDownloadFileName(
 export type OfficePackageMimeType =
   (typeof OFFICE_PACKAGE_MIME_TYPE)[OfficeArtifactKind];
 
+export function officeWorkbookCompatibilityFileName(
+  title: string,
+  sequence: number
+) {
+  return `${officeDownloadFileName(title, 'workbook').slice(0, -5)}-v${sequence}-compatible.xlsx`;
+}
+
 export function getOfficePackageMimeType(kind: OfficeArtifactKind) {
   return OFFICE_PACKAGE_MIME_TYPE[kind];
 }

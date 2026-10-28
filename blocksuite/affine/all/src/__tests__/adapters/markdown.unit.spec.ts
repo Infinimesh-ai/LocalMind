@@ -5428,6 +5428,34 @@ hhh
       ],
     };
 
+    test.each([
+      'Answer[^1]\n\n[^1]: {"type":"url","url":"https://example.com"}\n\nRequired footer',
+      'Answer[^1][^2]\n\n[^1]: {"type":"url","url":"https://example.com"}\n\nMiddle paragraph\n\n[^2]: {"type":"doc","docId":"example"}\n\nRequired footer',
+    ])(
+      'keeps body after citations outside collapsed Sources: %s',
+      async markdown => {
+        const adapter = new MarkdownAdapter(createJob(), provider);
+        const snapshot = await adapter.toBlockSnapshot({ file: markdown });
+        const blocks = snapshot!.children;
+        const sourceIndex = blocks.findIndex(block => block.props.collapsed);
+        expect(sourceIndex).toBeGreaterThan(0);
+        const body = blocks.slice(0, sourceIndex);
+        expect(JSON.stringify(body)).toContain('Required footer');
+        if (markdown.includes('Middle paragraph')) {
+          expect(JSON.stringify(body)).toContain('Middle paragraph');
+          expect(blocks.slice(sourceIndex + 1)).toHaveLength(2);
+        } else {
+          expect(blocks.slice(sourceIndex + 1)).toHaveLength(1);
+        }
+        expect(
+          blocks
+            .slice(sourceIndex + 1)
+            .every(block => block.flavour !== 'affine:paragraph')
+        ).toBe(true);
+        expect(JSON.stringify(body)).toContain('"footnote"');
+      }
+    );
+
     test('with encoded url and favicon', async () => {
       const encodedUrl = encodeURIComponent(url);
       const encodedFavicon = encodeURIComponent(favicon);

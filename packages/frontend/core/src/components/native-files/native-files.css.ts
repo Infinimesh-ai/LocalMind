@@ -54,3 +54,11 @@ export const hint = style({
   fontSize: 12,
   overflowWrap: 'anywhere',
 });
+
+export const uploadHint = style({
+  margin: 0,
+  color: cssVarV2('text/primary'),
+  fontSize: 14,
+  lineHeight: 1.6,
+  overflowWrap: 'anywhere',
+});

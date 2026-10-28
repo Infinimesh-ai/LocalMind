@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
+import { Prisma } from '@prisma/client';
 
 import { BadRequest } from '../base';
 import { BaseModel } from './base';
@@ -90,19 +91,31 @@ export class CopilotWorkspaceByokConfigModel extends BaseModel {
         : {}),
     };
 
-    return input.id
-      ? await this.db.aiWorkspaceByokConfig.update({
-          where: { id: input.id, workspaceId: input.workspaceId },
-          data,
-        })
-      : await this.db.aiWorkspaceByokConfig.create({
-          data: {
-            ...data,
-            encryptedApiKey: input.encryptedApiKey ?? '',
-            workspaceId: input.workspaceId,
-            createdBy: input.userId,
-          },
-        });
+    try {
+      return input.id
+        ? await this.db.aiWorkspaceByokConfig.update({
+            where: { id: input.id, workspaceId: input.workspaceId },
+            data,
+          })
+        : await this.db.aiWorkspaceByokConfig.create({
+            data: {
+              ...data,
+              encryptedApiKey: input.encryptedApiKey ?? '',
+              workspaceId: input.workspaceId,
+              createdBy: input.userId,
+            },
+          });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequest(
+          'A BYOK credential with this name already exists for this workspace and provider.'
+        );
+      }
+      throw error;
+    }
   }
 
   @Transactional()

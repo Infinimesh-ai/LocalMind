@@ -11,6 +11,7 @@ import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
 import { WorkspaceDirectoryResolver } from './directory-resolver';
 import { DocumentDestinationService } from './document-destination';
 import { DocEventsListener } from './event';
+import { WorkspaceFolderPageResolver } from './folder-page-resolver';
 import { DocStorageCronJob } from './job';
 import { WorkspaceNativeResourceAccess } from './native-resource-access';
 import { DocStorageOptions } from './options';
@@ -18,6 +19,7 @@ import { WorkspaceDocOutboxPublisher } from './outbox';
 import { WorkspacePageTreeResolver } from './page-tree-resolver';
 import { DatabaseDocReader, DocReader, DocReaderProvider } from './reader';
 import { StructuredDocService } from './structured';
+import { WorkspaceFolderPageService } from './workspace-folder-page';
 import {
   WorkspaceLifecycleResolver,
   WorkspaceLifecycleService,
@@ -30,6 +32,8 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
 @Module({
   imports: [BackendRuntimeModule, QuotaModule, PermissionModule, StorageModule],
   providers: [
+    WorkspaceFolderPageService,
+    WorkspaceFolderPageResolver,
     WorkspaceLifecycleService,
     WorkspaceLifecycleResolver,
     WorkspacePageTreeResolver,

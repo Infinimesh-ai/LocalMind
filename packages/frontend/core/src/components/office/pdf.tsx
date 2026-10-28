@@ -471,8 +471,11 @@ export function PdfEditor({
   const draftValues = useRef({ annotationText, signerName, signatureReason });
   draftValues.current = { annotationText, signerName, signatureReason };
   const latestRevision = useRef(revision);
-  if (revision.sequence >= latestRevision.current.sequence)
+  const latestPdfState = useRef(state);
+  if (revision.sequence >= latestRevision.current.sequence) {
     latestRevision.current = revision;
+    latestPdfState.current = state;
+  }
   const [redactionRect, setRedactionRect] = useState({
     xPt: 72,
     yPt: 640,
@@ -484,6 +487,11 @@ export function PdfEditor({
   const redactionInFlight = useRef(false);
   const [saving, setSaving] = useState(false);
   const commandInFlight = useRef(false);
+  const annotationDrafts = useRef(
+    new Map<string, { original: string; value: string }>()
+  );
+  const annotationWriting = useRef<string | null>(null);
+  const [, setAnnotationDraftVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('Ready');
   const viewerRef = useRef<HTMLIFrameElement>(null);
@@ -546,6 +554,8 @@ export function PdfEditor({
           kind: 'pdf',
           command,
         });
+        latestRevision.current = result.revision;
+        latestPdfState.current = result.state;
         onRevision(result.revision, result.state);
         setStatus(
           I18n['com.affine.office.operation-saved']({
@@ -578,15 +588,68 @@ export function PdfEditor({
     };
   }, [artifactId, revision.id]);
 
+  const flushAnnotationDraft = useCallback(async () => {
+    if (readOnly || saving || commandInFlight.current) return false;
+    const entry = annotationDrafts.current.entries().next().value;
+    if (!entry) return true;
+    const [annotationId, draft] = entry;
+    const current = latestPdfState.current.pages
+      .flatMap(item => item.annotations)
+      .find(item => item.id === annotationId);
+    if (!current || (current.contents ?? '') !== draft.original) {
+      setError(I18n['com.affine.office.error.conflict']());
+      return false;
+    }
+    annotationWriting.current = annotationId;
+    const saved = await runCommand(
+      {
+        ...commandBase(),
+        expectedRevisionId: latestRevision.current.id,
+        operation: 'office.pdf.annotation.update',
+        annotationId,
+        contents: draft.value,
+      },
+      i18n['com.affine.office.annotation-update']()
+    );
+    annotationWriting.current = null;
+    if (saved) {
+      const currentDraft = annotationDrafts.current.get(annotationId);
+      if (currentDraft === draft) {
+        annotationDrafts.current.delete(annotationId);
+      } else if (currentDraft?.original === draft.original) {
+        annotationDrafts.current.set(annotationId, {
+          ...currentDraft,
+          original: draft.value,
+        });
+      }
+      setAnnotationDraftVersion(value => value + 1);
+    }
+    return saved;
+  }, [commandBase, i18n, readOnly, runCommand, saving]);
+
+  useEffect(() => {
+    if (!saving && !error && annotationDrafts.current.size) {
+      flushAnnotationDraft().catch(console.error);
+    }
+  }, [saving, error, flushAnnotationDraft]);
+
   useOfficeEditorDraft(registerDraft, {
     get hasUnsavedChanges() {
-      return Object.values(draftValues.current).some(value => value.length > 0);
+      return (
+        annotationDrafts.current.size > 0 ||
+        Object.values(draftValues.current).some(value => value.length > 0)
+      );
     },
     save: async () => {
       if (readOnly || saving || !page)
         throw new Error(
           i18n['com.affine.office.office-editor-is-not-writable']()
         );
+      while (annotationDrafts.current.size) {
+        if (!(await flushAnnotationDraft())) {
+          throw new Error(i18n['com.affine.office.save-failed']());
+        }
+      }
       const draft = draftValues.current;
       if (draft.signatureReason && !draft.signerName.trim())
         throw new Error(i18n['com.affine.office.signature-name-is-required']());
@@ -632,6 +695,7 @@ export function PdfEditor({
           },
         });
         latestRevision.current = result.revision;
+        latestPdfState.current = result.state;
         if (kind === 'annotation') {
           draftValues.current.annotationText = '';
           setAnnotationText('');
@@ -645,6 +709,8 @@ export function PdfEditor({
       }
     },
     discard: async () => {
+      annotationDrafts.current.clear();
+      setAnnotationDraftVersion(value => value + 1);
       draftValues.current = {
         annotationText: '',
         signerName: '',
@@ -1117,24 +1183,36 @@ export function PdfEditor({
                 ) : null}
                 <input
                   className={styles.field}
-                  defaultValue={annotation.contents ?? ''}
-                  disabled={readOnly || saving}
+                  value={
+                    annotationDrafts.current.get(annotation.id)?.value ??
+                    annotation.contents ??
+                    ''
+                  }
+                  disabled={readOnly}
                   aria-label={I18n['com.affine.office.edit-typed-annotation']({
                     type: annotationLabel(annotation.subtype),
                   })}
-                  onBlur={event => {
-                    if (event.target.value === (annotation.contents ?? '')) {
-                      return;
+                  onChange={event => {
+                    const value = event.target.value;
+                    const original =
+                      annotationDrafts.current.get(annotation.id)?.original ??
+                      annotation.contents ??
+                      '';
+                    if (
+                      value === original &&
+                      annotationWriting.current !== annotation.id
+                    ) {
+                      annotationDrafts.current.delete(annotation.id);
+                    } else {
+                      annotationDrafts.current.set(annotation.id, {
+                        original,
+                        value,
+                      });
                     }
-                    runCommand(
-                      {
-                        ...commandBase(),
-                        operation: 'office.pdf.annotation.update',
-                        annotationId: annotation.id,
-                        contents: event.target.value,
-                      },
-                      i18n['com.affine.office.annotation-update']()
-                    ).catch(console.error);
+                    setAnnotationDraftVersion(version => version + 1);
+                  }}
+                  onBlur={() => {
+                    flushAnnotationDraft().catch(console.error);
                   }}
                 />
                 <input

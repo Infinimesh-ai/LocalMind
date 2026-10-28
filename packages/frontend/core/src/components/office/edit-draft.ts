@@ -33,6 +33,7 @@ export function useOfficeSelectionChange(confirm?: () => Promise<boolean>) {
 
 export type OfficeEditorDraft = {
   readonly hasUnsavedChanges: boolean;
+  recoveryText?: () => string;
   save: () => Promise<void>;
   discard: () => Promise<void>;
   pauseAutosave?: () => {
@@ -51,12 +52,16 @@ export function useOfficeEditorDraft(
   latest.current = draft;
   const dirty = draft.hasUnsavedChanges;
   const pausable = !!draft.pauseAutosave;
+  const recoverable = !!draft.recoveryText;
   useEffect(
     () =>
       register?.({
         get hasUnsavedChanges() {
           return latest.current.hasUnsavedChanges;
         },
+        recoveryText: recoverable
+          ? () => latest.current.recoveryText?.() ?? ''
+          : undefined,
         save: () => latest.current.save(),
         discard: () => latest.current.discard(),
         pauseAutosave: pausable
@@ -67,7 +72,7 @@ export function useOfficeEditorDraft(
               }
           : undefined,
       }),
-    [register, dirty, pausable]
+    [register, dirty, pausable, recoverable]
   );
 }
 

@@ -8,6 +8,7 @@ import {
   type PaginationInput,
   removeWorkspaceEmbeddingFilesMutation,
   removeWorkspaceEmbeddingIgnoredDocsMutation,
+  retryWorkspaceEmbeddingMutation,
   setEnableDocEmbeddingMutation,
 } from '@affine/graphql';
 import { Store } from '@toeverything/infra';
@@ -178,6 +179,14 @@ export class EmbeddingStore extends Store {
       { workspaceId },
       { signal, timeoutMs: 10000 }
     );
+  }
+
+  async retryFailed(workspaceId: string) {
+    if (!this.workspaceServerService.server) throw new Error('No Server');
+    return this.workspaceServerService.server.gql({
+      query: retryWorkspaceEmbeddingMutation,
+      variables: { workspaceId },
+    });
   }
 
   subscribeEmbeddingProgress(workspaceId: string) {

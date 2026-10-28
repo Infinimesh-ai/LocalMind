@@ -6,6 +6,7 @@ import { BadRequest } from '../../base';
 import { CurrentUser, type CurrentUser as User } from '../auth';
 import { OfficeArtifactService } from './artifact-service';
 import { officePdfExportResponse } from './pdf-export-response';
+import { officeXlsxExportResponse } from './xlsx-export-response';
 
 @Controller(
   '/api/projects/:projectId/office/artifacts/:artifactId/revisions/:revisionId'
@@ -97,5 +98,24 @@ export class ProjectOfficeController {
       .attachment(officeDownloadFileName(asset.artifact.title, 'pdf'))
       .type(asset.mimeType);
     response.send(asset.bytes);
+  }
+  @Get('/export/xlsx')
+  async exportXlsx(
+    @CurrentUser() user: User,
+    @Param('projectId') projectId: string,
+    @Param('artifactId') artifactId: string,
+    @Param('revisionId') revisionId: string,
+    @Res() response: Response
+  ) {
+    await officeXlsxExportResponse(
+      () =>
+        this.artifacts.exportWorkbookRevisionCopy(
+          { projectId },
+          user.id,
+          artifactId,
+          revisionId
+        ),
+      response
+    );
   }
 }

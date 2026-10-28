@@ -6,7 +6,7 @@ import { generateKeyBetween } from 'fractional-indexing';
 import { nanoid } from 'nanoid';
 import * as Y from 'yjs';
 
-import { BadRequest, NotFound } from '../../base';
+import { BadRequest, NotFound, ResourceConflict } from '../../base';
 import { Models } from '../../models';
 import type { DirectoryRights } from '../../models/workspace-directory-grant';
 import type { WorkspaceNativeIdentity } from '../../models/workspace-native-resource';
@@ -1082,10 +1082,8 @@ export class WorkspaceOrganizationService {
   }
 
   async readDirectory(workspaceId: string, userId: string) {
-    const { rows, revision } = await this.readDirectorySnapshot(
-      workspaceId,
-      userId
-    );
+    const raw = await this.readDirectorySnapshot(workspaceId, userId);
+    const { rows, revision } = raw;
     const policies = await this.models.workspaceDirectoryGrant.snapshot(
       workspaceId,
       userId
@@ -1111,6 +1109,7 @@ export class WorkspaceOrganizationService {
     const records = new Map(rows.map(row => [String(row.id), row]));
     const byPath = new Map<string, DirectoryRights>();
     const entries: { row: JsonObject; rights: DirectoryRights }[] = [];
+    let canReadBlobs: boolean | undefined;
     for (const row of await this.nativeDirectoryRows(workspaceId, rows)) {
       const path: string[] = [];
       const seen = new Set<string>();
@@ -1147,13 +1146,11 @@ export class WorkspaceOrganizationService {
         byPath.set(key, rights);
       }
       if (rights.canRead && (row.type === 'file' || row.type === 'office')) {
-        if (
-          !(await this.ac
-            .user(userId)
-            .workspace(workspaceId)
-            .can('Workspace.Blobs.Read'))
-        )
-          continue;
+        canReadBlobs ??= await this.ac
+          .user(userId)
+          .workspace(workspaceId)
+          .can('Workspace.Blobs.Read');
+        if (!canReadBlobs) continue;
         try {
           const identity = {
             workspaceId,
@@ -1161,8 +1158,12 @@ export class WorkspaceOrganizationService {
             resourceId: String(row.data),
             kind: row.type as 'file' | 'office',
           };
-          await this.models.workspaceNativeResource.get(identity);
-          await this.nativeResourceLocations(identity);
+          const resource =
+            await this.models.workspaceNativeResource.get(identity);
+          await this.nativeResourceLocations(
+            identity,
+            pageTree ? undefined : { raw, policies, resource }
+          );
         } catch (error) {
           if (error instanceof NotFound || error instanceof ResourceError)
             continue;
@@ -1177,6 +1178,44 @@ export class WorkspaceOrganizationService {
       fullSyncAllowed: policies.fullSyncAllowed,
       rootRights: policies.rights([]),
     };
+  }
+
+  /** Check a destination without inspecting every unrelated native resource. */
+  async assertResourceFolderAccess(
+    workspaceId: string,
+    actorId: string,
+    folderId: string | null,
+    write = false
+  ) {
+    // The switched tree has page containers and its own structural contract.
+    if (
+      (await this.models.workspacePageTree.state(workspaceId))?.phase ===
+      'switched'
+    ) {
+      await this.assertResourceFolder(workspaceId, actorId, folderId, write);
+      return;
+    }
+    const { rows } = await this.readDirectorySnapshot(workspaceId, actorId);
+    const records = new Map(rows.map(row => [String(row.id), row]));
+    const path: string[] = [];
+    let current = folderId;
+    while (current !== null) {
+      if (path.includes(current) || path.length >= 64)
+        throw new ResourceError('resource_not_found');
+      const row = records.get(current);
+      if (!row || row.type !== 'folder')
+        throw new ResourceError('resource_not_found');
+      path.push(current);
+      current = typeof row.parentId === 'string' ? row.parentId : null;
+    }
+    const rights = await this.models.workspaceDirectoryGrant.rights({
+      workspaceId,
+      actorId,
+      directoryIds: path,
+    });
+    if (!rights.canRead) throw new ResourceError('resource_not_found');
+    if (write && (!rights.canWrite || !rights.canOrganize))
+      throw new ResourceError('permission_denied');
   }
 
   async assertResourceFolder(
@@ -1209,15 +1248,24 @@ export class WorkspaceOrganizationService {
       actorId: string;
       write?: boolean;
       organize?: boolean;
+    },
+    // Only supplied by readDirectory within the same authorization snapshot.
+    // The switched page tree needs its distinct retired-placement snapshot.
+    directorySnapshot?: {
+      raw: { rows: JsonObject[]; revision: string };
+      policies: Awaited<
+        ReturnType<Models['workspaceDirectoryGrant']['snapshot']>
+      >;
+      resource: Awaited<ReturnType<Models['workspaceNativeResource']['get']>>;
     }
   ) {
     const pageTree =
+      !directorySnapshot &&
       (await this.models.workspacePageTree.state(input.workspaceId))?.phase ===
-      'switched';
-    const raw = await this.readDirectorySnapshot(
-      input.workspaceId,
-      input.actorId
-    );
+        'switched';
+    const raw =
+      directorySnapshot?.raw ??
+      (await this.readDirectorySnapshot(input.workspaceId, input.actorId));
     const titles = new Map<string, string>();
     if (pageTree) {
       const all = await this.readSnapshot(
@@ -1249,10 +1297,12 @@ export class WorkspaceOrganizationService {
           (!pageTree && input.kind === 'office' && row.type === 'doc')) &&
         row.data === input.resourceId
     );
-    const resource = await this.models.workspaceNativeResource.get(input, {
-      trash: true,
-      deleted: true,
-    });
+    const resource =
+      directorySnapshot?.resource ??
+      (await this.models.workspaceNativeResource.get(input, {
+        trash: true,
+        deleted: true,
+      }));
     const locations = (
       resource.state.trashedAt && !pageTree ? [] : placements
     ).map(row => {
@@ -1316,11 +1366,13 @@ export class WorkspaceOrganizationService {
           )
             throw new ResourceError('resource_not_found');
         }
-      const rights = await this.models.workspaceDirectoryGrant.rights({
-        workspaceId: input.workspaceId,
-        actorId: input.actorId,
-        directoryIds: location.path,
-      });
+      const rights = directorySnapshot
+        ? directorySnapshot.policies.rights(location.path)
+        : await this.models.workspaceDirectoryGrant.rights({
+            workspaceId: input.workspaceId,
+            actorId: input.actorId,
+            directoryIds: location.path,
+          });
       if (!rights.canRead) throw new ResourceError('resource_not_found');
       if (
         input.write &&
@@ -1951,7 +2003,9 @@ export class WorkspaceOrganizationService {
         try {
           const revision = loaded.sourceRevision;
           if (revision !== input.expectedRevision)
-            throw new Error('Directory changed; refresh before editing');
+            throw new ResourceConflict(
+              'Directory changed; refresh before editing'
+            );
           const records = new Map(
             tableRecords(loaded.doc, true).map(row => [String(row.id), row])
           );

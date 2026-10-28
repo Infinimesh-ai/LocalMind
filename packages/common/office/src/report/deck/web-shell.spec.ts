@@ -7,6 +7,8 @@ import { renderCustomDeckHtml } from './sanitize';
 import { sha256Base64 } from './sha256';
 import { DECK_SHELL_SCRIPT, setDeckDisplayMode, wrapDeckHtml } from './shell';
 import { upgradeDeckHtml } from './upgrade';
+import { WEB_FIRST_STEP_RUNTIME_SCRIPT } from './web-first-step-runtime.fixture';
+import { WEB_PRESENT_STEP_RUNTIME_SCRIPT } from './web-present-step-runtime.fixture';
 import { WEB_REVEAL_RUNTIME_SCRIPT } from './web-reveal-runtime.fixture';
 import { WEB_SCROLL_SHELL_SCRIPT } from './web-scroll-shell.fixture';
 import { WEB_V2_SHELL_SCRIPT } from './web-v2-shell.fixture';
@@ -102,6 +104,39 @@ for (const oldShell of [false, true]) {
     expect(upgradeDeckHtml(badCsp)).toBe(badCsp);
   });
 }
+for (const [previousScript, knownHash] of [
+  [
+    WEB_PRESENT_STEP_RUNTIME_SCRIPT,
+    'NblolwZJ4ZkYhiamf5zS2y/p1cSFvD6M/DcxX/hcPiA=',
+  ],
+  [
+    WEB_FIRST_STEP_RUNTIME_SCRIPT,
+    'SEWTROV0Sp44fxqOtnJAkkDBCX5bYpJxN2KayBEv/9g=',
+  ],
+])
+  it('upgrades a known presentation-step runtime without altering content or accepting unknown scripts', () => {
+    const previousHash = sha256Base64(previousScript);
+    expect(previousHash).toBe(knownHash);
+    const original = wrapDeckHtml({
+      title: 'Stored v4',
+      lang: 'en',
+      css: '.slide{color:red}',
+      slidesHtml: content,
+      contentVersion: 'custom-v4',
+    })
+      .replaceAll(sha256Base64(REPORT_RUNTIME_SCRIPT), previousHash)
+      .replace(REPORT_RUNTIME_SCRIPT, previousScript);
+    const upgraded = upgradeDeckHtml(original);
+    expect(upgraded).toContain(REPORT_RUNTIME_SCRIPT);
+    expect(upgraded).not.toContain(previousScript);
+    expect(upgraded).toContain('All facts preserved');
+    expect(upgraded).toContain('.slide{color:red}');
+    expect(upgradeDeckHtml(upgraded)).toBe(upgraded);
+    const missingCsp = original.replace(`'sha256-${previousHash}'`, "'none'");
+    expect(upgradeDeckHtml(missingCsp)).toBe(missingCsp);
+    const unknown = original.replace(previousScript, 'alert(1)');
+    expect(upgradeDeckHtml(unknown)).toBe(unknown);
+  });
 it('reading exposes every chapter and leaves ordinary clicks and scrolling keys alone', () => {
   boot();
   expect(document.querySelectorAll('[data-slide][aria-hidden]')).toHaveLength(

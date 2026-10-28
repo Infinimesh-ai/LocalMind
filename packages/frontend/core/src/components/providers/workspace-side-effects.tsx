@@ -58,6 +58,8 @@ import {
   timeout,
 } from 'rxjs';
 
+import { WorkspaceUploadProgress } from '../native-files/upload-progress';
+
 /**
  * @deprecated just for legacy code, will be removed in the future
  */
@@ -219,6 +221,7 @@ export const WorkspaceSideEffects = () => {
     <>
       <QuickSearchContainer />
       <OverCapacityNotification />
+      <WorkspaceUploadProgress />
     </>
   );
 };

@@ -6,12 +6,19 @@ import {
   type OfficeSemanticKind,
 } from '@localmind/office';
 import {
+  DOCX_TEXT_LAYOUT_VERSION,
   exportDocxStateToPdf,
   openDocxPackage,
   readDocxSemanticState,
 } from '@localmind/office/docx';
 import { openPptxPackage } from '@localmind/office/pptx';
-import { openXlsxPackage } from '@localmind/office/xlsx';
+import {
+  exportXlsxCompatibilityCopy,
+  openXlsxPackage,
+  readXlsxSemanticState,
+  XLSX_CALCULATION_VERSION,
+  XlsxCompatibilityError,
+} from '@localmind/office/xlsx';
 import { Injectable } from '@nestjs/common';
 import {
   type OfficeArtifact,
@@ -253,6 +260,30 @@ export class OfficeArtifactService {
       revisionId,
       'state'
     );
+    if (state.artifact.kind === OfficeArtifactKind.workbook) {
+      const value: unknown = JSON.parse(state.bytes.toString('utf8'));
+      if (
+        value &&
+        typeof value === 'object' &&
+        'calculationVersion' in value &&
+        value.calculationVersion === XLSX_CALCULATION_VERSION
+      )
+        return state;
+      const source = await this.readRevisionAsset(
+        owner,
+        actorId,
+        artifactId,
+        revisionId,
+        'package'
+      );
+      const bytes = Buffer.from(
+        JSON.stringify(readXlsxSemanticState(openXlsxPackage(source.bytes)))
+      );
+      if (bytes.byteLength > MAX_OFFICE_STATE_DOWNLOAD_BYTES)
+        throw new Error('Office layout state exceeds its byte limit');
+      await this.getArtifactForAsset(owner, actorId, artifactId);
+      return { ...state, bytes };
+    }
     if (state.artifact.kind !== OfficeArtifactKind.document) return state;
     const value: unknown = JSON.parse(state.bytes.toString('utf8'));
     if (
@@ -291,8 +322,23 @@ export class OfficeArtifactService {
         return false;
       return Object.values(node).every(hasObjectMetadata);
     };
+    const hasPageBreak = (node: unknown): boolean => {
+      if (Array.isArray(node)) return node.some(hasPageBreak);
+      if (!node || typeof node !== 'object') return false;
+      if (
+        'type' in node &&
+        node.type === 'break' &&
+        'breakType' in node &&
+        node.breakType === 'page'
+      )
+        return true;
+      return Object.values(node).some(hasPageBreak);
+    };
     if (
       hasObjectMetadata(value) &&
+      (!hasPageBreak(value) ||
+        ('textLayoutVersion' in value &&
+          value.textLayoutVersion === DOCX_TEXT_LAYOUT_VERSION)) &&
       hasFieldMetadata &&
       value.sections.every(
         (section: unknown) =>
@@ -354,6 +400,39 @@ export class OfficeArtifactService {
       revision: asset.revision,
       bytes: Buffer.from(bytes),
       mimeType: pkg.getContentType(partName) ?? 'application/octet-stream',
+    };
+  }
+
+  async exportWorkbookRevisionCopy(
+    owner: OfficeOwner,
+    actorId: string,
+    artifactId: string,
+    revisionId: string
+  ) {
+    const asset = await this.readRevisionAsset(
+      owner,
+      actorId,
+      artifactId,
+      revisionId,
+      'package'
+    );
+    if (asset.artifact.kind !== OfficeArtifactKind.workbook)
+      throw new BadRequest('XLSX compatibility export requires a workbook');
+    let copy: ReturnType<typeof exportXlsxCompatibilityCopy>;
+    try {
+      copy = exportXlsxCompatibilityCopy(asset.bytes);
+    } catch {
+      throw new XlsxCompatibilityError(
+        'This revision cannot be safely exported as a compatible XLSX copy'
+      );
+    }
+    await this.getArtifactForAsset(owner, actorId, artifactId);
+    const bytes = Buffer.from(copy.bytes);
+    return {
+      ...asset,
+      bytes,
+      fingerprint: officeFingerprint(bytes),
+      repairVersion: copy.version,
     };
   }
 

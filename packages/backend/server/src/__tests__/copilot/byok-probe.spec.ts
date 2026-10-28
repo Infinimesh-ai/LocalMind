@@ -227,7 +227,7 @@ test('provider probe accepts FAL catalog wrapper variants but not empty lists', 
   );
 
   t.is(result.operation, 'model_catalog');
-  t.is(error?.message, 'Provider returned an invalid model catalog.');
+  t.is(error?.message, 'Provider returned an empty model catalog.');
 });
 
 test('explicit Chat protocol probes the configured model with Chat messages', async t => {
@@ -426,3 +426,20 @@ test('transport failures are safe and distinguish explicit timeouts', async t =>
     );
   }
 });
+
+for (const [provider, payload] of [
+  [ByokProvider.openai, { data: [] }],
+  [ByokProvider.anthropic, { data: [] }],
+  [ByokProvider.gemini, { models: [] }],
+] as const) {
+  test(`provider probe distinguishes an empty ${provider} catalog from malformed data`, async t => {
+    const fetch = Sinon.stub<
+      Parameters<typeof safeFetch>,
+      ReturnType<typeof safeFetch>
+    >().resolves(new Response(JSON.stringify(payload), { status: 200 }));
+    const error = await t.throwsAsync(
+      runProviderProbe(fetch, provider, 'secret', null, false)
+    );
+    t.is(error?.message, 'Provider returned an empty model catalog.');
+  });
+}

@@ -70,7 +70,9 @@ export function isEditableParagraph(p: DocxParagraph) {
             c.type === 'text' ||
             c.type === 'tab' ||
             (c.type === 'break' &&
-              (!c.breakType || c.breakType === 'textWrapping'))
+              (!c.breakType ||
+                c.breakType === 'textWrapping' ||
+                c.breakType === 'page'))
         )
     )
   );
@@ -83,7 +85,9 @@ export function runText(run: DocxRun) {
         : c.type === 'tab'
           ? '\t'
           : c.type === 'break'
-            ? '\n'
+            ? c.breakType === 'page'
+              ? '\f'
+              : '\n'
             : ''
     )
     .join('');

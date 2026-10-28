@@ -26,6 +26,39 @@ const event = {
   reasonCode: 'explicit_user_directive',
 };
 
+test('memory rejection receipt carries safe source-boundary recovery without fabricated success', t => {
+  const receipt = memoryCaptureReceipt({
+    ...input,
+    workspaceId: null,
+    projectId: 'project-1',
+    events: [],
+    rejection: 'unshared_sources',
+  });
+  t.true(receipt?.includes('Server rejection: unshared_sources'));
+  t.true(receipt?.includes('Start a new Project conversation'));
+  t.true(receipt?.includes('switch does not authorize private sources'));
+  t.true(receipt?.includes('"saved":0'));
+  t.true(receipt?.includes('"unverified":1'));
+});
+
+test('an ambiguous memory reference is not reported as saved', t => {
+  const receipt = memoryCaptureReceipt({
+    ...input,
+    content: '请记住它。',
+    events: [
+      {
+        ...event,
+        operation: 'NOOP',
+        memoryId: null,
+        reasonCode: 'ambiguous_memory_reference',
+      },
+    ],
+  });
+  t.true(receipt?.includes('"notApplied":1'));
+  t.true(receipt?.includes('ask the user to restate the fact'));
+  t.false(receipt?.includes('"saved":1'));
+});
+
 test('memory receipt reports durable document saves without promoting remembered text', t => {
   const receipt = memoryCaptureReceipt({ ...input, events: [event] });
   t.true(receipt?.includes('"saved":1'));
@@ -33,6 +66,8 @@ test('memory receipt reports durable document saves without promoting remembered
   t.false(receipt?.includes('蓝色'));
   t.false(receipt?.includes(event.memoryId));
   t.true(receipt?.includes('persist across conversations in this scope'));
+  t.true(receipt?.includes('only verifies the current turn'));
+  t.true(receipt?.includes('other facts were retained'));
 });
 
 test('memory receipt distinguishes persistence outcomes and shared Project visibility', t => {

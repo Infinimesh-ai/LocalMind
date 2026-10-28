@@ -280,6 +280,20 @@ NODE_OPTIONS=--import=/workspace/tools/cli/register.js yarn workspace @affine/se
 
 2026-10-07 本地修复：文件夹右键菜单增加“排序”，支持名称倒序、名称正序、手动排序，作用于该文件夹的直接子项。名称采用固定中文区域、数字感知的自然比较，倒序示例为 `10-2 → 9-24 → 9-23 → 9-9`；比较显示名称，不解析文件时间或补猜年份。文件夹、普通文档与原生文件/Office 使用同一比较规则，同名以目录节点 ID 稳定排序。
 
+2026-10-28 中文序号规则补充：侧栏名称正序／倒序在拼音比较前，将以下三类明确序号转换为数值排序键；仅用于显示比较，不改写标题、目录或手动顺序。旧文件夹侧栏和新版资源树共用此规则。
+
+- `第 + 数字 + 单位`：单位为周、天、日、月、年、章、节、篇、部分、项、条、次、期、版、集、轮；可出现在名称中间，单位后可继续有文字，例如 `项目第十一期汇报`、`第一周会议记录`。
+- 名称开头的成对中文／英文括号序号，例如 `（一）概述`、`(二) 进展`；两种括号采用一致的数值比较。
+- 名称开头、后接顿号或英文句点的序号，例如 `一、准备`、`二. 执行`；普通空格或连字符不作为序号标记。
+
+支持零到九千九百九十九的明确位值写法（含十、百、千），将 `〇`、`两` 分别视为 `零`、`二`；支持上述标记与数字之间的空白。相同格式中的中文／阿拉伯数字按数值混排，例如 `第一周 → 第 2 周 → 第三周 → 第十周`。普通名称如 `一心一意`、`三人行`、`第一性原理`，年份式数字串 `二〇二六`，省略位值的 `一百二` 以及未支持的写法继续使用原拼音规则，不猜测数值。排序键相等时按原名称比较，仍相等时按稳定节点 ID 排列；不新增日期解析或名称修改。
+
+本次中文序号补充在现有 Linux 容器 `localmind_hot_web`（`localmind-affine:dev-base`）验证：以下命令通过 4 个文件、55 项测试，覆盖正反序、混合数字、误识别边界、名称变更、个人偏好、拖动和撤销。修改的两份 TypeScript 文件通过范围类型检查、oxlint、ESLint；修改文件通过 Prettier 与 `git diff --check`。使用既有源码挂载，没有重建镜像、提交、远端部署或业务数据变更；未单独执行真实浏览器、Electron 或移动端验收。
+
+```sh
+docker exec -w /workspace localmind_hot_web sh -c 'unset NODE_OPTIONS; yarn vitest run packages/frontend/core/src/modules/organize/folder-sorting.spec.ts packages/frontend/core/src/modules/organize/entities/folder-node.spec.ts packages/frontend/core/src/modules/organize/stores/folder-sorting.spec.ts packages/frontend/core/src/components/root-app-sidebar/page-tree.spec.tsx'
+```
+
 新文件夹保存共享默认值 `defaultSortMode: name-desc`；历史文件夹缺少该字段时保留原有手动顺序。用户选择保存在现有 Userspace 中，按服务实例、账号、Workspace、文件夹隔离；纯本地 Workspace 使用既有个人 settings。选择名称正序/倒序不改写共享 `index`，切回手动可恢复原排列。只读成员也可选择个人展示方式，目录重排仍受写入和组织权限限制。
 
 自动排序下同层拖拽提示“松开后切换为手动排序”，将当前可见排列及拖动结果一次保存，成功后切换个人模式，并提供一次撤销。撤销同时恢复原手动顺序与原模式；账号变化、目录版本或原排列变化时拒绝覆盖。跨文件夹移动按目标模式展示，手动模式追加到末尾；自动模式下重命名会立即重新排序。原生资源同层拖拽携带独立资源身份与目录节点身份，跨目录继续复用原生资源移动服务。

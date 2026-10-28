@@ -1,26 +1,24 @@
 import {
-  Button,
   IconButton,
   Menu,
   MenuItem,
   MenuSub,
-  Modal,
   toast,
   usePromptModal,
 } from '@affine/component';
 import { useGuard } from '@affine/core/components/guard';
 import { GraphQLService } from '@affine/core/modules/cloud';
-import type { CreatedResource } from '@affine/core/modules/navigation-panel/services/created-resource';
 import {
   OrganizeService,
   WorkspacePageTreeService,
 } from '@affine/core/modules/organize';
 import { WorkspaceService } from '@affine/core/modules/workspace';
-import { WorkspaceResourcesService } from '@affine/core/modules/workspace-resources';
-import { UserFriendlyError } from '@affine/error';
+import {
+  WorkspaceResourcesService,
+  WorkspaceUploadsService,
+} from '@affine/core/modules/workspace-resources';
 import {
   type CreateWorkspaceNativeResourceInput,
-  createWorkspaceNativeResourceMutation,
   WORKSPACE_PAGE_TREE_CONTRACT,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
@@ -36,28 +34,12 @@ import {
   useService,
   useServiceOptional,
 } from '@toeverything/infra';
-import { nanoid } from 'nanoid';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useCreatedResourceNavigation } from '../page-tree/created-resource';
 import { NativeFileCreateDialog, type NativeFileFormat } from './create-dialog';
 import * as styles from './native-files.css';
-import { uploadWorkspaceNativeBlob } from './workspace-upload';
 
-type Upload = {
-  file: File;
-  key: string;
-  blobKey?: string;
-  resource?: CreatedResource;
-  status: 'waiting' | 'uploading' | 'done' | 'failed';
-  treeInput?: Pick<
-    CreateWorkspaceNativeResourceInput,
-    | 'parentNodeId'
-    | 'treeContractVersion'
-    | 'expectedTreeRevision'
-    | 'expectedAuthorizationRevision'
-  >;
-};
 export function WorkspaceCreateMenu({
   children,
   treeTarget: providedTreeTarget,
@@ -150,9 +132,14 @@ export function WorkspaceCreateMenu({
   };
   const { openPromptModal } = usePromptModal();
   const [format, setFormat] = useState<NativeFileFormat | null>(null);
-  const [uploads, setUploads] = useState<Upload[]>([]);
+  const uploadService = useService(WorkspaceUploadsService);
+  const uploads = useLiveData(uploadService.jobs$);
+  const showUploads = useLiveData(uploadService.panelOpen$);
+  const ownUploads = useRef<{
+    ids: string[];
+    complete: ReturnType<typeof beginCreation>;
+  } | null>(null);
   const picker = useRef<HTMLInputElement>(null);
-  const busy = useRef(false);
   const online = workspace.flavour !== 'local' && !!graphql;
   const invoke = (action: () => void | Promise<unknown>) => {
     void Promise.resolve()
@@ -161,94 +148,46 @@ export function WorkspaceCreateMenu({
         toast(t['com.affine.localmind.project-files.operationFailed']())
       );
   };
-  const upload = async (requests: Upload[]) => {
-    if (busy.current || !graphql) return;
-    busy.current = true;
-    const complete = beginCreation();
-    let created = false;
-    setUploads([...requests]);
-    try {
-      for (const request of requests) {
-        if (request.status === 'done') continue;
-        request.status = 'uploading';
-        setUploads([...requests]);
-        try {
-          request.blobKey ??= await uploadWorkspaceNativeBlob(
-            workspace,
-            request.file
-          );
-          if (treeInput && !request.treeInput) {
-            await pageTree.load(null);
-            const latest = pageTree.layers$.value.get(pageTree.key(null))?.page;
-            if (!latest) throw new Error('Page tree unavailable');
-            request.treeInput = {
-              ...treeInput,
-              expectedTreeRevision: latest.revision,
-              expectedAuthorizationRevision: latest.authorizationRevision,
-            };
-          }
-          const resource = (
-            await graphql.gql({
-              query: createWorkspaceNativeResourceMutation,
-              variables: {
-                input: {
-                  workspaceId: workspace.id,
-                  ...(request.treeInput ?? { folderId: parentId }),
-                  title: request.file.name,
-                  blobKey: request.blobKey,
-                  requestKey: request.key,
-                },
-              },
-            })
-          ).createWorkspaceNativeResource;
-          request.status = 'done';
-          request.resource = { resourceId: resource.id, kind: resource.kind };
-          created = true;
-        } catch (error) {
-          if (
-            [400, 403, 404, 409].includes(
-              UserFriendlyError.fromAny(error).status
-            )
-          ) {
-            request.treeInput = undefined;
-            request.key = nanoid();
-          }
-          request.status = 'failed';
-        }
-        setUploads([...requests]);
-      }
-    } finally {
-      busy.current = false;
-      setUploads(
-        requests.every(request => request.status === 'done')
-          ? []
-          : [...requests]
-      );
-    }
-    if (created) {
-      onNativeCreated?.();
-      resources.invalidate();
-      await complete(
-        requests.flatMap(request =>
-          request.resource ? [request.resource] : []
-        ),
-        { focusEditor: false, batch: requests.length > 1 }
-      );
-    }
-  };
-  const acceptFiles = (files: File[]) => {
-    if (!files.length || !online || !canWrite || !canOrganize || busy.current)
+  useEffect(() => {
+    const batch = ownUploads.current;
+    if (!batch) return;
+    const jobs = uploads.filter(job => batch.ids.includes(job.requestKey));
+    if (
+      !jobs.length ||
+      jobs.some(job => job.status === 'waiting' || job.status === 'uploading')
+    )
       return;
-    void upload([
-      ...uploads.filter(item => item.status !== 'done'),
-      ...files.map(file => ({
-        file,
-        key: nanoid(),
-        status: 'waiting' as const,
-      })),
-    ]).catch(() =>
-      toast(t['com.affine.localmind.project-files.operationFailed']())
-    );
+    ownUploads.current = null;
+    const created = jobs.flatMap(job => (job.resource ? [job.resource] : []));
+    if (!created.length) return;
+    onNativeCreated?.();
+    if (showUploads)
+      void batch
+        .complete(created, { focusEditor: false, batch: batch.ids.length > 1 })
+        .catch(() =>
+          toast(t['com.affine.localmind.project-files.operationFailed']())
+        );
+  }, [uploads, showUploads, onNativeCreated, t]);
+  const acceptFiles = (files: File[]) => {
+    if (!files.length || !online || !canWrite || !canOrganize) return;
+    const ids = uploadService.enqueue(files, {
+      name:
+        treeTarget?.name ?? parentName ?? workspace.name$.value ?? 'Workspace',
+      folderId: parentId,
+      ...(treeInput
+        ? {
+            tree: {
+              parentNodeId: treeInput.parentNodeId,
+              treeContractVersion: treeInput.treeContractVersion,
+            },
+          }
+        : {}),
+    });
+    ownUploads.current = {
+      ids: [...(ownUploads.current?.ids ?? []), ...ids],
+      complete: ownUploads.current?.complete ?? beginCreation(),
+    };
+    uploadService.setPanelOpen(true);
   };
   const lastDrop = useRef<File[] | undefined>(undefined);
   useEffect(() => {
@@ -389,10 +328,18 @@ export function WorkspaceCreateMenu({
                   </>
                 )}
 
+                {!!uploads.length && (
+                  <MenuItem
+                    prefixIcon={<UploadIcon />}
+                    onClick={() => uploadService.setPanelOpen(true)}
+                  >
+                    {t['com.affine.localmind.resources.upload.progress']()}
+                  </MenuItem>
+                )}
                 {online && (
                   <MenuItem
                     prefixIcon={<UploadIcon />}
-                    disabled={!canWrite || !canOrganize || busy.current}
+                    disabled={!canWrite || !canOrganize}
                     onClick={() => picker.current?.click()}
                   >
                     {t['com.affine.localmind.resources.uploadLocal']()}
@@ -451,43 +398,6 @@ export function WorkspaceCreateMenu({
               .catch(console.error);
           }}
         />
-      )}
-      {!!uploads.length && (
-        <Modal
-          open
-          title={t['com.affine.localmind.resources.uploadLocal']()}
-          onOpenChange={open => {
-            if (!open && !busy.current) setUploads([]);
-          }}
-        >
-          <div className={styles.form}>
-            <ul className={styles.list}>
-              {uploads.map(item => (
-                <li key={item.key} className={styles.row}>
-                  <span className={styles.label}>{item.file.name}</span>
-                  <span role="status">
-                    {t[
-                      `com.affine.localmind.resources.upload.${item.status}`
-                    ]()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className={styles.actions}>
-              {uploads.some(item => item.status === 'failed') && (
-                <Button
-                  disabled={busy.current}
-                  onClick={() => void upload(uploads)}
-                >
-                  {t['com.affine.error.retry']()}
-                </Button>
-              )}
-              <Button disabled={busy.current} onClick={() => setUploads([])}>
-                {t['Close']()}
-              </Button>
-            </div>
-          </div>
-        </Modal>
       )}
     </>
   );

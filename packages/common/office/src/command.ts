@@ -146,6 +146,21 @@ export const OfficeDocumentSetParagraphTextCommandSchema = z
   })
   .strict();
 
+export const OfficeDocumentInsertParagraphCommandSchema = z
+  .object({
+    version: z.literal('localmind-office-command/v1'),
+    commandId: boundedString(256),
+    idempotencyKey: boundedString(256),
+    artifactId: boundedString(512),
+    expectedRevisionId: boundedString(512),
+    source: z.enum(['user', 'ai', 'system']),
+    operation: z.literal('office.document.paragraph.insert'),
+    afterBlockId: boundedString(512),
+    expectedText: z.string().max(4 * 1024 * 1024),
+    text: z.string().max(64 * 1024),
+  })
+  .strict();
+
 export const OfficeDocumentParagraphFormatSchema = z
   .object({
     alignment: z
@@ -1374,6 +1389,7 @@ export const OfficeCommandSchema = z.union([
   OfficeDocumentFormatTextCommandSchema,
   OfficeDocumentReplaceTextCommandSchema,
   OfficeDocumentSetParagraphTextCommandSchema,
+  OfficeDocumentInsertParagraphCommandSchema,
   OfficeDocumentFormatParagraphCommandSchema,
   OfficeDocumentInsertBreakCommandSchema,
   OfficeDocumentInsertSectionCommandSchema,
@@ -1430,6 +1446,9 @@ export type OfficeDocumentReplaceTextCommand = z.infer<
 >;
 export type OfficeDocumentSetParagraphTextCommand = z.infer<
   typeof OfficeDocumentSetParagraphTextCommandSchema
+>;
+export type OfficeDocumentInsertParagraphCommand = z.infer<
+  typeof OfficeDocumentInsertParagraphCommandSchema
 >;
 export type OfficeDocumentFormatParagraphCommand = z.infer<
   typeof OfficeDocumentFormatParagraphCommandSchema
@@ -1572,6 +1591,7 @@ export type OfficeCommand =
   | OfficeDocumentFormatTextCommand
   | OfficeDocumentReplaceTextCommand
   | OfficeDocumentSetParagraphTextCommand
+  | OfficeDocumentInsertParagraphCommand
   | OfficeDocumentFormatParagraphCommand
   | OfficeDocumentInsertBreakCommand
   | OfficeDocumentInsertSectionCommand

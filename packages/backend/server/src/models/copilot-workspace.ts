@@ -24,6 +24,209 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
     super();
   }
 
+  async queueEmbeddingTask(
+    workspaceId: string,
+    kind: 'doc' | 'file',
+    resourceId: string,
+    options: { userId?: string; retry?: boolean; force?: boolean } = {}
+  ) {
+    const requestId = randomUUID();
+    const data = {
+      requestId,
+      runId: null,
+      status: 'queued',
+      errorCode: null,
+      leaseUntil: new Date(Date.now() + 15 * 60_000),
+      ...(options.userId ? { userId: options.userId } : {}),
+    };
+    const created = await this.database.aiWorkspaceEmbeddingTask.createMany({
+      data: [{ workspaceId, kind, resourceId, ...data }],
+      skipDuplicates: true,
+    });
+    if (created.count) return requestId;
+    const claimed = await this.database.aiWorkspaceEmbeddingTask.updateMany({
+      where: {
+        workspaceId,
+        kind,
+        resourceId,
+        OR: [
+          {
+            status: { in: ['queued', 'running'] },
+            leaseUntil: { lte: new Date() },
+          },
+          ...(options.retry ? [{ status: 'failed' }] : []),
+          ...(options.force
+            ? [{ status: { in: ['failed', 'succeeded'] } }]
+            : []),
+        ],
+      },
+      data,
+    });
+    return claimed.count ? requestId : null;
+  }
+
+  async startEmbeddingTask(
+    workspaceId: string,
+    kind: 'doc' | 'file',
+    resourceId: string,
+    requestId: string
+  ) {
+    const runId = randomUUID();
+    const claimed = await this.database.aiWorkspaceEmbeddingTask.updateMany({
+      where: {
+        workspaceId,
+        kind,
+        resourceId,
+        requestId,
+        status: { in: ['queued', 'running'] },
+      },
+      data: {
+        runId,
+        status: 'running',
+        leaseUntil: new Date(Date.now() + 15 * 60_000),
+      },
+    });
+    return claimed.count ? runId : null;
+  }
+
+  async renewEmbeddingTask(
+    workspaceId: string,
+    kind: 'doc' | 'file',
+    resourceId: string,
+    requestId: string,
+    runId: string
+  ) {
+    const result = await this.database.aiWorkspaceEmbeddingTask.updateMany({
+      where: {
+        workspaceId,
+        kind,
+        resourceId,
+        requestId,
+        runId,
+        status: 'running',
+      },
+      data: { leaseUntil: new Date(Date.now() + 15 * 60_000) },
+    });
+    return result.count === 1;
+  }
+
+  async failEmbeddingTask(
+    workspaceId: string,
+    kind: 'doc' | 'file',
+    resourceId: string,
+    requestId: string,
+    runId: string | null,
+    final: boolean,
+    errorCode = 'indexing_failed'
+  ) {
+    return this.database.aiWorkspaceEmbeddingTask.updateMany({
+      where: {
+        workspaceId,
+        kind,
+        resourceId,
+        requestId,
+        runId,
+        status: { in: ['queued', 'running'] },
+      },
+      data: {
+        status: final ? 'failed' : 'queued',
+        errorCode: final ? errorCode : null,
+        leaseUntil: new Date(Date.now() + 15 * 60_000),
+      },
+    });
+  }
+
+  @Transactional()
+  async completeEmbeddingTask(
+    workspaceId: string,
+    kind: 'doc' | 'file',
+    resourceId: string,
+    requestId: string,
+    runId: string,
+    embeddings?: Embedding[]
+  ) {
+    // Lock and compare the generation before changing vectors in the same transaction.
+    const result = await this.db.aiWorkspaceEmbeddingTask.updateMany({
+      where: {
+        workspaceId,
+        kind,
+        resourceId,
+        requestId,
+        runId,
+        status: 'running',
+      },
+      data: { status: 'succeeded', errorCode: null },
+    });
+    if (!result.count) return false;
+    if (kind === 'file') {
+      if (
+        !(await this.db.aiWorkspaceFiles.findUnique({
+          where: { workspaceId_fileId: { workspaceId, fileId: resourceId } },
+        }))
+      ) {
+        await this.db.aiWorkspaceEmbeddingTask.deleteMany({
+          where: { workspaceId, kind, resourceId, requestId },
+        });
+        return false;
+      }
+      if (embeddings) {
+        await this.db.aiWorkspaceFileEmbedding.deleteMany({
+          where: { workspaceId, fileId: resourceId },
+        });
+        await this.insertFileEmbeddings(workspaceId, resourceId, embeddings);
+      }
+    } else {
+      if (!(await this.models.doc.exists(workspaceId, resourceId))) {
+        await this.db.aiWorkspaceEmbeddingTask.deleteMany({
+          where: { workspaceId, kind, resourceId, requestId },
+        });
+        return false;
+      }
+      if (embeddings) {
+        await this.models.copilotContext.purgeWorkspaceEmbedding(
+          workspaceId,
+          resourceId
+        );
+        if (embeddings.length) {
+          await this.models.copilotContext.insertWorkspaceEmbedding(
+            workspaceId,
+            resourceId,
+            embeddings
+          );
+        } else {
+          await this.models.copilotContext.fulfillEmptyEmbedding(
+            workspaceId,
+            resourceId
+          );
+        }
+      }
+    }
+    return true;
+  }
+
+  async removeDocEmbeddingTask(workspaceId: string, docId: string) {
+    await this.database.aiWorkspaceEmbeddingTask.deleteMany({
+      where: { workspaceId, kind: 'doc', resourceId: docId },
+    });
+  }
+
+  async listFailedEmbeddingTasks(workspaceId: string) {
+    return this.database.aiWorkspaceEmbeddingTask.findMany({
+      where: {
+        workspaceId,
+        OR: [
+          { status: 'failed' },
+          {
+            status: { in: ['queued', 'running'] },
+            leaseUntil: { lte: new Date() },
+          },
+        ],
+      },
+      orderBy: { updatedAt: 'asc' },
+      take: 50,
+    });
+  }
+
   @Transactional()
   private async listIgnoredDocIds(
     workspaceId: string,
@@ -72,6 +275,11 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
           AND s.guid NOT LIKE '%:settings:%'
           AND e.doc_id IS NULL
           AND id.doc_id IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM ai_workspace_embedding_tasks t
+            WHERE t.workspace_id = s.workspace_id AND t.kind = 'doc'
+              AND t.resource_id = s.guid AND t.status = 'failed'
+          )
           AND s.blob <> E'\\\\x0000';`;
 
     return docIds.map(r => r.id);
@@ -214,51 +422,62 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
       ignoredDocIds
     );
 
-    const [docTotal, docEmbedded, fileTotal, [fileEmbedded]] =
+    const [docTotal, docEmbedded, files, fileEmbedded, tasks] =
       await Promise.all([
         this.db.snapshot.findMany({
           where: snapshotCondition,
           select: { id: true },
         }),
         this.db.$queryRaw<Array<{ id: string }>>`
-          SELECT "doc_id" AS "id"
-          FROM "ai_workspace_embeddings"
-          WHERE "workspace_id" = ${workspaceId}
-          GROUP BY "doc_id"
-          HAVING BOOL_AND("embedding" IS NOT NULL)
-        `,
-        this.db.aiWorkspaceFiles.count({ where: { workspaceId } }),
-        this.db.$queryRaw<Array<{ count: number }>>`
-          SELECT COUNT(*)::int AS "count"
-          FROM (
-            SELECT "file_id"
-            FROM "ai_workspace_file_embeddings"
-            WHERE "workspace_id" = ${workspaceId}
-            GROUP BY "file_id"
-            HAVING BOOL_AND("embedding" IS NOT NULL)
-          ) embedded_files
-        `,
+        SELECT doc_id AS id FROM ai_workspace_embeddings WHERE workspace_id = ${workspaceId}
+        GROUP BY doc_id HAVING BOOL_AND(embedding IS NOT NULL)`,
+        this.db.aiWorkspaceFiles.findMany({
+          where: { workspaceId },
+          select: { fileId: true },
+        }),
+        this.db.$queryRaw<Array<{ id: string }>>`
+        SELECT file_id AS id FROM ai_workspace_file_embeddings WHERE workspace_id = ${workspaceId}
+        GROUP BY file_id HAVING BOOL_AND(embedding IS NOT NULL)`,
+        this.db.aiWorkspaceEmbeddingTask.findMany({ where: { workspaceId } }),
       ]);
-
-    const docTotalIds = docTotal.map(d => d.id);
-    const docTotalSet = new Set(docTotalIds);
-    const outdatedDocPrefix = `${workspaceId}:space:`;
-    const duplicateOutdatedDocSet = new Set(
-      docTotalIds
-        .filter(id => id.startsWith(outdatedDocPrefix))
-        .filter(id => docTotalSet.has(id.slice(outdatedDocPrefix.length)))
-    );
-
-    return {
-      total:
-        docTotalIds.filter(id => !duplicateOutdatedDocSet.has(id)).length +
-        fileTotal,
-      embedded:
-        docEmbedded
-          .map(d => d.id)
-          .filter(id => !duplicateOutdatedDocSet.has(id)).length +
-        (fileEmbedded?.count ?? 0),
-    };
+    const docIds = new Set(docTotal.map(d => d.id));
+    const prefix = `${workspaceId}:space:`;
+    const resources = [
+      ...docTotal
+        .filter(
+          d =>
+            !(d.id.startsWith(prefix) && docIds.has(d.id.slice(prefix.length)))
+        )
+        .map(d => ({ kind: 'doc', id: d.id })),
+      ...files.map(f => ({ kind: 'file', id: f.fileId })),
+    ];
+    const taskMap = new Map(tasks.map(t => [`${t.kind}:${t.resourceId}`, t]));
+    const embeddedIds = new Set([
+      ...docEmbedded.map(d => `doc:${d.id}`),
+      ...fileEmbedded.map(f => `file:${f.id}`),
+    ]);
+    let embedded = 0,
+      failed = 0,
+      retryable = 0;
+    for (const resource of resources) {
+      const key = `${resource.kind}:${resource.id}`;
+      const task = taskMap.get(key);
+      if (
+        task &&
+        (task.status === 'failed' ||
+          (['queued', 'running'].includes(task.status) &&
+            task.leaseUntil.getTime() <= Date.now()))
+      ) {
+        failed++;
+        if (resource.kind === 'doc' || task.userId) retryable++;
+      } else if (
+        (!task || task.status === 'succeeded') &&
+        embeddedIds.has(key)
+      ) {
+        embedded++;
+      }
+    }
+    return { total: resources.length, embedded, failed, retryable };
   }
 
   @Transactional()
@@ -551,7 +770,11 @@ export class CopilotWorkspaceConfigModel extends BaseModel {
     return true;
   }
 
+  @Transactional()
   async removeFile(workspaceId: string, fileId: string) {
+    await this.db.aiWorkspaceEmbeddingTask.deleteMany({
+      where: { workspaceId, kind: 'file', resourceId: fileId },
+    });
     // embeddings will be removed by foreign key constraint
     await this.db.aiWorkspaceFiles.deleteMany({
       where: {

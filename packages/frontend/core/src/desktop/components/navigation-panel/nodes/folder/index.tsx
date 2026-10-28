@@ -10,7 +10,6 @@ import {
   toast,
   useConfirmModal,
 } from '@affine/component';
-import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
 import { WorkspaceCreateMenu } from '@affine/core/components/native-files/create-menu';
 import { NativeResourceDropTarget } from '@affine/core/components/native-files/resource-drag';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
@@ -21,7 +20,6 @@ import {
   type FolderNode,
   OrganizeService,
 } from '@affine/core/modules/organize';
-import { WorkspaceService } from '@affine/core/modules/workspace';
 import {
   WorkspaceLifecycleService,
   WorkspaceResourcesService,
@@ -53,6 +51,7 @@ import { NavigationPanelCollectionNode } from '../collection';
 import { NavigationPanelDocNode } from '../doc';
 import { NavigationPanelTagNode } from '../tag';
 import type { GenericNavigationPanelNode } from '../types';
+import { useFolderPageCreation } from './create-page';
 import { FolderEmpty } from './empty';
 import { NavigationPanelNativeFileNode } from './native-file';
 import { FavoriteFolderOperation } from './operations';
@@ -230,13 +229,11 @@ const NavigationPanelFolderNodeFolder = ({
   node: FolderNode;
 } & GenericNavigationPanelNode) => {
   const t = useI18n();
-  const { workspaceService, featureFlagService, workspaceDialogService } =
-    useServices({
-      WorkspaceService,
-      CompatibleFavoriteItemsAdapter,
-      FeatureFlagService,
-      WorkspaceDialogService,
-    });
+  const { featureFlagService, workspaceDialogService } = useServices({
+    CompatibleFavoriteItemsAdapter,
+    FeatureFlagService,
+    WorkspaceDialogService,
+  });
   const navigationPanelService = useService(NavigationPanelService);
   const name = useLiveData(node.name$);
   const lifecycle = useService(WorkspaceLifecycleService);
@@ -247,7 +244,7 @@ const NavigationPanelFolderNodeFolder = ({
   const { openConfirmModal } = useConfirmModal();
   const tree = useService(OrganizeService).folderTree;
   const canDelete = useLiveData(node.canDelete$);
-  const canMutate = useLiveData(node.canMutate$) && !sorting;
+  const canMutateFolder = useLiveData(node.canMutate$) && !sorting;
   const enableEmojiIcon = useLiveData(
     featureFlagService.flags.enable_emoji_folder_icon.$
   );
@@ -264,9 +261,16 @@ const NavigationPanelFolderNodeFolder = ({
   );
   const [newFolderId, setNewFolderId] = useState<string | null>(null);
 
-  const { createPage } = usePageHelper(
-    workspaceService.workspace.docCollection
-  );
+  const { create: createFolderPage, pending: creatingPage } =
+    useFolderPageCreation(node.id ?? '', () => {
+      track.$.navigationPanel.folders.createDoc();
+      track.$.navigationPanel.organize.createOrganizeItem({
+        type: 'link',
+        target: 'doc',
+      });
+      setCollapsed(false);
+    });
+  const canMutate = canMutateFolder && !creatingPage;
   const handleDelete = useCallback(async () => {
     if (lifecycle.online && node.id) {
       const folderId = node.id;
@@ -786,24 +790,8 @@ const NavigationPanelFolderNodeFolder = ({
   );
 
   const handleNewDoc = useCallback(
-    async (mode?: 'page' | 'edgeless') => {
-      try {
-        const newDoc = await createPage(mode);
-        await node.createLink('doc', newDoc.id, node.indexAt('after'));
-        track.$.navigationPanel.folders.createDoc();
-        track.$.navigationPanel.organize.createOrganizeItem({
-          type: 'link',
-          target: 'doc',
-        });
-        setCollapsed(false);
-      } catch (error) {
-        toast(
-          error instanceof Error ? error.message : 'Directory operation failed'
-        );
-        return undefined;
-      }
-    },
-    [createPage, node, setCollapsed]
+    (mode: 'page' | 'edgeless' = 'page') => createFolderPage(mode),
+    [createFolderPage]
   );
 
   const handleCreateSubfolder = useCallback(async () => {

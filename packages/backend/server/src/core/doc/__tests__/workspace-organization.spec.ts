@@ -3,6 +3,7 @@ import { generateNKeysBetween } from 'fractional-indexing';
 import * as Y from 'yjs';
 
 import { directoryPolicySnapshot } from '../../../models/workspace-directory-grant';
+import { ResourceError } from '../resource-types';
 import {
   resolveWorkspaceDataDocId,
   WorkspaceOrganizationService,
@@ -86,6 +87,7 @@ function createServiceFixture() {
       reader as never,
       writer as never,
       {
+        workspacePageTree: { state: async () => null },
         workspaceNativeResource: { officeIds: async () => new Set<string>() },
         workspaceDirectoryGrant: grants,
       } as never,
@@ -99,6 +101,61 @@ function createServiceFixture() {
 function createService() {
   return createServiceFixture().service;
 }
+
+test('destination authorization checks its ancestor path without scanning unrelated files', async t => {
+  const { service, docs, grants } = createServiceFixture();
+  const folders = new Y.Doc();
+  for (const [id, type, parentId] of [
+    ['parent', 'folder', null],
+    ['child', 'folder', 'parent'],
+    ['unrelated-file', 'file', null],
+  ] as const) {
+    const row = folders.getMap(id);
+    for (const [key, value] of Object.entries({ id, type, parentId, data: id }))
+      row.set(key, value);
+  }
+  docs.set('db$workspace-1$folders', folders);
+  let denyParent = false;
+  const paths: string[][] = [];
+  Object.assign(grants, {
+    rights: async ({ directoryIds }: { directoryIds: string[] }) => {
+      paths.push(directoryIds);
+      return {
+        canRead: true,
+        canWrite: !(denyParent && directoryIds.includes('parent')),
+        canOrganize: true,
+        canCreateFolder: false,
+      };
+    },
+  });
+  await t.notThrowsAsync(
+    service.assertResourceFolderAccess('workspace-1', 'actor', 'child', true)
+  );
+  t.deepEqual(paths, [['child', 'parent']]);
+  denyParent = true;
+  await t.throwsAsync(
+    service.assertResourceFolderAccess('workspace-1', 'actor', 'child', true),
+    { message: 'permission_denied' }
+  );
+  await t.throwsAsync(
+    service.assertResourceFolderAccess('workspace-1', 'actor', 'missing', true),
+    { message: 'resource_not_found' }
+  );
+  await t.throwsAsync(
+    service.assertResourceFolderAccess(
+      'workspace-1',
+      'actor',
+      'unrelated-file',
+      true
+    ),
+    { message: 'resource_not_found' }
+  );
+  folders.getMap('parent').set('parentId', 'child');
+  await t.throwsAsync(
+    service.assertResourceFolderAccess('workspace-1', 'actor', 'child', true),
+    { message: 'resource_not_found' }
+  );
+});
 
 function reorderFixture(count = 4) {
   const fixture = createServiceFixture();
@@ -261,6 +318,107 @@ test('directory snapshots reject cycles, missing parents and paths beyond 64 nod
   doc.destroy();
 });
 
+test('directory listing excludes native resources with denied locations', async t => {
+  const { docs, service } = createServiceFixture();
+  const doc = new Y.Doc();
+  for (const id of ['allowed', 'denied']) {
+    const row = doc.getMap(id);
+    for (const [key, value] of Object.entries({
+      id,
+      parentId: null,
+      type: 'file',
+      data: id,
+      index: 'a0',
+    }))
+      row.set(key, value);
+  }
+  docs.set('db$workspace-1$folders', doc);
+  const internals = service as unknown as {
+    ac: unknown;
+    models: { workspaceNativeResource: { get: () => Promise<unknown> } };
+  };
+  internals.ac = {
+    user: () => ({ workspace: () => ({ can: async () => true }) }),
+  };
+  internals.models.workspaceNativeResource.get = async () => ({});
+  service.nativeResourceLocations = async input => {
+    if (input.resourceId === 'denied')
+      throw new ResourceError('resource_not_found');
+    return {} as never;
+  };
+
+  const snapshot = await service.readDirectory('workspace-1', 'actor');
+  t.deepEqual(
+    snapshot.entries.map(entry => entry.row.id),
+    ['allowed']
+  );
+  doc.destroy();
+});
+
+test('directory listing reuses its snapshot while checking every native placement', async t => {
+  const { docs, reader, grants, service } = createServiceFixture();
+  const doc = new Y.Doc();
+  for (const [id, type, parentId, data] of [
+    ['private', 'folder', null, 'private'],
+    ['allowed', 'file', null, 'allowed-resource'],
+    ['shared-root', 'file', null, 'shared-resource'],
+    ['shared-private', 'file', 'private', 'shared-resource'],
+  ] as const) {
+    const row = doc.getMap(id);
+    for (const [key, value] of Object.entries({
+      id,
+      type,
+      parentId,
+      data,
+      index: 'a0',
+    }))
+      row.set(key, value);
+  }
+  docs.set('db$workspace-1$folders', doc);
+  const denied = {
+    directoryId: 'private',
+    principalId: 'actor',
+    canRead: false,
+    canWrite: false,
+    canOrganize: false,
+    canCreateFolder: false,
+  };
+  grants.snapshot = async () => directoryPolicySnapshot('actor', [denied]);
+  let individualRightsReads = 0;
+  grants.rights = async () => {
+    individualRightsReads++;
+    throw new Error('Per-placement grant query should not be needed');
+  };
+  let storageReads = 0;
+  const originalRead = reader.getDoc;
+  reader.getDoc = async (...args) => {
+    storageReads++;
+    return originalRead(...args);
+  };
+  const internals = service as unknown as {
+    ac: unknown;
+    models: { workspaceNativeResource: { get: () => Promise<unknown> } };
+  };
+  internals.ac = {
+    user: () => ({ workspace: () => ({ can: async () => true }) }),
+  };
+  let resourceReads = 0;
+  internals.models.workspaceNativeResource.get = async () => {
+    resourceReads++;
+    return { state: { trashedAt: null } };
+  };
+
+  const result = await service.readDirectory('workspace-1', 'actor');
+  t.deepEqual(
+    result.entries.map(entry => entry.row.id),
+    ['allowed']
+  );
+  t.is(storageReads, 1);
+  t.is(resourceReads, 2);
+  t.is(individualRightsReads, 0);
+  doc.destroy();
+});
+
 test('directory parse cache revalidates bytes and does not reuse data after storage failure', async t => {
   const { docs, reader, service } = createServiceFixture();
   const doc = new Y.Doc();
@@ -284,7 +442,7 @@ test('directory parse cache revalidates bytes and does not reuse data after stor
   const deleted = await service.readDirectory('workspace-1', 'actor');
   t.not(deleted.revision, first.revision);
   t.is(deleted.entries[0].row.data, undefined);
-  await t.throwsAsync(
+  const conflict = await t.throwsAsync(
     service.applyConditionalFolderOperations({
       workspaceId: 'workspace-1',
       actorId: 'actor',
@@ -294,6 +452,7 @@ test('directory parse cache revalidates bytes and does not reuse data after stor
     }),
     { message: /Directory changed/ }
   );
+  t.is((conflict as { status?: number }).status, 409);
   reader.getDoc = async () => {
     throw new Error('Storage unavailable');
   };

@@ -311,6 +311,9 @@ function hasModelEntries(
   idFields: string[],
   allowStringEntries = false
 ) {
+  if (Array.isArray(value) && value.length === 0) {
+    throw new ProviderProbeError('Provider returned an empty model catalog.');
+  }
   return (
     Array.isArray(value) &&
     value.some(

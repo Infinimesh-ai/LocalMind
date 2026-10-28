@@ -5,6 +5,7 @@ import {
   type NativeOfficeState,
   officePdfExportUrl,
   type OfficeResourceOwner,
+  officeWorkbookExportUrl,
 } from '@affine/core/modules/office';
 import {
   officeArtifactQuery,
@@ -17,7 +18,10 @@ import {
   projectOfficeRevisionsQuery,
 } from '@affine/graphql';
 import { I18n } from '@affine/i18n';
-import { officeDownloadFileName } from '@localmind/office';
+import {
+  officeDownloadFileName,
+  officeWorkbookCompatibilityFileName,
+} from '@localmind/office';
 
 import type { OfficeArtifact, OfficeRevision } from './shared';
 
@@ -51,6 +55,10 @@ export interface OfficeResourceAdapter {
     afterId: string
   ): Promise<OfficeRevisionCompare>;
   download(
+    artifact: OfficeResourceDescriptor,
+    revision: OfficeRevision
+  ): Promise<void>;
+  exportWorkbookCopy?(
     artifact: OfficeResourceDescriptor,
     revision: OfficeRevision
   ): Promise<void>;
@@ -148,6 +156,17 @@ export function createOfficeResourceAdapter(
         revision.packageUrl,
         officeDownloadFileName(artifact.title, artifact.kind)
       ),
+    exportWorkbookCopy: (artifact, revision) => {
+      if (
+        artifact.kind !== 'workbook' ||
+        !revisionBelongsTo({ owner, artifactId }, revision)
+      )
+        throw new Error('Invalid workbook revision');
+      return downloadOfficePackage(
+        officeWorkbookExportUrl(revision.packageUrl),
+        officeWorkbookCompatibilityFileName(artifact.title, revision.sequence)
+      );
+    },
     exportPdf: (artifact, revision) =>
       downloadOfficePackage(
         officePdfExportUrl(revision.packageUrl),

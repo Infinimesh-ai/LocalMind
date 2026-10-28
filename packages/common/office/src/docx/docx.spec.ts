@@ -122,6 +122,116 @@ describe('native DOCX editing', () => {
     );
   });
 
+  test('AI paragraph insertion creates a separate third paragraph and preserves existing content and identities', () => {
+    const opaque = new Uint8Array([9, 8, 7]);
+    const pkg = openDocxPackage(
+      minimalDocx({
+        'custom/opaque.bin': opaque,
+        'word/document.xml': strToU8(
+          `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:body><w:p w14:paraId="00000001"><w:r><w:rPr><w:b/></w:rPr><w:t>第一段</w:t></w:r></w:p><w:p w14:paraId="00000002"><w:r><w:t>第二段</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/></w:sectPr></w:body></w:document>`
+        ),
+      })
+    );
+    const before = readDocxSemanticState(pkg);
+    const command = {
+      ...base('insert-third'),
+      source: 'ai',
+      operation: 'office.document.paragraph.insert',
+      afterBlockId: before.body[1].id,
+      expectedText: '第二段',
+      text: '第三段😀',
+    };
+    const result = applyDocxCommand(pkg, command);
+    expect(result.state.body.slice(0, 2)).toEqual(before.body);
+    expect(result.state.body[2]).toMatchObject({
+      type: 'paragraph',
+      text: '第三段😀',
+      editingSupported: true,
+    });
+    expect(result.state.stats.paragraphs).toBe(3);
+    expect(result.state.body[2].id).not.toBe(before.body[0].id);
+    expect(result.state.body[2].id).not.toBe(before.body[1].id);
+    expect(
+      openDocxPackage(result.packageBytes).readPart('custom/opaque.bin')
+    ).toEqual(opaque);
+    expect(applyDocxCommand(pkg, command).packageBytes).toEqual(
+      result.packageBytes
+    );
+    expect(readDocxSemanticState(openDocxPackage(result.packageBytes))).toEqual(
+      result.state
+    );
+  });
+
+  test('inserting between legacy paragraphs assigns identities before positions change', () => {
+    const pkg = openDocxPackage(
+      minimalDocx({
+        'word/document.xml': strToU8(
+          `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>甲</w:t></w:r></w:p><w:p><w:r><w:t>乙</w:t></w:r></w:p></w:body></w:document>`
+        ),
+      })
+    );
+    const before = readDocxSemanticState(pkg);
+    const result = applyDocxCommand(pkg, {
+      ...base('insert-middle'),
+      source: 'ai',
+      operation: 'office.document.paragraph.insert',
+      afterBlockId: before.body[0].id,
+      expectedText: '甲',
+      text: '中间',
+    });
+    expect(
+      result.state.body.map(block =>
+        block.type === 'paragraph' ? block.text : null
+      )
+    ).toEqual(['甲', '中间', '乙']);
+    expect(new Set(result.state.body.map(block => block.id)).size).toBe(3);
+    expect(
+      result.state.body.every(block =>
+        /^paragraph:[0-7][0-9A-F]{7}$/.test(block.id)
+      )
+    ).toBe(true);
+    expect(
+      result.state.body.some(block =>
+        before.body.some(old => old.id === block.id)
+      )
+    ).toBe(false);
+  });
+
+  test('paragraph insertion rejects stale, missing and nested anchors before writing', () => {
+    const pkg = openDocxPackage(
+      minimalDocx({
+        'word/document.xml': strToU8(
+          `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>正文</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>表格</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>`
+        ),
+      })
+    );
+    const before = readDocxSemanticState(pkg);
+    const command = {
+      ...base('insert-denied'),
+      source: 'ai',
+      operation: 'office.document.paragraph.insert',
+      afterBlockId: before.body[0].id,
+      expectedText: '错误的旧正文',
+      text: '新段落',
+    };
+    expect(() => applyDocxCommand(pkg, command)).toThrow(
+      'does not match the expected source'
+    );
+    expect(() =>
+      applyDocxCommand(pkg, { ...command, afterBlockId: 'missing' })
+    ).toThrow('DOCX paragraph not found');
+    const table = before.body[1];
+    if (table.type !== 'table') throw new Error('Expected table');
+    expect(() =>
+      applyDocxCommand(pkg, {
+        ...command,
+        afterBlockId: table.rows[0].cells[0].blocks[0].id,
+        expectedText: '表格',
+      })
+    ).toThrow('top-level body paragraph');
+    expect(readDocxSemanticState(pkg)).toEqual(before);
+  });
+
   test.each(['', 'OFFICE_RETRY_51：此文件仅用于本地测试。', '海棠😀。'])(
     'replaces a whole paragraph exactly using its ID and source text: %j',
     original => {
@@ -702,6 +812,17 @@ async function pdfText(bytes: Uint8Array) {
 }
 
 describe('DOCX PDF Unicode and layout regression', () => {
+  test('splits PDF pages at the exact inline break, preserving the text on both sides', async () => {
+    const state = pdfFixture(
+      '<w:p><w:r><w:t>Before</w:t><w:br w:type="page"/><w:t>After</w:t></w:r></w:p>' +
+        paragraphXml('Tail')
+    );
+    const pages = await pdfText(await exportDocxStateToPdf(state));
+    expect(pages).toHaveLength(2);
+    expect(pages[0].map(i => i.str).join('')).toContain('Before');
+    expect(pages[0].map(i => i.str).join('')).not.toContain('After');
+    expect(pages[1].map(i => i.str).join('')).toContain('AfterTail');
+  });
   const tableFixture = (rows: string) =>
     pdfFixture(
       `<w:tbl><w:tblPr><w:tblW w:w="6000" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="1000"/><w:gridCol w:w="3000"/><w:gridCol w:w="2000"/></w:tblGrid>${rows}</w:tbl>`
@@ -727,6 +848,8 @@ describe('DOCX PDF Unicode and layout regression', () => {
       );
     }
     expect(items.map(item => item.str).join('')).not.toContain('|');
+    // Table top 720, padding 4, font ascent 11: one baseline subtraction.
+    expect(items.find(item => item.str === 'A')?.transform[5]).toBeCloseTo(705);
     expect(
       items.find(item => item.str === 'Merged')?.transform[5]
     ).toBeLessThan(items.find(item => item.str === 'A')?.transform[5] ?? 0);
@@ -794,6 +917,77 @@ describe('DOCX PDF Unicode and layout regression', () => {
     expect((await pdfText(bytes))[0].map(item => item.str).join('')).toContain(
       '[equation]'
     );
+  });
+  test('centers inline image and text together in source order on one baseline', async () => {
+    const state = pdfFixture(
+      '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>BEFORE</w:t></w:r></w:p>'
+    );
+    const paragraph = state.body[0];
+    if (paragraph.type !== 'paragraph') throw new Error('expected paragraph');
+    paragraph.runs[0].content.push(
+      {
+        type: 'object',
+        objectType: 'image',
+        part: 'word/media/test.png',
+        contentType: 'image/png',
+        widthPt: 32,
+        heightPt: 24,
+      },
+      { type: 'text', text: 'AFTER' }
+    );
+    const png = Uint8Array.from(
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAD0lEQVR4nGNgaPgPQhAKACX2Bf2gcp/LAAAAAElFTkSuQmCC',
+        'base64'
+      )
+    );
+    const bytes = await exportDocxStateToPdf(state, { readPart: () => png });
+    const items = (await pdfText(bytes))[0];
+    const before = items.find(i => i.str === 'BEFORE'),
+      after = items.find(i => i.str === 'AFTER');
+    expect(before).toBeDefined();
+    expect(after).toBeDefined();
+    expect(after?.transform[4]).toBeCloseTo(
+      (before?.transform[4] ?? 0) + (before?.width ?? 0) + 32
+    );
+    expect(after?.transform[5]).toBeCloseTo(before?.transform[5] ?? 0);
+    expect(
+      ((before?.transform[4] ?? 0) +
+        (after?.transform[4] ?? 0) +
+        (after?.width ?? 0)) /
+        2
+    ).toBeCloseTo(306);
+    const pdf = await getDocument({ data: new Uint8Array(bytes) }).promise;
+    try {
+      const ops = await (await pdf.getPage(1)).getOperatorList();
+      const painted = ops.fnArray.indexOf(OPS.paintImageXObject);
+      expect(painted).toBeGreaterThanOrEqual(0);
+      let matrix = [1, 0, 0, 1, 0, 0];
+      const stack: number[][] = [];
+      for (let index = 0; index < painted; index++) {
+        if (ops.fnArray[index] === OPS.save) stack.push([...matrix]);
+        else if (ops.fnArray[index] === OPS.restore)
+          matrix = stack.pop() ?? matrix;
+        else if (ops.fnArray[index] === OPS.transform) {
+          const a = matrix,
+            b = ops.argsArray[index] as number[];
+          matrix = [
+            a[0] * b[0] + a[2] * b[1],
+            a[1] * b[0] + a[3] * b[1],
+            a[0] * b[2] + a[2] * b[3],
+            a[1] * b[2] + a[3] * b[3],
+            a[0] * b[4] + a[2] * b[5] + a[4],
+            a[1] * b[4] + a[3] * b[5] + a[5],
+          ];
+        }
+      }
+      expect(matrix[4]).toBeCloseTo(
+        (before?.transform[4] ?? 0) + (before?.width ?? 0)
+      );
+      expect(matrix[5] + 12).toBeCloseTo((before?.transform[5] ?? 0) + 2.75);
+    } finally {
+      await pdf.destroy();
+    }
   });
   test('exports Chinese and astral emoji through a bundled fallback without changing text', async () => {
     const state = pdfFixture(paragraphXml('中文与😀整段替换正确。'));

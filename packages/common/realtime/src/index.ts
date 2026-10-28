@@ -88,7 +88,13 @@ export interface RealtimeRequestMap {
   };
   'workspace.embedding.progress.get': {
     input: { workspaceId: string };
-    output: { total: number; embedded: number };
+    output: {
+      total: number;
+      embedded: number;
+      failed?: number;
+      retryable?: number;
+      available?: boolean;
+    };
   };
   'copilot.transcript.task.get': {
     input: {
@@ -369,6 +375,9 @@ export interface RealtimeTopicMap {
     event: {
       total?: number;
       embedded?: number;
+      failed?: number;
+      retryable?: number;
+      available?: boolean;
       reason: WorkspaceEmbeddingProgressReason;
     };
   };

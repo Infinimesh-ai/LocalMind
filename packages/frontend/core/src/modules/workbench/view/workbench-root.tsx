@@ -1,6 +1,7 @@
 import { ResizePanel } from '@affine/component/resize-panel';
 import { AffineErrorComponent } from '@affine/core/components/affine/affine-error-boundary/affine-error-fallback';
 import { workbenchRoutes } from '@affine/core/desktop/workbench-router';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import {
   appSettingAtom,
   FrameworkScope,
@@ -9,7 +10,7 @@ import {
 } from '@toeverything/infra';
 import { useAtomValue } from 'jotai';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { type RouteObject, useLocation } from 'react-router-dom';
+import { type RouteObject } from 'react-router-dom';
 
 import type { View } from '../entities/view';
 import { WorkbenchService } from '../services/workbench';
@@ -36,14 +37,15 @@ const routes: RouteObject[] = [
 
 export const WorkbenchRoot = memo(() => {
   const workbench = useService(WorkbenchService).workbench;
+  const workspace = useService(WorkspaceService).workspace;
 
   // for debugging
   (window as any).workbench = workbench;
 
   const views = useLiveData(workbench.views$);
 
-  const location = useLocation();
-  const basename = location.pathname.match(/\/workspace\/[^/]+/g)?.[0] ?? '/';
+  // The old workspace can remain mounted while the requested workspace opens.
+  const basename = `/workspace/${workspace.id}`;
 
   useAdapter(workbench, basename);
 

@@ -4,8 +4,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { REPORT_RUNTIME_SCRIPT } from './runtime';
 
 let dispose: (() => void)[];
+let intersectionCallbacks: IntersectionObserverCallback[];
 beforeEach(() => {
   dispose = [];
+  intersectionCallbacks = [];
   document.documentElement.dataset.mode = 'present';
   delete document.documentElement.dataset.rdFailed;
   delete document.documentElement.dataset.static;
@@ -14,6 +16,9 @@ beforeEach(() => {
   vi.stubGlobal(
     'IntersectionObserver',
     class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallbacks.push(callback);
+      }
       observe() {}
       unobserve() {}
       disconnect() {}
@@ -72,7 +77,17 @@ it('re-entering presentation resets steps and arrows advance them before chapter
   await mode('present');
   expect(
     document.querySelectorAll('[data-rd-step][data-rd-shown]')
-  ).toHaveLength(0);
+  ).toHaveLength(1);
+  const back = new KeyboardEvent('keydown', {
+    key: 'ArrowLeft',
+    bubbles: true,
+    cancelable: true,
+  });
+  document.querySelector('section')!.dispatchEvent(back);
+  expect(back.defaultPrevented).toBe(false);
+  expect(document.querySelector('h2[data-rd-shown]')).toBe(
+    document.querySelector('h2')
+  );
   const press = () => {
     const key = new KeyboardEvent('keydown', {
       key: 'ArrowRight',
@@ -85,12 +100,39 @@ it('re-entering presentation resets steps and arrows advance them before chapter
   expect(press()).toBe(true);
   expect(
     document.querySelectorAll('[data-rd-step][data-rd-shown]')
-  ).toHaveLength(1);
-  expect(press()).toBe(true);
-  expect(
-    document.querySelectorAll('[data-rd-step][data-rd-shown]')
   ).toHaveLength(2);
   expect(press()).toBe(false);
+});
+
+it('preserves the first forward step when the chapter title is already visible', async () => {
+  delete document.querySelector('h2')!.dataset.rdStep;
+  await mode('read');
+  await mode('present');
+  expect(
+    document.querySelectorAll('[data-rd-step][data-rd-shown]')
+  ).toHaveLength(0);
+});
+
+it('restores the title reveal after a chapter leaves and re-enters view', async () => {
+  const section = document.querySelector('section')!;
+  const notify = (isIntersecting: boolean) =>
+    intersectionCallbacks[1](
+      [
+        {
+          target: section,
+          isIntersecting,
+          intersectionRatio: isIntersecting ? 1 : 0,
+        },
+      ] as IntersectionObserverEntry[],
+      {} as IntersectionObserver
+    );
+  notify(true);
+  notify(false);
+  notify(true);
+  await new Promise(resolve => setTimeout(resolve, 80));
+  expect(document.querySelector('h2[data-rd-in]')).toBe(
+    document.querySelector('h2')
+  );
 });
 
 it('reading and input navigation do not consume chapter keys as presentation steps', async () => {
@@ -103,7 +145,7 @@ it('reading and input navigation do not consume chapter keys as presentation ste
   expect(input.defaultPrevented).toBe(false);
   expect(
     document.querySelectorAll('[data-rd-step][data-rd-shown]')
-  ).toHaveLength(0);
+  ).toHaveLength(1);
   await mode('read');
   const read = new KeyboardEvent('keydown', {
     key: 'ArrowRight',

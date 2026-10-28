@@ -55,3 +55,4 @@ export class JobModule {
 
 export { JobQueue };
 export { JOB_SIGNAL, OnJob } from './def';
+export type { JobExecution } from './scanner';

@@ -52,4 +52,5 @@ export const nativeTransactionFixture = {
 
 export const nativeDirectoryFixture = {
   assertResourceFolder: async () => ({}),
+  assertResourceFolderAccess: async () => {},
 } as unknown as import('../../core/doc/workspace-organization').WorkspaceOrganizationService;

@@ -559,10 +559,12 @@ vi.mock('./new-conversation', () => ({
 
 vi.mock('./work-order-panel', () => ({
   WorkOrderPanel: ({
+    workOrderId,
     onLoaded,
     onDraftStateChange,
     onCollapse,
   }: {
+    workOrderId?: string;
     onLoaded?: (order: {
       viewerRole: string;
       ownSessionId: string;
@@ -582,7 +584,7 @@ vi.mock('./work-order-panel', () => ({
       onDraftStateChange?.('work-order-1', false);
     }, [onLoaded, onDraftStateChange]);
     return (
-      <div data-testid="work-order-panel">
+      <div data-testid="work-order-panel" data-order-id={workOrderId}>
         <button onClick={onCollapse}>Close order details</button>
         <button onClick={() => onDraftStateChange?.('work-order-1', true)}>
           Edit delivery draft
@@ -744,10 +746,12 @@ vi.mock('./task-panel', () => ({
 vi.mock('./workbench-conversation', () => ({
   WorkbenchConversation: ({
     onConfirmBlockerSuggestion,
+    onNewConversation,
     onPinChanged,
     headerActions,
   }: {
     headerActions?: ReactNode;
+    onNewConversation?: () => void;
     onPinChanged?: () => void;
     onConfirmBlockerSuggestion?: (suggestion: {
       aiSuggestionId: string;
@@ -770,6 +774,9 @@ vi.mock('./workbench-conversation', () => ({
     return (
       <div data-testid="conversation">
         {headerActions}
+        <button onClick={onNewConversation}>
+          Start new conversation from header
+        </button>
         <button type="button" onClick={onPinChanged}>
           Pin conversation
         </button>
@@ -858,6 +865,16 @@ const renderWorkbench = (route = '/project/project-1') =>
   );
 
 describe('Intelligence workbench shell', () => {
+  test('the Project header opens a fresh conversation with the current Project preselected', () => {
+    renderWorkbench('/project/project-1/conversations/session-1');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Start new conversation from header' })
+    );
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/conversations/new?projectId=project-1'
+    );
+    expect(screen.getByTestId('new-conversation')).toBeTruthy();
+  });
   test('retains the current account state but isolates project cache and conversations after identity changes', () => {
     const view = renderWorkbench('/project/project-1');
     state.projectQueryCaches[0].set('private-first-account', {
@@ -2038,6 +2055,76 @@ describe('Intelligence workbench shell', () => {
     expect(toggle()!.dataset.attention).toBe('true');
     fireEvent.click(toggle()!);
     await waitFor(() => expect(workOrderCard()).not.toBeNull());
+  });
+
+  test('a notification selects and reopens its exact order even when the conversation URL is already open', async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList);
+    state.graphEdges = [
+      {
+        id: 'order-1',
+        kind: 'sent',
+        from: 'user-1',
+        to: 'peer',
+        status: 'refused',
+        label: 'First order',
+        ownSessionId: 'session-1',
+      },
+      {
+        id: 'order-2',
+        kind: 'sent',
+        from: 'user-1',
+        to: 'peer',
+        status: 'delivered',
+        label: 'Second order',
+        ownSessionId: 'session-1',
+      },
+    ];
+    const path =
+      '/project/project-1/conversations/session-1?workOrderId=order-2';
+    function NotificationNavigation() {
+      const navigate = useNavigate();
+      return (
+        <button onClick={() => navigate(path)}>Open second notification</button>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Component />
+        <NotificationNavigation />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('work-order-panel').dataset.orderId).toBe(
+        'order-2'
+      )
+    );
+    fireEvent.click(screen.getByRole('tab', { name: /First order/ }));
+    expect(screen.getByTestId('work-order-panel').dataset.orderId).toBe(
+      'order-1'
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.orders.toggle',
+      })
+    );
+    expect(screen.queryByTestId('work-order-panel')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open second notification' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('work-order-panel').dataset.orderId).toBe(
+        'order-2'
+      )
+    );
+    expect(
+      screen
+        .getByRole('tab', { name: /Second order/ })
+        .getAttribute('aria-selected')
+    ).toBe('true');
   });
 
   test('records opened project files as recents and reopens them from the documents sidebar', async () => {

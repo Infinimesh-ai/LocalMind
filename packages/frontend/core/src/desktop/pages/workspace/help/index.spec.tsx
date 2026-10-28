@@ -22,7 +22,7 @@ vi.mock('@affine/i18n', () => {
     'com.affine.localmind.help.pageTitle': 'LocalMind guide',
     'com.affine.localmind.help.search.placeholder': 'Search the guide',
     'com.affine.localmind.help.search.clear': 'Clear search',
-    'com.affine.localmind.help.openChat': 'Open AI Chat',
+    'com.affine.localmind.workbench.systemRail.projects': 'Project hub',
     'com.affine.localmind.help.manageContext': 'Manage AI context',
     'com.affine.localmind.help.openEmbedding': 'Open Embedding settings',
     'com.affine.localmind.help.alert.title':
@@ -131,14 +131,14 @@ describe('LocalMind help center', () => {
     ).not.toBeNull();
   });
 
-  test('opens AI chat and contextual workspace settings', () => {
+  test('opens the project hub and contextual workspace settings', () => {
     render(
       <NavigateContext.Provider value={navigate}>
         <HelpCenterPage />
       </NavigateContext.Provider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open AI Chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Project hub' }));
     expect(navigate).toHaveBeenCalledWith('/project');
     expect(navigateWithinWorkspace).not.toHaveBeenCalled();
 

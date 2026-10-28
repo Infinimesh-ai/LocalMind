@@ -289,6 +289,110 @@ describe('PdfEditor', () => {
     return { guards, onRevision };
   }
 
+  test('saves rapid edits to different annotations in revision order', async () => {
+    const twoAnnotations = structuredClone(state);
+    twoAnnotations.pages[0].annotations.push({
+      id: 'note-2',
+      subtype: 'Underline',
+      contents: 'Second',
+    } as never);
+    const afterFirst = structuredClone(twoAnnotations);
+    afterFirst.pages[0].annotations[0].contents = 'First updated';
+    const afterSecond = structuredClone(afterFirst);
+    afterSecond.pages[0].annotations[2].contents = 'Second updated';
+    let finishFirst!: (value: unknown) => void;
+    vi.mocked(executeAndReloadOfficeCommand)
+      .mockImplementationOnce(
+        () => new Promise(resolve => (finishFirst = resolve)) as never
+      )
+      .mockResolvedValueOnce({
+        revision: { id: 'revision-3', sequence: 3, packageUrl: 'about:blank' },
+        state: afterSecond,
+      } as never);
+    const { guards } = setupPdf(false, twoAnnotations);
+    const first = screen.getByLabelText('Edit Highlight annotation');
+    const second = screen.getByLabelText('Edit Underline annotation');
+    act(() => {
+      fireEvent.change(first, { target: { value: 'First updated' } });
+      fireEvent.blur(first);
+      fireEvent.change(second, { target: { value: 'Second updated' } });
+      fireEvent.blur(second);
+    });
+    expect([...guards][0].hasUnsavedChanges).toBe(true);
+    expect(executeAndReloadOfficeCommand).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finishFirst({
+        revision: { id: 'revision-2', sequence: 2, packageUrl: 'about:blank' },
+        state: afterFirst,
+      });
+    });
+    await waitFor(() =>
+      expect(executeAndReloadOfficeCommand).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      vi.mocked(executeAndReloadOfficeCommand).mock.calls[1][0].command
+    ).toMatchObject({
+      operation: 'office.pdf.annotation.update',
+      annotationId: 'note-2',
+      contents: 'Second updated',
+      expectedRevisionId: 'revision-2',
+    });
+    await waitFor(() => expect([...guards][0].hasUnsavedChanges).toBe(false));
+  });
+
+  test('keeps an annotation draft when its update fails', async () => {
+    vi.mocked(executeAndReloadOfficeCommand).mockRejectedValueOnce(
+      new Error('save failed')
+    );
+    const { guards } = setupPdf();
+    const input = screen.getByLabelText('Edit Highlight annotation');
+    fireEvent.change(input, { target: { value: 'Keep this draft' } });
+    fireEvent.blur(input);
+    await waitFor(() =>
+      expect(screen.getByText(/The action could not be completed/)).toBeTruthy()
+    );
+    expect((input as HTMLInputElement).value).toBe('Keep this draft');
+    expect([...guards][0].hasUnsavedChanges).toBe(true);
+  });
+
+  test('preserves an edit back to the original value while a save is running', async () => {
+    const afterFirst = structuredClone(state);
+    afterFirst.pages[0].annotations[0].contents = 'Intermediate';
+    let finishFirst!: (value: unknown) => void;
+    vi.mocked(executeAndReloadOfficeCommand)
+      .mockImplementationOnce(
+        () => new Promise(resolve => (finishFirst = resolve)) as never
+      )
+      .mockResolvedValueOnce({
+        revision: { id: 'revision-3', sequence: 3, packageUrl: 'about:blank' },
+        state,
+      } as never);
+    const { guards } = setupPdf();
+    const input = screen.getByLabelText('Edit Highlight annotation');
+    fireEvent.change(input, { target: { value: 'Intermediate' } });
+    fireEvent.blur(input);
+    fireEvent.change(input, { target: { value: 'Review this' } });
+    fireEvent.blur(input);
+    expect([...guards][0].hasUnsavedChanges).toBe(true);
+    await act(async () => {
+      finishFirst({
+        revision: { id: 'revision-2', sequence: 2, packageUrl: 'about:blank' },
+        state: afterFirst,
+      });
+    });
+    await waitFor(() =>
+      expect(executeAndReloadOfficeCommand).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      vi.mocked(executeAndReloadOfficeCommand).mock.calls[1][0].command
+    ).toMatchObject({
+      annotationId: 'note-1',
+      contents: 'Review this',
+      expectedRevisionId: 'revision-2',
+    });
+    await waitFor(() => expect([...guards][0].hasUnsavedChanges).toBe(false));
+  });
+
   test('signature success clears the saved draft, failure preserves it for retry', async () => {
     const { guards, onRevision } = setupPdf();
     vi.mocked(executeAndReloadOfficeCommand).mockRejectedValueOnce(

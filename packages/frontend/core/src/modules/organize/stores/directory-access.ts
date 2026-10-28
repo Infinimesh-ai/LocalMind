@@ -21,6 +21,8 @@ import type { NbstoreService } from '../../storage';
 import type { WorkspaceService } from '../../workspace';
 
 type Page = WorkspaceDirectoryQuery['workspaceDirectory'];
+export const DIRECTORY_SNAPSHOT_CHANGED = 'directory-snapshot-changed';
+class DirectorySnapshotChanged extends Error {}
 export type DirectoryAccessState = {
   mode: 'local' | 'loading' | 'full' | 'filtered' | 'error';
   items: Page['items'];
@@ -47,6 +49,10 @@ export class DirectoryAccessStore extends Store {
   private rateLimitedUntil = 0;
   private rateLimitCount = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
+
+  get accountGeneration() {
+    return this.identityGeneration;
+  }
 
   constructor(
     private readonly workspaceService: WorkspaceService,
@@ -190,7 +196,11 @@ export class DirectoryAccessStore extends Store {
     );
   }
 
-  private async load(generation: number, controller: AbortController) {
+  private async load(
+    generation: number,
+    controller: AbortController,
+    retrySnapshot = true
+  ): Promise<void> {
     try {
       const server = this.workspaceServerService.server;
       if (!server?.account$.value)
@@ -215,18 +225,10 @@ export class DirectoryAccessStore extends Store {
           JSON.stringify(page.rootRights) !==
             JSON.stringify(firstPage.rootRights)
         )
-          throw new Error('Directory permissions changed while loading; retry');
-        if (page.fullSyncAllowed) {
-          this.rateLimitCount = 0;
-          this.state$.next({
-            mode: 'full',
-            items: [],
-            error: null,
-            revision: page.revision,
-            rootRights: page.rootRights,
-          });
-          return;
-        }
+          throw new DirectorySnapshotChanged(DIRECTORY_SNAPSHOT_CHANGED);
+        // fullSyncAllowed permits reading the raw table, not writing every
+        // folder. Online changes must retain per-entry rights and use the
+        // authorized mutation path, including when every folder is readable.
         for (const item of page.items) items.set(item.id, item);
         if (items.size > 10_000)
           throw new Error('Directory listing exceeds the supported limit');
@@ -247,6 +249,10 @@ export class DirectoryAccessStore extends Store {
       this.rateLimitCount = 0;
     } catch (error) {
       if (generation !== this.generation) return;
+      if (error instanceof DirectorySnapshotChanged && retrySnapshot) {
+        // Restart at the first page; never display a mixture of snapshots.
+        return this.load(generation, controller, false);
+      }
       const friendly = UserFriendlyError.fromAny(error);
       if (friendly.status === 429 || friendly.is('TOO_MANY_REQUEST')) {
         const delay =

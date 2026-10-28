@@ -256,6 +256,25 @@ function activeMemoryLifecycleWhere(now = new Date()) {
   } satisfies Prisma.AiContextMemoryWhereInput;
 }
 
+// Legacy document-backed memories remain bound to their original grants.
+// A revoked grant or an independent quarantine must never be bypassed by a
+// management query or an operation on an inactive version.
+function projectMemorySourceEligibleWhere() {
+  return {
+    quarantinedAt: null,
+    sources: {
+      none: {
+        projectGrant: {
+          OR: [
+            { memoryAuthorization: { status: 'revoked' } },
+            { memoryAuthorization: null, status: { not: 'active' } },
+          ],
+        },
+      },
+    },
+  } satisfies Prisma.AiContextMemoryWhereInput;
+}
+
 function memoryWriterLockKey(input: {
   ownerUserId: string;
   workspaceId: string | null;
@@ -380,6 +399,7 @@ export function buildContextMemoryVisibilityWhere(input: {
       docId: null,
       projectId: { in: input.projectIds },
       sharingStatus: 'shared',
+      ...projectMemorySourceEligibleWhere(),
       project: {
         status: 'active',
         members: { some: { userId: input.userId } },
@@ -529,6 +549,7 @@ export class CopilotContextMemoryModel extends BaseModel {
         id: memoryId,
         scope: 'project',
         sharingStatus: 'shared',
+        ...projectMemorySourceEligibleWhere(),
         project: {
           status: 'active',
           members: { some: { userId: actorUserId } },
@@ -1457,6 +1478,15 @@ export class CopilotContextMemoryModel extends BaseModel {
         fallback: candidate.id,
       })
     );
+    if (input.projectId) {
+      const ids = [candidate.memoryId, candidate.previousMemoryId].filter(
+        (id): id is string => !!id
+      );
+      await this.db.$queryRaw`
+        SELECT id FROM ai_context_memories
+        WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE
+      `;
+    }
     const event = await this.db.aiContextMemoryEvent.findFirst({
       where: {
         id: input.eventId,
@@ -1468,7 +1498,11 @@ export class CopilotContextMemoryModel extends BaseModel {
               memory: {
                 projectId: input.projectId,
                 sharingStatus: 'shared',
+                ...projectMemorySourceEligibleWhere(),
               },
+              ...(candidate.previousMemoryId
+                ? { previousMemory: projectMemorySourceEligibleWhere() }
+                : {}),
             }
           : {}),
         operation: { in: ['ADD', 'UPDATE', 'DELETE'] },
@@ -1477,6 +1511,7 @@ export class CopilotContextMemoryModel extends BaseModel {
       include: { memory: true },
     });
     if (!event?.memoryId || !event.memory) return null;
+    if (event.writerVersion === 'legacy-fact-key-repair/v1') return null;
     if (
       input.projectId &&
       event.operation !== 'ADD' &&
@@ -1615,7 +1650,18 @@ export class CopilotContextMemoryModel extends BaseModel {
       where: {
         ownerUserId: input.ownerUserId,
         workspaceId: input.workspaceId,
-        ...(input.projectId ? { memory: { projectId: input.projectId } } : {}),
+        ...(input.projectId
+          ? {
+              memory: {
+                projectId: input.projectId,
+                ...projectMemorySourceEligibleWhere(),
+              },
+              OR: [
+                { previousMemoryId: null },
+                { previousMemory: projectMemorySourceEligibleWhere() },
+              ],
+            }
+          : {}),
       },
       include: {
         memory: {
@@ -1624,6 +1670,7 @@ export class CopilotContextMemoryModel extends BaseModel {
             docId: true,
             projectId: true,
             status: true,
+            factKey: true,
           },
         },
       },
@@ -1812,6 +1859,7 @@ export class CopilotContextMemoryModel extends BaseModel {
             scope: 'project',
             workspaceId: null,
             sharingStatus: 'shared',
+            ...projectMemorySourceEligibleWhere(),
             ...projectFilter,
             project: {
               status: 'active',
@@ -1849,7 +1897,11 @@ export class CopilotContextMemoryModel extends BaseModel {
 
   async listProjectMemoryConflicts(projectId: string) {
     return await this.db.aiProjectMemoryConflict.findMany({
-      where: { projectId, status: 'pending' },
+      where: {
+        projectId,
+        status: 'pending',
+        memory: projectMemorySourceEligibleWhere(),
+      },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
   }
@@ -1871,6 +1923,7 @@ export class CopilotContextMemoryModel extends BaseModel {
         id: input.conflictId,
         projectId: input.projectId,
         status: 'pending',
+        memory: projectMemorySourceEligibleWhere(),
       },
     });
     if (!conflict) return null;
@@ -1897,6 +1950,7 @@ export class CopilotContextMemoryModel extends BaseModel {
         scope: 'project',
         sharingStatus: 'shared',
         status: 'active',
+        ...projectMemorySourceEligibleWhere(),
       },
     });
     if (!current || current.revision !== conflict.expectedMemoryRevision) {
@@ -1969,7 +2023,24 @@ export class CopilotContextMemoryModel extends BaseModel {
     },
     actorUserId?: string
   ) {
-    const current = await this.get(id);
+    let current = await this.get(id);
+    if (!current) return null;
+    if (current.scope === 'project' && current.projectId) {
+      await this.lockWriterKey(
+        memoryWriterLockKey({
+          ownerUserId: actorUserId ?? '',
+          workspaceId: null,
+          scope: 'project',
+          projectId: current.projectId,
+          factKey: current.factKey,
+          fallback: current.id,
+        })
+      );
+    }
+    await this.db.$queryRaw`
+      SELECT id FROM ai_context_memories WHERE id = ${id} FOR UPDATE
+    `;
+    current = await this.get(id);
     if (!current) return null;
     if (
       current.scope === 'project' &&
@@ -1982,6 +2053,26 @@ export class CopilotContextMemoryModel extends BaseModel {
       current.revision !== input.expectedRevision
     ) {
       throw new BadRequest('Context memory changed; reload first');
+    }
+    if (current.scope === 'project' && input.status !== undefined) {
+      if (
+        !['active', 'disabled'].includes(current.status) ||
+        !['active', 'disabled'].includes(input.status)
+      ) {
+        throw new BadRequest(
+          'Historical memory versions cannot be reactivated'
+        );
+      }
+      if (
+        input.status === 'active' &&
+        ((current.expiresAt && current.expiresAt <= new Date()) ||
+          (current.validUntil && current.validUntil <= new Date()))
+      ) {
+        throw new BadRequest('Expired memory cannot be reactivated');
+      }
+      if (input.status === current.status && input.content === undefined) {
+        return current;
+      }
     }
     const manualSummary =
       current.writerVersion === 'project-summary/v1' ? current.projectId : null;
@@ -2000,6 +2091,16 @@ export class CopilotContextMemoryModel extends BaseModel {
     if (manualSummary && (!content || content.length > 8000)) {
       throw new BadRequest('Project summary content is invalid');
     }
+    if (
+      current.scope === 'project' &&
+      input.status !== undefined &&
+      input.status !== current.status &&
+      content !== current.content
+    ) {
+      throw new BadRequest(
+        'Change memory content and recall status separately'
+      );
+    }
     const projectId = current.projectId;
     if (
       current.scope === 'project' &&
@@ -2008,16 +2109,6 @@ export class CopilotContextMemoryModel extends BaseModel {
       input.content !== undefined &&
       content !== current.content
     ) {
-      await this.lockWriterKey(
-        memoryWriterLockKey({
-          ownerUserId: actorUserId,
-          workspaceId: null,
-          scope: 'project',
-          projectId,
-          factKey: current.factKey,
-          fallback: current.id,
-        })
-      );
       const moved = await this.db.aiContextMemory.updateMany({
         where: {
           id,
@@ -2050,7 +2141,7 @@ export class CopilotContextMemoryModel extends BaseModel {
           scope: 'project',
           kind: current.kind,
           visibility: current.visibility,
-          status: input.status ?? 'active',
+          status: input.status ?? current.status,
           content,
           fingerprint,
           factKey: current.factKey,
@@ -2194,6 +2285,35 @@ export class CopilotContextMemoryModel extends BaseModel {
         });
       }
       if (current.scope === 'project' && current.projectId) {
+        if (actorUserId && input.status && input.status !== current.status) {
+          await this.db.aiContextMemoryEvent.create({
+            data: {
+              ownerUserId: actorUserId,
+              actorIdSnapshot: actorUserId,
+              projectId: current.projectId,
+              memoryId: id,
+              memoryRevision: current.revision + 1,
+              factKey: current.factKey,
+              operation: input.status === 'disabled' ? 'PAUSE' : 'RESUME',
+              explicit: true,
+              reasonCode:
+                input.status === 'disabled'
+                  ? 'user_paused_recall'
+                  : 'user_resumed_recall',
+              writerVersion: 'project-memory-lifecycle/v1',
+              decisionFingerprint: createHash('sha256')
+                .update(
+                  JSON.stringify({
+                    memoryId: id,
+                    actorUserId,
+                    fromRevision: current.revision,
+                    toStatus: input.status,
+                  })
+                )
+                .digest('hex'),
+            },
+          });
+        }
         await this.bumpProjectMemoryRevision(current.projectId);
       }
       return await this.get(id);

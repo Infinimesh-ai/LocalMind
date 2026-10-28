@@ -5,8 +5,10 @@ import { ProjectBlobStorage, ProjectResourceService } from '../../core/project';
 import { retireToolContracts } from '../../models/common/copilot-tool-contract-retirement';
 import { PROJECT_AGENT_WORKFLOW } from '../../models/copilot-project-agent-runtime';
 import { ByokService } from '../../plugins/copilot/byok';
+import { CompatSubmissionStore } from '../../plugins/copilot/compat/submission-store';
 import { ConversationInboxService } from '../../plugins/copilot/conversation/inbox';
 import { CopilotProjectAgentRuntimeWorker } from '../../plugins/copilot/project-agent-runtime-worker';
+import { ConversationHost } from '../../plugins/copilot/runtime/hosts/conversation-host';
 import { buildToolCapabilitySnapshot } from '../../plugins/copilot/runtime/tool-capability-snapshot';
 import { ToolRuntime } from '../../plugins/copilot/runtime/tool-runtime';
 import { ChatSessionService } from '../../plugins/copilot/session';
@@ -873,5 +875,140 @@ test.serial(
       t.deepEqual(rejected.steps[0].input, command);
     }
     t.is(await db.projectResource.count(), 0);
+  }
+);
+
+const cancelPendingMutation = `mutation($sessionId: String!, $messageId: String!) {
+  cancelPendingCopilotMessage(sessionId: $sessionId, messageId: $messageId)
+}`;
+
+test.serial(
+  'pending cancellation atomically persists user intent and stopped reply, survives cache expiry, rejects wrong session and never starts generation',
+  async t => {
+    const { user, project, other, createSession } = await fixture();
+    const session = await createSession(project.id);
+    const otherSession = await createSession(other.id);
+    const inbox = app.get(ConversationInboxService);
+    const id = await inbox.createMessage(user.id, {
+      sessionId: session.sessionId,
+      content: 'cancel before the first token',
+    });
+    await t.throwsAsync(
+      app.gql(cancelPendingMutation, {
+        sessionId: otherSession.sessionId,
+        messageId: id,
+      })
+    );
+    await app.gql(cancelPendingMutation, {
+      sessionId: session.sessionId,
+      messageId: id,
+    });
+    await app.get(CompatSubmissionStore).deleteSession(session.sessionId);
+    await app.gql(cancelPendingMutation, {
+      sessionId: session.sessionId,
+      messageId: id,
+    });
+    const messages = await app.models.copilotSession.getMessages(
+      session.sessionId
+    );
+    t.is(messages.length, 2);
+    t.like(messages[0], {
+      role: 'user',
+      content: 'cancel before the first token',
+      compatSubmissionId: id,
+      params: { cancelledBeforeGeneration: true },
+    });
+    t.like(messages[1], {
+      role: 'assistant',
+      content: '',
+      params: { generationStatus: 'aborted' },
+    });
+    const foreign = await app.models.user.create({
+      email: 'foreign-cancel@example.com',
+    });
+    await t.throwsAsync(
+      inbox.cancelPendingMessage(foreign.id, session.sessionId, id)
+    );
+    await t.throwsAsync(
+      app
+        .get(ConversationHost)
+        .prepareTurn(user.id, session.sessionId, { messageId: id }),
+      { message: /cancelled before it started/ }
+    );
+    t.is(
+      (await app.models.copilotSession.getMessages(session.sessionId)).length,
+      2
+    );
+    const acceptedId = await inbox.createMessage(user.id, {
+      sessionId: session.sessionId,
+      content: 'already accepted stream',
+    });
+    await app.models.copilotSession.appendMessage({
+      sessionId: session.sessionId,
+      userId: user.id,
+      prompt: { model: 'test' },
+      message: {
+        compatSubmissionId: acceptedId,
+        role: 'user',
+        content: 'already accepted stream',
+        createdAt: new Date(),
+      },
+    });
+    await inbox.cancelPendingMessage(user.id, session.sessionId, acceptedId);
+    t.is(
+      (await app.models.copilotSession.getMessages(session.sessionId)).length,
+      3
+    );
+  }
+);
+
+test.serial(
+  'Workspace history keeps a stopped empty assistant after pending cancellation',
+  async t => {
+    const { user } = await fixture();
+    const workspace = await app.models.workspace.create(user.id);
+    const created = await app.gql<{
+      createCopilotSessionWithHistory: { sessionId: string };
+    }>(
+      `mutation($options: CreateChatSessionInput!) { createCopilotSessionWithHistory(options: $options) { sessionId } }`,
+      {
+        options: {
+          workspaceId: workspace.id,
+          promptName: 'Chat With LocalMind AI',
+          reuseLatestChat: false,
+        },
+      }
+    );
+    const sessionId = created.createCopilotSessionWithHistory.sessionId;
+    const id = await app.get(ConversationInboxService).createMessage(user.id, {
+      sessionId,
+      content: 'zero token cancelled message',
+    });
+    await app.gql(cancelPendingMutation, { sessionId, messageId: id });
+    const history = await app.gql<{
+      currentUser: {
+        copilot: {
+          chats: {
+            edges: {
+              node: {
+                messages: {
+                  content: string;
+                  params: { generationStatus?: string };
+                }[];
+              };
+            }[];
+          };
+        };
+      };
+    }>(
+      `query($workspaceId: String!, $sessionId: String!) { currentUser { copilot(workspaceId: $workspaceId) { chats(pagination: {first: 1}, options: {sessionId: $sessionId, withMessages: true}) { edges { node { messages { role content params } } } } } } }`,
+      { workspaceId: workspace.id, sessionId }
+    );
+    const messages = history.currentUser.copilot.chats.edges[0].node.messages;
+    t.is(messages.length, 2);
+    t.like(messages[1], {
+      content: '',
+      params: { generationStatus: 'aborted' },
+    });
   }
 );

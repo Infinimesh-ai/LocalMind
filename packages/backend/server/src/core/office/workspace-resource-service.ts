@@ -420,7 +420,7 @@ export class WorkspaceNativeResourceService {
           acl.assert('Workspace.CreateDoc'),
           acl.assert('Workspace.Blobs.Write'),
         ]);
-        await this.organization.assertResourceFolder(
+        await this.organization.assertResourceFolderAccess(
           input.workspaceId,
           input.actorId,
           input.folderId ?? null,

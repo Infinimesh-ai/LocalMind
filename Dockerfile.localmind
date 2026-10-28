@@ -202,6 +202,10 @@ WORKDIR /app
 
 COPY --from=package /app /app
 
+# Office PDF fonts are resolved at runtime from the bundled server module.
+COPY packages/common/office/package.json /app/dist/node_modules/@localmind/office/package.json
+COPY packages/common/office/assets /app/dist/node_modules/@localmind/office/assets
+
 VOLUME ["/var/lib/localmind/enterprise-cli"]
 
 EXPOSE 3010

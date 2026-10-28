@@ -73,7 +73,11 @@ export function isEditableParagraphXml(node: OrderedXmlNode): boolean {
       return false;
     const attr = (name: string) =>
       Object.entries(attrs).find(([k]) => k.split(':').pop() === name)?.[1];
-    if (name === 'br' && attr('type') && attr('type') !== 'textWrapping')
+    if (
+      name === 'br' &&
+      attr('type') &&
+      !['textWrapping', 'page'].includes(attr('type') ?? '')
+    )
       return false;
     if (name === 'spacing' && attr('line') && attr('lineRule') !== 'exact')
       return false;

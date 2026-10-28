@@ -7,6 +7,7 @@ import {
 } from '@affine/component';
 import { NavigationPanelService } from '@affine/core/modules/navigation-panel';
 import {
+  DIRECTORY_SNAPSHOT_CHANGED,
   type FolderNode,
   OrganizeService,
 } from '@affine/core/modules/organize';
@@ -168,7 +169,11 @@ export const NavigationPanelOrganize = ({
     >
       {error ? (
         <div role="alert">
-          <span>{error}</span>
+          <span>
+            {error === DIRECTORY_SNAPSHOT_CHANGED
+              ? t['com.affine.localmind.directoryPermissions.snapshotChanged']()
+              : error}
+          </span>
           <Button
             onClick={() => {
               folderTree.refresh().catch(console.error);

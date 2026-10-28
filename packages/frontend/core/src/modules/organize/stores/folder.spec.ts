@@ -1,3 +1,4 @@
+import { UserFriendlyError } from '@affine/error';
 import {
   createORMClient,
   Framework,
@@ -26,6 +27,7 @@ describe('FolderStore links', () => {
   let store: FolderStore;
   let folderLoading$: LiveData<boolean>;
   let directoryState$: LiveData<DirectoryAccessState>;
+  let accountGeneration: number;
   let docs: {
     trashDocs$: LiveData<{ id: string }[]>;
     docsMap$: LiveData<Map<string, { id: string }>>;
@@ -39,6 +41,7 @@ describe('FolderStore links', () => {
       })
     );
     const framework = new Framework();
+    accountGeneration = 1;
     mutate = vi.fn().mockResolvedValue(undefined);
     refresh = vi.fn().mockResolvedValue(undefined);
     directoryState$ = new LiveData<DirectoryAccessState>({
@@ -68,6 +71,9 @@ describe('FolderStore links', () => {
             saving$: new LiveData(false),
             mutate,
             refresh,
+            get accountGeneration() {
+              return accountGeneration;
+            },
           } as unknown as DirectoryAccessStore
         )
     );
@@ -231,6 +237,111 @@ describe('FolderStore links', () => {
       store.renameNodeAuthorized('hidden', 'Overwrite')
     ).rejects.toThrow('Folder not found');
     expect(mutate).toHaveBeenCalledTimes(2);
+  });
+
+  test('a new document link retries a definite directory conflict without changing its identity', async () => {
+    const parent = {
+      id: 'visible',
+      type: 'folder' as const,
+      data: 'Visible',
+      parentId: null,
+      defaultSortMode: null,
+      index: 'a0',
+      rights: {
+        canRead: true,
+        canWrite: true,
+        canOrganize: true,
+        canCreateFolder: true,
+      },
+    };
+    directoryState$.next({ mode: 'filtered', error: null, items: [parent] });
+    mutate.mockRejectedValueOnce(
+      new UserFriendlyError({
+        status: 409,
+        code: 'bad_request',
+        type: 'bad_request',
+        name: 'BAD_REQUEST',
+        message: 'Directory changed',
+      })
+    );
+    await store.createLinkAuthorized('visible', 'doc', 'doc-1', 'a1', true);
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(mutate.mock.calls[1][0]).toEqual(mutate.mock.calls[0][0]);
+  });
+
+  test('a new document link does not retry a non-conflict failure or revoked destination', async () => {
+    const parent = {
+      id: 'visible',
+      type: 'folder' as const,
+      data: 'Visible',
+      parentId: null,
+      defaultSortMode: null,
+      index: 'a0',
+      rights: {
+        canRead: true,
+        canWrite: true,
+        canOrganize: true,
+        canCreateFolder: true,
+      },
+    };
+    directoryState$.next({ mode: 'filtered', error: null, items: [parent] });
+    mutate.mockRejectedValueOnce(new Error('network'));
+    await expect(
+      store.createLinkAuthorized('visible', 'doc', 'doc-1', 'a1', true)
+    ).rejects.toThrow('network');
+    expect(mutate).toHaveBeenCalledTimes(1);
+    mutate.mockClear();
+    mutate.mockImplementationOnce(async () => {
+      directoryState$.next({ mode: 'filtered', error: null, items: [] });
+      throw new UserFriendlyError({
+        status: 409,
+        code: 'bad_request',
+        type: 'bad_request',
+        name: 'BAD_REQUEST',
+        message: 'Directory changed',
+      });
+    });
+    await expect(
+      store.createLinkAuthorized('visible', 'doc', 'doc-1', 'a1', true)
+    ).rejects.toThrow();
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  test('a directory conflict is not retried after an account change', async () => {
+    directoryState$.next({
+      mode: 'filtered',
+      error: null,
+      items: [
+        {
+          id: 'visible',
+          type: 'folder',
+          data: 'Visible',
+          parentId: null,
+          defaultSortMode: null,
+          index: 'a0',
+          rights: {
+            canRead: true,
+            canWrite: true,
+            canOrganize: true,
+            canCreateFolder: true,
+          },
+        },
+      ],
+    });
+    mutate.mockImplementationOnce(async () => {
+      accountGeneration++;
+      throw new UserFriendlyError({
+        status: 409,
+        code: 'bad_request',
+        type: 'bad_request',
+        name: 'BAD_REQUEST',
+        message: 'Directory changed',
+      });
+    });
+    await expect(
+      store.createLinkAuthorized('visible', 'doc', 'doc-1', 'a1', true)
+    ).rejects.toThrow();
+    expect(mutate).toHaveBeenCalledTimes(1);
   });
 
   test('deletes an empty folder without deleting its sibling', () => {

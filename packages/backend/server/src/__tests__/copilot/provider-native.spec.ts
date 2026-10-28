@@ -2162,6 +2162,93 @@ const BYOK_FAL_PROFILE: CopilotProviderProfile = {
   config: { apiKey: 'byok-key' },
 };
 
+test('report image permits match the pinned provider and model without changing other routes', async t => {
+  const modelId = 'report-model';
+  const profiles: CopilotProviderProfile[] = ['report-a', 'report-b'].map(
+    id => ({
+      ...BYOK_OPENAI_PROFILE,
+      id,
+      models: [modelId],
+      modelDefinitions: [
+        {
+          id: modelId,
+          rawModelId: modelId,
+          backendKind: 'openai_responses',
+          capabilities: [
+            {
+              input: [ModelInputType.Text],
+              output: [ModelOutputType.Text, ModelOutputType.Structured],
+              defaultForOutputType: true,
+            },
+          ],
+        },
+      ],
+    })
+  );
+  const authorizeImageInput = Sinon.stub().resolves('report-a/report-model');
+  const factory = new CopilotProviderFactory(
+    { enableFeature: Sinon.stub(), disableFeature: Sinon.stub() } as never,
+    withModelRevisionRegistry({
+      getRegistry: () => buildProviderRegistry({ profiles: [], defaults: {} }),
+    }) as never,
+    {
+      resolveRouteAccess: async () => ({
+        byokProfiles: profiles,
+        quotaBackedRoutesAvailable: false,
+      }),
+    } as never,
+    { reportDeckDesign: { authorizeImageInput } } as never
+  );
+  factory.registerRuntime(createProvider());
+  const cond = {
+    outputType: ModelOutputType.Structured,
+    inputTypes: [ModelInputType.Text, ModelInputType.Image],
+    attachmentKinds: ['image' as const],
+    attachmentSourceKinds: ['data' as const],
+  };
+  const context = { userId: 'user-1', workspaceId: 'workspace-1' };
+  t.deepEqual(await factory.resolveRoutes(cond, {}, context), []);
+  const routes = await factory.resolveRoutes(
+    cond,
+    {},
+    {
+      ...context,
+      reportImageInput: {
+        id: 'run-1',
+        deckId: 'deck-1',
+        attempt: 1,
+        leaseOwner: 'worker-1',
+        fence: 1,
+      },
+    }
+  );
+  t.deepEqual(
+    routes.map(route => route.providerId),
+    ['report-a']
+  );
+  t.deepEqual(profiles[0].modelDefinitions?.[0].capabilities[0].input, [
+    ModelInputType.Text,
+  ]);
+  t.deepEqual(await factory.resolveRoutes(cond, {}, context), []);
+  authorizeImageInput.rejects(new Error('expired report lease'));
+  await t.throwsAsync(() =>
+    factory.resolveRoutes(
+      cond,
+      {},
+      {
+        ...context,
+        reportImageInput: {
+          id: 'run-1',
+          deckId: 'deck-1',
+          attempt: 1,
+          leaseOwner: 'worker-1',
+          fence: 1,
+        },
+      }
+    )
+  );
+});
+
 const INSTANCE_EMBEDDING_PROFILE: CopilotProviderProfile = {
   id: 'infinimesh-embedding',
   type: CopilotProviderType.OpenAI,

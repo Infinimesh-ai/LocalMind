@@ -21,16 +21,16 @@ export async function addFilesToChat(
   }
 
   const others = files.filter(file => !file.type.startsWith('image/'));
-  await Promise.all(
-    others.map(async file => {
-      if (file.size > MAX_ATTACHMENT_SIZE) {
-        toast(`${file.name} is too large, please upload a file less than 50MB`);
-        return;
-      }
-      await addChip({
-        file,
-        state: 'processing',
-      });
-    })
-  );
+  // Context mutations use a shared request sequence. Wait for each addition
+  // before starting the next so a later file cannot supersede an earlier one.
+  for (const file of others) {
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      toast(`${file.name} is too large, please upload a file less than 50MB`);
+      continue;
+    }
+    await addChip({
+      file,
+      state: 'processing',
+    });
+  }
 }

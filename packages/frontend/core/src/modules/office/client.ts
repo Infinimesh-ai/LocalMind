@@ -95,7 +95,7 @@ export function officeAssetUrl(url: string) {
     ['http:', 'https:'].includes(page.protocol) &&
     !asset.username &&
     !asset.password &&
-    /^\/api\/(projects|workspaces)\/[^/]+\/office\/artifacts\/[^/]+\/revisions\/[^/]+\/(state|package|part|export\/pdf)$/.test(
+    /^\/api\/(projects|workspaces)\/[^/]+\/office\/artifacts\/[^/]+\/revisions\/[^/]+\/(state|package|part|export\/(pdf|xlsx))$/.test(
       asset.pathname
     )
   ) {
@@ -111,7 +111,7 @@ export async function fetchOfficeState(
   signal?: AbortSignal
 ) {
   let stateUrl = officeAssetUrl(url);
-  if (kind === 'document') {
+  if (kind === 'document' || kind === 'workbook') {
     const view = new URL(stateUrl, location.href);
     view.searchParams.set('view', 'layout-v2');
     stateUrl = view.toString();
@@ -261,11 +261,19 @@ export class OfficePdfFontUnavailableError extends Error {
   }
 }
 
+export class OfficeXlsxCompatibilityUnavailableError extends Error {}
+
 export async function downloadOfficePackage(url: string, filename: string) {
   const response = await fetch(officeAssetUrl(url), {
     credentials: 'include',
   });
   if (!response.ok) {
+    if (
+      response.status === 422 &&
+      response.headers.get('x-localmind-office-error') ===
+        'xlsx-compatibility-unavailable'
+    )
+      throw new OfficeXlsxCompatibilityUnavailableError();
     if (
       response.status === 422 &&
       response.headers.get('x-localmind-office-error') ===
@@ -304,6 +312,15 @@ export function officePdfExportUrl(packageUrl: string) {
     throw new Error(I18n['com.affine.office.invalid-office-package-url']());
   }
   url.pathname = `${url.pathname.slice(0, -'/package'.length)}/export/pdf`;
+  url.search = '';
+  return officeAssetUrl(url.toString());
+}
+
+export function officeWorkbookExportUrl(packageUrl: string) {
+  const url = new URL(packageUrl, window.location.href);
+  if (!url.pathname.endsWith('/package'))
+    throw new Error(I18n['com.affine.office.invalid-office-package-url']());
+  url.pathname = `${url.pathname.slice(0, -'/package'.length)}/export/xlsx`;
   url.search = '';
   return officeAssetUrl(url.toString());
 }

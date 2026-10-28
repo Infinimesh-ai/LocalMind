@@ -35,12 +35,12 @@ export class CopilotEmbeddingRealtimeProvider implements OnModuleInit {
           await this.assertCopilot(user.id, payload.workspaceId);
           const canEmbedding =
             await this.models.copilotWorkspace.checkEmbeddingAvailable();
-          if (!canEmbedding) {
-            return { total: 0, embedded: 0 };
-          }
-          return await this.models.copilotWorkspace.getEmbeddingStatus(
-            payload.workspaceId
-          );
+          return {
+            ...(await this.models.copilotWorkspace.getEmbeddingStatus(
+              payload.workspaceId
+            )),
+            available: canEmbedding,
+          };
         },
       },
       topic: {

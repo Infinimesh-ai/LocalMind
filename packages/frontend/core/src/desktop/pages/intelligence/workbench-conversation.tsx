@@ -3,6 +3,7 @@ import {
   type AIChatContextItem,
   AIChatRuntime,
   createAIRequestService,
+  createRejectedPromptRecovery,
   ProjectAIChatSessionStrategy,
   useAIChatElement,
   useAIChatRuntime,
@@ -23,6 +24,7 @@ import { NotificationServiceImpl } from '@affine/core/blocksuite/view-extensions
 import { AIToolsConfigService } from '@affine/core/modules/ai-button';
 import { ProjectAIModel } from '@affine/core/modules/ai-button/entities/project-model';
 import {
+  AuthService,
   EventSourceService,
   GraphQLService,
   ServerService,
@@ -104,6 +106,7 @@ type WorkbenchConversationProps = {
   autoSendInitialDraft?: boolean;
   onSessionCreated?: (sessionId: string) => Promise<unknown> | unknown;
   onPinChanged?: () => void;
+  onNewConversation?: () => void;
   onContextPanelChange?: (state: WorkbenchContextPanelState | null) => void;
   /** Extra controls in the title card, e.g. the work order panel toggle. */
   headerActions?: ReactNode;
@@ -151,6 +154,7 @@ export const WorkbenchConversation = ({
   autoSendInitialDraft = false,
   onSessionCreated,
   onPinChanged,
+  onNewConversation,
   onContextPanelChange,
   headerActions,
   banner,
@@ -159,6 +163,7 @@ export const WorkbenchConversation = ({
   const framework = useFramework();
   const graphql = useService(GraphQLService);
   const requestService = useAIRequestService();
+  const auth = useService(AuthService);
   const projectModel = useMemo(
     () =>
       framework.createEntity(ProjectAIModel, { projectId: selectedProjectId }),
@@ -270,8 +275,11 @@ export const WorkbenchConversation = ({
         strategy: new ProjectAIChatSessionStrategy(startEmpty),
         chatSurface: 'intelligence_workbench',
         projectId: selectedProjectId,
+        rejectedPromptRecovery: createRejectedPromptRecovery(
+          () => auth.session.account$.value?.id
+        ),
       }),
-    [requestService, selectedProjectId, startEmpty]
+    [auth, requestService, selectedProjectId, startEmpty]
   );
   const snapshot = useAIChatRuntime(runtime);
   const previousStatus = useRef(snapshot?.status);
@@ -297,6 +305,9 @@ export const WorkbenchConversation = ({
         : projectErrorMessage(error);
     return {
       sourceProjectName: selectedProjectName,
+      canAct: draft =>
+        snapshot?.activeSessionId === draft.sourceSessionId &&
+        snapshot.uiPolicy.canSend,
       onSend: async draft => {
         if (runtime.getSnapshot().activeSessionId !== draft.sourceSessionId) {
           throw new Error('Work order draft belongs to another conversation');
@@ -387,9 +398,18 @@ export const WorkbenchConversation = ({
         cancel: t['com.affine.localmind.workbench.v9.proposalCancel'](),
         cancelled: t['com.affine.localmind.workbench.v9.proposalCancelled'](),
         failed: t['com.affine.localmind.workbench.v9.proposalFailed'](),
+        waiting: t['com.affine.localmind.workbench.v9.proposalWaiting'](),
       },
     };
-  }, [graphql, onDocumentsChanged, runtime, selectedProjectName, t]);
+  }, [
+    graphql,
+    onDocumentsChanged,
+    runtime,
+    selectedProjectName,
+    snapshot?.activeSessionId,
+    snapshot?.uiPolicy.canSend,
+    t,
+  ]);
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
@@ -634,6 +654,7 @@ export const WorkbenchConversation = ({
           deleteSession(session).catch(report);
         },
         onPinChanged,
+        onNewConversation,
       });
     },
   });

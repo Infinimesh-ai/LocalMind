@@ -566,7 +566,8 @@ export function WorkspaceResourceExplorer({
       .search$(
         search.trim(),
         workspace.flavour === 'local' ? 'local' : 'remote',
-        10000
+        10000,
+        { requireAllTerms: true }
       )
       .subscribe({
         next: rows => setMatchingDocs(new Set(rows.map(row => row.docId))),
@@ -1356,7 +1357,7 @@ export function WorkspaceResourceExplorer({
                                               kind: 'doc',
                                               title:
                                                 docs.doc$(key).value?.title$
-                                                  .value ?? untitled,
+                                                  .value || untitled,
                                             };
                                       })
                                     )

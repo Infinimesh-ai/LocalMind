@@ -250,6 +250,90 @@ describe('PresentationEditor', () => {
     expect([...guards][0].hasUnsavedChanges).toBe(true);
   });
 
+  test('keeps an unsaved theme color when the same master is reloaded', async () => {
+    const props = {
+      state,
+      revision: {
+        id: 'revision-1',
+        sequence: 1,
+        packageUrl: '/presentation.pptx',
+      } as never,
+      artifactId: 'artifact-1',
+      owner: { kind: 'workspace' as const, workspaceId: 'workspace-1' },
+      graphql: {} as never,
+      readOnly: false,
+      onRevision: vi.fn(),
+      onCommentAnchorChange: vi.fn(),
+      onAiSelectionChange: vi.fn(),
+    };
+    const { rerender } = render(<PresentationEditor {...props} />);
+    const color = screen.getByLabelText<HTMLInputElement>('Theme color value');
+    fireEvent.change(color, { target: { value: '#1a6688' } });
+    rerender(
+      <PresentationEditor
+        {...props}
+        state={{
+          ...state,
+          masters: state.masters.map(master => ({ ...master })),
+        }}
+      />
+    );
+    await waitFor(() => expect(color.value).toBe('#1a6688'));
+  });
+
+  test('tracks a theme color draft and saves or discards it with the editor', async () => {
+    const guards = new Set<OfficeEditorDraft>();
+    render(
+      <PresentationEditor
+        state={state}
+        revision={
+          {
+            id: 'revision-1',
+            sequence: 1,
+            packageUrl: '/presentation.pptx',
+          } as never
+        }
+        artifactId="artifact-1"
+        owner={{ kind: 'workspace', workspaceId: 'workspace-1' }}
+        graphql={{} as never}
+        readOnly={false}
+        onRevision={vi.fn()}
+        onCommentAnchorChange={vi.fn()}
+        onAiSelectionChange={vi.fn()}
+        registerDraft={draft => {
+          guards.add(draft);
+          return () => guards.delete(draft);
+        }}
+      />
+    );
+    const color = screen.getByLabelText<HTMLInputElement>('Theme color value');
+    fireEvent.change(color, { target: { value: '#387d59' } });
+    expect([...guards][0].hasUnsavedChanges).toBe(true);
+    vi.mocked(executeAndReloadOfficeCommand).mockRejectedValueOnce(
+      new Error('save failed')
+    );
+    await expect([...guards][0].save()).rejects.toThrow('save failed');
+    expect([...guards][0].hasUnsavedChanges).toBe(true);
+    await act(async () => {
+      await [...guards][0].save();
+    });
+    expect(
+      vi.mocked(executeAndReloadOfficeCommand).mock.calls[1][0].command
+    ).toMatchObject({
+      operation: 'office.presentation.theme.color.set',
+      color: '#387d59',
+    });
+    expect([...guards][0].hasUnsavedChanges).toBe(false);
+
+    fireEvent.change(color, { target: { value: '#112233' } });
+    expect([...guards][0].hasUnsavedChanges).toBe(true);
+    await act(async () => {
+      await [...guards][0].discard();
+    });
+    expect(color.value).toBe('#387d59');
+    expect([...guards][0].hasUnsavedChanges).toBe(false);
+  });
+
   test('loads the selected theme slot and sends it through the command bus', async () => {
     const props = {
       state,

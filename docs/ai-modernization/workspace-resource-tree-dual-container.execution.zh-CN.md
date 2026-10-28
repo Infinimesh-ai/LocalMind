@@ -1,5 +1,7 @@
 # Workspace 双容器 v2 独立候选执行记录
 
+2026-10-27 补充：旧目录侧栏的页面／白板创建已增加原子提交与持久重试，见 [QA-119 执行记录](workspace-folder-page-creation.execution.zh-CN.md)。该修复仅覆盖尚未切换页面树的旧目录入口；双容器 v2 保持既有创建协议，不开放旧协议回退。
+
 日期：2026-10-09（America/Los_Angeles；容器日志日期为 2026-10-10 UTC）。
 
 本记录对应[开发契约](workspace-resource-tree-dual-container-development.zh-CN.md)。实现和隔离验证位于 `/Users/dev2/.codex/worktrees/workspace-page-tree/LocalMind`，分支 `codex/workspace-page-tree`。用户于 2026-10-09 体验后授权合入本地 main；本次本地集成包含资源树、资源显示／排序依赖及删除两条侧栏常驻提示的调整。未推送、创建 PR、部署或迁移业务库。其他未提交改动保留；日志、截图、数据库备份和本机体验配置不进入提交。

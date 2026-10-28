@@ -162,11 +162,12 @@ export function textToText({
             attachments,
             params,
             timeout,
-            signal,
           });
           onMessageCreated?.(messageId);
         }
         if (signal?.aborted) {
+          if (messageId)
+            await client.cancelPendingMessage(sessionId, messageId);
           return;
         }
         const eventSource = client.chatTextStream(
@@ -207,10 +208,15 @@ export function textToText({
               yield event.data;
             }
           }
+        } catch (error) {
+          if (!signal?.aborted) throw error;
         } finally {
           eventSource.close();
           if (signal && onAbort) {
             signal.removeEventListener('abort', onAbort);
+          }
+          if (signal?.aborted && messageId) {
+            await client.cancelPendingMessage(sessionId, messageId);
           }
         }
       },

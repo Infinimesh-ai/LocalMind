@@ -1,3 +1,4 @@
+import { UserFriendlyError } from '@affine/error';
 import { I18n } from '@affine/i18n';
 import {
   generateFractionalIndexingKeyBetween,
@@ -237,7 +238,8 @@ export class FolderStore extends Store {
     parentId: string,
     type: 'doc' | 'tag' | 'collection',
     data: string,
-    index: string
+    index: string,
+    retryCreatedDocumentConflict = false
   ) {
     await this.prepareAuthorizedMutation();
     if (!this.filtered) return this.createLink(parentId, type, data, index);
@@ -249,9 +251,48 @@ export class FolderStore extends Store {
     );
     if (existing) return existing.id;
     const id = nanoid();
-    await this.directoryAccess?.mutate([
-      { op: 'upsert', key: id, values: { type, data, parentId, index } },
-    ]);
+    const access = this.directoryAccess;
+    const generation = access?.accountGeneration;
+    const changes = [
+      {
+        op: 'upsert' as const,
+        key: id,
+        values: { type, data, parentId, index },
+      },
+    ];
+    try {
+      await access?.mutate(changes);
+    } catch (error) {
+      if (
+        !retryCreatedDocumentConflict ||
+        type !== 'doc' ||
+        !access ||
+        access.accountGeneration !== generation ||
+        UserFriendlyError.fromAny(error).status !== 409
+      )
+        throw error;
+      // mutate() refreshed the directory after a definite conflict. Recheck
+      // the original destination and never retry under another account.
+      const state = access.state$.value;
+      const parent = state.items.find(item => item.id === parentId);
+      if (
+        state.mode !== 'filtered' ||
+        !parent ||
+        parent.type !== 'folder' ||
+        !parent.rights.canRead ||
+        !parent.rights.canWrite ||
+        !parent.rights.canOrganize
+      )
+        throw error;
+      const existing = state.items.find(
+        item => item.type === type && item.data === data
+      );
+      if (existing) {
+        if (existing.parentId === parentId) return existing.id;
+        throw error;
+      }
+      await access.mutate(changes);
+    }
     return id;
   }
 

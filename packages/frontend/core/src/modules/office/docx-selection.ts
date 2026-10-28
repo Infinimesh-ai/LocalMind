@@ -33,9 +33,11 @@ function resolvePosition(
     return null;
   }
   const textOffset = range.toString().length;
+  const base = Number(paragraph.dataset.officeFragmentOffset ?? 0);
   return {
     blockId,
-    offset: Math.min(textOffset, paragraph.textContent?.length ?? textOffset),
+    offset:
+      base + Math.min(textOffset, paragraph.textContent?.length ?? textOffset),
     order,
   };
 }
@@ -121,9 +123,18 @@ export function captureOfficeSelection(
 }
 
 function resolveDomPosition(root: HTMLElement, position: OfficeTextPosition) {
-  const paragraph = root.querySelector<HTMLElement>(
-    `[data-office-block-id="${CSS.escape(position.blockId)}"]`
-  );
+  const paragraphs = [
+    ...root.querySelectorAll<HTMLElement>(
+      `[data-office-block-id="${CSS.escape(position.blockId)}"]`
+    ),
+  ];
+  const paragraph = paragraphs.find(p => {
+    const base = Number(p.dataset.officeFragmentOffset ?? 0);
+    return (
+      position.offset >= base &&
+      position.offset <= base + (p.textContent?.length ?? 0)
+    );
+  });
   if (
     !paragraph ||
     !Number.isSafeInteger(position.offset) ||
@@ -131,7 +142,8 @@ function resolveDomPosition(root: HTMLElement, position: OfficeTextPosition) {
   )
     return null;
   const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
-  let remaining = position.offset;
+  let remaining =
+    position.offset - Number(paragraph.dataset.officeFragmentOffset ?? 0);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const length = node.textContent?.length ?? 0;
     if (remaining <= length) return { node, offset: remaining, paragraph };

@@ -85,6 +85,11 @@ function commandEvidence(command: OfficeCommand) {
       };
     case 'office.document.paragraph.format':
       return { target: command.target, format: command.format };
+    case 'office.document.paragraph.insert':
+      return {
+        afterBlockId: command.afterBlockId,
+        replacementTextLength: command.text.length,
+      };
     case 'office.document.break.insert':
       return { target: command.target, breakType: command.breakType };
     case 'office.document.section.insert':

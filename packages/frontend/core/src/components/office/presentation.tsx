@@ -176,6 +176,9 @@ export function PresentationEditor({
   const [themeColor, setThemeColor] = useState(
     state.masters[0]?.themeColors.accent1 ?? '#0057B8'
   );
+  const themeMasterId = state.masters[0]?.id;
+  const selectedThemeColor =
+    state.masters[0]?.themeColors[themeSlot] ?? '#000000';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('Ready');
@@ -183,9 +186,19 @@ export function PresentationEditor({
     text: selectedShape?.text ?? '',
     geometry: geometryDraft(selectedShape),
     notes: slide?.notesText ?? '',
+    theme: {
+      masterId: themeMasterId,
+      slot: themeSlot,
+      color: selectedThemeColor,
+    },
   });
-  const currentDraft = useRef({ text, geometry, notes });
-  currentDraft.current = { text, geometry, notes };
+  const currentDraft = useRef(savedDraft.current);
+  currentDraft.current = {
+    text,
+    geometry,
+    notes,
+    theme: { masterId: themeMasterId, slot: themeSlot, color: themeColor },
+  };
   const draftTarget = useRef({ shapeId, slideId });
   const latestRevision = useRef(revision);
   if (revision.sequence >= latestRevision.current.sequence)
@@ -233,8 +246,28 @@ export function PresentationEditor({
   }, [slide, slideId, registerDraft]);
 
   useEffect(() => {
-    setThemeColor(state.masters[0]?.themeColors[themeSlot] ?? '#000000');
-  }, [state.masters, themeSlot]);
+    const previous = savedDraft.current.theme;
+    const changedTarget =
+      previous.masterId !== themeMasterId || previous.slot !== themeSlot;
+    const current = currentDraft.current.theme.color;
+    const nextColor =
+      changedTarget || current.toLowerCase() === previous.color.toLowerCase()
+        ? selectedThemeColor
+        : current;
+    currentDraft.current = {
+      ...currentDraft.current,
+      theme: { masterId: themeMasterId, slot: themeSlot, color: nextColor },
+    };
+    setThemeColor(nextColor);
+    savedDraft.current = {
+      ...savedDraft.current,
+      theme: {
+        masterId: themeMasterId,
+        slot: themeSlot,
+        color: selectedThemeColor,
+      },
+    };
+  }, [themeMasterId, selectedThemeColor, themeSlot]);
 
   useEffect(() => {
     if (!slide) {
@@ -487,8 +520,10 @@ export function PresentationEditor({
   useOfficeEditorDraft(registerDraft, {
     get hasUnsavedChanges() {
       return (
-        JSON.stringify(currentDraft.current) !==
-        JSON.stringify(savedDraft.current)
+        JSON.stringify({ ...currentDraft.current, theme: undefined }) !==
+          JSON.stringify({ ...savedDraft.current, theme: undefined }) ||
+        currentDraft.current.theme.color.toLowerCase() !==
+          savedDraft.current.theme.color.toLowerCase()
       );
     },
     save: async () => {
@@ -498,7 +533,7 @@ export function PresentationEditor({
         );
       const draft = currentDraft.current;
       const commands: {
-        field: 'text' | 'geometry' | 'notes';
+        field: 'text' | 'geometry' | 'notes' | 'theme';
         command: OfficeCommand;
       }[] = [];
       if (draft.text !== savedDraft.current.text && selectedShape)
@@ -543,6 +578,21 @@ export function PresentationEditor({
             text: draft.notes,
           },
         });
+      if (
+        draft.theme.masterId &&
+        draft.theme.color.toLowerCase() !==
+          savedDraft.current.theme.color.toLowerCase()
+      )
+        commands.push({
+          field: 'theme',
+          command: {
+            ...commandBase(),
+            operation: 'office.presentation.theme.color.set',
+            masterId: draft.theme.masterId,
+            slot: draft.theme.slot,
+            color: draft.theme.color,
+          },
+        });
       for (const { field, command } of commands) {
         const result = await executeAndReloadOfficeCommand<PptxSemanticState>({
           graphql,
@@ -563,6 +613,7 @@ export function PresentationEditor({
       setText(savedDraft.current.text);
       setGeometry(savedDraft.current.geometry);
       setNotes(savedDraft.current.notes);
+      setThemeColor(savedDraft.current.theme.color);
     },
   });
 
@@ -933,12 +984,11 @@ export function PresentationEditor({
                   value={themeSlot}
                   disabled={readOnly || saving}
                   aria-label={i18n['com.affine.office.theme-color-slot']()}
-                  onChange={event =>
-                    setThemeSlot(
-                      event.target
-                        .value as OfficePresentationSetThemeColorCommand['slot']
-                    )
-                  }
+                  onChange={event => {
+                    const slot = event.target
+                      .value as OfficePresentationSetThemeColorCommand['slot'];
+                    changeSelection(() => setThemeSlot(slot));
+                  }}
                 >
                   {(
                     [

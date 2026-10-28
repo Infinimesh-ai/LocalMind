@@ -3617,6 +3617,14 @@ export const getCopilotHistoriesQuery = {
 ${paginatedCopilotChatsFragment}`,
 };
 
+export const cancelPendingCopilotMessageMutation = {
+  id: 'cancelPendingCopilotMessageMutation' as const,
+  op: 'cancelPendingCopilotMessage',
+  query: `mutation cancelPendingCopilotMessage($sessionId: String!, $messageId: String!) {
+  cancelPendingCopilotMessage(sessionId: $sessionId, messageId: $messageId)
+}`,
+};
+
 export const createCopilotMessageMutation = {
   id: 'createCopilotMessageMutation' as const,
   op: 'createCopilotMessage',
@@ -8927,6 +8935,14 @@ export const copilotWorkbenchSourceAuthorizationGetQuery = {
   query: `query copilotWorkbenchSourceAuthorizationGet($workspaceId: String!, $docId: String!) {
   currentUser {
     copilot {
+      workbenchMemorySourceAuthorizations(workspaceId: $workspaceId, docId: $docId) {
+        grantId
+        projectId
+        projectName
+        status
+        revision
+        memoryCount
+      }
       workbenchAccessRequests(
         view: "source"
         workspaceId: $workspaceId
@@ -9247,6 +9263,18 @@ export const createSelfhostCustomerPortalMutation = {
   op: 'createSelfhostCustomerPortal',
   query: `mutation createSelfhostCustomerPortal($workspaceId: String!) {
   createSelfhostWorkspaceCustomerPortal(workspaceId: $workspaceId)
+}`,
+};
+
+export const createWorkspaceFolderPageMutation = {
+  id: 'createWorkspaceFolderPageMutation' as const,
+  op: 'createWorkspaceFolderPage',
+  query: `mutation createWorkspaceFolderPage($input: CreateWorkspaceFolderPageInput!) {
+  createWorkspaceFolderPage(input: $input) {
+    documentId
+    folderId
+    replayed
+  }
 }`,
 };
 
@@ -11847,6 +11875,14 @@ export const retryProjectWorkspaceImportMutation = {
 ${projectWorkspaceImportTaskFragment}`,
 };
 
+export const retryWorkspaceEmbeddingMutation = {
+  id: 'retryWorkspaceEmbeddingMutation' as const,
+  op: 'retryWorkspaceEmbedding',
+  query: `mutation retryWorkspaceEmbedding($workspaceId: String!) {
+  retryWorkspaceEmbedding(workspaceId: $workspaceId)
+}`,
+};
+
 export const revokeDocUserRolesMutation = {
   id: 'revokeDocUserRolesMutation' as const,
   op: 'revokeDocUserRoles',
@@ -11995,6 +12031,21 @@ export const serverConfigQuery = {
 }
 ${passwordLimitsFragment}
 ${credentialsRequirementsFragment}`,
+};
+
+export const setCopilotMemorySourceAuthorizationMutation = {
+  id: 'setCopilotMemorySourceAuthorizationMutation' as const,
+  op: 'setCopilotMemorySourceAuthorization',
+  query: `mutation setCopilotMemorySourceAuthorization($input: SetCopilotMemorySourceAuthorizationInput!) {
+  setCopilotMemorySourceAuthorization(input: $input) {
+    id
+    status
+    revision
+    restoredCount
+    quarantinedCount
+    deferredCount
+  }
+}`,
 };
 
 export const setWorkspacePublicByIdMutation = {

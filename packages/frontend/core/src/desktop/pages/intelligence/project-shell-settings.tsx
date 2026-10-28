@@ -13,8 +13,11 @@ import {
   projectErrorMessage,
   reportProjectError,
 } from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import {
   copilotContextMemoryDeleteMutation,
+  CopilotContextMemoryMutableStatusInput,
+  copilotContextMemoryUpdateMutation,
   copilotProjectContextDashboardGetQuery,
   copilotProjectContextSettingsUpdateMutation,
   copilotProjectMemoryConflictResolveMutation,
@@ -23,7 +26,7 @@ import {
 import { useI18n } from '@affine/i18n';
 import { useService } from '@toeverything/infra';
 import { useTheme } from 'next-themes';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import {
   ProjectCollaborationContent,
@@ -53,6 +56,9 @@ export const ProjectShellSettings = ({
   const graphql = useService(GraphQLService);
   const confirm = useConfirmModal();
   const [pending, setPending] = useState(false);
+  const recallPending = useRef(false);
+  const selectedProject = useRef(projectId);
+  selectedProject.current = projectId;
   const [memberFilter, setMemberFilter] = useState('all');
   const dashboard = useQuery(
     open && projectId
@@ -62,6 +68,9 @@ export const ProjectShellSettings = ({
         }
       : undefined,
     { suspense: false, shouldRetryOnError: false }
+  );
+  useProjectRefresh(null, 'list', () =>
+    open && projectId ? dashboard.mutate() : undefined
   );
   const currentUser = dashboard.data?.currentUser;
   const copilot = currentUser?.copilot;
@@ -131,6 +140,55 @@ export const ProjectShellSettings = ({
     } finally {
       setPending(false);
     }
+  };
+
+  const changeRecall = (memory: (typeof memories)[number]) => {
+    if (
+      !projectId ||
+      memory.projectId !== projectId ||
+      !memory.canManage ||
+      pending
+    )
+      return;
+    const requestProject = projectId;
+    const paused = memory.status === 'disabled';
+    const label = paused
+      ? t['com.affine.localmind.project-memory.resume']()
+      : t['com.affine.localmind.project-memory.pause']();
+    confirm.openConfirmModal({
+      title: label,
+      description: paused
+        ? t['com.affine.localmind.project-memory.resume-description']()
+        : t['com.affine.localmind.project-memory.pause-description'](),
+      confirmText: label,
+      cancelText: t['Cancel'](),
+      onConfirm: async () => {
+        if (selectedProject.current !== requestProject || recallPending.current)
+          return;
+        recallPending.current = true;
+        setPending(true);
+        try {
+          await graphql.gql({
+            query: copilotContextMemoryUpdateMutation,
+            variables: {
+              input: {
+                id: memory.id,
+                expectedRevision: memory.revision,
+                status: paused
+                  ? CopilotContextMemoryMutableStatusInput.active
+                  : CopilotContextMemoryMutableStatusInput.disabled,
+              },
+            },
+          });
+          await dashboard.mutate();
+        } catch (error) {
+          reportProjectError(error);
+        } finally {
+          recallPending.current = false;
+          setPending(false);
+        }
+      },
+    });
   };
 
   const deleteMemory = (memory: (typeof memories)[number]) => {
@@ -205,6 +263,7 @@ export const ProjectShellSettings = ({
       onOpenChange={onOpenChange}
       title={t['com.affine.settingSidebar.title']()}
       width={collaboration ? 560 : undefined}
+      contentOptions={{ className: styles.dialogContent }}
     >
       <div
         style={{
@@ -358,6 +417,21 @@ export const ProjectShellSettings = ({
                         </small>
                         {memory.canManage === true ? (
                           <div style={{ marginTop: 8 }}>
+                            {memory.kind === 'auto_memory' &&
+                            ['active', 'disabled'].includes(memory.status) ? (
+                              <Button
+                                disabled={pending}
+                                onClick={() => changeRecall(memory)}
+                              >
+                                {memory.status === 'disabled'
+                                  ? t[
+                                      'com.affine.localmind.project-memory.resume'
+                                    ]()
+                                  : t[
+                                      'com.affine.localmind.project-memory.pause'
+                                    ]()}
+                              </Button>
+                            ) : null}
                             <Button
                               variant="error"
                               disabled={pending}

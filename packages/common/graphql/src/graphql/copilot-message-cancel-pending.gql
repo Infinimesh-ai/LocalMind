@@ -1,0 +1,3 @@
+mutation cancelPendingCopilotMessage($sessionId: String!, $messageId: String!) {
+  cancelPendingCopilotMessage(sessionId: $sessionId, messageId: $messageId)
+}

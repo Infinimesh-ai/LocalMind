@@ -2,6 +2,12 @@ import { globalStyle, style } from '@vanilla-extract/css';
 
 import { workbenchTokens as wb } from './workbench-tokens.css';
 
+export const dialogContent = style({
+  maxHeight: 'calc(100dvh - 32px)',
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+});
+
 export const contributionList = style({
   margin: 0,
   padding: 0,

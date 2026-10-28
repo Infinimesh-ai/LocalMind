@@ -1,5 +1,6 @@
 /** @vitest-environment happy-dom */
 import type * as Components from '@affine/component';
+import { UserFriendlyError } from '@affine/error';
 import { createNativeFile } from '@localmind/office';
 import {
   applyDocxCommand,
@@ -726,6 +727,53 @@ describe('continuous DOCX editing', () => {
     await save(ctx);
     expect(ctx.execute.mock.calls[1][0].command).toEqual(first);
     expect(ctx.guard().hasUnsavedChanges).toBe(false);
+  });
+  test('remote version conflict resolves an uncertain request without losing the recovery text', async () => {
+    const ctx = setup();
+    ctx.execute.mockRejectedValueOnce(new Error('transport timeout'));
+    await select(paragraphs()[0], 6);
+    input('完整草稿');
+    await act(async () => {
+      await expect(ctx.guard().save()).rejects.toThrow();
+    });
+    const pending = ctx.execute.mock.calls[0][0].command;
+    expect(ctx.guard().recoveryText?.()).toBe('Before完整草稿');
+    await act(async () => ctx.remoteUpdate());
+    ctx.execute.mockRejectedValueOnce(
+      new UserFriendlyError({
+        status: 409,
+        code: 'RESOURCE_CONFLICT',
+        type: 'RESOURCE_CONFLICT',
+        name: 'RESOURCE_CONFLICT',
+        message: 'Revision changed',
+      })
+    );
+    await act(async () => ctx.guard().discard());
+    expect(ctx.execute.mock.calls[1][0].command).toEqual(pending);
+    expect(ctx.guard().hasUnsavedChanges).toBe(false);
+    await select(paragraphs()[0], 6);
+    input('合并草稿');
+    await save(ctx);
+    expect(ctx.execute.mock.calls[2][0].command.expectedRevisionId).toBe(
+      'foreign-revision'
+    );
+    expect(ctx.saved().body).toMatchObject([{ text: 'Before合并草稿' }]);
+  });
+  test('discard does not replay a write when the server has not advanced', async () => {
+    const ctx = setup();
+    ctx.execute.mockRejectedValueOnce(new Error('transport timeout'));
+    await select(paragraphs()[0], 6);
+    input('保留');
+    await act(async () => {
+      await expect(ctx.guard().save()).rejects.toThrow();
+    });
+    await act(async () => {
+      await expect(ctx.guard().discard()).rejects.toThrow(
+        'document-save-uncertain'
+      );
+    });
+    expect(ctx.execute).toHaveBeenCalledTimes(1);
+    expect(ctx.guard().recoveryText?.()).toBe('Before保留');
   });
   test('saving does not steal focus from another input', async () => {
     const ctx = setup();

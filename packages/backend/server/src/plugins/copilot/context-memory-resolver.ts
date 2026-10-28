@@ -1654,6 +1654,8 @@ export class CopilotContextMemoryResolver {
     for (const event of events) {
       if (
         event.undoneAt !== null ||
+        event.writerVersion === 'legacy-fact-key-repair/v1' ||
+        (event.memory && event.factKey !== event.memory.factKey) ||
         !['ADD', 'UPDATE', 'DELETE'].includes(event.operation) ||
         !event.memory
       ) {
@@ -1699,6 +1701,8 @@ export class CopilotContextMemoryResolver {
     for (const event of events) {
       if (
         event.undoneAt !== null ||
+        event.writerVersion === 'legacy-fact-key-repair/v1' ||
+        (event.memory && event.factKey !== event.memory.factKey) ||
         !['ADD', 'UPDATE', 'DELETE'].includes(event.operation) ||
         !event.memory
       ) {
@@ -2191,6 +2195,15 @@ export class CopilotContextMemoryResolver {
     const memory = await this.contextMemory.get(input.id);
     if (!memory) throw new NotFoundException('Context memory not found');
     await this.assertCanMutate(user, memory);
+    if (
+      memory.scope === 'project' &&
+      input.status !== undefined &&
+      input.expectedRevision === undefined
+    ) {
+      throw new BadRequest(
+        'Project memory status changes require the displayed revision'
+      );
+    }
     if (!['active', 'disabled'].includes(memory.status)) {
       throw new BadRequest('Historical memory versions cannot be edited');
     }

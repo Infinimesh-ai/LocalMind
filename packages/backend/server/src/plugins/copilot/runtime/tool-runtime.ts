@@ -346,11 +346,14 @@ export class ToolRuntime {
                 docContext.id,
                 { sessionId, workspaceId }
               );
-              return buildBlobContentGetter(this.ac, current)(
-                options,
-                blobId,
-                chunk
-              );
+              return buildBlobContentGetter(this.ac, current, (fileId, chunk) =>
+                this.context.readOwnedFileContent(
+                  actorId,
+                  current.id,
+                  fileId,
+                  chunk
+                )
+              )(options, blobId, chunk);
             }
           );
           break;

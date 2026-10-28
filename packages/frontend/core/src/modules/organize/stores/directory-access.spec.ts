@@ -140,7 +140,7 @@ test('an account change cancels the old rate limit recovery', async () => {
   expect(store.state$.value.items).toEqual([]);
 });
 
-test('full-sync directories retain a revision and submit one complete reorder', async () => {
+test('fully readable directories retain rights and submit one complete reorder', async () => {
   const fullPage = page('folder');
   fullPage.workspaceDirectory.fullSyncAllowed = true;
   const gql = vi.fn(async (request: { variables: { folderId?: string } }) =>
@@ -149,7 +149,7 @@ test('full-sync directories retain a revision and submit one complete reorder', 
       : fullPage
   );
   const { store } = fixture(gql);
-  await vi.waitFor(() => expect(store.state$.value.mode).toBe('full'));
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
   expect(store.state$.value.revision).toBe('a'.repeat(64));
   const ids = Array.from({ length: 150 }, (_, i) => `node-${i}`);
   await expect(
@@ -169,6 +169,36 @@ test('full-sync directories retain a revision and submit one complete reorder', 
     gql.mock.calls.filter(([request]) => request.variables.folderId)
   ).toHaveLength(1);
   expect(store.saving$.value).toBe(false);
+});
+
+test('fully readable directories keep per-folder denial and authorize creates on the server', async () => {
+  const fullPage = page('readonly');
+  fullPage.workspaceDirectory.fullSyncAllowed = true;
+  fullPage.workspaceDirectory.items[0].rights = {
+    canRead: true,
+    canWrite: false,
+    canOrganize: false,
+    canCreateFolder: false,
+  };
+  const { store, gql } = fixture(vi.fn().mockResolvedValue(fullPage));
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
+  expect(store.state$.value.items[0].rights.canCreateFolder).toBe(false);
+  gql.mockRejectedValueOnce(new Error('Directory operation denied'));
+  await expect(
+    store.mutate([
+      {
+        op: 'upsert',
+        key: 'new-child',
+        values: {
+          type: 'folder',
+          data: 'Child',
+          parentId: 'readonly',
+          index: 'a0',
+        },
+      },
+    ])
+  ).rejects.toThrow('Directory operation denied');
+  expect(store.state$.value.items.map(item => item.id)).toEqual(['readonly']);
 });
 
 test('restricted directory pages are published only after the complete load', async () => {
@@ -271,8 +301,8 @@ test('resource notifications retain both clients trees and coalesce without canc
   clients.forEach(({ gql }) => expect(gql).toHaveBeenCalledTimes(3));
 });
 
-test('full-sync folder trees stay mounted in two clients during resource revalidation', async () => {
-  const fullPage = page('unused');
+test('fully readable folder trees stay mounted in two clients during resource revalidation', async () => {
+  const fullPage = page('existing-folder');
   fullPage.workspaceDirectory.fullSyncAllowed = true;
   const clients = Array.from({ length: 2 }, () => {
     const client = fixture(vi.fn().mockResolvedValue(fullPage));
@@ -308,7 +338,7 @@ test('full-sync folder trees stay mounted in two clients during resource revalid
   try {
     await vi.waitFor(() =>
       clients.forEach(({ store }) =>
-        expect(store.state$.value.mode).toBe('full')
+        expect(store.state$.value.mode).toBe('filtered')
       )
     );
     const pending = clients.map(() => Promise.withResolvers<typeof fullPage>());
@@ -321,7 +351,7 @@ test('full-sync folder trees stay mounted in two clients during resource revalid
     pending.forEach(value => value.resolve(fullPage));
     await vi.waitFor(() =>
       clients.forEach(({ store }) =>
-        expect(store.state$.value.mode).toBe('full')
+        expect(store.state$.value.mode).toBe('filtered')
       )
     );
     expect(clients.map(client => client.rows.at(-1)?.length)).toEqual([1, 1]);
@@ -433,6 +463,8 @@ test('directory pages from different revisions never form a displayed snapshot',
       .fn()
       .mockResolvedValueOnce(page('one', 'one'))
       .mockResolvedValueOnce(second)
+      .mockResolvedValueOnce(page('one', 'one'))
+      .mockResolvedValueOnce(second)
   );
   await vi.waitFor(() => expect(store.state$.value.mode).toBe('error'));
   expect(store.state$.value.items).toEqual([]);
@@ -446,9 +478,29 @@ test('policy-only changes across pages never publish mixed authorization snapsho
       .fn()
       .mockResolvedValueOnce(page('one', 'one'))
       .mockResolvedValueOnce(second)
+      .mockResolvedValueOnce(page('one', 'one'))
+      .mockResolvedValueOnce(second)
   );
   await vi.waitFor(() => expect(store.state$.value.mode).toBe('error'));
   expect(store.state$.value.items).toEqual([]);
+});
+
+test('directory snapshot changes retry from the first page', async () => {
+  const second = page('old-two');
+  second.workspaceDirectory.revision = 'b'.repeat(64);
+  const { store } = fixture(
+    vi
+      .fn()
+      .mockResolvedValueOnce(page('old-one', 'old-one'))
+      .mockResolvedValueOnce(second)
+      .mockResolvedValueOnce(page('new-one', 'new-one'))
+      .mockResolvedValueOnce(page('new-two'))
+  );
+  await vi.waitFor(() => expect(store.state$.value.mode).toBe('filtered'));
+  expect(store.state$.value.items.map(item => item.id)).toEqual([
+    'new-one',
+    'new-two',
+  ]);
 });
 
 test('workspace access events clear old rows before revalidation completes', async () => {

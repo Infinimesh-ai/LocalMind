@@ -314,7 +314,7 @@ export function docxRunContentText(content: readonly DocxRunContent[]) {
         case 'tab':
           return '\t';
         case 'break':
-          return '\n';
+          return item.breakType === 'page' ? '\f' : '\n';
         case 'noBreakHyphen':
           return '\u2011';
         case 'softHyphen':

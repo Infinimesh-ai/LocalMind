@@ -23,9 +23,10 @@ export const getProjectDocumentsPath = (
 
 export const getProjectConversationPath = (
   projectId: string,
-  sessionId: string
+  sessionId: string,
+  workOrderId?: string
 ) =>
-  `${PROJECT_ROUTE_PATH}/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(sessionId)}`;
+  `${PROJECT_ROUTE_PATH}/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(sessionId)}${workOrderId ? `?${new URLSearchParams({ workOrderId })}` : ''}`;
 
 export const getWorkOrderPath = (workOrderId: string) =>
   `${PROJECT_ROUTE_PATH}/work-orders/${encodeURIComponent(workOrderId)}`;

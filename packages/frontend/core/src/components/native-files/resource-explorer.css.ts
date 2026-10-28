@@ -15,6 +15,10 @@ export const toolbar = style({
   color: cssVarV2('text/primary'),
   flexShrink: 0,
 });
+export const fileHeader = style([
+  toolbar,
+  { flex: 1, minWidth: 0, width: '100%', flexWrap: 'nowrap' },
+]);
 export const selectionToolbar = style({
   display: 'flex',
   alignItems: 'center',

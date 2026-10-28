@@ -1,4 +1,4 @@
-import { strToU8, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { describe, expect, test } from 'vitest';
 
 import { applyXlsxCommand } from './edit';
@@ -229,6 +229,47 @@ describe('native XLSX engine', () => {
     ]);
   });
 
+  test.each([
+    [
+      "='NoSuchSheet'!A1",
+      undefined,
+      'XLSX formula references a missing worksheet',
+    ],
+    [
+      "=SUM('NoSuchSheet'!A1:A2)",
+      undefined,
+      'XLSX formula references a missing worksheet',
+    ],
+    ["=IFERROR('NoSuchSheet'!A1,42)", 42, undefined],
+    ['=budget!A2', 2, undefined],
+    ['=Budget!Z99', null, undefined],
+  ])(
+    'distinguishes a missing worksheet from an empty cell: %s',
+    (formula, value, error) => {
+      const result = applyXlsxCommand(openXlsxPackage(minimalXlsx()), {
+        version: 'localmind-office-command/v1',
+        commandId: 'ref',
+        idempotencyKey: 'ref',
+        artifactId: 'artifact-1',
+        expectedRevisionId: 'revision-1',
+        source: 'user',
+        operation: 'office.workbook.cell.set',
+        target: { type: 'cell', sheetId: '7', address: 'C3' },
+        input: { type: 'formula', formula },
+      });
+      const cell = result.state.sheets[0].cells.find(
+        cell => cell.address === 'C3'
+      );
+      expect(cell?.calculationError).toBe(error);
+      expect(cell?.calculatedValue).toBe(value);
+      expect(
+        readXlsxSemanticState(
+          openXlsxPackage(result.packageBytes)
+        ).sheets[0].cells.find(cell => cell.address === 'C3')
+      ).toEqual(cell);
+    }
+  );
+
   test('sets a formula in a new sparse cell and preserves opaque parts', () => {
     const opaque = new Uint8Array([8, 6, 7, 5, 3, 0, 9]);
     const pkg = openXlsxPackage(minimalXlsx({ 'custom/opaque.bin': opaque }));
@@ -449,6 +490,78 @@ describe('native XLSX engine', () => {
       ).toContain(`val="${enabled ? 'single' : 'none'}"`);
     }
   });
+  test('creates a conventional styles part when the workbook has no styles', () => {
+    const entries = unzipSync(minimalXlsx());
+    delete entries['xl/styles.xml'];
+    entries['xl/_rels/workbook.xml.rels'] = strToU8(
+      strFromU8(entries['xl/_rels/workbook.xml.rels']).replace(
+        /\s*<Relationship Id="styles-rel"[^>]*\/>/,
+        ''
+      )
+    );
+    entries['[Content_Types].xml'] = strToU8(
+      strFromU8(entries['[Content_Types].xml']).replace(
+        /\s*<Override PartName="\/xl\/styles.xml"[^>]*\/>/,
+        ''
+      )
+    );
+    const result = runCommand(
+      zipSync(entries),
+      officeCommand('office.workbook.range.format', {
+        target: { type: 'cell_range', sheetId: '7', range: 'A2:B2' },
+        format: { bold: true },
+      })
+    );
+    const pkg = openXlsxPackage(result.packageBytes);
+    expect(pkg.readPart('xl/styles.xml')).toBeDefined();
+    expect(
+      pkg
+        .getRelationships(pkg.mainPart)
+        .find(rel => rel.type.endsWith('/styles'))?.resolvedTarget
+    ).toBe('xl/styles.xml');
+  });
+  test('a formatting edit repairs the old unbound relationship and styles path', () => {
+    const table = runCommand(
+      minimalXlsx(),
+      officeCommand('office.workbook.table.set', {
+        target: { type: 'cell_range', sheetId: '7', range: 'A1:C2' },
+        table: { name: 'CompatTable' },
+      })
+    );
+    const entries = unzipSync(table.packageBytes);
+    entries['xl/worksheets/sheet1.xml'] = strToU8(
+      strFromU8(entries['xl/worksheets/sheet1.xml']).replace(
+        / xmlns:r="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships"/g,
+        ''
+      )
+    );
+    entries['xl/styles1.xml'] = entries['xl/styles.xml'];
+    delete entries['xl/styles.xml'];
+    for (const part of ['xl/_rels/workbook.xml.rels', '[Content_Types].xml']) {
+      entries[part] = strToU8(
+        strFromU8(entries[part]).replaceAll('styles.xml', 'styles1.xml')
+      );
+    }
+    const repaired = runCommand(
+      zipSync(entries),
+      officeCommand('office.workbook.range.format', {
+        target: { type: 'cell_range', sheetId: '7', range: 'A2:B2' },
+        format: { bold: true },
+      })
+    );
+    const pkg = openXlsxPackage(repaired.packageBytes);
+    expect(strFromU8(pkg.requirePart('xl/worksheets/sheet1.xml'))).toContain(
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+    );
+    expect(pkg.readPart('xl/styles1.xml')).toBeDefined();
+    expect(pkg.readPart('xl/styles.xml')).toBeDefined();
+    expect(
+      pkg
+        .getRelationships(pkg.mainPart)
+        .find(rel => rel.type.endsWith('/styles'))?.resolvedTarget
+    ).toBe('xl/styles.xml');
+    expect(repaired.state.sheets[0].tables).toHaveLength(1);
+  });
   test.each(['0', 'false', 'off'])(
     'reads legacy disabled font flags %s without activating them',
     value => {
@@ -584,6 +697,17 @@ describe('native XLSX engine', () => {
     );
     bytes = result.packageBytes;
     const chart = result.state.sheets[0].charts[0];
+    const sheetXml = strFromU8(
+      openXlsxPackage(bytes).requirePart('xl/worksheets/sheet1.xml')
+    );
+    const relationshipNamespace =
+      'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    expect(sheetXml).toMatch(
+      new RegExp(`<tablePart[^>]*xmlns:r="${relationshipNamespace}"[^>]*r:id=`)
+    );
+    expect(sheetXml).toMatch(
+      new RegExp(`<drawing[^>]*xmlns:r="${relationshipNamespace}"[^>]*r:id=`)
+    );
     expect(chart).toMatchObject({
       type: 'column',
       title: 'Budget chart',

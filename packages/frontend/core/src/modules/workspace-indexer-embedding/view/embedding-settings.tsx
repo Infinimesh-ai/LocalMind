@@ -13,7 +13,7 @@ import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import { useLiveData, useService } from '@toeverything/infra';
 import type React from 'react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { ServerService } from '../../cloud/services/server';
 import { WorkspaceService } from '../../workspace/services/workspace';
@@ -53,6 +53,20 @@ const EmbeddingCloud: React.FC<{ disabled: boolean }> = ({ disabled }) => {
   const isEnabledLoading = useLiveData(
     embeddingService.embeddingEnabled.loading$
   );
+
+  const [retrying, setRetrying] = useState(false);
+  const handleRetry = useCallback(async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await embeddingService.embeddingProgress.retryFailed();
+      notify.success({ title: t['com.affine.embedding.retry-queued']() });
+    } catch {
+      notify.error({ title: t['com.affine.embedding.retry-error']() });
+    } finally {
+      setRetrying(false);
+    }
+  }, [embeddingService.embeddingProgress, retrying, t]);
 
   const handleEmbeddingToggle = useCallback(
     (checked: boolean) => {
@@ -216,7 +230,12 @@ const EmbeddingCloud: React.FC<{ disabled: boolean }> = ({ disabled }) => {
             style={{ marginBottom: '0px' }}
           />
 
-          <EmbeddingProgress status={embeddingProgress} />
+          <EmbeddingProgress
+            status={embeddingProgress}
+            onRetry={() => void handleRetry()}
+            retrying={retrying}
+            disabled={disabled}
+          />
         </>
       }
 

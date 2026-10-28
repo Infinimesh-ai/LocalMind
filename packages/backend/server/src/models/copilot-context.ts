@@ -489,7 +489,16 @@ export class CopilotContextModel extends BaseModel {
     const memories = await this.db.aiContextMemory.findMany({
       where: { id: { in: input.memories.map(memory => memory.id) } },
       include: {
-        sources: true,
+        sources: {
+          include: {
+            projectGrant: {
+              select: {
+                status: true,
+                memoryAuthorization: { select: { status: true } },
+              },
+            },
+          },
+        },
         projectSourceCheck: true,
         summaryRevisions: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
@@ -505,6 +514,11 @@ export class CopilotContextModel extends BaseModel {
         memory.sharingStatus === 'shared' &&
         memory.content === content &&
         !memory.quarantinedAt &&
+        memory.sources.every(
+          source =>
+            (source.projectGrant.memoryAuthorization?.status ??
+              source.projectGrant.status) === 'active'
+        ) &&
         (memory.sources.length > 0 ||
           memory.projectSourceCheck?.allowed ||
           memory.summaryRevisions.some(
@@ -517,13 +531,6 @@ export class CopilotContextModel extends BaseModel {
         kind: shared ? 'workspace' : memory ? 'private' : 'unknown',
         sourceId: `recalled-memory:${id}:${createHash('sha256').update(content).digest('hex')}`,
       });
-      if (shared)
-        for (const source of memory.sources)
-          sources.push({
-            workspaceId: source.workspaceId,
-            kind: 'document',
-            sourceId: source.docId,
-          });
     }
     await this.recordInputSources({ ...input, sources });
   }
@@ -684,12 +691,14 @@ export class CopilotContextModel extends BaseModel {
         AND grant_row.doc_id = source.source_id AND grant_row.status = 'active'
         AND grant_row.id = source.evidence->>'projectGrantId'
       WHERE source.session_id = ${input.sessionId} AND source.kind = 'document'
+      ORDER BY grant_row.id
       FOR SHARE OF grant_row
     `;
     const overBudget =
       sources.length > 4097 ||
       sources.some(source => source.sourceId === 'source-budget-exceeded');
     let projectInputs = 0;
+    let staleRecalledMemories = 0;
     for (const source of sources) {
       if (
         source.projectId === input.projectId &&
@@ -725,6 +734,13 @@ export class CopilotContextModel extends BaseModel {
             AND status = 'active' AND quarantined_at IS NULL
             AND (expires_at IS NULL OR expires_at > now())
             AND (valid_until IS NULL OR valid_until > now())
+            AND NOT EXISTS (
+              SELECT 1 FROM ai_context_memory_sources memory_source
+              JOIN ai_context_project_grants source_grant
+                ON source_grant.id = memory_source.project_grant_id
+              WHERE memory_source.memory_id = ai_context_memories.id
+                AND NOT ai_project_memory_source_authorized(source_grant.id)
+            )
           FOR SHARE
         `;
         if (
@@ -733,6 +749,7 @@ export class CopilotContextModel extends BaseModel {
             fingerprint
         )
           projectInputs++;
+        else staleRecalledMemories++;
       } else if (
         source.workspaceId &&
         source.sourceId.startsWith('workspace-policy:')
@@ -770,6 +787,11 @@ export class CopilotContextModel extends BaseModel {
       audienceAllowed &&
       !overBudget &&
       shared.length + projectInputs === sources.length;
+    const staleMemoryOnly =
+      audienceAllowed &&
+      !overBudget &&
+      staleRecalledMemories > 0 &&
+      shared.length + projectInputs + staleRecalledMemories === sources.length;
     let sourceCheckId: string | undefined;
     if (input.sink) {
       const evidence = sources.slice(0, 4097);
@@ -804,6 +826,10 @@ export class CopilotContextModel extends BaseModel {
       });
       sourceCheckId = check.id;
     }
+    if (!allowed && staleMemoryOnly)
+      throw new BadRequest(
+        'Shared Project memory previously recalled in this conversation changed or was withdrawn. Start a new Project conversation to use its current authorized shared memory before contributing a standalone fact.'
+      );
     if (!allowed)
       throw new BadRequest(
         'This conversation contains private or unverified sources that are not authorized for the entire Project. Start a new conversation after authorizing the source documents, without private or unverified sources, before writing shared content.'

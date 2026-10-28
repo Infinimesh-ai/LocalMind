@@ -6,6 +6,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { ByokNotConfiguredError } from '../../provider/error';
 import type { AIRequestService } from '../request';
+import { createRejectedPromptRecovery } from './rejected-prompt-recovery';
 import { AIChatRuntime } from './runtime';
 import {
   DocAIChatSessionStrategy,
@@ -1535,6 +1536,42 @@ describe('AIChatRuntime', () => {
     expect(runtime.getSnapshot().error?.message).toBe('Missing session');
   });
 
+  test('stop during session creation still records the cancelled submission in the original scope', async () => {
+    let releaseSession!: (value: CopilotChatHistoryFragment) => void;
+    const request = createRequest({
+      createSessionWithHistory: vi.fn().mockReturnValue(
+        new Promise<CopilotChatHistoryFragment>(resolve => {
+          releaseSession = resolve;
+        })
+      ),
+      executeAction: vi.fn().mockImplementation(async (_action, options) => {
+        expect(options.signal.aborted).toBe(true);
+        return { async *[Symbol.asyncIterator]() {} };
+      }),
+    });
+    const runtime = createRuntime(request);
+    await runtime.dispatch({ type: 'initialize' });
+    const send = runtime.dispatch({
+      type: 'send',
+      input: 'stopped before session ready',
+    });
+    await runtime.dispatch({ type: 'stop' });
+    releaseSession(session({ sessionId: 'cancelled-session' }));
+    await send;
+    expect(request.executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.objectContaining({
+        sessionId: 'cancelled-session',
+        input: 'stopped before session ready',
+        docId: 'doc-1',
+      })
+    );
+    expect(runtime.getSnapshot().activeSessionId).toBe('cancelled-session');
+    expect(
+      runtime.getSnapshot().messages.at(-1)?.params?.generationStatus
+    ).toBe('aborted');
+  });
+
   test('stale session creation does not open after scope switch', async () => {
     let releaseSession!: (value: CopilotChatHistoryFragment) => void;
     const request = createRequest({
@@ -1804,6 +1841,49 @@ describe('AIChatRuntime', () => {
       );
     }
   );
+
+  test('a configuration rejection restores a draft only after an authorized session opens and clears after success', async () => {
+    const values = new Map<string, string>();
+    const recovery = createRejectedPromptRecovery(
+      () => 'user-1',
+      () => ({
+        getItem: key => values.get(key) ?? null,
+        setItem: (key, value) => {
+          values.set(key, value);
+        },
+        removeItem: key => {
+          values.delete(key);
+        },
+      })
+    );
+    const request = createRequest({
+      executeAction: vi
+        .fn()
+        .mockRejectedValueOnce(new ByokNotConfiguredError('Disabled')),
+    });
+    const create = (request: AIRequestService) =>
+      new AIChatRuntime({
+        request,
+        scope: docScope,
+        strategy: new DocAIChatSessionStrategy(),
+        rejectedPromptRecovery: recovery,
+      });
+    const first = create(request);
+    await first.dispatch({ type: 'openSessionObject', session: session() });
+    await first.dispatch({ type: 'send', input: 'rejected question' });
+    expect(values.size).toBe(1);
+    first.dispose();
+    const nextRequest = createRequest();
+    const next = create(nextRequest);
+    expect(next.getSnapshot().composer.text).toBe('');
+    await next.dispatch({ type: 'openSessionObject', session: session() });
+    expect(next.getSnapshot().composer.text).toBe('rejected question');
+    expect(nextRequest.executeAction).not.toHaveBeenCalled();
+    await next.dispatch({ type: 'send' });
+    expect(next.getSnapshot().status).toBe('success');
+    expect(values.size).toBe(0);
+    next.dispose();
+  });
 
   test('retry remains successful when refreshing the assistant message id fails', async () => {
     const error = new Error('history unavailable');

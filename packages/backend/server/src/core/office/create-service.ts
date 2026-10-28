@@ -10,6 +10,7 @@ import {
   officeOwnerFromInput,
   type OfficeOwnerInput,
 } from '../../models/office-owner';
+import { WorkspaceResourceService } from '../doc';
 import { PermissionAccess } from '../permission';
 import { ProjectResourceService } from '../project';
 import { OfficeImportService } from './import-service';
@@ -44,7 +45,8 @@ export class NativeFileCreateService {
     private readonly imports: OfficeImportService,
     private readonly projects: ProjectResourceService,
     private readonly event: EventBus,
-    private readonly workspaceResources: WorkspaceNativeResourceService
+    private readonly workspaceResources: WorkspaceNativeResourceService,
+    private readonly resources: WorkspaceResourceService
   ) {}
 
   generatePrivate(fileInput: z.input<typeof NativeFileCreateSchema>) {
@@ -269,18 +271,22 @@ export class NativeFileCreateService {
       };
     };
     const result = await (typeof owner === 'string'
-      ? this.models.copilotContext.withWorkspaceWriteAudit(
-          {
-            actorId: input.actorId,
-            sessionId: input.sessionId,
-            sink: {
-              type: 'tool_write',
-              id: input.requestKey,
-              workspaceId: owner,
-              phase: 'execute',
-            },
-          },
-          execute
+      ? this.resources.snapshot(
+          { workspaceId: owner, actorId: input.actorId },
+          () =>
+            this.models.copilotContext.withWorkspaceWriteAudit(
+              {
+                actorId: input.actorId,
+                sessionId: input.sessionId,
+                sink: {
+                  type: 'tool_write',
+                  id: input.requestKey,
+                  workspaceId: owner,
+                  phase: 'execute',
+                },
+              },
+              execute
+            )
         )
       : this.models.copilotContext.withProjectSourcesShared(
           {

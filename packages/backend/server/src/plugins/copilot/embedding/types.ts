@@ -60,6 +60,7 @@ declare global {
   }
   interface Jobs {
     'copilot.embedding.docs': {
+      requestId?: string;
       contextId?: string;
       workspaceId: string;
       docId: string;
@@ -77,6 +78,7 @@ declare global {
     };
 
     'copilot.embedding.files': {
+      requestId?: string;
       contextId?: string;
       userId: string;
       workspaceId: string;
@@ -210,6 +212,7 @@ export abstract class EmbeddingClient {
           chunks.map(c => c.content),
           normalizedOptions
         );
+        error = null;
         break;
       } catch (e) {
         error = e;

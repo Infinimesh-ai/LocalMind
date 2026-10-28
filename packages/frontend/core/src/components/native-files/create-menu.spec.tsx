@@ -37,6 +37,7 @@ vi.mock('@affine/core/modules/workspace', () => ({
 }));
 vi.mock('@affine/core/modules/workspace-resources', () => ({
   WorkspaceResourcesService: class {},
+  WorkspaceUploadsService: class {},
 }));
 vi.mock('@affine/core/modules/permissions', async () => ({
   GuardService: (await import('../../modules/permissions/services/guard'))
@@ -78,7 +79,9 @@ vi.mock('@affine/component', () => ({
       {!triggerOptions.disabled && items}
     </div>
   ),
-  Modal: () => null,
+  Modal: ({ children }: { children: ReactNode }) => (
+    <div role="dialog">{children}</div>
+  ),
   toast: vi.fn(),
   usePromptModal: () => ({ openPromptModal: vi.fn() }),
 }));
@@ -97,9 +100,14 @@ import {
 import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
-import { WorkspaceResourcesService } from '@affine/core/modules/workspace-resources';
+import {
+  WorkspaceResourcesService,
+  WorkspaceUploadsService,
+} from '@affine/core/modules/workspace-resources';
 
+import type { WorkspaceUpload } from '../../modules/workspace-resources/uploads';
 import { WorkspaceCreateMenu } from './create-menu';
+import { WorkspaceUploadProgress } from './upload-progress';
 
 const guards: GuardService[] = [];
 const officeLabels = ['Word (.docx)', 'Excel (.xlsx)', 'PowerPoint (.pptx)'];
@@ -137,6 +145,18 @@ function setupMenu(parentId: string | null = 'folder-1', canOrganize = true) {
   state.services.set(GraphQLService, { gql: vi.fn() });
   state.services.set(WorkbenchService, { workbench: {} });
   state.services.set(WorkspaceResourcesService, { invalidate: vi.fn() });
+  const uploads = {
+    jobs$: new LiveData<WorkspaceUpload[]>([]),
+    panelOpen$: new LiveData(false),
+    setPanelOpen: vi.fn<(open: boolean) => void>(),
+    enqueue: vi.fn().mockReturnValue([]),
+    retryFailed: vi.fn(),
+    clearDone: vi.fn(),
+  };
+  uploads.setPanelOpen.mockImplementation(open =>
+    uploads.panelOpen$.next(open)
+  );
+  state.services.set(WorkspaceUploadsService, uploads);
   state.services.set(WorkspacePageTreeService, {
     enabled$: new LiveData(false),
     // eslint-disable-next-line rxjs/finnish -- Match the page tree read interface.
@@ -155,14 +175,18 @@ function setupMenu(parentId: string | null = 'folder-1', canOrganize = true) {
     },
   });
   return {
+    uploads,
     getWorkspacePermissions,
     renderMenu: () =>
       render(
-        <WorkspaceCreateMenu
-          parentId={parentId}
-          onPage={vi.fn()}
-          onEdgeless={vi.fn()}
-        />,
+        <>
+          <WorkspaceUploadProgress />
+          <WorkspaceCreateMenu
+            parentId={parentId}
+            onPage={vi.fn()}
+            onEdgeless={vi.fn()}
+          />
+        </>,
         {
           wrapper: ({ children }) => (
             <div onClick={event => event.preventDefault()}>{children}</div>
@@ -193,6 +217,53 @@ afterEach(() => {
   cleanup();
   guards.splice(0).forEach(guard => guard.dispose());
   vi.restoreAllMocks();
+});
+
+test('a remounted menu recovers workspace upload progress and may close while busy', async () => {
+  const { renderMenu, uploads } = setupMenu();
+  const job: WorkspaceUpload = {
+    requestKey: 'one',
+    mutationKey: 'one',
+    generation: 1,
+    name: 'first.txt',
+    destination: { name: 'Folder', folderId: 'folder-1' },
+    status: 'waiting',
+    reason: 'rateLimited',
+  };
+  uploads.jobs$.next([job]);
+  const first = renderMenu();
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.upload.progress',
+    })
+  );
+  expect(screen.getByRole('dialog').textContent).toContain('first.txt');
+  expect(screen.getByRole('dialog').textContent).toContain(
+    'upload.waitingForLimit'
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  first.unmount();
+  renderMenu();
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.upload.progress',
+    })
+  );
+  expect(screen.getByRole('dialog').textContent).toContain('first.txt');
+  await act(async () => uploads.jobs$.next([{ ...job, status: 'failed' }]));
+  expect(screen.getByRole('dialog').textContent).toContain(
+    'upload.reason.rateLimited'
+  );
+  expect(screen.getByRole('dialog').textContent).not.toContain(
+    'upload.waitingForLimit'
+  );
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.upload.retryFailed',
+    })
+  );
+  expect(uploads.retryFailed).toHaveBeenCalledTimes(1);
 });
 
 test.each([null, 'folder-1'])(
@@ -292,4 +363,44 @@ test('a read-only destination remains disabled after file permission loads', asy
     (screen.getByRole('button', { name: 'Edgeless' }) as HTMLButtonElement)
       .disabled
   ).toBe(true);
+});
+
+test('removing the transient tree menu does not close or remount the Workspace progress window', async () => {
+  const { uploads } = setupMenu();
+  uploads.jobs$.next([
+    {
+      requestKey: 'pending',
+      mutationKey: 'pending',
+      generation: 1,
+      name: 'pending.txt',
+      destination: { name: 'Folder', folderId: 'folder-1' },
+      status: 'uploading',
+    },
+  ]);
+  const host = (showMenu: boolean) => (
+    <div>
+      <WorkspaceUploadProgress />
+      {showMenu && (
+        <WorkspaceCreateMenu
+          parentId="folder-1"
+          onPage={vi.fn()}
+          onEdgeless={vi.fn()}
+        />
+      )}
+    </div>
+  );
+  const view = render(host(true));
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.resources.upload.progress',
+    })
+  );
+  const dialog = screen.getByRole('dialog');
+  view.rerender(host(false));
+  expect(screen.getByRole('dialog')).toBe(dialog);
+  expect(dialog.isConnected).toBe(true);
+  expect(dialog.textContent).toContain('pending.txt');
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(uploads.jobs$.value).toHaveLength(1);
 });

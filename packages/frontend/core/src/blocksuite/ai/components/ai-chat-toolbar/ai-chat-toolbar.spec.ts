@@ -124,6 +124,23 @@ async function setup() {
 }
 
 describe('chat toolbar and history accessibility', () => {
+  test('Project new-chat navigation owns the draft route, while Workspace chats keep runtime drafts', async () => {
+    const { toolbar, dispatch } = await setup();
+    const navigate = vi.fn();
+    toolbar.onNewConversation = navigate;
+    toolbar
+      .querySelector<HTMLButtonElement>('[data-testid="ai-panel-new-chat"]')!
+      .click();
+    await Promise.resolve();
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'createNewSession' });
+    toolbar.onNewConversation = undefined;
+    toolbar
+      .querySelector<HTMLButtonElement>('[data-testid="ai-panel-new-chat"]')!
+      .click();
+    await Promise.resolve();
+    expect(dispatch).toHaveBeenCalledWith({ type: 'createNewSession' });
+  });
   test('toolbar controls are labelled native buttons with pressed and expanded states', async () => {
     const { toolbar, historyButton } = await setup();
     const buttons = Array.from(toolbar.querySelectorAll('button'));

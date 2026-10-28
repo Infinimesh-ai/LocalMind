@@ -7,6 +7,7 @@ import {
   type OfficeCommentAnchor,
   OfficePdfFontUnavailableError,
   type OfficeResourceOwner,
+  OfficeXlsxCompatibilityUnavailableError,
   previewOfficeCommand,
 } from '@affine/core/modules/office';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
@@ -221,6 +222,8 @@ export function officeErrorMessage(
   error: unknown,
   owner?: OfficeResourceOwner
 ) {
+  if (error instanceof OfficeXlsxCompatibilityUnavailableError)
+    return I18n['com.affine.office.error.xlsx-compatibility-unavailable']();
   if (error instanceof OfficePdfFontUnavailableError)
     return I18n['com.affine.office.error.pdf-font-unavailable']();
   if (owner?.kind === 'project') return projectErrorMessage(error);

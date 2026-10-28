@@ -29,6 +29,7 @@ export function useDocumentSession({
   owner,
   graphql,
   readOnly,
+  latestRevisionId = revision.id,
   onRevision,
   onError,
   onSaved,
@@ -39,6 +40,7 @@ export function useDocumentSession({
   owner: OfficeResourceOwner;
   graphql: GraphQLService;
   readOnly: boolean;
+  latestRevisionId?: string;
   onRevision: (revision: OfficeRevision, state: DocxSemanticState) => void;
   onError: (error: unknown) => void;
   onSaved: () => void;
@@ -114,14 +116,18 @@ export function useDocumentSession({
     setRestore(item.bookmark);
     setVersion(v => v + 1);
   }
-  function save(): Promise<void> {
+  function save(reconcilePending = false): Promise<void> {
     if (flight.current)
       return flight.current.then(() =>
         model.current.draft !== model.current.base ? save() : undefined
       );
     const run = async () => {
       const m = model.current;
-      if (m.readOnly || m.conflict)
+      const canReconcile =
+        reconcilePending &&
+        m.pending &&
+        latestRevisionId !== m.pending.command.expectedRevisionId;
+      if ((m.readOnly || m.conflict) && !canReconcile)
         throw new Error(
           m.conflict ? 'document-conflict' : 'document-read-only'
         );
@@ -169,7 +175,11 @@ export function useDocumentSession({
         callbacks.current.onRevision(result.revision, result.state);
       } catch (error) {
         m.failed = true;
-        if (UserFriendlyError.fromAny(error).status === 409) m.conflict = true;
+        if (UserFriendlyError.fromAny(error).status === 409) {
+          // A definitive revision rejection resolves the ambiguous request.
+          m.pending = null;
+          m.conflict = true;
+        }
         callbacks.current.onError(error);
         throw error;
       } finally {
@@ -236,11 +246,14 @@ export function useDocumentSession({
     m.draft = fresh.state;
     m.identities = fresh.identities;
     m.revision = revision;
+    m.conflict = false;
+    m.failed = false;
+    callbacks.current.onSaved();
     m.undo = [];
     m.redo = [];
     setState(fresh.state);
     setVersion(v => v + 1);
-  }, [remoteState, revision]);
+  }, [remoteState, revision, dirty]);
   return {
     state,
     model,
@@ -268,8 +281,22 @@ export function useDocumentSession({
     discard: async () => {
       if (flight.current) await flight.current.catch(() => {});
       const m = model.current;
+      if (
+        m.pending &&
+        latestRevisionId !== m.pending.command.expectedRevisionId
+      ) {
+        // The server has already advanced beyond the frozen expected revision.
+        // Replaying this exact key can only retrieve its receipt or reject it;
+        // it cannot apply a new write on top of the newer revision.
+        await save(true).catch(error => {
+          if (UserFriendlyError.fromAny(error).status !== 409) throw error;
+        });
+      }
       if (m.pending) throw new Error('document-save-uncertain');
       m.draft = m.base;
+      m.conflict = false;
+      m.failed = false;
+      callbacks.current.onSaved();
       m.undo = [];
       m.redo = [];
       setState(m.base);

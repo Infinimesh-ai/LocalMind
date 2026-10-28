@@ -1787,6 +1787,81 @@ test('should reject context reads from another user', async t => {
   await t.throwsAsync(matchFiles(app, contextId, 'test', 1));
 });
 
+test('conversation attachments read their owned source without an embedding client or index', async t => {
+  const { app, context, jobs, u1 } = t.context;
+  const other = await app.signupV1();
+  await app.switchUser(u1);
+  const { id: workspaceId } = await createWorkspace(app);
+  const sessionId = await createCopilotSession(
+    app,
+    workspaceId,
+    null,
+    textPromptName
+  );
+  Sinon.stub(context, 'embeddingClient').get(() => undefined);
+  Sinon.stub(jobs, 'addFileEmbeddingQueue').resolves();
+  const contextId = await createCopilotContext(app, workspaceId, sessionId);
+  const source = '项目,金额\n甲,19\n乙,23\n丙,47\n';
+  const file = await addContextFile(
+    app,
+    contextId,
+    'source.csv',
+    Buffer.from(source)
+  );
+  const result = await context.readOwnedFileContent(u1.id, contextId, file.id);
+  t.like(result, {
+    content: source,
+    chunk: 0,
+    chunkCount: 1,
+    hasMore: false,
+    readMode: 'source',
+  });
+  const largeText = '分块测试甲乙丙丁\n'.repeat(1800);
+  const large = await addContextFile(
+    app,
+    contextId,
+    'large.txt',
+    Buffer.from(largeText)
+  );
+  const chunks = [];
+  for (let chunk = 0; ; chunk++) {
+    const part = await context.readOwnedFileContent(
+      u1.id,
+      contextId,
+      large.id,
+      chunk
+    );
+    t.true(part.content.length <= 8000);
+    chunks.push(part.content);
+    if (!part.hasMore) break;
+  }
+  t.is(chunks.join(''), largeText);
+  await t.throwsAsync(
+    context.readOwnedFileContent(u1.id, contextId, file.id, -1)
+  );
+  await t.throwsAsync(
+    context.readOwnedFileContent(u1.id, contextId, file.id, 1)
+  );
+  await t.throwsAsync(
+    context.readOwnedFileContent(u1.id, contextId, 'not-bound')
+  );
+  await t.throwsAsync(
+    context.readOwnedFileContent(other.id, contextId, file.id)
+  );
+  const invalid = await addContextFile(
+    app,
+    contextId,
+    'invalid.csv',
+    Buffer.from([0xff, 0xfe, 0x00])
+  );
+  await t.throwsAsync(
+    context.readOwnedFileContent(u1.id, contextId, invalid.id),
+    {
+      message: /not valid UTF-8.*upload it again/,
+    }
+  );
+});
+
 test('context GraphQL rejects cached attachments after project departure, archive, and session deletion', async t => {
   const { app, db, context, jobs, u1 } = t.context;
   const projectOwner = await app.signupV1();

@@ -759,6 +759,11 @@ describe('SpreadsheetEditor', () => {
 
   test.each([
     [
+      'XLSX formula references a missing worksheet',
+      '#REF!',
+      'This formula cannot be calculated.',
+    ],
+    [
       'XLSX formula contains a circular reference',
       '#CYCLE!',
       'Circular reference:',

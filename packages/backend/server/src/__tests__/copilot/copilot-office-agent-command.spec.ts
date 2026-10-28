@@ -161,6 +161,18 @@ test('accepts approval-gated AI commands for every native Office engine', async 
   const commands = [
     {
       version: 'localmind-office-command/v1',
+      commandId: 'paragraph-insert',
+      idempotencyKey: 'paragraph-insert',
+      artifactId: 'document-1',
+      expectedRevisionId: 'document-revision-1',
+      source: 'ai',
+      operation: 'office.document.paragraph.insert',
+      afterBlockId: 'paragraph-1',
+      expectedText: '原段落。',
+      text: '新增独立段落。',
+    },
+    {
+      version: 'localmind-office-command/v1',
       commandId: 'paragraph-command',
       idempotencyKey: 'paragraph-command',
       artifactId: 'document-1',

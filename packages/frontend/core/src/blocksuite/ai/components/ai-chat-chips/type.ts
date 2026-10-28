@@ -26,6 +26,7 @@ export interface FileChip extends BaseChip {
   file: File;
   fileId?: string | null;
   blobId?: string | null;
+  directSource?: boolean;
 }
 
 export interface TagChip extends BaseChip {

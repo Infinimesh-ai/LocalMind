@@ -371,6 +371,8 @@ const IntelligenceWorkbench = ({
   const legacyReports = useLegacyProjectReportsEnabled();
   const reportDeckAvailable = useReportDeckEntryAvailable();
   const [workbenchSearchParams] = useSearchParams();
+  const workbenchLocation = useLocation();
+  const requestedOrderId = workbenchSearchParams.get('workOrderId');
   const resourceReturnSessionId = documentsView
     ? null
     : (selectedSessionId ?? workbenchSearchParams.get('sessionId'));
@@ -569,14 +571,16 @@ const IntelligenceWorkbench = ({
       .map(edge => ({
         id: edge.id,
         status: edge.status,
+        title: edge.label,
         recipient: labels.get(edge.to) ?? edge.label,
       }));
   }, [graphData, resourceReturnSessionId]);
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const activeOrder =
-    sessionOrders.find(order => order.id === activeOrderId) ??
-    sessionOrders[0] ??
-    null;
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(
+    requestedOrderId
+  );
+  const activeOrder = activeOrderId
+    ? (sessionOrders.find(order => order.id === activeOrderId) ?? null)
+    : (sessionOrders[0] ?? null);
   const [ordersCollapsed, setOrdersCollapsed] = useState(false);
   // Sending the first work order from a conversation pops the card open.
   const orderCount = useRef(sessionOrders.length);
@@ -585,9 +589,14 @@ const IntelligenceWorkbench = ({
     orderCount.current = sessionOrders.length;
   }, [sessionOrders.length]);
   useEffect(() => {
-    setActiveOrderId(null);
+    setActiveOrderId(requestedOrderId);
+    if (requestedOrderId) {
+      setOrdersCollapsed(false);
+      setRightPanel({ kind: 'context' });
+      setMobileView('files');
+    }
     orderCount.current = 0;
-  }, [resourceReturnSessionId]);
+  }, [resourceReturnSessionId, requestedOrderId, workbenchLocation.key]);
 
   useEffect(() => {
     if (!mobileNavigationOpen) return;
@@ -2048,6 +2057,11 @@ const IntelligenceWorkbench = ({
                 onDocumentsChanged={refreshWorkbench}
                 selectedProjectId={selectedProject.id}
                 selectedProjectName={selectedProject.name}
+                onNewConversation={() =>
+                  navigate(
+                    `${PROJECT_NEW_CONVERSATION_PATH}?${new URLSearchParams({ projectId: selectedProject.id })}`
+                  )
+                }
                 officeContext={
                   officeContext &&
                   'projectId' in officeContext &&
@@ -2130,9 +2144,10 @@ const IntelligenceWorkbench = ({
                             type="button"
                             role="tab"
                             aria-selected={order.id === activeOrder.id}
+                            title={`${order.title} · ${order.recipient}`}
                             onClick={() => setActiveOrderId(order.id)}
                           >
-                            {order.recipient}
+                            {order.title} · {order.recipient}
                           </button>
                         ))}
                       </div>

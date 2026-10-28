@@ -502,6 +502,8 @@ export class AIChatComposer extends SignalWatcher(
           file: item.file,
           fileId: item.fileId,
           blobId: item.blobId,
+          directSource:
+            !!item.fileId && !!this.runtimeSnapshot?.scope.workspaceId,
           state: this.toChipState(item.state),
           createdAt: item.createdAt,
           tooltip: item.tooltip,

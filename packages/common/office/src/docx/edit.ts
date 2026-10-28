@@ -8,6 +8,7 @@ import {
   type OfficeDocumentHeaderFooterTextCommand,
   type OfficeDocumentInsertBreakCommand,
   type OfficeDocumentInsertObjectCommand,
+  type OfficeDocumentInsertParagraphCommand,
   type OfficeDocumentInsertSectionCommand,
   type OfficeDocumentInsertTableCommand,
   type OfficeDocumentMailMergeCommand,
@@ -111,6 +112,7 @@ export type DocxCommandResult = {
 };
 
 type DocxStructuralCommand =
+  | OfficeDocumentInsertParagraphCommand
   | OfficeDocumentFormatParagraphCommand
   | OfficeDocumentInsertBreakCommand
   | OfficeDocumentInsertSectionCommand
@@ -2380,6 +2382,62 @@ function applyStructuralDocxCommand(
   collectParagraphElements(body, paragraphElements);
   let summary: DocxCommandResult['summary'];
   switch (command.operation) {
+    case 'office.document.paragraph.insert': {
+      const target = resolveParagraph(
+        before,
+        paragraphElements,
+        command.afterBlockId
+      );
+      if (target.element.parent !== body)
+        throw new DocxPackageError(
+          'Paragraph insertion requires a top-level body paragraph'
+        );
+      if (target.semantic.text !== command.expectedText)
+        throw new DocxPackageError(
+          'DOCX paragraph text does not match the expected source; reread the paragraph'
+        );
+      const paragraphs: DocxParagraph[] = [];
+      collectSemanticParagraphs(before.body, paragraphs);
+      if (paragraphs.length !== paragraphElements.length)
+        throw new DocxPackageError('Document paragraph mapping changed');
+      const used = new Set(paragraphs.map(p => p.id));
+      let counter = 1;
+      const nextId = () => {
+        let id: string;
+        do {
+          id = `paragraph:${(counter++).toString(16).toUpperCase().padStart(8, '0')}`;
+        } while (used.has(id));
+        used.add(id);
+        return id;
+      };
+      ensureParagraphIdentityNamespace(xml);
+      // Positional fallback IDs must not silently identify another paragraph
+      // after insertion. Give those paragraphs durable identities first; valid
+      // existing Word identities remain unchanged.
+      let assignedParagraphIdentities = 0;
+      paragraphs.forEach((paragraph, index) => {
+        if (isStableDocxParagraphId(paragraph.id)) return;
+        const attrs = { ...attributes(paragraphElements[index].node) };
+        deleteAttribute(attrs, 'paraId');
+        attrs['lm14:paraId'] = nextId().slice(10);
+        paragraphElements[index].node[':@'] = attrs;
+        assignedParagraphIdentities++;
+      });
+      const id = nextId();
+      const node = serializeEditParagraph(
+        { id, runs: [{ text: command.text }] },
+        prefixOf(target.element.key)
+      );
+      body.splice(target.element.index + 1, 0, node);
+      summary = {
+        operation: command.operation,
+        afterBlockId: command.afterBlockId,
+        insertedParagraphId: id,
+        insertedCharacters: command.text.length,
+        assignedParagraphIdentities,
+      };
+      break;
+    }
     case 'office.document.paragraph.format': {
       const target = resolveParagraph(
         before,
@@ -2531,6 +2589,7 @@ export function applyDocxCommand(
     };
   }
   if (
+    command.operation === 'office.document.paragraph.insert' ||
     command.operation === 'office.document.paragraph.format' ||
     command.operation === 'office.document.break.insert' ||
     command.operation === 'office.document.section.insert' ||
@@ -2848,7 +2907,7 @@ function serializeEditParagraph(
     for (const char of run.text) {
       const n = char.codePointAt(0) ?? 0;
       if (
-        (n < 32 && ![9, 10, 13].includes(n)) ||
+        (n < 32 && ![9, 10, 12, 13].includes(n)) ||
         (n >= 0xd800 && n <= 0xdfff) ||
         n === 0xfffe ||
         n === 0xffff
@@ -2922,37 +2981,23 @@ function serializeEditParagraph(
     if (f.verticalAlign) fc.push(prop('vertAlign', f.verticalAlign));
     if (f.language) fc.push(prop('lang', f.language));
     if (fc.length) rc.push(rPr);
-    for (const text of run.text.split(/(\n|\t)/))
+    for (const text of run.text.split(/(\n|\t|\f)/))
       if (text)
         rc.push(
-          text === '\n'
-            ? createElement(prefix, 'br')
-            : text === '\t'
-              ? createElement(prefix, 'tab')
-              : createTextNode(prefix, text)
+          text === '\f'
+            ? createElement(prefix, 'br', { [qualify(prefix, 'type')]: 'page' })
+            : text === '\n'
+              ? createElement(prefix, 'br')
+              : text === '\t'
+                ? createElement(prefix, 'tab')
+                : createTextNode(prefix, text)
         );
     pChildren.push(r);
   }
   return p;
 }
 
-function applyParagraphTransaction(
-  pkg: DocxOpcPackage,
-  command: OfficeDocumentEditCommand
-): DocxCommandResult {
-  const before = readDocxSemanticState(pkg);
-  const semantics: DocxParagraph[] = [];
-  collectSemanticParagraphs(before.body, semantics);
-  const xml = parsePreservedXml(
-    pkg.requirePart(pkg.documentPart),
-    pkg.documentPart,
-    pkg.limits.maxXmlPartBytes
-  );
-  const body = requireRootBody(xml);
-  const elements: ElementRef[] = [];
-  collectParagraphElements(body, elements);
-  if (elements.length !== semantics.length)
-    throw new DocxPackageError('Document paragraph mapping changed');
+function ensureParagraphIdentityNamespace(xml: OrderedXmlNode[]) {
   const root = findChild(xml, 'document');
   if (!root) throw new DocxPackageError('Document root is missing');
   const rootAttrs = { ...attributes(root) };
@@ -2982,6 +3027,26 @@ function applyParagraphTransaction(
     ),
   ].join(' ');
   root[':@'] = rootAttrs;
+}
+
+function applyParagraphTransaction(
+  pkg: DocxOpcPackage,
+  command: OfficeDocumentEditCommand
+): DocxCommandResult {
+  const before = readDocxSemanticState(pkg);
+  const semantics: DocxParagraph[] = [];
+  collectSemanticParagraphs(before.body, semantics);
+  const xml = parsePreservedXml(
+    pkg.requirePart(pkg.documentPart),
+    pkg.documentPart,
+    pkg.limits.maxXmlPartBytes
+  );
+  const body = requireRootBody(xml);
+  const elements: ElementRef[] = [];
+  collectParagraphElements(body, elements);
+  if (elements.length !== semantics.length)
+    throw new DocxPackageError('Document paragraph mapping changed');
+  ensureParagraphIdentityNamespace(xml);
   const originalIds = new Set(semantics.map(p => p.id));
   const identities = new Map<string, string>();
   for (const entry of command.identities) {

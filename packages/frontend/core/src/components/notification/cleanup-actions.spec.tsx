@@ -178,8 +178,45 @@ test('failed clearing reports an error and keeps confirmation available for retr
 });
 
 function Location() {
-  return <output>{useLocation().pathname}</output>;
+  const location = useLocation();
+  return <output>{location.pathname + location.search}</output>;
 }
+
+test('sender notification carries the exact work order into its source conversation', () => {
+  render(
+    <MemoryRouter>
+      <WorkOrderNotificationItem
+        notification={
+          {
+            id: 'sender-notice',
+            type: NotificationType.WorkOrder,
+            read: false,
+            body: {
+              workOrderId: 'order-2',
+              title: 'Second order',
+              status: 'delivered',
+              viewerRole: 'sender',
+              sourceProjectId: 'project-1',
+              sourceSessionId: 'session-1',
+            },
+          } as Notification
+        }
+      />
+      <Location />
+    </MemoryRouter>
+  );
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'com.affine.localmind.workbench.v9.openWorkOrder',
+    })
+  );
+  expect(
+    screen.getByText(
+      '/project/project-1/conversations/session-1?workOrderId=order-2'
+    )
+  ).toBeTruthy();
+  expect(state.service.readNotification).toHaveBeenCalledWith('sender-notice');
+});
 
 test('work order renders localized status and navigation does not run when deleting a notice', async () => {
   render(

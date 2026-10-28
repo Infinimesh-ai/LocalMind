@@ -212,7 +212,8 @@ export class FolderNode extends Entity<{
   createLink(
     type: 'doc' | 'tag' | 'collection',
     targetId: string,
-    index: string
+    index: string,
+    retryCreatedDocumentConflict = false
   ) {
     if (this.id === null) {
       throw new Error('Cannot create link on root node');
@@ -220,7 +221,13 @@ export class FolderNode extends Entity<{
     if (this.type$.value !== 'folder') {
       throw new Error('Cannot create link on non-folder node');
     }
-    return this.store.createLinkAuthorized(this.id, type, targetId, index);
+    return this.store.createLinkAuthorized(
+      this.id,
+      type,
+      targetId,
+      index,
+      retryCreatedDocumentConflict
+    );
   }
 
   delete() {

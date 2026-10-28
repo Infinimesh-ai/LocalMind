@@ -3,8 +3,10 @@ import { createHash } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import {
+  CopilotMessageNotFound,
   type FileUpload,
   ImageFormatNotSupported,
+  Mutex,
   sniffMime,
 } from '../../../base';
 import { PermissionAccess } from '../../../core/permission';
@@ -35,8 +37,69 @@ export class ConversationInboxService {
     private readonly storage: CopilotStorage,
     private readonly submissions: CompatSubmissionStore,
     private readonly projectBlobs: ProjectBlobStorage,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly mutex: Mutex
   ) {}
+
+  async cancelPendingMessage(
+    userId: string,
+    sessionId: string,
+    messageId: string
+  ) {
+    await this.chatSession.assertOwnedSession(userId, sessionId);
+    await using lock = await this.mutex.acquire(
+      `copilot:submission:${messageId}`
+    );
+    if (!lock)
+      throw new BadRequestException('Message is busy. Retry stopping it.');
+    await this.chatSession.assertOwnedSession(userId, sessionId);
+    // Accepted streams own their partial-result persistence. This endpoint only
+    // terminates submissions which have never started generation.
+    const durable = await this.chatSession.findTurnByCompatSubmissionId(
+      sessionId,
+      messageId
+    );
+    if (durable) return true;
+    const submission = await this.submissions.get(messageId);
+    if (!submission || submission.sessionId !== sessionId) {
+      throw new CopilotMessageNotFound({ messageId });
+    }
+    const session = await this.chatSession.get(sessionId);
+    if (!session) throw new BadRequestException('Session not found');
+    await this.models.copilotSession.updateMessages({
+      sessionId,
+      userId,
+      prompt: { model: session.model },
+      messages: [
+        {
+          compatSubmissionId: messageId,
+          role: 'user',
+          content: submission.content ?? '',
+          attachments: submission.attachments ?? [],
+          params: { ...submission.params, cancelledBeforeGeneration: true },
+          createdAt: submission.createdAt,
+        },
+        {
+          role: 'assistant',
+          content: '',
+          params: { generationStatus: 'aborted' },
+          createdAt: new Date(
+            Math.max(Date.now(), submission.createdAt.getTime() + 1)
+          ),
+        },
+      ],
+    });
+    const turn = await this.chatSession.findTurnByCompatSubmissionId(
+      sessionId,
+      messageId
+    );
+    if (turn?.id)
+      await this.submissions.markAccepted(messageId, {
+        sessionId,
+        turnId: turn.id,
+      });
+    return true;
+  }
 
   async createMessage(
     userId: string,

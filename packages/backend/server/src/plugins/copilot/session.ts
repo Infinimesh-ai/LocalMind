@@ -286,7 +286,10 @@ export class ChatSession implements AsyncDisposable {
   ): Promise<PromptMessage[]> {
     const messages = this.finish(params, options);
     const checkpoint = this.pendingCheckpoint;
-    if (!checkpoint || !this.context) return messages;
+    if (!checkpoint || !this.context) {
+      await this.savePlanTrace();
+      return messages;
+    }
     // A failed/cancelled durable compaction must never fall through to the
     // legacy save-on-dispose path.
     this.pendingCheckpoint = undefined;
@@ -312,7 +315,14 @@ export class ChatSession implements AsyncDisposable {
     // heuristic candidate and must never be sent to the provider.
     const reassembled = this.finish(params, options);
     this.pendingCheckpoint = undefined;
+    await this.savePlanTrace();
     return reassembled;
+  }
+
+  private async savePlanTrace() {
+    if (!this.pendingPlanTrace || !this.context) return;
+    await this.context.savePlanTrace(this.pendingPlanTrace);
+    this.pendingPlanTrace = undefined;
   }
 
   async save() {
@@ -324,9 +334,7 @@ export class ChatSession implements AsyncDisposable {
       this.pendingCheckpoint
         ? this.context?.saveCheckpoint(this.pendingCheckpoint)
         : undefined,
-      this.pendingPlanTrace
-        ? this.context?.savePlanTrace(this.pendingPlanTrace)
-        : undefined,
+      this.savePlanTrace(),
     ]);
     this.pendingCheckpoint = undefined;
     this.pendingPlanTrace = undefined;

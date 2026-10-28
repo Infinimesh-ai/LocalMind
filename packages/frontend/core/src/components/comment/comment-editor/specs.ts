@@ -118,8 +118,11 @@ class CommentEditorViewExtensionProvider extends ViewExtensionProvider<CommentEd
   }
 }
 
-let manager: ViewExtensionManager | null = null;
+// Cloud/member extensions capture a scoped provider. Never reuse it after an
+// account or Workspace switch disposes that provider's scope.
+const managers = new WeakMap<FrameworkProvider, ViewExtensionManager>();
 export function getCommentEditorViewManager(framework: FrameworkProvider) {
+  let manager = managers.get(framework);
   if (!manager) {
     manager = new ViewExtensionManager([
       CommentEditorViewExtensionProvider,
@@ -168,6 +171,7 @@ export function getCommentEditorViewManager(framework: FrameworkProvider) {
       framework,
       enableCloud: true,
     });
+    managers.set(framework, manager);
   }
   return manager;
 }

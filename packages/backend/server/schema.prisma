@@ -12,6 +12,7 @@ datasource db {
 }
 
 model User {
+  folderPageCreations WorkspaceFolderPageCreation[]
   workspaceFiles               WorkspaceFile[]
   workspaceFileRevisions       WorkspaceFileRevision[]
   workspaceNativeOperations    WorkspaceNativeOperation[]
@@ -258,6 +259,7 @@ model MagicLinkOtp {
 }
 
 model Workspace {
+  folderPageCreations WorkspaceFolderPageCreation[]
   pageTreeState WorkspacePageTreeState?
   pageTreePlans WorkspacePageTreePlan[]
   pageTreeMappings WorkspacePageTreeMapping[]
@@ -283,6 +285,7 @@ model Workspace {
   docs                                  WorkspaceDoc[]
   blobs                                 Blob[]
   ignoredDocs                           AiWorkspaceIgnoredDocs[]
+  embeddingTasks                        AiWorkspaceEmbeddingTask[]
   embedFiles                            AiWorkspaceFiles[]
   byokConfigs                           AiWorkspaceByokConfig[]
   aiProfiles                            AiWorkspaceProfile[]                   @relation("ai_profile_workspace")
@@ -1855,6 +1858,9 @@ model AiProjectMemoryConflict {
 }
 
 model AiContextMemoryEvent {
+  // Lifecycle receipts retain the actor and resulting revision independently of account deletion.
+  actorIdSnapshot     String?   @map("actor_id_snapshot") @db.VarChar
+  memoryRevision      Int?      @map("memory_revision")
   id                  String    @id @default(uuid()) @db.VarChar
   ownerUserId         String?   @map("owner_user_id") @db.VarChar
   workspaceId         String?   @map("workspace_id") @db.VarChar
@@ -2324,15 +2330,17 @@ model AiContextProjectGrant {
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  project             AiContextProject                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  workspace           Workspace                           @relation("context_project_grant_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
-  grantedBy           User?                               @relation("context_project_grant_grantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
-  revokedBy           User?                               @relation("context_project_grant_revoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
-  accessRequest       AccessRequest?                      @relation(fields: [accessRequestId], references: [id], onDelete: Restrict)
-  auditEvents         AiContextProjectGrantAuditEvent[]
-  memorySources       AiContextMemorySource[]
-  quarantinedMemories AiContextMemory[]                   @relation("context_memory_quarantine_grant")
-  copyAuthorizations  AiContextProjectCopyAuthorization[]
+  project                   AiContextProject                          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace                 Workspace                                 @relation("context_project_grant_workspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  grantedBy                 User?                                     @relation("context_project_grant_grantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  revokedBy                 User?                                     @relation("context_project_grant_revoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  accessRequest             AccessRequest?                            @relation(fields: [accessRequestId], references: [id], onDelete: Restrict)
+  auditEvents               AiContextProjectGrantAuditEvent[]
+  memorySources             AiContextMemorySource[]
+  quarantinedMemories       AiContextMemory[]                         @relation("context_memory_quarantine_grant")
+  copyAuthorizations        AiContextProjectCopyAuthorization[]
+  memoryAuthorization       AiProjectMemorySourceAuthorization?
+  memoryAuthorizationEvents AiProjectMemorySourceAuthorizationEvent[]
 
   @@unique([id, projectId, workspaceId, docId])
   @@index([projectId, status, updatedAt])
@@ -5946,4 +5954,71 @@ model ReportDeckShare {
 
   @@index([deckId])
   @@map("report_deck_shares")
+}
+
+// Memory-only consent never grants access to the source document.
+model AiProjectMemorySourceAuthorization {
+  grantId   String                @id @map("grant_id") @db.VarChar
+  status    String                @db.VarChar
+  revision  Int
+  updatedAt DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  grant     AiContextProjectGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@map("ai_project_memory_source_authorizations")
+}
+
+model AiProjectMemorySourceAuthorizationEvent {
+  id                  String                @id @default(uuid()) @db.VarChar
+  grantId             String                @map("grant_id") @db.VarChar
+  revision            Int
+  status              String                @db.VarChar
+  actorUserIdSnapshot String                @map("actor_user_id_snapshot") @db.VarChar
+  requestKey          String                @map("request_key") @db.VarChar
+  requestFingerprint  String                @map("request_fingerprint") @db.VarChar
+  restoredMemories    Json                  @default("[]") @map("restored_memories") @db.JsonB
+  restoredCount       Int                   @default(0) @map("restored_count")
+  quarantinedCount    Int                   @default(0) @map("quarantined_count")
+  deferredCount       Int                   @default(0) @map("deferred_count")
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  grant               AiContextProjectGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@unique([grantId, revision])
+  @@unique([grantId, requestKey])
+  @@map("ai_project_memory_source_authorization_events")
+}
+
+// A committed legacy-folder creation is immutable even after its page is moved or deleted.
+model WorkspaceFolderPageCreation {
+  workspaceId String @map("workspace_id") @db.VarChar
+  actorId String @map("actor_id") @db.VarChar
+  requestKey String @map("request_key") @db.VarChar(128)
+  requestHash String @map("request_hash") @db.VarChar(64)
+  documentId String @map("document_id") @db.VarChar
+  folderId String @map("folder_id") @db.VarChar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@id([workspaceId, actorId, requestKey])
+  @@unique([workspaceId, documentId])
+  @@map("workspace_folder_page_creations")
+}
+
+// One current generation per index resource. Older workers must match both tokens.
+model AiWorkspaceEmbeddingTask {
+  workspaceId String @map("workspace_id") @db.VarChar
+  kind String @db.VarChar(16)
+  resourceId String @map("resource_id") @db.VarChar
+  requestId String @map("request_id") @db.Uuid
+  runId String? @map("run_id") @db.Uuid
+  userId String? @map("user_id") @db.VarChar
+  status String @db.VarChar(16)
+  errorCode String? @map("error_code") @db.VarChar(64)
+  leaseUntil DateTime @map("lease_until") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, kind, resourceId])
+  @@index([workspaceId, status])
+  @@map("ai_workspace_embedding_tasks")
 }
