@@ -8,10 +8,12 @@ import {
   WorkspaceOrganizationService,
   WorkspacePageTreeService,
 } from '../../core/doc';
+import { pageTreeWriteContext } from '../../core/doc/page-tree-context';
 import {
   type LegacyTreeRow,
   planWorkspacePageTree,
 } from '../../core/doc/page-tree-plan';
+import { createDocWithMarkdown, readAllDocIdsFromRootDoc } from '../../native';
 import { createTestingApp, type TestingApp } from '../utils';
 
 let app: TestingApp;
@@ -43,6 +45,240 @@ async function fixture() {
   const service = app.get(WorkspacePageTreeService);
   return { actor, owner, service, db: app.get(PrismaClient) };
 }
+
+test.serial(
+  'already-switched legacy roots normalize atomically on a tree command',
+  async t => {
+    const { actor, owner, service } = await fixture();
+    await service.migrate(actor, (await service.preflight(actor)).fingerprint);
+    let tree = await service.list(actor, null);
+    await service.execute(actor, {
+      action: 'create',
+      title: 'Old page',
+      primaryMode: 'page',
+      parentNodeId: null,
+      requestKey: 'before-legacy',
+      contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+      expectedRevision: tree.revision,
+      expectedAuthorizationRevision: tree.authorizationRevision,
+    });
+    const { PgWorkspaceDocStorageAdapter } =
+      await import('../../core/doc/adapters/workspace');
+    const storage = app.get(PgWorkspaceDocStorageAdapter);
+    const stored = await storage.getDocReadOnly(
+      actor.workspaceId,
+      actor.workspaceId
+    );
+    const legacy = new Y.Doc();
+    t.teardown(() => legacy.destroy());
+    Y.applyUpdate(legacy, stored!.bin);
+    const vector = Y.encodeStateVector(legacy);
+    const pages = legacy.getMap('meta').get('pages') as Y.Array<unknown>;
+    const oldPages = pages.toJSON() as Record<string, unknown>[];
+    oldPages[0].custom = { keep: ['nested'] };
+    legacy.getMap('meta').set('pages', oldPages);
+    await pageTreeWriteContext.run(actor.workspaceId, () =>
+      app
+        .get(DocWriter)
+        .pushDocUpdate(
+          actor.workspaceId,
+          actor.workspaceId,
+          Y.encodeStateAsUpdate(legacy, vector),
+          owner.id
+        )
+    );
+    tree = await service.list(actor, null);
+    await service.execute(actor, {
+      action: 'create-folder',
+      title: 'Folder',
+      parentNodeId: null,
+      requestKey: 'normalize-switched',
+      contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+      expectedRevision: tree.revision,
+      expectedAuthorizationRevision: tree.authorizationRevision,
+    });
+    const result = new Y.Doc();
+    try {
+      const record = await storage.getDocReadOnly(
+        actor.workspaceId,
+        actor.workspaceId
+      );
+      Y.applyUpdate(result, record!.bin);
+      const converted = result.getMap('meta').get('pages');
+      t.true(converted instanceof Y.Array);
+      t.deepEqual((converted as Y.Array<unknown>).toJSON(), oldPages);
+    } finally {
+      result.destroy();
+    }
+  }
+);
+
+test.serial(
+  'legacy plain pages are persisted even when the tree needs no other changes',
+  async t => {
+    const owner = await app.createUser();
+    const workspace = await app.models.workspace.create(owner.id);
+    const actor = { workspaceId: workspace.id, actorId: owner.id };
+    const root = new Y.Doc();
+    root
+      .getMap('meta')
+      .set('pages', [{ id: 'only-page', title: 'Only', custom: 'keep' }]);
+    await app
+      .get(DocWriter)
+      .pushDocUpdate(
+        workspace.id,
+        workspace.id,
+        Y.encodeStateAsUpdate(root),
+        owner.id
+      );
+    root.destroy();
+    const service = app.get(WorkspacePageTreeService);
+    await service.migrate(actor, (await service.preflight(actor)).fingerprint);
+    const { PgWorkspaceDocStorageAdapter } =
+      await import('../../core/doc/adapters/workspace');
+    const record = await app
+      .get(PgWorkspaceDocStorageAdapter)
+      .getDocReadOnly(workspace.id, workspace.id);
+    const result = new Y.Doc();
+    try {
+      Y.applyUpdate(result, record!.bin);
+      const pages = result.getMap('meta').get('pages');
+      t.true(pages instanceof Y.Array);
+      t.deepEqual((pages as Y.Array<unknown>).toJSON(), [
+        { id: 'only-page', title: 'Only', custom: 'keep' },
+      ]);
+    } finally {
+      result.destroy();
+    }
+  }
+);
+
+test.serial(
+  'legacy plain root pages migrate without losing data and remain usable',
+  async t => {
+    const owner = await app.createUser();
+    const workspace = await app.models.workspace.create(owner.id);
+    const actor = { workspaceId: workspace.id, actorId: owner.id };
+    const writer = app.get(DocWriter);
+    const root = new Y.Doc({ gc: false });
+    const stale = new Y.Doc({ gc: false });
+    t.teardown(() => {
+      root.destroy();
+      stale.destroy();
+    });
+    const legacy = [
+      {
+        id: 'legacy-page',
+        title: '原页面',
+        tags: ['甲'],
+        custom: { a: [1, 2] },
+      },
+      { id: 'legacy-trash', title: '回收站', trash: true, custom: '保留' },
+    ];
+    root.getMap('meta').set('pages', legacy);
+    root.getMap('meta').set('unknown', { keep: true });
+    root.getMap('other').set('payload', 'unchanged');
+    const original = Y.encodeStateAsUpdate(root);
+    Y.applyUpdate(stale, original);
+    await writer.pushDocUpdate(workspace.id, workspace.id, original, owner.id);
+    const originalBodies = new Map<string, Uint8Array>();
+    for (const id of ['legacy-page', 'legacy-trash']) {
+      const body = createDocWithMarkdown(id, `正文 ${id}`, id);
+      originalBodies.set(id, body);
+      await writer.pushDocUpdate(workspace.id, id, body, owner.id);
+    }
+    await t.throwsAsync(
+      writer.createDoc(workspace.id, 'Blocked', 'Pending migration', owner.id),
+      { message: 'Legacy root pages require page tree migration' }
+    );
+    const service = app.get(WorkspacePageTreeService);
+    const outdated = await service.preflight(actor);
+    const rootVector = Y.encodeStateVector(root);
+    root.getMap('other').set('concurrent', 'also preserved');
+    await writer.pushDocUpdate(
+      workspace.id,
+      workspace.id,
+      Y.encodeStateAsUpdate(root, rootVector),
+      owner.id
+    );
+    await t.throwsAsync(service.migrate(actor, outdated.fingerprint));
+    const plan = await service.preflight(actor);
+    t.deepEqual(plan.conflicts, []);
+    await service.migrate(actor, plan.fingerprint);
+    const { PgWorkspaceDocStorageAdapter } =
+      await import('../../core/doc/adapters/workspace');
+    const storage = app.get(PgWorkspaceDocStorageAdapter);
+    const record = await storage.getDocReadOnly(workspace.id, workspace.id);
+    const migrated = new Y.Doc();
+    t.teardown(() => migrated.destroy());
+    Y.applyUpdate(migrated, record!.bin);
+    t.deepEqual(
+      readAllDocIdsFromRootDoc(Buffer.from(record!.bin), true).sort(),
+      ['legacy-page', 'legacy-trash']
+    );
+    const pages = migrated.getMap('meta').get('pages') as Y.Array<
+      Y.Map<unknown>
+    >;
+    t.true(pages instanceof Y.Array);
+    t.deepEqual(pages.get(0).toJSON(), legacy[0]);
+    t.like(pages.get(1).toJSON(), legacy[1]);
+    t.deepEqual(migrated.getMap('meta').get('unknown'), { keep: true });
+    t.is(migrated.getMap('other').get('payload'), 'unchanged');
+    t.is(migrated.getMap('other').get('concurrent'), 'also preserved');
+    for (const [id, body] of originalBodies) {
+      const saved = await storage.getDocReadOnly(workspace.id, id);
+      t.truthy(saved);
+      const beforeBody = new Y.Doc(),
+        afterBody = new Y.Doc();
+      try {
+        Y.applyUpdate(beforeBody, body);
+        Y.applyUpdate(afterBody, saved!.bin);
+        t.deepEqual(
+          afterBody.getMap('blocks').toJSON(),
+          beforeBody.getMap('blocks').toJSON()
+        );
+      } finally {
+        beforeBody.destroy();
+        afterBody.destroy();
+      }
+    }
+    const tree = await service.list(actor, null);
+    t.true(tree.items.some(item => item.resource.resourceId === 'legacy-page'));
+    const receipt = await service.execute(actor, {
+      action: 'create',
+      contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+      expectedRevision: tree.revision,
+      expectedAuthorizationRevision: tree.authorizationRevision,
+      requestKey: 'legacy-create',
+      parentNodeId: null,
+      title: '新页面',
+      primaryMode: 'page',
+    });
+    t.deepEqual(
+      await service.execute(actor, {
+        action: 'create',
+        contractVersion: WORKSPACE_PAGE_TREE_CONTRACT,
+        expectedRevision: tree.revision,
+        expectedAuthorizationRevision: tree.authorizationRevision,
+        requestKey: 'legacy-create',
+        parentNodeId: null,
+        title: '新页面',
+        primaryMode: 'page',
+      }),
+      receipt
+    );
+    const vector = Y.encodeStateVector(stale);
+    stale.getMap('meta').set('pages', [{ id: 'legacy-page', title: 'stale' }]);
+    await t.throwsAsync(
+      writer.pushDocUpdate(
+        workspace.id,
+        workspace.id,
+        Y.encodeStateAsUpdate(stale, vector),
+        owner.id
+      )
+    );
+  }
+);
 
 test.serial(
   'cross-parent manual ordering and undo are atomic, authorized and versioned',

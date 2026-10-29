@@ -50,7 +50,9 @@ async function handleTask(task: SnapshotTask) {
               ? 'absent'
               : pages instanceof Y.Array
                 ? 'array'
-                : 'invalid',
+                : Array.isArray(pages)
+                  ? 'legacy-array'
+                  : 'invalid',
           legacyPagePropertiesIsMap: legacy instanceof Y.Map,
         };
       } finally {

@@ -69,9 +69,15 @@ fn test_roundtrip_paragraph_after_list() {
 
 #[test]
 fn test_roundtrip_code_block() {
-  let markdown = "```rust\nfn main() {}\n```";
-  let expected = "```rust\nfn main() {}\n\n```\n\n";
-  assert_markdown_roundtrip(markdown, expected);
+  for (markdown, expected) in [
+    ("```rust\nfn main() {}\n```", "```rust\nfn main() {}\n```\n\n"),
+    ("```rust\nfn main() {}\n\n```", "```rust\nfn main() {}\n\n```\n\n"),
+    ("```rust\n```", "```rust\n```\n\n"),
+    ("````rust\n```\n````", "````rust\n```\n````\n\n"),
+  ] {
+    assert_markdown_roundtrip(markdown, expected);
+    assert_markdown_roundtrip(expected, expected);
+  }
 }
 
 #[test]

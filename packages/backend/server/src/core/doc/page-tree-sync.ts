@@ -29,7 +29,10 @@ export async function validatePageTreeSyncUpdate(input: {
       `${workspaceId}:${workspaceId}`,
       stored?.bin ?? null
     );
-    const pages = root.pagesKind === 'array' ? root.maps.meta?.pages : null;
+    const pages =
+      root.pagesKind === 'array' || root.pagesKind === 'legacy-array'
+        ? root.maps.meta?.pages
+        : null;
     const page = Array.isArray(pages)
       ? (pages as { id: string; trash?: boolean }[]).find(
           page => page?.id === docId

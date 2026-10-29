@@ -280,6 +280,8 @@ time descending, then ID in the same ascending order. Both cursor types carry
 an authenticated sorting version; cursors from the previous ordering fail with
 `cursor_stale`. Discard a stale cursor and restart from the first page. Pagination
 does not provide a snapshot across requests.
+These listing orders do not reorder folder entries. Users arrange daily logs by
+date manually in the UI; MCP does not provide a date-reordering operation.
 Omitted document `folderId` means all readable untrashed documents; null means
 root, excluding placements hidden by directory permissions. Omitted creation
 `folderId` or `parentId` means root. Moving removes every prior placement and
@@ -287,8 +289,8 @@ keeps exactly one target placement; null removes all placements. Any uneditable
 source placement rejects the entire move.
 
 Markdown body replacement is limited to structures verified by a lossless native
-round trip: ordinary paragraphs, headings, lists, emphasis and links. Code blocks
-currently fail that check because the native converter changes newlines. Images,
+round trip: ordinary paragraphs, headings, lists, emphasis, links and code blocks
+that pass the check. Code block support requires the updated native addon. Images,
 HTML, tables, embedded blocks and unsupported structures fail closed. Reads may
 return `contentWritable: false`; oversized complete reads return `content_too_large`
 rather than truncating. Listing metadata and moving do not require a writable body.

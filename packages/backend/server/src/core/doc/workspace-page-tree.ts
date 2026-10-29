@@ -38,6 +38,7 @@ import {
   type PageTreePlan,
   planWorkspacePageTree,
 } from './page-tree-plan';
+import { migrateLegacyRootPages } from './root-doc-registration';
 import { snapshotParser } from './snapshot-parser';
 import { WorkspaceOrganizationService } from './workspace-organization';
 import { DocWriter } from './writer';
@@ -307,7 +308,7 @@ export class WorkspacePageTreeService {
       const pages = root.doc.maps.meta?.pages;
       if (root.doc.pagesKind === 'invalid')
         throw new BadRequest('Invalid Workspace root');
-      const rawPages = (root.doc.pagesKind === 'array' ? pages : []) as {
+      const rawPages = (root.doc.pagesKind === 'absent' ? [] : pages) as {
         id: string;
         title?: string;
         trash?: boolean;
@@ -450,6 +451,7 @@ export class WorkspacePageTreeService {
         recycleClaims,
         sourceRevision,
         authorizationRevision,
+        legacyRootPages: root.doc.pagesKind === 'legacy-array',
       };
     }
   }
@@ -1025,6 +1027,29 @@ export class WorkspacePageTreeService {
     }
   }
 
+  /** Repair an already-switched legacy root inside the same locked command. */
+  private async normalizeLegacyRoot(input: Actor) {
+    const stored = await this.storage.getDoc(
+      input.workspaceId,
+      input.workspaceId
+    );
+    if (!stored) throw new NotFound('Workspace unavailable');
+    const root = new Y.Doc();
+    try {
+      Y.applyUpdate(root, stored.bin);
+      const vector = Y.encodeStateVector(root);
+      if (migrateLegacyRootPages(root))
+        await this.writer.pushDocUpdate(
+          input.workspaceId,
+          input.workspaceId,
+          Y.encodeStateAsUpdate(root, vector),
+          input.actorId
+        );
+    } finally {
+      root.destroy();
+    }
+  }
+
   /** Prepare and freeze in a committed transaction before any batch can start.
    * Only the migration runner invokes this; it is deliberately not a user mutation. */
   async prepareMigration(input: Actor, expectedFingerprint: string) {
@@ -1172,11 +1197,12 @@ export class WorkspacePageTreeService {
               Y.applyUpdate(root, rootRecord.bin);
               if (propertiesRecord)
                 Y.applyUpdate(properties, propertiesRecord.bin);
+              const rootVector = Y.encodeStateVector(root),
+                propertiesVector = Y.encodeStateVector(properties);
+              const migratedLegacyPages = migrateLegacyRootPages(root);
               const pages = root.getMap('meta').get('pages');
               if (!(pages instanceof Y.Array))
                 throw new BadRequest('Invalid Workspace root');
-              const rootVector = Y.encodeStateVector(root),
-                propertiesVector = Y.encodeStateVector(properties);
               for (const mapping of plan.mappings) {
                 const page = new Y.Map<unknown>();
                 pages.push([page]);
@@ -1228,13 +1254,19 @@ export class WorkspacePageTreeService {
                   ]);
                 }
               }
-              if (plan.mappings.length || plan.recycleEvidence.length) {
+              if (
+                migratedLegacyPages ||
+                plan.mappings.length ||
+                plan.recycleEvidence.length
+              ) {
                 await this.writer.pushDocUpdate(
                   rootId,
                   rootId,
                   Y.encodeStateAsUpdate(root, rootVector),
                   saved.actorId
                 );
+              }
+              if (plan.mappings.length) {
                 await this.writer.pushDocUpdate(
                   rootId,
                   propertiesId,
@@ -1447,6 +1479,7 @@ export class WorkspacePageTreeService {
             return rights;
           };
           return pageTreeWriteContext.run(input.workspaceId, async () => {
+            if (graph.legacyRootPages) await this.normalizeLegacyRoot(input);
             let nodes = graph.nodes;
             const retired: string[] = [];
             const affectedNodeIds: string[] = [];

@@ -82,11 +82,13 @@ pub fn add_doc_to_root_doc(root_doc_bin: Vec<u8>, doc_id: &str, title: Option<&s
 
   // Check if doc already exists
   let doc_exists = pages.iter().any(|page_val| {
-    page_val
+    let map_id = page_val
       .to_map()
       .and_then(|page| get_string(&page, "id"))
       .map(|id| id == doc_id)
-      .unwrap_or(false)
+      .unwrap_or(false);
+    map_id
+      || matches!(page_val.to_any(), Some(Any::Object(page)) if matches!(page.get("id"), Some(Any::String(id)) if id == doc_id))
   });
 
   if !doc_exists {
@@ -264,6 +266,33 @@ pub fn build_public_root_doc(root_doc_bin: &[u8], doc_metas: &[(&str, Option<&st
 mod tests {
   use super::*;
   use crate::{get_doc_ids_from_binary, project_workspace_root};
+  use y_octo::DocOptions;
+
+  #[test]
+  fn test_mixed_page_entries_are_read_and_not_duplicated() {
+    let doc = DocOptions::new().build();
+    let mut meta = doc.get_or_create_map("meta").expect("meta");
+    let mut pages = doc.create_array().expect("pages");
+    let existing = [
+      ("id".to_string(), Any::String("existing".to_string())),
+      ("title".to_string(), Any::String("Original".to_string())),
+    ]
+    .into_iter()
+    .collect();
+    pages.push(Any::Object(Box::new(existing))).expect("append page");
+    meta
+      .insert("pages".to_string(), Value::Array(pages))
+      .expect("attach pages");
+    let source = doc.encode_update_v1().expect("encode");
+    assert_eq!(get_doc_ids_from_binary(source.clone(), false).unwrap(), ["existing"]);
+    let delta = add_doc_to_root_doc(source.clone(), "existing", Some("Different")).unwrap();
+    let mut restored = load_doc_or_new(&source).unwrap();
+    restored.apply_update_from_binary_v1(&delta).unwrap();
+    assert_eq!(
+      get_doc_ids_from_binary(restored.encode_update_v1().unwrap(), false).unwrap(),
+      ["existing"]
+    );
+  }
 
   #[test]
   fn test_build_public_root_doc_filters_private_pages() {

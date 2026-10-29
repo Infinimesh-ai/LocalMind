@@ -6,7 +6,11 @@ import {
   updateResourceMarkdown,
   validateResourceMarkdown,
 } from '../../core/doc/resource-markdown';
-import { createDocWithMarkdown } from '../../native';
+import {
+  addDocToRootDoc,
+  createDocWithMarkdown,
+  readAllDocIdsFromRootDoc,
+} from '../../native';
 import {
   MCP_CAPABILITIES,
   MCP_DELEGATION_CAPABILITIES,
@@ -18,6 +22,138 @@ import {
   addEditorProperties,
   DAILY_LOG_MARKDOWN,
 } from './fixtures/resource-markdown';
+
+test('native root registration reads mixed Yjs page entries without duplicating them', t => {
+  const doc = new Y.Doc();
+  try {
+    const pages = new Y.Array<unknown>();
+    const sharedPage = new Y.Map<unknown>();
+    sharedPage.set('id', 'shared');
+    pages.push([sharedPage, { id: 'plain', title: 'Original' }]);
+    doc.getMap('meta').set('pages', pages);
+    const original = Buffer.from(Y.encodeStateAsUpdate(doc));
+    t.deepEqual(readAllDocIdsFromRootDoc(original, false), ['shared', 'plain']);
+    Y.applyUpdate(doc, addDocToRootDoc(original, 'plain', 'Different'));
+    t.is(pages.length, 2);
+    const update = addDocToRootDoc(
+      Buffer.from(Y.encodeStateAsUpdate(doc)),
+      'new',
+      'New'
+    );
+    Y.applyUpdate(doc, update);
+    t.deepEqual(
+      pages.toJSON().map(page => (page as { id: string }).id),
+      ['shared', 'plain', 'new']
+    );
+    t.deepEqual(
+      readAllDocIdsFromRootDoc(Buffer.from(Y.encodeStateAsUpdate(doc)), false),
+      ['shared', 'plain', 'new']
+    );
+  } finally {
+    doc.destroy();
+  }
+});
+
+test('native root reads and appends after concurrent Yjs map-key conflicts', t => {
+  for (const order of [
+    [1, 2],
+    [2, 1],
+  ] as const) {
+    const replicas = order.map(clientID => {
+      const doc = new Y.Doc();
+      doc.clientID = clientID;
+      const pages = new Y.Array<Y.Map<unknown>>();
+      const page = new Y.Map<unknown>();
+      page.set('id', `page-${clientID}`);
+      pages.push([page]);
+      doc.getMap('meta').set('pages', pages);
+      return doc;
+    });
+    const root = Y.mergeUpdates(
+      replicas.map(doc => Y.encodeStateAsUpdate(doc))
+    );
+    const current = new Y.Doc();
+    try {
+      Y.applyUpdate(current, root);
+      const pages = current.getMap('meta').get('pages') as Y.Array<
+        Y.Map<unknown>
+      >;
+      const expected = pages.toArray().map(page => page.get('id'));
+      t.deepEqual(readAllDocIdsFromRootDoc(Buffer.from(root), true), expected);
+      const update = addDocToRootDoc(Buffer.from(root), 'new-page', 'New');
+      Y.applyUpdate(current, update);
+      t.deepEqual(
+        pages.toArray().map(page => page.get('id')),
+        [...expected, 'new-page']
+      );
+      t.deepEqual(
+        readAllDocIdsFromRootDoc(
+          Buffer.from(Y.encodeStateAsUpdate(current)),
+          true
+        ),
+        [...expected, 'new-page']
+      );
+      t.falsy(current.store.pendingStructs);
+    } finally {
+      replicas.forEach(doc => doc.destroy());
+      current.destroy();
+    }
+  }
+});
+
+test('native root preserves the winner of concurrent replacements with prior history', t => {
+  const origin = new Y.Doc();
+  const first = new Y.Doc();
+  const second = new Y.Doc();
+  const result = new Y.Doc();
+  try {
+    origin.clientID = 10;
+    first.clientID = 11;
+    second.clientID = 12;
+    const makePages = (id: string) => {
+      const pages = new Y.Array<Y.Map<unknown>>();
+      const page = new Y.Map<unknown>();
+      page.set('id', id);
+      pages.push([page]);
+      return pages;
+    };
+    origin.getMap('meta').set('pages', makePages('original'));
+    const initial = Y.encodeStateAsUpdate(origin);
+    Y.applyUpdate(first, initial);
+    Y.applyUpdate(second, initial);
+    first.getMap('meta').set('pages', makePages('first'));
+    second.getMap('meta').set('pages', makePages('second'));
+    const root = Y.mergeUpdates([
+      Y.encodeStateAsUpdate(first),
+      Y.encodeStateAsUpdate(second),
+    ]);
+    Y.applyUpdate(result, root);
+    const pages = result.getMap('meta').get('pages') as Y.Array<Y.Map<unknown>>;
+    const expected = pages.toArray().map(page => page.get('id'));
+    t.deepEqual(readAllDocIdsFromRootDoc(Buffer.from(root), true), expected);
+    Y.applyUpdate(
+      result,
+      addDocToRootDoc(Buffer.from(root), 'new-page', 'New')
+    );
+    t.deepEqual(
+      pages.toArray().map(page => page.get('id')),
+      [...expected, 'new-page']
+    );
+    t.deepEqual(
+      readAllDocIdsFromRootDoc(
+        Buffer.from(Y.encodeStateAsUpdate(result)),
+        true
+      ),
+      [...expected, 'new-page']
+    );
+    t.falsy(result.store.pendingStructs);
+  } finally {
+    origin.destroy();
+    first.destroy();
+    second.destroy();
+    result.destroy();
+  }
+});
 
 test('resource capabilities never expand legacy defaults', t => {
   t.is(MCP_CAPABILITIES.length, 13);
@@ -219,13 +355,19 @@ test('unsupported images and block structures are never writable', t => {
   doc.destroy();
 });
 
-test('code blocks with lossy native round trips are read-only', t => {
-  const bin = createDocWithMarkdown(
-    'Code',
+test('code blocks preserve their contents through repeated Markdown round trips', t => {
+  for (const markdown of [
     '```ts\nconst a = 1;\n```\n',
-    'doc'
-  );
-  t.false(readResourceMarkdown('w', 'doc', bin).contentWritable);
+    '```ts\nconst a = 1;\n\n```\n',
+    '````ts\n```\n````\n',
+  ]) {
+    const bin = createDocWithMarkdown('Code', markdown, 'doc');
+    const first = readResourceMarkdown('w', 'doc', bin);
+    t.true(first.contentWritable);
+    const second = validateResourceMarkdown('Code', first.content.text, 'doc');
+    t.true(second.contentWritable);
+    t.is(second.content.text, first.content.text);
+  }
 });
 
 test('editor defaults and provenance do not make a Markdown log read-only', t => {

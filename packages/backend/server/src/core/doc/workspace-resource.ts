@@ -121,9 +121,11 @@ export class WorkspaceResourceService {
     try {
       Y.applyUpdate(doc, record.bin);
       const pages = doc.getMap('meta').get('pages');
-      if (!(pages instanceof Y.Array) || pages.length > 10000)
+      if (!(pages instanceof Y.Array) && !Array.isArray(pages))
         throw new ResourceError('unsupported_document_structure');
-      return pages.toJSON() as RootPage[];
+      if (pages.length > 10000)
+        throw new ResourceError('unsupported_document_structure');
+      return (pages instanceof Y.Array ? pages.toJSON() : pages) as RootPage[];
     } finally {
       doc.destroy();
     }

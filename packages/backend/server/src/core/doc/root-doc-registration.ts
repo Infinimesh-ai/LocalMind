@@ -16,6 +16,7 @@ const SIMPLE_PAGE_META_KEYS = [
 export interface RootDocUpdatePlan {
   update: Uint8Array;
   replacementSnapshot?: Uint8Array;
+  legacyPagesMigration?: boolean;
 }
 
 function cloneJsonValue(value: unknown): unknown {
@@ -65,6 +66,38 @@ function pageValue(page: unknown, key: string) {
   return undefined;
 }
 
+// The old representation stores the entire list as one Yjs Any value. Convert
+// every nested value, not just known page fields, so clients can edit the
+// resulting metadata through the same reactive Yjs proxies as ordinary pages.
+function legacyValueToY(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const array = new Y.Array<unknown>();
+    array.push(value.map(legacyValueToY));
+    return array;
+  }
+  if (
+    value &&
+    typeof value === 'object' &&
+    (Object.getPrototypeOf(value) === Object.prototype ||
+      Object.getPrototypeOf(value) === null)
+  ) {
+    const map = new Y.Map<unknown>();
+    for (const [key, child] of Object.entries(value))
+      map.set(key, legacyValueToY(child));
+    return map;
+  }
+  return value;
+}
+
+/** Normalize a legacy list in place; call only inside the root write transaction. */
+export function migrateLegacyRootPages(document: Y.Doc): boolean {
+  const meta = document.getMap('meta');
+  const pages = meta.get('pages');
+  if (!Array.isArray(pages)) return false;
+  meta.set('pages', legacyValueToY(pages));
+  return true;
+}
+
 function appendPage(
   pages: Y.Array<Y.Map<unknown>>,
   page: unknown,
@@ -103,9 +136,10 @@ export function readRootDocPagesWithYjs(
   try {
     Y.applyUpdate(document, rootDocBin);
     const pages = document.getMap('meta').get('pages');
-    if (!(pages instanceof Y.Array)) return [];
+    const entries = pages instanceof Y.Array ? pages.toArray() : pages;
+    if (!Array.isArray(entries)) return [];
     const result: { id: string; title: string | null }[] = [];
-    for (const page of pages.toArray()) {
+    for (const page of entries) {
       const id = pageValue(page, 'id');
       const trash = pageValue(page, 'trash');
       if (typeof id === 'string' && (includeTrash || trash !== true)) {
@@ -192,17 +226,30 @@ export function prepareRootDocRegistration(
     return { update: new Uint8Array([0, 0]) };
   }
 
-  const update = addDocToRootDoc(Buffer.from(rootDocBin), docId, title);
   const replay = new Y.Doc();
   try {
     Y.applyUpdate(replay, rootDocBin);
-    Y.applyUpdate(replay, update);
-    const visible = replay.getMap('meta').get('pages');
-    if (
-      visible instanceof Y.Array &&
-      visible.toArray().some(page => pageValue(page, 'id') === docId)
-    ) {
-      return { update };
+    if (Array.isArray(replay.getMap('meta').get('pages'))) {
+      const migration = prepareRootDocRegistrationWithYjs(
+        rootDocBin,
+        docId,
+        title
+      );
+      if (!migration) throw new Error('Invalid legacy workspace root');
+      return migration;
+    }
+    try {
+      const update = addDocToRootDoc(Buffer.from(rootDocBin), docId, title);
+      Y.applyUpdate(replay, update);
+      const visible = replay.getMap('meta').get('pages');
+      if (
+        visible instanceof Y.Array &&
+        visible.toArray().some(page => pageValue(page, 'id') === docId)
+      ) {
+        return { update };
+      }
+    } catch {
+      // An incompatible native delta must not block the safe Yjs fallback.
     }
   } finally {
     replay.destroy();
@@ -233,11 +280,12 @@ export function prepareRootDocRegistrationWithYjs(
   const document = new Y.Doc();
   try {
     Y.applyUpdate(document, rootDocBin);
+    const before = Y.encodeStateVector(document);
+    const legacyPagesMigration = migrateLegacyRootPages(document);
     const pages = document.getMap('meta').get('pages');
     if (!(pages instanceof Y.Array)) return null;
     if (pages.toArray().some(page => pageValue(page, 'id') === docId))
       return { update: new Uint8Array([0, 0]) };
-    const before = Y.encodeStateVector(document);
     document.transact(() => {
       appendPage(pages, undefined, {
         id: docId,
@@ -247,7 +295,10 @@ export function prepareRootDocRegistrationWithYjs(
       const spaces = document.getMap('spaces');
       if (!spaces.has(docId)) spaces.set(docId, new Y.Doc({ guid: docId }));
     });
-    return { update: Y.encodeStateAsUpdate(document, before) };
+    return {
+      update: Y.encodeStateAsUpdate(document, before),
+      ...(legacyPagesMigration ? { legacyPagesMigration: true } : {}),
+    };
   } finally {
     document.destroy();
   }

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
 import { Injectable } from '@nestjs/common';
 
@@ -8,7 +9,10 @@ import type {
 } from '../../../models/copilot-context-memory';
 import type { PromptMessage } from '../providers/types';
 
-export const CONTEXT_PLANNER_STRATEGY_VERSION = 'context-planner/v7';
+export const CONTEXT_PLANNER_STRATEGY_VERSION = 'context-planner/v9';
+export const EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION = 'context-planner/v8';
+export const ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_VERSION =
+  'context-planner/v7';
 export const LAYERED_CONTEXT_PLANNER_STRATEGY_VERSION = 'context-planner/v6';
 export const UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION = 'context-planner/v5';
 export const SYSTEM_CONTEXT_PLANNER_STRATEGY_VERSION = 'context-planner/v4';
@@ -26,8 +30,8 @@ const MEMORY_LIMITS: Record<CopilotContextMemoryKind, number> = {
   project_summary: 8,
 };
 
-export const CONTEXT_PLANNER_STRATEGY_CONFIG = {
-  version: CONTEXT_PLANNER_STRATEGY_VERSION,
+export const ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_CONFIG = {
+  version: ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_VERSION,
   summaryMaxItems: SUMMARY_MAX_ITEMS,
   summaryMaxChars: SUMMARY_MAX_CHARS,
   contextMaxChars: CONTEXT_MAX_CHARS,
@@ -42,6 +46,18 @@ export const CONTEXT_PLANNER_STRATEGY_CONFIG = {
   summaryMode: 'validated_rolling_fact_selection',
   trustBoundary:
     'workspace_policy_then_user_rules_then_untrusted_reference_data',
+} as const;
+
+export const EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_CONFIG = {
+  ...ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_CONFIG,
+  version: EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION,
+  emptyUserTurns: 'retain_only_when_no_payload',
+} as const;
+
+export const CONTEXT_PLANNER_STRATEGY_CONFIG = {
+  ...EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_CONFIG,
+  version: CONTEXT_PLANNER_STRATEGY_VERSION,
+  payloadRetention: 'match_attachments_stream_objects_and_response_format',
 } as const;
 
 export const LAYERED_CONTEXT_PLANNER_STRATEGY_CONFIG = {
@@ -119,6 +135,16 @@ export const LEGACY_CONTEXT_PLANNER_STRATEGY_CONFIG = {
 export const CONTEXT_PLANNER_STRATEGY_FINGERPRINT = createHash('sha256')
   .update(JSON.stringify(CONTEXT_PLANNER_STRATEGY_CONFIG))
   .digest('hex');
+export const EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_FINGERPRINT = createHash(
+  'sha256'
+)
+  .update(JSON.stringify(EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_CONFIG))
+  .digest('hex');
+export const ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_FINGERPRINT = createHash(
+  'sha256'
+)
+  .update(JSON.stringify(ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_CONFIG))
+  .digest('hex');
 export const LAYERED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT = createHash('sha256')
   .update(JSON.stringify(LAYERED_CONTEXT_PLANNER_STRATEGY_CONFIG))
   .digest('hex');
@@ -145,6 +171,8 @@ export const LEGACY_CONTEXT_PLANNER_STRATEGY_FINGERPRINT = createHash('sha256')
   .digest('hex');
 export type ContextPlannerStrategyVersion =
   | typeof CONTEXT_PLANNER_STRATEGY_VERSION
+  | typeof EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION
+  | typeof ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_VERSION
   | typeof LAYERED_CONTEXT_PLANNER_STRATEGY_VERSION
   | typeof UNTRUSTED_CONTEXT_PLANNER_STRATEGY_VERSION
   | typeof SYSTEM_CONTEXT_PLANNER_STRATEGY_VERSION
@@ -412,19 +440,43 @@ function buildValidatedRollingSummary(
 
 function countRetainedTurnSuffix(
   turns: PromptMessage[],
-  rendered: PromptMessage[]
+  rendered: PromptMessage[],
+  retainEmptyUserTurns = false,
+  verifyPayload = false
 ) {
   let renderedIndex = rendered.length - 1;
   let retained = 0;
   for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
     const turn = turns[turnIndex];
+    if (
+      retainEmptyUserTurns &&
+      turn.role === 'user' &&
+      turn.content === '' &&
+      !turn.attachments?.length &&
+      !turn.streamObjects?.length &&
+      (!turn.params || Object.keys(turn.params).length === 0) &&
+      !turn.responseFormat
+    ) {
+      retained += 1;
+      continue;
+    }
     let found = false;
     while (renderedIndex >= 0) {
       const candidate = rendered[renderedIndex--];
       if (
         candidate.role === turn.role &&
         (candidate.content === turn.content ||
-          candidate.params?.content === turn.content)
+          candidate.params?.content === turn.content) &&
+        (!verifyPayload ||
+          ((!turn.attachments?.length ||
+            isDeepStrictEqual(candidate.attachments, turn.attachments)) &&
+            (!turn.streamObjects?.length ||
+              isDeepStrictEqual(candidate.streamObjects, turn.streamObjects)) &&
+            (!turn.responseFormat ||
+              isDeepStrictEqual(
+                candidate.responseFormat,
+                turn.responseFormat
+              ))))
       ) {
         found = true;
         break;
@@ -981,11 +1033,22 @@ export class ContextPlanner {
   ): ContextPlanResult {
     const activeRuleInstructions =
       strategyVersion !== LAYERED_CONTEXT_PLANNER_STRATEGY_VERSION;
-    const strategyFingerprint = activeRuleInstructions
-      ? CONTEXT_PLANNER_STRATEGY_FINGERPRINT
-      : LAYERED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT;
+    const strategyFingerprint =
+      strategyVersion === CONTEXT_PLANNER_STRATEGY_VERSION
+        ? CONTEXT_PLANNER_STRATEGY_FINGERPRINT
+        : strategyVersion === EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION
+          ? EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_FINGERPRINT
+          : activeRuleInstructions
+            ? ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_FINGERPRINT
+            : LAYERED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT;
     const firstRender = input.render(input.turns);
-    const firstRetained = countRetainedTurnSuffix(input.turns, firstRender);
+    const firstRetained = countRetainedTurnSuffix(
+      input.turns,
+      firstRender,
+      strategyVersion === CONTEXT_PLANNER_STRATEGY_VERSION ||
+        strategyVersion === EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION,
+      strategyVersion === CONTEXT_PLANNER_STRATEGY_VERSION
+    );
     let omittedCount = input.turns.length - firstRetained;
     let summary = buildValidatedRollingSummary(
       input.checkpoint,
@@ -1058,7 +1121,13 @@ export class ContextPlanner {
         : nextRendered;
       planningPasses += 1;
 
-      const retained = countRetainedTurnSuffix(input.turns, rendered);
+      const retained = countRetainedTurnSuffix(
+        input.turns,
+        rendered,
+        strategyVersion === CONTEXT_PLANNER_STRATEGY_VERSION ||
+          strategyVersion === EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION,
+        strategyVersion === CONTEXT_PLANNER_STRATEGY_VERSION
+      );
       const nextOmittedCount = input.turns.length - retained;
       if (nextOmittedCount <= omittedCount) break;
       const newlyOmittedTurns = input.turns.slice(

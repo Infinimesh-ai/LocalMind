@@ -294,6 +294,11 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
       if (!current)
         throw new DocNotFound({ spaceId: workspaceId, docId: workspaceId });
       const plan = build(current.bin);
+      if (
+        plan.legacyPagesMigration &&
+        pageTreeWriteContext.getStore() !== workspaceId
+      )
+        throw new Error('Legacy root pages require page tree migration');
       if (this.isEmptyBin(plan.update))
         return { update: plan.update, timestamp: current.timestamp };
       // A direct write never replaces an invalid bootstrap root silently.
@@ -317,6 +322,8 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     }
 
     const plan = build(current.bin);
+    if (plan.legacyPagesMigration)
+      throw new Error('Legacy root pages require page tree migration');
     if (this.isEmptyBin(plan.update)) {
       return { update: plan.update, timestamp: current.timestamp };
     }

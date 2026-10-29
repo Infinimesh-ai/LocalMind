@@ -1,0 +1,378 @@
+#[cfg(feature = "debug")]
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+
+use super::*;
+
+#[cfg(feature = "debug")]
+static CLOCK_LEN_CALLS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "debug")]
+static STRING_CLOCK_LEN_CALLS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "debug")]
+static STRING_BYTES_SCANNED: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(feature = "debug")]
+pub(crate) fn clock_len_counters() -> (u64, u64, u64) {
+  (
+    CLOCK_LEN_CALLS.load(AtomicOrdering::Relaxed),
+    STRING_CLOCK_LEN_CALLS.load(AtomicOrdering::Relaxed),
+    STRING_BYTES_SCANNED.load(AtomicOrdering::Relaxed),
+  )
+}
+
+#[cfg(feature = "debug")]
+pub(crate) fn reset_clock_len_counters() {
+  CLOCK_LEN_CALLS.store(0, AtomicOrdering::Relaxed);
+  STRING_CLOCK_LEN_CALLS.store(0, AtomicOrdering::Relaxed);
+  STRING_BYTES_SCANNED.store(0, AtomicOrdering::Relaxed);
+}
+
+#[derive(Clone)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
+pub(crate) enum Content {
+  Deleted(u64),
+  Json(Vec<Option<String>>),
+  Binary(Vec<u8>),
+  String(String),
+  #[cfg_attr(test, proptest(skip))]
+  Embed(Box<Any>),
+  #[cfg_attr(test, proptest(skip))]
+  Format {
+    key: String,
+    value: Box<Any>,
+  },
+  #[cfg_attr(test, proptest(skip))]
+  Type(YTypeRef),
+  Any(Vec<Any>),
+  Doc {
+    guid: String,
+    opts: Box<Any>,
+  },
+}
+
+unsafe impl Send for Content {}
+unsafe impl Sync for Content {}
+
+impl From<Any> for Content {
+  fn from(value: Any) -> Self {
+    match value {
+      Any::Undefined
+      | Any::Null
+      | Any::Integer(_)
+      | Any::Float32(_)
+      | Any::Float64(_)
+      | Any::BigInt64(_)
+      | Any::False
+      | Any::True
+      | Any::String(_)
+      | Any::Object(_) => Content::Any(vec![value; 1]),
+      Any::Array(v) => Content::Any(v),
+      Any::Binary(b) => Content::Binary(b),
+    }
+  }
+}
+
+impl PartialEq for Content {
+  fn eq(&self, other: &Self) -> bool {
+    match (self, other) {
+      (Self::Deleted(len1), Self::Deleted(len2)) => len1 == len2,
+      (Self::Json(vec1), Self::Json(vec2)) => vec1 == vec2,
+      (Self::Binary(vec1), Self::Binary(vec2)) => vec1 == vec2,
+      (Self::String(str1), Self::String(str2)) => str1 == str2,
+      (Self::Embed(json1), Self::Embed(json2)) => json1 == json2,
+      (
+        Self::Format {
+          key: key1,
+          value: value1,
+        },
+        Self::Format {
+          key: key2,
+          value: value2,
+        },
+      ) => key1 == key2 && value1 == value2,
+      (Self::Any(any1), Self::Any(any2)) => any1 == any2,
+      (Self::Doc { guid: guid1, .. }, Self::Doc { guid: guid2, .. }) => guid1 == guid2,
+      (Self::Type(ty1), Self::Type(ty2)) => ty1 == ty2,
+      _ => false,
+    }
+  }
+}
+
+impl std::fmt::Debug for Content {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Deleted(arg0) => f.debug_tuple("Deleted").field(arg0).finish(),
+      Self::Json(arg0) => f
+        .debug_tuple("JSON")
+        .field(&format!("Vec [len: {}]", arg0.len()))
+        .finish(),
+      Self::Binary(arg0) => f
+        .debug_tuple("Binary")
+        .field(&format!("Binary [len: {}]", arg0.len()))
+        .finish(),
+      Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+      Self::Embed(arg0) => f.debug_tuple("Embed").field(arg0).finish(),
+      Self::Format { key, value } => f
+        .debug_struct("Format")
+        .field("key", key)
+        .field("value", value)
+        .finish(),
+      Self::Type(arg0) => f.debug_tuple("Type").field(&arg0.ty().unwrap().kind()).finish(),
+      Self::Any(arg0) => f.debug_tuple("Any").field(arg0).finish(),
+      Self::Doc { guid, opts } => f.debug_struct("Doc").field("guid", guid).field("opts", opts).finish(),
+    }
+  }
+}
+
+impl Content {
+  pub(crate) fn get_info(&self) -> u8 {
+    match self {
+      Self::Deleted(_) => 1,
+      Self::Json(_) => 2,
+      Self::Binary(_) => 3,
+      Self::String(_) => 4,
+      Self::Embed(_) => 5,
+      Self::Format { .. } => 6,
+      Self::Type(_) => 7,
+      Self::Any(_) => 8,
+      Self::Doc { .. } => 9,
+    }
+  }
+
+  pub(crate) fn write<W: CrdtWriter>(&self, encoder: &mut W) -> JwstCodecResult {
+    match self {
+      Self::Deleted(len) => {
+        encoder.write_var_u64(*len)?;
+      }
+      Self::Json(strings) => {
+        encoder.write_var_u64(strings.len() as u64)?;
+        for string in strings {
+          match string {
+            Some(string) => encoder.write_var_string(string)?,
+            None => encoder.write_var_string("undefined")?,
+          }
+        }
+      }
+      Self::Binary(buffer) => {
+        encoder.write_var_buffer(buffer)?;
+      }
+      Self::String(string) => {
+        encoder.write_var_string(string)?;
+      }
+      Self::Embed(val) => {
+        encoder.write_var_string(serde_json::to_string(val).map_err(|_| JwstCodecError::DamagedDocumentJson)?)?;
+      }
+      Self::Format { key, value } => {
+        encoder.write_var_string(key)?;
+        encoder.write_var_string(serde_json::to_string(value).map_err(|_| JwstCodecError::DamagedDocumentJson)?)?;
+      }
+      Self::Type(ty) => {
+        let ty = ty.ty().ok_or(JwstCodecError::InvalidStructType("released y type"))?;
+        let type_ref = u64::from(ty.kind());
+        encoder.write_var_u64(type_ref)?;
+
+        if matches!(ty.kind(), YTypeKind::XMLElement | YTypeKind::XMLHook) {
+          encoder.write_var_string(ty.name.as_ref().unwrap())?;
+        }
+      }
+      Self::Any(any) => {
+        Any::write_multiple(encoder, any)?;
+      }
+      Self::Doc { guid, opts } => {
+        encoder.write_var_string(guid)?;
+        opts.write(encoder)?;
+      }
+    }
+    Ok(())
+  }
+
+  pub fn clock_len(&self) -> u64 {
+    #[cfg(feature = "debug")]
+    {
+      CLOCK_LEN_CALLS.fetch_add(1, AtomicOrdering::Relaxed);
+      if let Self::String(string) = self {
+        STRING_CLOCK_LEN_CALLS.fetch_add(1, AtomicOrdering::Relaxed);
+        STRING_BYTES_SCANNED.fetch_add(string.len() as u64, AtomicOrdering::Relaxed);
+      }
+    }
+    match self {
+      Self::Deleted(len) => *len,
+      Self::Json(strings) => strings.len() as u64,
+      // TODO: need a custom wrapper with length cached, this cost too much
+      Self::String(string) => string.chars().map(|c| c.len_utf16()).sum::<usize>() as u64,
+      Self::Any(any) => any.len() as u64,
+      Self::Binary(_) | Self::Embed(_) | Self::Format { .. } | Self::Type(_) | Self::Doc { .. } => 1,
+    }
+  }
+
+  pub fn countable(&self) -> bool {
+    !matches!(self, Content::Format { .. } | Content::Deleted(_))
+  }
+
+  #[allow(dead_code)]
+  pub fn splittable(&self) -> bool {
+    matches!(self, Self::String { .. } | Self::Any { .. } | Self::Json { .. })
+  }
+
+  pub fn split(&self, diff: u64) -> JwstCodecResult<(Self, Self)> {
+    match self {
+      Self::String(str) => {
+        let offset = utf16_offset_to_utf8(str, diff);
+        let (left, right) = str.split_at(offset);
+        Ok((Self::String(left.to_string()), Self::String(right.to_string())))
+      }
+      Self::Json(vec) => {
+        let (left, right) = vec.split_at(diff as usize);
+        Ok((Self::Json(left.to_owned()), Self::Json(right.to_owned())))
+      }
+      Self::Any(vec) => {
+        let (left, right) = vec.split_at(diff as usize);
+        Ok((Self::Any(left.to_owned()), Self::Any(right.to_owned())))
+      }
+      Self::Deleted(len) => {
+        let (left, right) = (diff, *len - diff);
+
+        Ok((Self::Deleted(left), Self::Deleted(right)))
+      }
+      _ => Err(JwstCodecError::ContentSplitNotSupport(diff)),
+    }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use proptest::{collection::vec, prelude::*};
+
+  use super::*;
+
+  fn content_round_trip(content: &Content) -> JwstCodecResult {
+    if content.clock_len() == 0 {
+      return Ok(());
+    }
+    let id = Id::new(1, 0);
+    let item = Item::new(
+      id,
+      content.clone(),
+      Somr::none(),
+      Somr::none(),
+      Some(Parent::String("root".into())),
+      None,
+    );
+    let mut update = Update::default();
+    update.structs.insert(1, [Node::from(item)].into());
+    let decoded = Update::decode_v1(update.encode_v1()?)?;
+    let decoded = match decoded.structs.get(&1).unwrap().front().unwrap() {
+      Node::Item(item) => item.get().unwrap().content.clone(),
+      _ => unreachable!(),
+    };
+    match (&decoded, content) {
+      (Content::Type(decoded_ty), Content::Type(original_ty)) => {
+        let decoded_ty = decoded_ty.ty().expect("decoded ytype must exist");
+        let original_ty = original_ty.ty().expect("original ytype must exist");
+        assert_eq!(decoded_ty.kind(), original_ty.kind());
+        assert_eq!(decoded_ty.name.as_deref(), original_ty.name.as_deref());
+      }
+      _ => assert_eq!(decoded, *content),
+    }
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_content() {
+    #[cfg(target_pointer_width = "64")]
+    assert_eq!(std::mem::size_of::<Content>(), 40);
+
+    loom_model!(64 << 10, {
+      let contents = [
+        Content::Deleted(42),
+        Content::Json(vec![None, Some("test_1".to_string()), Some("test_2".to_string())]),
+        Content::Binary(vec![1, 2, 3]),
+        Content::String("hello".to_string()),
+        Content::Embed(Box::new(Any::True)),
+        Content::Format {
+          key: "key".to_string(),
+          value: Box::new(Any::Integer(42)),
+        },
+        Content::Type(YTypeRef::new(YTypeKind::Array, None)),
+        Content::Type(YTypeRef::new(YTypeKind::Map, None)),
+        Content::Type(YTypeRef::new(YTypeKind::Text, None)),
+        Content::Type(YTypeRef::new(YTypeKind::XMLElement, Some("test".to_string()))),
+        Content::Type(YTypeRef::new(YTypeKind::XMLFragment, None)),
+        Content::Type(YTypeRef::new(YTypeKind::XMLHook, Some("test".to_string()))),
+        Content::Type(YTypeRef::new(YTypeKind::XMLText, None)),
+        Content::Any(vec![Any::BigInt64(42), Any::String("Test Any".to_string())]),
+        Content::Doc {
+          guid: "my_guid".to_string(),
+          opts: Box::new(Any::BigInt64(42)),
+        },
+      ];
+
+      for content in &contents {
+        content_round_trip(content).unwrap();
+      }
+    });
+  }
+
+  #[test]
+  fn test_content_split() {
+    let contents = [
+      Content::String("hello".to_string()),
+      Content::Json(vec![None, Some("test_1".to_string()), Some("test_2".to_string())]),
+      Content::Any(vec![Any::BigInt64(42), Any::String("Test Any".to_string())]),
+      Content::Binary(vec![]),
+    ];
+
+    {
+      let (left, right) = contents[0].split(1).unwrap();
+      assert!(contents[0].splittable());
+      assert_eq!(left, Content::String("h".to_string()));
+      assert_eq!(right, Content::String("ello".to_string()));
+    }
+
+    let item = Item::new(
+      Id::new(1, 0),
+      Content::String("a😀b".to_string()),
+      Somr::none(),
+      Somr::none(),
+      Some(Parent::String("text".into())),
+      None,
+    );
+    let (left, right) = item.split_at(3).unwrap();
+    assert_eq!((item.len(), left.len(), right.len()), (4, 3, 1));
+    assert_eq!(left.content, Content::String("a😀".to_string()));
+    assert_eq!(right.content, Content::String("b".to_string()));
+
+    {
+      let (left, right) = contents[1].split(1).unwrap();
+      assert!(contents[1].splittable());
+      assert_eq!(left, Content::Json(vec![None]));
+      assert_eq!(
+        right,
+        Content::Json(vec![Some("test_1".to_string()), Some("test_2".to_string())])
+      );
+    }
+
+    {
+      let (left, right) = contents[2].split(1).unwrap();
+      assert!(contents[2].splittable());
+      assert_eq!(left, Content::Any(vec![Any::BigInt64(42)]));
+      assert_eq!(right, Content::Any(vec![Any::String("Test Any".to_string())]));
+    }
+
+    {
+      assert!(!contents[3].splittable());
+      assert_eq!(contents[3].split(2), Err(JwstCodecError::ContentSplitNotSupport(2)));
+    }
+  }
+
+  proptest! {
+      #[test]
+      #[cfg_attr(miri, ignore)]
+      #[cfg_attr(loom, ignore)]
+      fn test_random_content(contents in vec(any::<Content>(), 0..10)) {
+          for content in &contents {
+              content_round_trip(content).unwrap();
+          }
+      }
+  }
+}

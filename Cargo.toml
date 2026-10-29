@@ -137,3 +137,4 @@ strip         = "symbols"
 affine_doc_loader = { path = "vendor/affine_doc_loader-0.1.4" }
 llm_adapter       = { path = "vendor/llm_adapter-0.2.11" }
 llm_runtime       = { path = "vendor/llm_runtime-0.2.7" }
+y-octo            = { path = "vendor/y-octo-0.1.0" }

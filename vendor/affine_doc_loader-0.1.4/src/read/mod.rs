@@ -649,6 +649,14 @@ fn collect_doc_ids<M: MapRead>(meta: M, include_trash: bool) -> Vec<String> {
             doc_ids.push(id);
           }
         }
+      } else if let Some(Any::Object(page)) = page_val.as_any_owned() {
+        let id = page.get("id").and_then(any_as_string);
+        let trash = page.get("trash").map(any_truthy).unwrap_or(false);
+        if let Some(id) = id
+          && (include_trash || !trash)
+        {
+          doc_ids.push(id.to_string());
+        }
       }
     }
     return doc_ids;

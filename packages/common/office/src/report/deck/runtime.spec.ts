@@ -115,6 +115,7 @@ it('preserves the first forward step when the chapter title is already visible',
 
 it('restores the title reveal after a chapter leaves and re-enters view', async () => {
   const section = document.querySelector('section')!;
+  const rect = section.getBoundingClientRect();
   const notify = (isIntersecting: boolean) =>
     intersectionCallbacks[1](
       [
@@ -122,8 +123,12 @@ it('restores the title reveal after a chapter leaves and re-enters view', async 
           target: section,
           isIntersecting,
           intersectionRatio: isIntersecting ? 1 : 0,
+          time: 0,
+          boundingClientRect: rect,
+          intersectionRect: rect,
+          rootBounds: null,
         },
-      ] as IntersectionObserverEntry[],
+      ],
       {} as IntersectionObserver
     );
   notify(true);

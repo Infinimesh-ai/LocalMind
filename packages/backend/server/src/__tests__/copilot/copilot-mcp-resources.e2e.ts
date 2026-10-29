@@ -160,6 +160,43 @@ test('discovery enables 13 explicit capabilities and leaves old defaults at thre
   );
 });
 
+test('code blocks survive direct creation, versioned update and replay', async t => {
+  const initial = 'Before\n\n```ts\nconst a = 1;\n\n```\n';
+  const result = await create(t.context, {
+    content: { format: 'markdown', text: initial },
+    idempotencyKey: 'code-create',
+  });
+  if (result.toolName !== 'workspace_doc_create')
+    return t.fail('wrong receipt');
+  const before = await call(t.context, 'workspace_doc_read', {
+    documentId: result.documentId,
+  });
+  if (!('content' in before)) return t.fail('missing content');
+  t.true(before.contentWritable);
+  t.true(before.content.text.includes('const a = 1;\n\n```'));
+  const args = {
+    documentId: result.documentId,
+    expectedVersion: result.version,
+    content: { format: 'markdown', text: `${before.content.text}\nAfter\n` },
+    idempotencyKey: 'code-update',
+  };
+  const updated = RESOURCE_RECEIPT_SCHEMA.parse(
+    await call(t.context, 'workspace_doc_update', args)
+  );
+  const replay = RESOURCE_RECEIPT_SCHEMA.parse(
+    await call(t.context, 'workspace_doc_update', args)
+  );
+  t.true(replay.replayed);
+  t.is(replay.operationId, updated.operationId);
+  const after = await call(t.context, 'workspace_doc_read', {
+    documentId: result.documentId,
+  });
+  if (!('content' in after)) return t.fail('missing updated content');
+  t.true(after.contentWritable);
+  t.true(after.content.text.includes('const a = 1;\n\n```'));
+  t.true(after.content.text.includes('After'));
+});
+
 test('create, read, update, replay and query persist without AI lifecycle', async t => {
   const { db } = t.context;
   const result = await create(t.context, {

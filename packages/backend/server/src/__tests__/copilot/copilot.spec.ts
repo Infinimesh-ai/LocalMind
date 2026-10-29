@@ -10,11 +10,12 @@ import Sinon from 'sinon';
 import { z } from 'zod';
 
 import {
+  CopilotByokNotConfigured,
+  CopilotInvalidContext,
   EventBus,
   JOB_SIGNAL,
   JobQueue,
   RequestMutex,
-  SpaceAccessDenied,
 } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { AuthService } from '../../core/auth';
@@ -73,7 +74,6 @@ import { ConversationHost } from '../../plugins/copilot/runtime/hosts/conversati
 import { ImageResultHost } from '../../plugins/copilot/runtime/hosts/image-result-host';
 import { ModelSelectionPolicy } from '../../plugins/copilot/runtime/model-selection-policy';
 import { PromptRuntime } from '../../plugins/copilot/runtime/prompt-runtime';
-import { getProviderRuntimeHost } from '../../plugins/copilot/runtime/provider-runtime-context';
 import { TaskPolicy } from '../../plugins/copilot/runtime/task-policy';
 import { executeToolCall } from '../../plugins/copilot/runtime/tool/bridge';
 import { TurnOrchestrator } from '../../plugins/copilot/runtime/turn-orchestrator';
@@ -1044,6 +1044,7 @@ test('should reject context file uploads after workspace write access is revoked
     pinned: false,
   });
   const contextSession = await context.create(sessionId);
+  t.truthy(await context.getOwnedContext(member.id, contextSession.id));
   await models.workspaceUser.set(ws.id, member.id, WorkspaceRole.External);
 
   Sinon.stub(context, 'canEmbedding').get(() => true);
@@ -1069,7 +1070,7 @@ test('should reject context file uploads after workspace write access is revoked
       } as any
     ),
     {
-      instanceOf: SpaceAccessDenied,
+      instanceOf: CopilotInvalidContext,
     }
   );
 
@@ -2821,28 +2822,28 @@ test('should be able to fork chat session', async t => {
     buildTurn(sessionId, {
       role: 'user',
       content: 'hello',
-      createdAt: new Date(),
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
     })
   );
   s.pushTurn(
     buildTurn(sessionId, {
       role: 'assistant',
       content: 'world',
-      createdAt: new Date(),
+      createdAt: new Date('2025-01-01T00:00:01.000Z'),
     })
   );
   s.pushTurn(
     buildTurn(sessionId, {
       role: 'user',
       content: 'aaa',
-      createdAt: new Date(),
+      createdAt: new Date('2025-01-01T00:00:02.000Z'),
     })
   );
   s.pushTurn(
     buildTurn(sessionId, {
       role: 'assistant',
       content: 'bbb',
-      createdAt: new Date(),
+      createdAt: new Date('2025-01-01T00:00:03.000Z'),
     })
   );
   await s.save();
@@ -3201,7 +3202,7 @@ test('should revert message correctly', async t => {
       buildTurn(sessionId, {
         role: 'user',
         content: '1',
-        createdAt: new Date(),
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
       })
     );
     await s.save();
@@ -3214,21 +3215,21 @@ test('should revert message correctly', async t => {
       buildTurn(sessionId, {
         role: 'assistant',
         content: '2',
-        createdAt: new Date(),
+        createdAt: new Date('2025-01-01T00:00:01.000Z'),
       })
     );
     s.pushTurn(
       buildTurn(sessionId, {
         role: 'user',
         content: '3',
-        createdAt: new Date(),
+        createdAt: new Date('2025-01-01T00:00:02.000Z'),
       })
     );
     s.pushTurn(
       buildTurn(sessionId, {
         role: 'assistant',
         content: '4',
-        createdAt: new Date(),
+        createdAt: new Date('2025-01-01T00:00:03.000Z'),
       })
     );
     await s.save();
@@ -3347,86 +3348,23 @@ test('should handle params correctly in chat session', async t => {
 
 // ==================== provider ====================
 
-test('should be able to get provider', async t => {
+test('legacy provider lookups fail closed without an authorized BYOK route', async t => {
   const { factory } = t.context;
-
-  {
-    const p = await factory.getProvider({ outputType: ModelOutputType.Text });
-    t.is(
-      p?.type.toString(),
-      'openai',
-      'should get provider support text-to-text'
-    );
-  }
-
-  {
-    const p = await factory.getProvider({
-      outputType: ModelOutputType.Image,
-      inputTypes: [ModelInputType.Image],
-      modelId: 'lora/image-to-image',
-    });
-    t.is(
-      p?.type.toString(),
-      'fal',
-      'should get provider supporting image output'
-    );
-  }
-
-  {
-    const p = await factory.getProvider(
-      {
-        outputType: ModelOutputType.Image,
-        inputTypes: [ModelInputType.Image],
-      },
-      { prefer: CopilotProviderType.FAL }
-    );
-    t.is(
-      p?.type.toString(),
-      'fal',
-      'should get provider supporting text output with image input'
-    );
-  }
-
-  // if a model is not defined and not available in online api
-  // it should return null
-  {
-    const p = await factory.getProvider({
-      outputType: ModelOutputType.Text,
-      inputTypes: [ModelInputType.Text],
-      modelId: 'gpt-4-not-exist',
-    });
-    t.falsy(p, 'should not get provider');
-  }
-});
-
-test('should resolve provider by prefixed model id', async t => {
-  const { factory } = t.context;
-
-  const resolved = await factory.resolveProvider({
-    modelId: 'openai-default/test',
-    outputType: ModelOutputType.Text,
-  });
-  t.truthy(resolved, 'should resolve prefixed model id');
-  if (!resolved) {
-    throw new Error('should resolve prefixed model id');
-  }
-
-  t.is(resolved.provider.type, CopilotProviderType.OpenAI);
-
-  const result = await getProviderRuntimeHost(resolved.provider).run.text(
-    { modelId: resolved.modelId },
-    [{ role: 'user', content: 'hello' }],
-    undefined,
-    resolved.execution
+  await t.throwsAsync(
+    () => factory.getProvider({ outputType: ModelOutputType.Text }),
+    { instanceOf: CopilotByokNotConfigured }
   );
-  t.is(result, 'generate text to text');
-});
-
-test('should fallback to null when prefixed provider id does not exist', async t => {
-  const { factory } = t.context;
-
-  const provider = await factory.getProviderByModel('unknown/test');
-  t.is(provider, null);
+  await t.throwsAsync(
+    () =>
+      factory.resolveProvider({
+        modelId: 'openai-default/test',
+        outputType: ModelOutputType.Text,
+      }),
+    { instanceOf: CopilotByokNotConfigured }
+  );
+  await t.throwsAsync(() => factory.getProviderByModel('unknown/test'), {
+    instanceOf: CopilotByokNotConfigured,
+  });
 });
 
 // ==================== action runtime ====================
@@ -4170,8 +4108,16 @@ test('should backfill pending chunks with 4096-dimensional vectors', async t => 
 });
 
 test('should be able to manage workspace embedding', async t => {
-  const { db, jobs, workspace, workspaceEmbedding, context, prompt, session } =
-    t.context;
+  const {
+    db,
+    jobs,
+    workspace,
+    workspaceEmbedding,
+    context,
+    prompt,
+    session,
+    module,
+  } = t.context;
 
   // use mocked embedding client
   Sinon.stub(context, 'embeddingClient').get(() => new MockEmbeddingClient());
@@ -4201,22 +4147,13 @@ test('should be able to manage workspace embedding', async t => {
       fileId: file.fileId,
       fileName: file.fileName,
     });
-    await jobs.embedPendingFile({
-      userId,
-      workspaceId: ws.id,
-      contextId: undefined,
-      blobId,
-      fileId: file.fileId,
-      fileName: file.fileName,
-    });
-
-    let ret = 0;
-    while (!ret) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      ret = await db.aiWorkspaceFileEmbedding.count({
+    const { payload } = await module.queue.waitFor('copilot.embedding.files');
+    await jobs.embedPendingFile(payload);
+    t.true(
+      (await db.aiWorkspaceFileEmbedding.count({
         where: { workspaceId: ws.id, fileId: file.fileId },
-      });
-    }
+      })) > 0
+    );
   }
 
   // should create workspace embedding with file
@@ -4282,7 +4219,7 @@ test('should handle generateSessionTitle correctly under various conditions', as
           buildTurn(sessionId, {
             role: 'user',
             content: options.userMessage,
-            createdAt: new Date(),
+            createdAt: new Date('2025-01-01T00:00:00.000Z'),
           })
         );
       }
@@ -4291,7 +4228,7 @@ test('should handle generateSessionTitle correctly under various conditions', as
           buildTurn(sessionId, {
             role: 'assistant',
             content: options.assistantMessage,
-            createdAt: new Date(),
+            createdAt: new Date('2025-01-01T00:00:01.000Z'),
           })
         );
       }
@@ -4405,6 +4342,15 @@ test('should handle generateSessionTitle correctly under various conditions', as
     });
 
     await session.generateSessionTitle({ sessionId });
+
+    const metadata = await t.context.db.aiSession.findUniqueOrThrow({
+      where: { id: sessionId },
+      select: { titleSource: true, titleGenerationStatus: true },
+    });
+    t.deepEqual(metadata, {
+      titleSource: 'auto',
+      titleGenerationStatus: 'complete',
+    });
 
     t.snapshot(
       {
@@ -4862,7 +4808,7 @@ test('capability policy host should select image routes with image output type',
 });
 
 test('capability policy host should gate pro model requests by subscription status', async t => {
-  const { quotaState, subscription, module } = t.context;
+  const { quotaState, subscription, module, factory } = t.context;
   const capabilityPolicy = module.get(CapabilityPolicyHost);
   const defaultModel = 'gpt-5.6-luna';
   const proModel = 'gpt-5.6-terra';
@@ -4870,8 +4816,17 @@ test('capability policy host should gate pro model requests by subscription stat
   const optionalModels = [defaultModel, proModel, 'claude-sonnet-4-6'];
   const proModels = [proModel, 'claude-sonnet-4-6'];
 
+  const installRoutes = () => {
+    Sinon.stub(factory, 'getEffectiveModelSelectionScope').resolves({
+      providerIds: ['openai-default'],
+      configuredModelIds: [],
+    });
+    Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
+  };
+  installRoutes();
   const mockStatus = (status?: SubscriptionStatus) => {
     Sinon.restore();
+    installRoutes();
     Sinon.stub(subscription, 'select').callsFake(() => ({
       // @ts-expect-error mock
       getSubscription: async () => (status ? { status } : null),
@@ -5035,7 +4990,13 @@ test('capability policy host should gate pro model requests by subscription stat
 });
 
 test('prompt runtime should resolve prefixed optional models consistently', async t => {
-  const { prompt, promptRuntime, chatRuntime } = t.context;
+  const { prompt, promptRuntime, chatRuntime, factory } = t.context;
+  Sinon.stub(factory, 'getEffectiveModelSelectionScope').resolves({
+    providerIds: ['openai-default'],
+    configuredModelIds: [],
+  });
+  Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
+  Sinon.stub(factory, 'resolveModelContextWindow').resolves(undefined);
 
   const promptName = randomUUID().replaceAll('-', '');
   await prompt.set(
@@ -5072,7 +5033,9 @@ test('prompt runtime should resolve prefixed optional models consistently', asyn
 });
 
 test('prompt runtime should resolve models with action route context', async t => {
-  const { prompt, promptRuntime, chatRuntime, factory } = t.context;
+  const { prompt, promptRuntime, chatRuntime, factory, workspace, session } =
+    t.context;
+  Sinon.stub(factory, 'resolveModelContextWindow').resolves(undefined);
 
   const promptName = randomUUID().replaceAll('-', '');
   await prompt.set(
@@ -5083,11 +5046,20 @@ test('prompt runtime should resolve models with action route context', async t =
     { optionalModels: ['gemini-default', 'local/office-fast'] }
   );
 
+  const ws = await workspace.create(userId);
+  const sessionId = await session.create({
+    userId,
+    workspaceId: ws.id,
+    docId: 'test-doc',
+    promptName,
+    pinned: false,
+  });
+
   const resolveModelId = Sinon.stub(factory, 'resolveModelId').callsFake(
     async (cond, _filter, context) => {
       if (
         cond.modelId === 'gemini-default' &&
-        context?.workspaceId === 'workspace-1' &&
+        context?.workspaceId === ws.id &&
         context.featureKind === 'action'
       ) {
         return undefined;
@@ -5096,7 +5068,7 @@ test('prompt runtime should resolve models with action route context', async t =
       if (
         !cond.modelId &&
         cond.outputType === ModelOutputType.Text &&
-        context?.workspaceId === 'workspace-1' &&
+        context?.workspaceId === ws.id &&
         context.featureKind === 'action'
       ) {
         return 'local/office-fast';
@@ -5113,8 +5085,8 @@ test('prompt runtime should resolve models with action route context', async t =
     {
       providerOptions: {
         user: userId,
-        workspace: 'workspace-1',
-        session: 'session-1',
+        workspace: ws.id,
+        session: sessionId,
         byokLeaseId: 'lease-1',
         quotaBackedRoutesAllowed: false,
       },
@@ -5124,8 +5096,8 @@ test('prompt runtime should resolve models with action route context', async t =
   t.is(textStub.firstCall.args[0].modelId, 'local/office-fast');
   t.like(textStub.firstCall.args[2], {
     user: userId,
-    workspace: 'workspace-1',
-    session: 'session-1',
+    workspace: ws.id,
+    session: sessionId,
     byokLeaseId: 'lease-1',
     quotaBackedRoutesAllowed: false,
     featureKind: 'action',
@@ -5135,7 +5107,7 @@ test('prompt runtime should resolve models with action route context', async t =
       const [cond, , context] = call.args;
       return (
         cond.modelId === 'gemini-default' &&
-        context?.workspaceId === 'workspace-1' &&
+        context?.workspaceId === ws.id &&
         context.featureKind === 'action' &&
         context.byokLeaseId === 'lease-1' &&
         context.quotaBackedRoutesAllowed === false
@@ -5428,7 +5400,8 @@ test('prompt runtime should keep explicit route feature context', async t => {
 });
 
 test('prompt runtime should cap appended prompt session by selected model context window', async t => {
-  const { prompt, promptRuntime, chatRuntime, factory } = t.context;
+  const { prompt, promptRuntime, chatRuntime, factory, workspace, session } =
+    t.context;
 
   const promptName = randomUUID().replaceAll('-', '');
   await prompt.set(
@@ -5440,6 +5413,15 @@ test('prompt runtime should cap appended prompt session by selected model contex
   );
 
   Sinon.stub(factory, 'resolveModelId').callsFake(async cond => cond.modelId);
+  const ws = await workspace.create(userId);
+  const sessionId = await session.create({
+    userId,
+    workspaceId: ws.id,
+    docId: 'test-doc',
+    promptName,
+    pinned: false,
+  });
+
   Sinon.stub(factory, 'resolveModelContextWindow').resolves(4096);
   const renderSession = Sinon.stub(prompt, 'renderSession').returns([
     { role: 'system', content: 'summary' },
@@ -5453,8 +5435,9 @@ test('prompt runtime should cap appended prompt session by selected model contex
     {
       appendMessages: [{ role: 'user', content: 'recent turn' }],
       providerOptions: {
-        session: 'session-1',
-        workspace: 'workspace-1',
+        user: userId,
+        session: sessionId,
+        workspace: ws.id,
       },
     }
   );
@@ -5465,7 +5448,7 @@ test('prompt runtime should cap appended prompt session by selected model contex
     [{ role: 'user', content: 'recent turn' }],
     {},
     4096,
-    'session-1'
+    sessionId
   );
   t.deepEqual(textStub.firstCall.args[1], [
     { role: 'system', content: 'summary' },

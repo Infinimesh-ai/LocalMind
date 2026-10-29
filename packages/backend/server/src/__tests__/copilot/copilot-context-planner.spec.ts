@@ -25,12 +25,16 @@ import {
   validateContextCompactionSummary,
 } from '../../plugins/copilot/runtime/context-compaction';
 import {
+  ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+  ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_VERSION,
   CANDIDATE_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   CANDIDATE_CONTEXT_PLANNER_STRATEGY_VERSION,
   CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   CONTEXT_PLANNER_STRATEGY_VERSION,
   ContextCompactionUnavailableError,
   ContextPlanner,
+  EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+  EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION,
   LAYERED_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
   LAYERED_CONTEXT_PLANNER_STRATEGY_VERSION,
   LEGACY_CONTEXT_PLANNER_STRATEGY_VERSION,
@@ -47,6 +51,74 @@ const message = (
   role: PromptMessage['role'],
   content: string
 ): PromptMessage => ({ role, content });
+
+test('v9 keeps payload-free empty user turns without hiding omitted attachments', t => {
+  const planner = new ContextPlanner();
+  const render = () => [message('system', 'Base policy')];
+  const empty = { turns: [message('user', '')], render };
+  const result = planner.plan(empty);
+  t.is(result.diagnostics.omittedMessageCount, 0);
+  t.throws(
+    () => planner.plan(empty, ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_VERSION),
+    {
+      instanceOf: ContextCompactionUnavailableError,
+    }
+  );
+  const legacy = planner.plan(
+    {
+      turns: [
+        {
+          role: 'user',
+          content: '',
+          attachments: ['https://example.com/a.png'],
+        },
+      ],
+      render: () => [message('user', '')],
+    },
+    EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_VERSION
+  );
+  t.is(legacy.diagnostics.omittedMessageCount, 0);
+  t.is(
+    EMPTY_TURN_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+    '98b3cc9f300b0b24ffb242a757e6d2420408997aa98717115b2c6c9bd259f197'
+  );
+  t.throws(
+    () =>
+      planner.plan({
+        turns: [
+          {
+            role: 'user',
+            content: '',
+            attachments: ['https://example.com/a.png'],
+          },
+        ],
+        render,
+      }),
+    { instanceOf: ContextCompactionUnavailableError }
+  );
+  t.throws(
+    () =>
+      planner.plan({
+        turns: [
+          {
+            role: 'user',
+            content: '',
+            attachments: ['https://example.com/a.png'],
+          },
+        ],
+        render: () => [message('user', '')],
+      }),
+    { instanceOf: ContextCompactionUnavailableError }
+  );
+  t.not(
+    CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+    ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_FINGERPRINT
+  );
+  t.is(
+    ACTIVE_RULE_CONTEXT_PLANNER_STRATEGY_FINGERPRINT,
+    'b2ba889f2e55d9e904e69594fa5a0622e846daba338ed114ae897619a681fac6'
+  );
+});
 
 test('memory failures expose only a bounded rejection category', t => {
   t.is(

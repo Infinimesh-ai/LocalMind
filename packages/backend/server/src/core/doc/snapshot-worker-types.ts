@@ -1,6 +1,6 @@
 export type SnapshotView = {
   maps: Record<string, Record<string, unknown>>;
-  pagesKind: 'absent' | 'array' | 'invalid';
+  pagesKind: 'absent' | 'array' | 'legacy-array' | 'invalid';
   legacyPagePropertiesIsMap: boolean;
 };
 

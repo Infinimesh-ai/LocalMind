@@ -1994,7 +1994,7 @@ export class CopilotSessionModel extends BaseModel {
         titleSource: 'pending',
         titleGenerationStatus: { in: ['pending', 'failed'] },
       },
-      data: { titleGenerationStatus: 'generating' },
+      data: { titleGenerationStatus: 'running' },
     });
     if (claimed.count !== 1) return null;
     return await this.db.aiSession.findUnique({
@@ -2017,12 +2017,12 @@ export class CopilotSessionModel extends BaseModel {
         deletedAt: null,
         title: null,
         titleSource: 'pending',
-        titleGenerationStatus: 'generating',
+        titleGenerationStatus: 'running',
         titleRevision: input.expectedRevision,
       },
       data: {
         title,
-        titleSource: 'generated',
+        titleSource: 'auto',
         titleGenerationStatus: 'complete',
         titleRevision: { increment: 1 },
       },
@@ -2038,7 +2038,7 @@ export class CopilotSessionModel extends BaseModel {
         deletedAt: null,
         title: null,
         titleSource: 'pending',
-        titleGenerationStatus: 'generating',
+        titleGenerationStatus: 'running',
         titleRevision: expectedRevision,
       },
       data: { titleGenerationStatus: 'failed' },

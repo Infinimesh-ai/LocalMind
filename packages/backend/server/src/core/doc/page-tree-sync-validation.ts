@@ -24,10 +24,13 @@ export async function validatePageTreeSyncSnapshots(input: {
       if (stored) Y.applyUpdate(root, stored.bin);
       const pages = root.getMap('meta').get('pages');
       const page =
-        pages instanceof Y.Array
-          ? (pages.toJSON() as { id: string; trash?: boolean }[]).find(
-              page => page.id === docId
-            )
+        pages instanceof Y.Array || Array.isArray(pages)
+          ? (
+              (pages instanceof Y.Array ? pages.toJSON() : pages) as {
+                id: string;
+                trash?: boolean;
+              }[]
+            ).find(page => page.id === docId)
           : undefined;
       if (!page || page.trash)
         throw new BadRequest('page_tree_resource_unavailable');
@@ -37,17 +40,41 @@ export async function validatePageTreeSyncSnapshots(input: {
     return;
   }
   const stored = await input.read(docId);
-  const before = new Y.Doc(),
-    after = new Y.Doc();
+  const before = new Y.Doc({ gc: false }),
+    after = new Y.Doc({ gc: false });
   const extra: Y.Doc[] = [];
   try {
+    // Materialize the shared map before applying updates so Item.parent has
+    // the same identity when checking even a losing map-key conflict.
+    if (docId === workspaceId) {
+      before.getMap('meta');
+      after.getMap('meta');
+    }
     if (stored) {
       Y.applyUpdate(before, stored.bin);
       Y.applyUpdate(after, stored.bin);
     }
+    const known = Y.decodeStateVector(Y.encodeStateVector(before));
     for (const update of input.updates) Y.applyUpdate(after, update);
     if (after.store.pendingStructs || after.store.pendingDs)
       throw new BadRequest('page_tree_incomplete_sync');
+    if (docId === workspaceId && stored) {
+      // A stale client can replace the old scalar pages value after migration.
+      // Even a losing Y.Map conflict must be rejected: silently accepting it
+      // would acknowledge metadata that never became visible.
+      for (const update of input.updates) {
+        for (const struct of Y.decodeUpdate(update).structs) {
+          if (!(struct instanceof Y.Item)) continue;
+          if (struct.id.clock < (known.get(struct.id.client) ?? 0)) continue;
+          const item = Y.getItem(after.store, struct.id);
+          if (
+            item.parent === after.getMap('meta') &&
+            item.parentSub === 'pages'
+          )
+            throw new BadRequest('page_tree_protocol_retired');
+        }
+      }
+    }
     const load = async (id: string) => {
       const record = await input.read(id),
         doc = new Y.Doc();
@@ -58,10 +85,10 @@ export async function validatePageTreeSyncSnapshots(input: {
     if (docId === workspaceId) {
       const lifecycle = (doc: Y.Doc) => {
         const pages = doc.getMap('meta').get('pages');
-        if (!(pages instanceof Y.Array))
+        if (!(pages instanceof Y.Array) && !Array.isArray(pages))
           throw new BadRequest('Invalid Workspace pages');
         return (
-          pages.toJSON() as {
+          (pages instanceof Y.Array ? pages.toJSON() : pages) as {
             id: string;
             trash?: boolean;
             $localmindTrashClaims?: string[];

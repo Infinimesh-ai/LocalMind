@@ -45,11 +45,18 @@ impl<'a> MarkdownWriter<'a> {
   }
 
   pub(crate) fn push_code_block(&mut self, lang: &str, text: &str) {
-    self.output.push_str("```");
+    // A fence longer than every backtick run in the body cannot close early.
+    let fence_length = text.split(|ch| ch != '`').map(str::len).max().unwrap_or(0).max(2) + 1;
+    let fence = "`".repeat(fence_length);
+    self.output.push_str(&fence);
     self.output.push_str(lang);
     self.output.push('\n');
     self.output.push_str(text);
-    self.output.push_str("\n```\n\n");
+    if !text.is_empty() && !text.ends_with('\n') {
+      self.output.push('\n');
+    }
+    self.output.push_str(&fence);
+    self.output.push_str("\n\n");
   }
 
   pub(crate) fn push_divider(&mut self) {

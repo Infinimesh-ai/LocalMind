@@ -1,6 +1,7 @@
 import test from 'ava';
 import * as Y from 'yjs';
 
+import { prepareRootDocRegistration } from '../../core/doc/root-doc-registration';
 import { SnapshotParser } from '../../core/doc/snapshot-parser';
 import {
   parsePageDoc,
@@ -10,6 +11,73 @@ import {
 
 const parser = new SnapshotParser();
 test.after.always(async () => parser.close());
+
+test.serial(
+  'legacy array migration preserves data and rejects stale replacements',
+  async t => {
+    const parser = new SnapshotParser();
+    const root = new Y.Doc({ gc: false });
+    const migrated = new Y.Doc();
+    try {
+      root.getMap('meta').set('pages', [{ id: 'page', extra: { x: [1, 2] } }]);
+      const original = Y.encodeStateAsUpdate(root);
+      const decoded = await parser.decode('legacy-root', original);
+      t.is(decoded.pagesKind, 'legacy-array');
+      Y.applyUpdate(migrated, original);
+      const plan = prepareRootDocRegistration(original, 'new', 'New');
+      Y.applyUpdate(migrated, plan.update);
+      const stored = Y.encodeStateAsUpdate(migrated);
+      for (const clientID of [1, Number.MAX_SAFE_INTEGER - 1]) {
+        const stale = new Y.Doc({ gc: false });
+        try {
+          stale.clientID = clientID;
+          Y.applyUpdate(stale, original);
+          const vector = Y.encodeStateVector(stale);
+          stale.getMap('meta').set('pages', [{ id: 'page', extra: 'offline' }]);
+          const update = Y.encodeStateAsUpdate(stale, vector);
+          await t.throwsAsync(
+            parser.validate({
+              workspaceId: 'workspace',
+              docId: 'workspace',
+              snapshots: { workspace: stored },
+              updates: [update],
+            }),
+            { message: 'page_tree_protocol_retired' }
+          );
+        } finally {
+          stale.destroy();
+        }
+      }
+      await parser.validate({
+        workspaceId: 'workspace',
+        docId: 'workspace',
+        snapshots: { workspace: stored },
+        updates: [plan.update],
+      });
+      const live = new Y.Doc();
+      try {
+        Y.applyUpdate(live, stored);
+        const vector = Y.encodeStateVector(live);
+        const pages = live.getMap('meta').get('pages') as Y.Array<
+          Y.Map<unknown>
+        >;
+        pages.get(0).set('title', 'edited after migration');
+        await parser.validate({
+          workspaceId: 'workspace',
+          docId: 'workspace',
+          snapshots: { workspace: stored },
+          updates: [Y.encodeStateAsUpdate(live, vector)],
+        });
+      } finally {
+        live.destroy();
+      }
+    } finally {
+      root.destroy();
+      migrated.destroy();
+      await parser.close();
+    }
+  }
+);
 
 function root() {
   const doc = new Y.Doc();
@@ -137,7 +205,7 @@ test.serial(
   'distinguishes malformed lifecycle arrays from a valid Y.Array',
   async t => {
     const doc = new Y.Doc();
-    doc.getMap('meta').set('pages', [{ id: 'page' }]);
+    doc.getMap('meta').set('pages', { id: 'page' });
     const decoded = await parser.decode('invalid', Y.encodeStateAsUpdate(doc));
     t.is(decoded.pagesKind, 'invalid');
     doc.destroy();
