@@ -26889,6 +26889,24 @@ export function useAFFiNEI18N(): {
         readonly count: string;
     }): string;
     /**
+      * `Test connection and load models`
+      */
+    ["com.affine.admin.workspace-byok-test-catalog"](): string;
+    /**
+      * `The connection is unchanged. You can save without testing again.`
+      */
+    ["com.affine.admin.workspace-byok-metadata-only"](): string;
+    /**
+      * `Verifying and saving…`
+      */
+    ["com.affine.admin.workspace-byok-verifying-saving"](): string;
+    /**
+      * `Credential saved, but verification failed. Check its status before retrying. {{reason}}`
+      */
+    ["com.affine.admin.workspace-byok-saved-verification-failed"](options: {
+        readonly reason: string;
+    }): string;
+    /**
       * `Indexing service is unavailable. Check the provider configuration.`
       */
     ["com.affine.embedding.unavailable"](): string;

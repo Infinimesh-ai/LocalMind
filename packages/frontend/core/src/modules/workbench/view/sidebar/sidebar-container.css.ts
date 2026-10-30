@@ -2,6 +2,8 @@ import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
+import { localmindShell } from '../../../../components/localmind-theme/shell';
+
 export const sidebarContainerInner = style({
   display: 'flex',
   background: cssVar('backgroundPrimaryColor'),
@@ -33,6 +35,11 @@ export const sidebarBodyTarget = style({
 
 export const borderTop = style({
   borderTop: `0.5px solid ${cssVarV2.layer.insideBorder.border}`,
+  selectors: {
+    [`${localmindShell} &`]: {
+      borderTop: 0,
+    },
+  },
 });
 
 export const sidebarBodyNoSelection = style({

@@ -164,6 +164,8 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     null
   );
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [editingOriginal, setEditingOriginal] =
+    useState<WorkspaceByokKey | null>(null);
   const [pendingAction, setPendingAction] = useState<'test' | 'save' | null>(
     null
   );
@@ -198,13 +200,25 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
       key.provider === draft.provider &&
       key.name === draft.name.trim()
   );
+  // A metadata-only edit preserves the existing credential and its validation.
+  // Compare against the revision originally opened, not a later query refresh.
+  const metadataOnly = Boolean(
+    editingOriginal &&
+    editingOriginal.id === draft.id &&
+    editingOriginal.configured &&
+    draft.apiKey.trim() === '' &&
+    draft.provider === editingOriginal.provider &&
+    draft.endpoint.trim() === (editingOriginal.endpoint ?? '') &&
+    draft.modelId === (editingOriginal.modelId ?? '') &&
+    draft.apiStyle === (editingOriginal.apiStyle ?? 'responses') &&
+    draft.enabled === editingOriginal.enabled
+  );
   const canSave =
     !duplicateName &&
     settings.serverEntitled &&
     Boolean(draft.name.trim()) &&
-    availableModels.includes(draft.modelId) &&
+    (metadataOnly || (isTested && availableModels.includes(draft.modelId))) &&
     Boolean(draft.id || draft.apiKey.trim()) &&
-    isTested &&
     !busy;
 
   const resetDraft = (
@@ -216,6 +230,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     setTestedFingerprint(null);
     setAvailableModels([]);
     setFormError(null);
+    setEditingOriginal(null);
   };
 
   const testInput = (modelId: string | null) => ({
@@ -288,10 +303,12 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
     setFormError(null);
     let saved = false;
     try {
-      const result = await testConfig({ input: testInput(draft.modelId) });
-      if (!result.testWorkspaceByokConfig.ok) {
-        setFormError(formatByokError(result.testWorkspaceByokConfig.message));
-        return;
+      if (!metadataOnly) {
+        const result = await testConfig({ input: testInput(draft.modelId) });
+        if (!result.testWorkspaceByokConfig.ok) {
+          setFormError(formatByokError(result.testWorkspaceByokConfig.message));
+          return;
+        }
       }
       const persisted = await upsertConfig({
         input: {
@@ -317,7 +334,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
       // Draft probes cannot change persisted validation state. Verify the exact
       // saved revision without draft overrides before reporting it as ready.
       let verificationError: string | null = null;
-      if (draft.enabled) {
+      if (draft.enabled && !metadataOnly) {
         try {
           const verified = await testConfig({
             input: {
@@ -348,11 +365,16 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
       const savedMessage =
         i18n['com.affine.admin.workspace-ai-credential-saved']();
       if (verificationError) {
-        setFormError(`${savedMessage} ${verificationError}`);
+        setFormError(
+          i18n['com.affine.admin.workspace-byok-saved-verification-failed']({
+            reason: verificationError,
+          })
+        );
       } else {
         toast.success(savedMessage);
       }
     } catch (saveError) {
+      if (saved) setDraft(current => ({ ...current, apiKey: '' }));
       setFormError(
         saved
           ? i18n['com.affine.admin.byok-saved-refresh-failed']()
@@ -578,6 +600,7 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
                         disabled={busy}
                         onClick={() => {
                           setDraft(keyDraft(key));
+                          setEditingOriginal(key);
                           setTestedFingerprint(null);
                           setAvailableModels([]);
                           setFormError(null);
@@ -859,15 +882,23 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span role="status" className="text-xs text-muted-foreground">
-                {pendingAction === 'test'
-                  ? i18n['com.affine.admin.testing']()
-                  : isValidating
-                    ? i18n['com.affine.admin.refreshing-2']()
-                    : isTested
-                      ? i18n['com.affine.admin.workspace-byok-catalog-loaded']()
-                      : i18n[
-                          'com.affine.admin.test-the-provider-configuration-before-saving'
-                        ]()}
+                {pendingAction === 'save' && !metadataOnly
+                  ? i18n['com.affine.admin.workspace-byok-verifying-saving']()
+                  : pendingAction === 'test'
+                    ? i18n['com.affine.admin.testing']()
+                    : isValidating
+                      ? i18n['com.affine.admin.refreshing-2']()
+                      : isTested
+                        ? i18n[
+                            'com.affine.admin.workspace-byok-catalog-loaded'
+                          ]()
+                        : metadataOnly
+                          ? i18n[
+                              'com.affine.admin.workspace-byok-metadata-only'
+                            ]()
+                          : i18n[
+                              'com.affine.admin.test-the-provider-configuration-before-saving'
+                            ]()}
               </span>
               <Button
                 type="button"
@@ -877,11 +908,13 @@ function WorkspaceByokEditor({ scope }: { scope: WorkspaceScope }) {
               >
                 {pendingAction === 'test'
                   ? i18n['com.affine.admin.testing']()
-                  : i18n['com.affine.admin.test']()}
+                  : i18n['com.affine.admin.workspace-byok-test-catalog']()}
               </Button>
               <Button type="submit" disabled={!canSave}>
                 {pendingAction === 'save'
-                  ? i18n['com.affine.admin.saving']()
+                  ? metadataOnly
+                    ? i18n['com.affine.admin.saving']()
+                    : i18n['com.affine.admin.workspace-byok-verifying-saving']()
                   : i18n['com.affine.admin.save-credential']()}
               </Button>
             </div>

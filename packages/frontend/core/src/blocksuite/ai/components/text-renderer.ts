@@ -196,6 +196,8 @@ export class TextRenderer extends SignalWatcher(
 
   private _answers: string[] = [];
 
+  private _renderVersion = 0;
+
   private _maxContainerHeight = 0;
 
   private readonly _clearTimer = () => {
@@ -256,7 +258,16 @@ export class TextRenderer extends SignalWatcher(
     if (this._answers.length > 0) {
       const latestAnswer = this._answers.pop();
       this._answers = [];
+      if (latestAnswer === '') {
+        this._renderVersion++;
+        this.disposeDoc();
+        this._doc = null;
+        this._host = null;
+        this.requestUpdate();
+        return;
+      }
       if (latestAnswer) {
+        const version = ++this._renderVersion;
         const middlewares = [
           defaultImageProxyMiddleware,
           codeBlockWrapMiddleware(true),
@@ -268,6 +279,9 @@ export class TextRenderer extends SignalWatcher(
           this.options.affineFeatureFlagService
         )
           .then(doc => {
+            if (version !== this._renderVersion || !this.isConnected) {
+              return;
+            }
             this.disposeDoc();
             this._doc = doc.doc.getStore({
               query: this._query,
@@ -316,6 +330,7 @@ export class TextRenderer extends SignalWatcher(
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    this._renderVersion++;
     this._clearTimer();
     this.disposeDoc();
   }
@@ -351,6 +366,16 @@ export class TextRenderer extends SignalWatcher(
   override shouldUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('answer')) {
       this._answers.push(this.answer);
+    }
+
+    if (this.state !== 'generating') {
+      this._clearTimer();
+      this._updateDoc();
+    } else if (!this._timer) {
+      this._timer = setInterval(this._updateDoc, 600);
+    }
+
+    if (changedProperties.has('answer') && changedProperties.size === 1) {
       return false;
     }
 

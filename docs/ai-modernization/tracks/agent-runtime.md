@@ -95,6 +95,52 @@ aborts during preparation. History reads retain aborted empty turns and emitted
 tool evidence instead of filtering them out as empty content. This cancellation
 endpoint cannot approve, retry, or expand a tool's authority.
 
+## Stream text ordering and tail preservation (2026-10-28)
+
+The native stream middleware dispatcher now sends queued output through all
+remaining middleware stages before forwarding the current event. Previously,
+the normalizer queued its final text while forwarding `Done` to citation parsing;
+the citation parser flushed its earlier prefix before receiving the final suffix.
+This reordered Markdown links in both plain and tool-loop chat output. The
+pipeline's final flush also bypassed citation parsing and could lose incomplete
+bracket or link tails. Final flushing now traverses the whole chain, remains
+idempotent, and does not emit a synthetic successful terminal to callers.
+
+Four Rust regression groups exercise every Unicode chunk size for completed
+links, bold links, inline code, Chinese/emoji, incomplete tails, EOF without
+`Done`, and existing citation conversion. All 204 adapter/runtime tests passed
+with `cargo test --locked --release -p llm_adapter -p llm_runtime
+--no-default-features --features ureq-client`. The new
+`packages/backend/native/tests/stream-text-order-smoke.cjs` reproduced the
+original 242-character corrupted reply with the old addon. The rebuilt addon
+passed all 128 scenarios across Responses/chat-completions and all four native
+stream entry points, including missing-terminal rejection. Existing Responses
+tool-argument and Qwen smoke tests passed all ten scenarios. The two frontend
+`stream-objects.spec.ts` suites passed all 20 tests in the Linux web container.
+
+Validation reused `localmind-affine:dev-base` and built only the release native
+addon; no Docker image was rebuilt. After a database backup, the existing
+`localmind:sync:backend` source-runtime workflow updated the localhost instance;
+GraphQL readiness and the running addon's SHA-256 matched the tested build.
+Browser acceptance on workspace 22's Getting Started document was attempted
+with the full Markdown fixture, its explicit retry, and an independent incomplete
+bracket fixture. All three requests failed before text output with the configured
+upstream's HTTP 502 `Upstream service temporarily unavailable` (2026-10-29
+04:26–04:28 UTC), so those attempts did not establish browser acceptance.
+
+On 2026-10-29 local time (2026-10-30 02:05–02:08 UTC), the same endpoint
+recovered without further LocalMind source or provider configuration changes.
+Direct Responses streaming/non-streaming and Chat Completions streaming probes
+returned HTTP 200 with completed `OK` replies. Real workspace 22 sidebar
+acceptance then passed: the original 242-character Markdown fixture rendered
+headings, bold/italic, both list types, table, inline/fenced code, and the complete
+Python link; `正文：[未完成` retained all seven characters. Persisted content and
+stream objects matched both fixtures exactly without trailing newlines. A browser
+reload retained correct rendering and the complete tail. This confirms the local
+stream repair in the real model/UI path; the remote gateway's internal cause of
+the earlier outage was not available. Existing malformed conversation history is
+not rewritten by this repair.
+
 ## Responses Tool Argument Stream Repair (2026-10-19)
 
 The OpenAI Responses parser now preserves whitespace-only tool argument deltas,

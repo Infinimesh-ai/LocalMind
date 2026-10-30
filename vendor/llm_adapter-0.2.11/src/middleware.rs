@@ -142,30 +142,22 @@ fn run_stream_middleware_chain(
   let mut output = Vec::new();
   let mut pending = VecDeque::from([(event, 0usize)]);
 
-  while let Some((event, start_index)) = pending.pop_front() {
-    let mut current = Some(event);
-    let mut queued_during_event = false;
+  while let Some((event, index)) = pending.pop_front() {
+    let Some(middleware) = chain.get(index) else {
+      output.push(event);
+      continue;
+    };
+    let current = middleware(event, context, config);
+    let next_index = index + 1;
 
-    for (index, middleware) in chain.iter().enumerate().skip(start_index) {
-      let Some(value) = current.take() else {
-        break;
-      };
-
-      current = middleware(value, context, config);
-      let next_index = index + 1;
-
-      for queued in context.drain_queued_events() {
-        queued_during_event = true;
-        pending.push_back((queued, next_index));
-      }
-    }
-
+    // Fully process emitted events before the current event enters the next
+    // stage. In particular, Done must not flush a downstream buffer before
+    // the text queued by an upstream stage has reached it.
     if let Some(event) = current {
-      if queued_during_event {
-        pending.push_back((event, chain.len()));
-      } else {
-        output.push(event);
-      }
+      pending.push_front((event, next_index));
+    }
+    for queued in context.drain_queued_events().into_iter().rev() {
+      pending.push_front((queued, next_index));
     }
   }
 
@@ -194,8 +186,17 @@ impl StreamPipeline {
   }
 
   pub fn finish(&mut self) -> Vec<StreamEvent> {
-    self.context.flush_pending_deltas();
-    self.context.drain_queued_events()
+    // Flush through every stage, including text buffered by citation parsing.
+    // This internal signal is not a provider terminal: callers must still
+    // require a real Done event to consider the model round successful.
+    self
+      .process(StreamEvent::Done {
+        finish_reason: None,
+        usage: None,
+      })
+      .into_iter()
+      .filter(|event| !matches!(event, StreamEvent::Done { .. }))
+      .collect()
   }
 }
 
@@ -1173,6 +1174,104 @@ mod tests {
         text: "hello".to_string(),
       }]
     );
+  }
+
+  fn text_content(events: &[StreamEvent]) -> String {
+    events
+      .iter()
+      .filter_map(|event| match event {
+        StreamEvent::TextDelta { text } => Some(text.as_str()),
+        _ => None,
+      })
+      .collect()
+  }
+
+  fn check_stream_text(input: &str, expected: &str, terminal: bool) {
+    let chars = input.chars().collect::<Vec<_>>();
+    for chunk_size in 1..=chars.len() {
+      let mut pipeline = StreamPipeline::new(resolve_default_stream_middleware_chain(), MiddlewareConfig::default());
+      let mut events = Vec::new();
+      for chunk in chars.chunks(chunk_size) {
+        events.extend(pipeline.process(StreamEvent::TextDelta {
+          text: chunk.iter().collect(),
+        }));
+      }
+      if terminal {
+        events.extend(pipeline.process(StreamEvent::Done {
+          finish_reason: Some("stop".into()),
+          usage: None,
+        }));
+        assert!(matches!(events.last(), Some(StreamEvent::Done { .. })));
+      }
+      events.extend(pipeline.finish());
+      assert_eq!(
+        text_content(&events),
+        expected,
+        "chunk size {chunk_size}, terminal {terminal}"
+      );
+      assert_eq!(
+        events
+          .iter()
+          .filter(|event| matches!(event, StreamEvent::Done { .. }))
+          .count(),
+        usize::from(terminal),
+        "flushing must not manufacture a successful terminal"
+      );
+      assert!(pipeline.finish().is_empty(), "flushing must be idempotent");
+      if terminal {
+        assert!(
+          matches!(events.last(), Some(StreamEvent::Done { .. })),
+          "text must precede Done"
+        );
+      }
+    }
+  }
+
+  #[test]
+  fn stream_pipeline_preserves_markdown_order_at_done() {
+    for input in [
+      "链接：[访问 Python 官网](https://www.python.org/)",
+      "正文：**[访问 Python 官网](https://www.python.org/)**",
+      "这是一段普通正文结束时带有[方括号内的中文说明内容]",
+      "行内代码：`array[longVariableName]`",
+      "🧪 **中文加粗**\n\n链接：[示例网站](https://example.com)",
+    ] {
+      check_stream_text(input, input, true);
+    }
+  }
+
+  #[test]
+  fn stream_pipeline_preserves_incomplete_tail_at_done() {
+    for input in [
+      "正文：[未完成",
+      "1234567890123456[末尾",
+      "链接：[标题](https://example.com",
+      "正文：([链接](https://example.com)",
+    ] {
+      check_stream_text(input, input, true);
+    }
+  }
+
+  #[test]
+  fn stream_pipeline_finish_drains_all_stages_without_done() {
+    for input in [
+      "链接：[访问 Python 官网](https://www.python.org/)",
+      "正文：[未完成",
+      "1234567890123456[末尾",
+    ] {
+      check_stream_text(input, input, false);
+    }
+  }
+
+  #[test]
+  fn stream_pipeline_preserves_citation_transforms_when_flushing() {
+    for terminal in [true, false] {
+      check_stream_text(
+        "Use ([AFFiNE](https://affine.pro)) and [1]",
+        "Use [^1] and [^1]",
+        terminal,
+      );
+    }
   }
 
   #[test]

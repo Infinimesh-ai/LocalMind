@@ -1,6 +1,9 @@
 import { cssVar } from '@toeverything/theme';
 import { style } from '@vanilla-extract/css';
 
+import { localmindShell } from '../../../../components/localmind-theme/shell';
+import { workbenchTokens as wb } from '../../../../components/localmind-theme/tokens.css';
+
 export const header = style({
   display: 'flex',
   height: '52px',
@@ -11,6 +14,12 @@ export const header = style({
   zIndex: 1,
   gap: '12px',
   background: cssVar('backgroundPrimaryColor'),
+  selectors: {
+    [`${localmindShell} &`]: {
+      height: 58,
+      borderBottom: `1px solid ${wb.line}`,
+    },
+  },
   '@media': {
     print: {
       display: 'none',

@@ -16,6 +16,7 @@ import type { Signal } from '@preact/signals-core';
 import { css, html, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 
+import { joinAdjacentTextChunks } from '../../utils/stream-objects';
 import type { AffineAIPanelState } from '../../widgets/ai-panel/type';
 import type { DocDisplayConfig } from '../ai-chat-chips';
 import {
@@ -1307,7 +1308,7 @@ export class ChatContentStreamObjects extends WithDisposable(
       }
     }
     return html`<div>
-      ${this.answer.map(data => {
+      ${joinAdjacentTextChunks(this.answer).map(data => {
         if (
           (data.type === 'tool-call' || data.type === 'tool-result') &&
           duplicateWorkOrderCalls.has(data.toolCallId)

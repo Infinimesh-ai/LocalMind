@@ -140,7 +140,9 @@ describe('WorkspaceByokAdmin', () => {
     const save = screen.getByRole('button', { name: 'Save credential' });
     expect(save.hasAttribute('disabled')).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
 
     await waitFor(() => {
       expect(testConfigMock).toHaveBeenCalledWith({
@@ -200,7 +202,9 @@ describe('WorkspaceByokAdmin', () => {
       fireEvent.change(screen.getByLabelText('API key'), {
         target: { value: 'sk-test' },
       });
-      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Test connection and load models' })
+      );
       const models = screen.getByRole('combobox', { name: 'Available models' });
       await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
       fireEvent.click(models);
@@ -227,7 +231,9 @@ describe('WorkspaceByokAdmin', () => {
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     const models = screen.getByRole('combobox', { name: 'Available models' });
     await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
     fireEvent.click(models);
@@ -256,7 +262,9 @@ describe('WorkspaceByokAdmin', () => {
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     const models = screen.getByRole('combobox', { name: 'Available models' });
     await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
     fireEvent.click(models);
@@ -284,7 +292,9 @@ describe('WorkspaceByokAdmin', () => {
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     expect((await screen.findByRole('alert')).textContent).toContain(
       'The provider returned no models'
     );
@@ -301,7 +311,9 @@ describe('WorkspaceByokAdmin', () => {
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     const models = screen.getByRole('combobox', { name: 'Available models' });
     await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
     fireEvent.click(models);
@@ -331,7 +343,9 @@ describe('WorkspaceByokAdmin', () => {
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     const models = screen.getByRole('combobox', { name: 'Available models' });
     await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
     fireEvent.click(models);
@@ -357,7 +371,9 @@ describe('WorkspaceByokAdmin', () => {
       ).disabled
     ).toBe(true);
     expect(
-      screen.getByRole('button', { name: 'Test' }).hasAttribute('disabled')
+      screen
+        .getByRole('button', { name: 'Test connection and load models' })
+        .hasAttribute('disabled')
     ).toBe(true);
     finishProbe({
       testWorkspaceByokConfig: { ok: true, models: ['gpt-test'] },
@@ -369,7 +385,9 @@ describe('WorkspaceByokAdmin', () => {
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'sk-test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     const models = screen.getByRole('combobox', { name: 'Available models' });
     await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
     fireEvent.click(models);
@@ -418,6 +436,159 @@ describe('WorkspaceByokAdmin', () => {
         screen.getByRole('combobox', { name: 'Available models' }).textContent
       ).toContain('saved-model')
     );
+  });
+
+  test('saves metadata without probing or altering the existing connection', async () => {
+    settings.keys = [
+      {
+        id: 'key-1',
+        name: 'Saved key',
+        provider: ByokProvider.openai,
+        modelId: 'saved-model',
+        apiStyle: 'responses',
+        configRevision: 3,
+        enabled: true,
+        configured: true,
+        endpoint: 'https://provider.example/v1',
+        endpointEditable: true,
+        storage: ByokKeyStorage.server,
+        sortOrder: 0,
+        description: 'Before',
+        capabilities: [],
+        testStatus: ByokKeyTestStatus.passed,
+        disabledReason: null,
+        lastTestedAt: null,
+        lastTestError: null,
+        lastUsedAt: null,
+        lastErrorAt: null,
+        lastError: null,
+      },
+    ];
+    render(<WorkspaceByokAdmin />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Saved key' }));
+    fireEvent.change(screen.getByLabelText('Credential name'), {
+      target: { value: 'Renamed key' },
+    });
+    fireEvent.change(screen.getByLabelText('Description'), {
+      target: { value: 'After' },
+    });
+    expect(screen.getByRole('status').textContent).toContain(
+      'save without testing again'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save credential' }));
+    await waitFor(() => expect(upsertConfigMock).toHaveBeenCalledTimes(1));
+    expect(upsertConfigMock).toHaveBeenCalledWith({
+      input: expect.objectContaining({
+        id: 'key-1',
+        expectedRevision: 3,
+        name: 'Renamed key',
+        description: 'After',
+        apiKey: undefined,
+        endpoint: 'https://provider.example/v1',
+        modelId: 'saved-model',
+        enabled: true,
+      }),
+    });
+    expect(testConfigMock).not.toHaveBeenCalled();
+  });
+
+  test('requires a new test before saving an edited connection or enabling a disabled credential', () => {
+    settings.keys = [
+      {
+        id: 'key-1',
+        name: 'Saved key',
+        provider: ByokProvider.openai,
+        modelId: 'saved-model',
+        apiStyle: 'responses',
+        configRevision: 3,
+        enabled: false,
+        configured: true,
+        endpoint: null,
+        endpointEditable: true,
+        storage: ByokKeyStorage.server,
+        sortOrder: 0,
+        description: null,
+        capabilities: [],
+        testStatus: ByokKeyTestStatus.failed,
+        disabledReason: 'recent_failure',
+        lastTestedAt: null,
+        lastTestError: null,
+        lastUsedAt: null,
+        lastErrorAt: null,
+        lastError: null,
+      },
+    ];
+    render(<WorkspaceByokAdmin />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Saved key' }));
+    const save = screen.getByRole('button', { name: 'Save credential' });
+    expect(save.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Use this credential in routing' })
+    );
+    expect(save.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Use this credential in routing' })
+    );
+    fireEvent.change(screen.getByLabelText('Endpoint'), {
+      target: { value: 'https://other.example/v1' },
+    });
+    expect(save.hasAttribute('disabled')).toBe(true);
+    expect(upsertConfigMock).not.toHaveBeenCalled();
+  });
+
+  test('retains a metadata draft when another administrator changed the revision', async () => {
+    const message =
+      'BYOK changed. Reload settings and retry with the current revision.';
+    upsertConfigMock.mockRejectedValueOnce(
+      new GraphQLError(message, {
+        extensions: {
+          status: 400,
+          code: 'BAD_REQUEST',
+          type: 'BAD_REQUEST',
+          name: 'BAD_REQUEST',
+          message,
+        },
+      })
+    );
+    settings.keys = [
+      {
+        id: 'key-1',
+        name: 'Saved key',
+        provider: ByokProvider.openai,
+        modelId: 'saved-model',
+        apiStyle: 'responses',
+        configRevision: 3,
+        enabled: true,
+        configured: true,
+        endpoint: null,
+        endpointEditable: true,
+        storage: ByokKeyStorage.server,
+        sortOrder: 0,
+        description: null,
+        capabilities: [],
+        testStatus: ByokKeyTestStatus.passed,
+        disabledReason: null,
+        lastTestedAt: null,
+        lastTestError: null,
+        lastUsedAt: null,
+        lastErrorAt: null,
+        lastError: null,
+      },
+    ];
+    render(<WorkspaceByokAdmin />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Saved key' }));
+    fireEvent.change(screen.getByLabelText('Credential name'), {
+      target: { value: 'Draft name' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save credential' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Reload');
+    expect(
+      (screen.getByLabelText('Credential name') as HTMLInputElement).value
+    ).toBe('Draft name');
+    expect(testConfigMock).not.toHaveBeenCalled();
+    expect(upsertConfigMock).toHaveBeenCalledWith({
+      input: expect.objectContaining({ id: 'key-1', expectedRevision: 3 }),
+    });
   });
 
   test('deletes a credential only after the in-app confirmation', async () => {
@@ -530,7 +701,9 @@ describe('WorkspaceByokAdmin', () => {
     fireEvent.change(screen.getByLabelText('API key'), {
       target: { value: 'synthetic-draft' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     const models = screen.getByRole('combobox', { name: 'Available models' });
     await waitFor(() => expect(models.hasAttribute('disabled')).toBe(false));
     fireEvent.click(models);
@@ -561,7 +734,9 @@ describe('WorkspaceByokAdmin', () => {
       target: { value: 'synthetic-draft' },
     });
     for (let count = 1; count <= 2; count++) {
-      fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Test connection and load models' })
+      );
       await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(count));
     }
     expect(toast.success).toHaveBeenLastCalledWith(
@@ -574,7 +749,9 @@ describe('WorkspaceByokAdmin', () => {
         message: 'Provider returned an empty model catalog.',
       },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('alert').textContent).toContain(
       'returned no models'
@@ -585,7 +762,9 @@ describe('WorkspaceByokAdmin', () => {
         message: 'Provider service is unavailable.',
       },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Test connection and load models' })
+    );
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
     expect(screen.getByRole('alert').textContent).toContain('unavailable');
     expect(
