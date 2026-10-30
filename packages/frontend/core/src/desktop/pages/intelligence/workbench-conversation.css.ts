@@ -59,7 +59,22 @@ export const header = style({
   background: wb.paper,
   boxShadow: '0 1px 2px rgba(75, 84, 93, 0.05)',
   boxSizing: 'border-box',
+  transition: 'transform 180ms ease-out, opacity 180ms ease-out',
+  selectors: {
+    '&[data-hidden="true"]': {
+      transform: 'translateY(-16px)',
+      opacity: 0,
+      pointerEvents: 'none',
+    },
+    '&:focus-within': {
+      transform: 'none',
+      opacity: 1,
+      pointerEvents: 'auto',
+      transition: 'none',
+    },
+  },
   '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
     'screen and (max-width: 760px)': {
       width: 'calc(100% - 24px)',
       margin: '12px auto 0',

@@ -627,6 +627,7 @@ vi.mock('./project-tree', () => ({
     onSelectProject,
     onManageCollaboration,
     onOpenReports,
+    onNewConversation,
   }: {
     projects: Array<{ id: string; status: string }>;
     loading: boolean;
@@ -635,6 +636,7 @@ vi.mock('./project-tree', () => ({
     onSelectProject: (projectId: string | null) => void;
     onManageCollaboration: (project: { id: string; status: string }) => void;
     onOpenReports?: (project: { id: string; status: string }) => void;
+    onNewConversation: () => void;
   }) => {
     const activeProjects = projects.filter(
       project => project.status === 'active'
@@ -643,6 +645,9 @@ vi.mock('./project-tree', () => ({
       <>
         <button type="button" onClick={() => onSelectProject(null)}>
           All projects
+        </button>
+        <button type="button" onClick={onNewConversation}>
+          Start new conversation from sidebar
         </button>
         {loading ? <div role="status">Project tree loading</div> : null}
         {error ? (
@@ -746,12 +751,10 @@ vi.mock('./task-panel', () => ({
 vi.mock('./workbench-conversation', () => ({
   WorkbenchConversation: ({
     onConfirmBlockerSuggestion,
-    onNewConversation,
     onPinChanged,
     headerActions,
   }: {
     headerActions?: ReactNode;
-    onNewConversation?: () => void;
     onPinChanged?: () => void;
     onConfirmBlockerSuggestion?: (suggestion: {
       aiSuggestionId: string;
@@ -774,9 +777,6 @@ vi.mock('./workbench-conversation', () => ({
     return (
       <div data-testid="conversation">
         {headerActions}
-        <button onClick={onNewConversation}>
-          Start new conversation from header
-        </button>
         <button type="button" onClick={onPinChanged}>
           Pin conversation
         </button>
@@ -865,13 +865,15 @@ const renderWorkbench = (route = '/project/project-1') =>
   );
 
 describe('Intelligence workbench shell', () => {
-  test('the Project header opens a fresh conversation with the current Project preselected', () => {
+  test('the Project sidebar opens a fresh conversation without a preselected Project', () => {
     renderWorkbench('/project/project-1/conversations/session-1');
     fireEvent.click(
-      screen.getByRole('button', { name: 'Start new conversation from header' })
+      screen.getByRole('button', {
+        name: 'Start new conversation from sidebar',
+      })
     );
     expect(screen.getByTestId('location').textContent).toBe(
-      '/project/conversations/new?projectId=project-1'
+      '/project/conversations/new'
     );
     expect(screen.getByTestId('new-conversation')).toBeTruthy();
   });

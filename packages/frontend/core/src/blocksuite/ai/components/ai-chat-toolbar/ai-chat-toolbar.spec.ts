@@ -124,17 +124,22 @@ async function setup() {
 }
 
 describe('chat toolbar and history accessibility', () => {
-  test('Project new-chat navigation owns the draft route, while Workspace chats keep runtime drafts', async () => {
+  test('Project hides new chat while retaining pin and history, and Workspace keeps runtime drafts', async () => {
     const { toolbar, dispatch } = await setup();
-    const navigate = vi.fn();
-    toolbar.onNewConversation = navigate;
-    toolbar
-      .querySelector<HTMLButtonElement>('[data-testid="ai-panel-new-chat"]')!
-      .click();
-    await Promise.resolve();
-    expect(navigate).toHaveBeenCalledOnce();
-    expect(dispatch).not.toHaveBeenCalledWith({ type: 'createNewSession' });
-    toolbar.onNewConversation = undefined;
+    toolbar.showNewConversation = false;
+    await toolbar.updateComplete;
+    expect(
+      toolbar.querySelector('[data-testid="ai-panel-new-chat"]')
+    ).toBeNull();
+    expect(
+      toolbar.querySelector('[data-testid="ai-panel-pin-chat"]')
+    ).not.toBeNull();
+    expect(
+      toolbar.querySelector('[data-testid="ai-panel-chat-history"]')
+    ).not.toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
+    toolbar.showNewConversation = true;
+    await toolbar.updateComplete;
     toolbar
       .querySelector<HTMLButtonElement>('[data-testid="ai-panel-new-chat"]')!
       .click();

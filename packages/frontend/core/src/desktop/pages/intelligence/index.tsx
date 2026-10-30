@@ -2057,11 +2057,6 @@ const IntelligenceWorkbench = ({
                 onDocumentsChanged={refreshWorkbench}
                 selectedProjectId={selectedProject.id}
                 selectedProjectName={selectedProject.name}
-                onNewConversation={() =>
-                  navigate(
-                    `${PROJECT_NEW_CONVERSATION_PATH}?${new URLSearchParams({ projectId: selectedProject.id })}`
-                  )
-                }
                 officeContext={
                   officeContext &&
                   'projectId' in officeContext &&

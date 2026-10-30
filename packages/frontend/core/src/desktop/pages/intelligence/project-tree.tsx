@@ -12,6 +12,7 @@ import {
   AiIcon,
   CollaborationIcon,
   DeleteTemporarilyIcon,
+  DoneIcon,
   EditIcon,
   MoreHorizontalIcon,
   PinedIcon,
@@ -446,7 +447,9 @@ export const ProjectTree = ({
                                       ? 'com.affine.localmind.workbench.v9.done'
                                       : 'com.affine.localmind.workbench.v9.progress'
                                 ]()}
-                              />
+                              >
+                                {card.column === 'done' ? <DoneIcon /> : null}
+                              </span>
                             </button>
                           )}
                         </li>
@@ -559,7 +562,9 @@ export const ProjectTree = ({
                               ? 'com.affine.localmind.workbench.v9.done'
                               : 'com.affine.localmind.workbench.v9.progress'
                         ]()}
-                      />
+                      >
+                        {card.column === 'done' ? <DoneIcon /> : null}
+                      </span>
                     </button>
                   )}
                 </li>

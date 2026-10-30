@@ -32,6 +32,7 @@ import type { AIReasoningConfig } from '../ai-chat-input';
 import {
   AI_CHAT_AUTO_SCROLL_PAUSE_EVENT,
   AI_CHAT_AUTO_SCROLL_RESUME_THRESHOLD,
+  AI_CHAT_PROGRAMMATIC_SCROLL_EVENT,
   AI_CHAT_SCROLL_DOWN_INDICATOR_THRESHOLD,
 } from './auto-scroll';
 import { AIPreloadConfig } from './preload-config';
@@ -507,6 +508,9 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
 
   scrollToEnd() {
     requestAnimationFrame(() => {
+      this.dispatchEvent(
+        new Event(AI_CHAT_PROGRAMMATIC_SCROLL_EVENT, { bubbles: true })
+      );
       this.scrollTo({
         top: this.scrollHeight,
         behavior: 'smooth',
@@ -516,6 +520,9 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
 
   scrollToPos(top: number) {
     requestAnimationFrame(() => {
+      this.dispatchEvent(
+        new Event(AI_CHAT_PROGRAMMATIC_SCROLL_EVENT, { bubbles: true })
+      );
       this.scrollTo({ top });
     });
   }

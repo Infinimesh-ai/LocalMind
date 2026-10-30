@@ -434,12 +434,27 @@ globalStyle(`${documentButton} > span`, {
 });
 
 export const conversationState = style({
-  width: 6,
-  height: 6,
+  width: 16,
+  height: 16,
   flexShrink: 0,
-  borderRadius: '50%',
-  background: wb.warning,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: wb.success,
   selectors: {
-    '&[data-column="done"]': { background: wb.success },
+    '&:not([data-column="done"])::before': {
+      content: '""',
+      width: 6,
+      height: 6,
+      borderRadius: '50%',
+      background: wb.warning,
+    },
   },
+});
+
+globalStyle(`${conversationState} > svg`, {
+  width: 16,
+  height: 16,
+  stroke: 'currentColor',
+  strokeWidth: 0.5,
 });

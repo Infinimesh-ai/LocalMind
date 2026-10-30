@@ -64,6 +64,7 @@ import {
 import { useProjectChatConfig } from './project-chat-config';
 import { ProjectFilePicker } from './project-file-picker';
 import type { WorkbenchConversationCard } from './types';
+import { useConversationHeaderVisibility } from './use-conversation-header-visibility';
 import * as styles from './workbench-conversation.css';
 
 function recipientsForDispatch(draft: WorkOrderAgentDraft) {
@@ -106,7 +107,6 @@ type WorkbenchConversationProps = {
   autoSendInitialDraft?: boolean;
   onSessionCreated?: (sessionId: string) => Promise<unknown> | unknown;
   onPinChanged?: () => void;
-  onNewConversation?: () => void;
   onContextPanelChange?: (state: WorkbenchContextPanelState | null) => void;
   /** Extra controls in the title card, e.g. the work order panel toggle. */
   headerActions?: ReactNode;
@@ -154,7 +154,6 @@ export const WorkbenchConversation = ({
   autoSendInitialDraft = false,
   onSessionCreated,
   onPinChanged,
-  onNewConversation,
   onContextPanelChange,
   headerActions,
   banner,
@@ -178,6 +177,7 @@ export const WorkbenchConversation = ({
   const [bodyReady, setBodyReady] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
   const headerOverlayRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const toolbarContainerRef = useRef<HTMLDivElement>(null);
 
@@ -282,6 +282,13 @@ export const WorkbenchConversation = ({
     [auth, requestService, selectedProjectId, startEmpty]
   );
   const snapshot = useAIChatRuntime(runtime);
+  const headerHidden = useConversationHeaderVisibility({
+    contentRef: contentContainerRef,
+    headerRef,
+    enabled: bodyReady,
+    sessionKey:
+      snapshot?.activeSessionId ?? selectedSessionId ?? selectedProjectId,
+  });
   const previousStatus = useRef(snapshot?.status);
   useEffect(() => {
     const previous = previousStatus.current;
@@ -654,7 +661,7 @@ export const WorkbenchConversation = ({
           deleteSession(session).catch(report);
         },
         onPinChanged,
-        onNewConversation,
+        showNewConversation: false,
       });
     },
   });
@@ -680,7 +687,11 @@ export const WorkbenchConversation = ({
       })}
     >
       <div className={styles.headerOverlay} ref={headerOverlayRef}>
-        <header className={styles.header}>
+        <header
+          ref={headerRef}
+          className={styles.header}
+          data-hidden={headerHidden}
+        >
           <div className={styles.conversationIdentity}>
             <strong title={activeSession?.title ?? undefined}>
               {activeSession?.title ||

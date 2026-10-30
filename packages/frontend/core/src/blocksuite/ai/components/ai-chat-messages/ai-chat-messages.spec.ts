@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { AIChatMessages } from './ai-chat-messages';
+import { AI_CHAT_PROGRAMMATIC_SCROLL_EVENT } from './auto-scroll';
 
 describe('AIChatMessages scrolling', () => {
   beforeEach(() => {
@@ -20,8 +21,10 @@ describe('AIChatMessages scrolling', () => {
 
   test('scrollToEnd scrolls the host element', () => {
     const scrollTo = vi.fn();
+    const dispatchEvent = vi.fn();
     const element = {
       scrollTo,
+      dispatchEvent,
     } as unknown as AIChatMessages;
 
     Object.defineProperty(element, 'scrollHeight', {
@@ -35,17 +38,34 @@ describe('AIChatMessages scrolling', () => {
       top: 480,
       behavior: 'smooth',
     });
+    expect(dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: AI_CHAT_PROGRAMMATIC_SCROLL_EVENT,
+        bubbles: true,
+      })
+    );
+    expect(dispatchEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      scrollTo.mock.invocationCallOrder[0]
+    );
   });
 
   test('scrollToPos scrolls the host element', () => {
     const scrollTo = vi.fn();
+    const dispatchEvent = vi.fn();
     const element = {
       scrollTo,
+      dispatchEvent,
     } as unknown as AIChatMessages;
 
     AIChatMessages.prototype.scrollToPos.call(element, 128);
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 128 });
+    expect(dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: AI_CHAT_PROGRAMMATIC_SCROLL_EVENT,
+        bubbles: true,
+      })
+    );
   });
 
   test('pauses auto scroll when user scrolls away from the bottom', () => {

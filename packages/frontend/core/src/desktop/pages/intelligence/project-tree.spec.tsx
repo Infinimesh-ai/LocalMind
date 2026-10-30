@@ -97,6 +97,7 @@ vi.mock('@blocksuite/icons/rc', () => ({
   AiIcon: () => <svg />,
   CollaborationIcon: () => <svg />,
   DeleteTemporarilyIcon: () => <svg />,
+  DoneIcon: () => <svg />,
   EditIcon: () => <svg />,
   FolderIcon: () => <svg />,
   MoreHorizontalIcon: () => <svg />,
