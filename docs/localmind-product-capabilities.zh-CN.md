@@ -568,7 +568,7 @@ LocalMind 的一键部署和多模型任务路由，让更多隐私敏感、高�
 - [LocalMind Branch Differences](./ai-modernization/branch-differences.md)
 - [Current State](./ai-modernization/current-state.md)
 - [Next Goals](./ai-modernization/next-goals.md)
-- [LocalMind 用户使用指南](./localmind-user-guide.zh-CN.md)
+- [LocalMind 应用内帮助与指南入口](./README.md#user-guide)
 - [LocalMind MCP 中文指南](./localmind-mcp.zh-CN.md)
 - [LocalMind 企业协作 CLI 接入](./localmind-enterprise-cli-integration.md)
 - [Qwen3.6 / GPT / DeepSeek 对比评测](./localmind-qwen36-benchmark-2026-08-18.md)

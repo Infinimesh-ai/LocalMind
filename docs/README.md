@@ -17,8 +17,7 @@ reference unless the current task explicitly targets them.
 
 Start here for LocalMind-specific work:
 
-- [LocalMind 用户使用指南](./localmind-user-guide.zh-CN.md)
-- [LocalMind 使用提示](./localmind-usage-tips.zh-CN.md)
+- [LocalMind in-app Help & guide](#user-guide)
 - [LocalMind `main` 人工部署指南](./localmind-deployment.zh-CN.md)
 - [LocalMind Workspace 全文索引 SSH 恢复手册](./localmind-indexer-recovery.zh-CN.md)
 - [LocalMind `main` AI 部署协议](./localmind-deployment-ai.zh-CN.md)
@@ -28,6 +27,17 @@ Start here for LocalMind-specific work:
 - [Branch differences](./ai-modernization/branch-differences.md)
 - [AI document map](./ai-modernization/document-map.md)
 - [Docker development constraints](./localmind-docker-development-constraints.md)
+
+## User Guide
+
+The application's **Help & guide** page is the authoritative user and
+administrator guide. Open a workspace, then choose **… > Help & guide** in
+the sidebar. Its address is `/workspace/<workspace-id>/help` on your LocalMind
+instance. The page includes searchable instructions for documents, AI,
+projects, reports, administrator configuration and troubleshooting.
+
+The previous Markdown user guide and usage tips have been removed. This index
+only points to the application guide; it does not maintain a separate manual.
 
 ## Planning Documents
 

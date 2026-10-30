@@ -1,8 +1,7 @@
 # AI Chat Context and Memory
 
-For end-user instructions, see the
-[LocalMind 用户使用指南](./localmind-user-guide.zh-CN.md) and the concise
-[LocalMind 使用提示](./localmind-usage-tips.zh-CN.md).
+For current end-user instructions, open the application's
+[Help & guide page](./README.md#user-guide).
 
 LocalMind uses two kinds of information when answering in AI Chat:
 

@@ -65,7 +65,7 @@ const Empty = () => {
       </span>
       <div className={styles.space} />
       <a
-        href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-user-guide.zh-CN.md`}
+        href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/README.md#user-guide`}
         target="_blank"
         rel="noopener noreferrer"
         className={styles.link}

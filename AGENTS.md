@@ -274,10 +274,14 @@ AI 现代化任务按以下顺序读取：
 引用了具体历史章节，或任务需要追溯旧决策时才读取。不要继续旧的“不断加深
 support-bundle 只读 source-evidence 字段”模式，除非用户明确要求该字段。
 
-部署、MCP 或用户行为相关任务还应读取：
+用户及管理员使用说明以应用内「帮助与指南」为准，入口为工作区侧栏的
+`… > 帮助与指南`（`/workspace/<workspace-id>/help`）。正文与目录分别维护在
+`packages/frontend/i18n/src/resources/` 的 `com.affine.localmind.help.guide.*`
+及 `packages/frontend/core/src/desktop/pages/workspace/help/content.ts`。
+旧 Markdown 用户手册和使用提示已删除，不再维护或生成平行版本。
 
-- `docs/localmind-user-guide.zh-CN.md`
-- `docs/localmind-usage-tips.zh-CN.md`
+部署、MCP 或用户行为相关任务还应读取对应帮助内容及以下技术文档：
+
 - `docs/localmind-deployment.zh-CN.md`
 - `docs/localmind-deployment-ai.zh-CN.md`
 - `docs/localmind-mcp.md`

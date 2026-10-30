@@ -64,7 +64,7 @@ export const AIPlan = () => {
                 displayedFrequency="monthly"
               />
               <a
-                href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-user-guide.zh-CN.md`}
+                href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/README.md#user-guide`}
                 target="_blank"
                 rel="noreferrer"
               >

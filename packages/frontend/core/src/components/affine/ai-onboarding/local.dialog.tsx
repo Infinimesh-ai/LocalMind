@@ -46,7 +46,7 @@ export const AIOnboardingLocal = () => {
         label: t['com.affine.ai-onboarding.local.action-learn-more'](),
         onClick: () => {
           window.open(
-            `${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-user-guide.zh-CN.md`,
+            `${BUILD_CONFIG.githubUrl}/blob/main/docs/README.md#user-guide`,
             '_blank',
             'noreferrer'
           );

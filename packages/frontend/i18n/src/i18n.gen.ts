@@ -26945,6 +26945,1060 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.office.draft-copied"](): string;
     /**
+      * `From your first document to project collaboration and administrator settings, find everything here. Open a topic or search for the task at hand.`
+      */
+    ["com.affine.localmind.help.guide.intro"](): string;
+    /**
+      * `Everyone can read this guide. Available actions depend on workspace type, permissions and server configuration. Reading administrator instructions does not grant administrator access.`
+      */
+    ["com.affine.localmind.help.guide.availability"](): string;
+    /**
+      * `Search actions, features or problems`
+      */
+    ["com.affine.localmind.help.guide.search"](): string;
+    /**
+      * `Matching topics: {{count}}`
+      */
+    ["com.affine.localmind.help.guide.results"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Check the result:`
+      */
+    ["com.affine.localmind.help.guide.result"](): string;
+    /**
+      * `Try “upload”, “work order”, “BYOK” or “email”, or clear your search to browse all topics.`
+      */
+    ["com.affine.localmind.help.guide.empty"](): string;
+    /**
+      * `Getting started and documents`
+      */
+    ["com.affine.localmind.help.guide.start.title"](): string;
+    /**
+      * `Choose where work belongs, then create, edit and manage your files.`
+      */
+    ["com.affine.localmind.help.guide.start.description"](): string;
+    /**
+      * `AI and memory`
+      */
+    ["com.affine.localmind.help.guide.ai.title"](): string;
+    /**
+      * `Attach sources, save real results and understand versions and memory sharing.`
+      */
+    ["com.affine.localmind.help.guide.ai.description"](): string;
+    /**
+      * `Projects and work orders`
+      */
+    ["com.affine.localmind.help.guide.projects.title"](): string;
+    /**
+      * `Work in an independent project, exchange copies and request specific deliverables.`
+      */
+    ["com.affine.localmind.help.guide.projects.description"](): string;
+    /**
+      * `Reports`
+      */
+    ["com.affine.localmind.help.guide.reports.title"](): string;
+    /**
+      * `Turn authorized sources into a web report to read, present and share.`
+      */
+    ["com.affine.localmind.help.guide.reports.description"](): string;
+    /**
+      * `Administrator configuration`
+      */
+    ["com.affine.localmind.help.guide.admin.title"](): string;
+    /**
+      * `Readable by everyone; changing settings requires an instance administrator account at /admin.`
+      */
+    ["com.affine.localmind.help.guide.admin.description"](): string;
+    /**
+      * `Troubleshooting`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.title"](): string;
+    /**
+      * `Start with the symptom and work through the checks.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.description"](): string;
+    /**
+      * `Your first session in LocalMind`
+      */
+    ["com.affine.localmind.help.guide.start.first.title"](): string;
+    /**
+      * `Use a Workspace for everyday knowledge and a Project for goal-oriented collaboration. A Project has its own members and files; it is not a workspace folder.`
+      */
+    ["com.affine.localmind.help.guide.start.first.description"](): string;
+    /**
+      * `Open your organization's LocalMind address and sign in. Choose a workspace by its name or through Add or manage workspaces.`
+      */
+    ["com.affine.localmind.help.guide.start.first.step1"](): string;
+    /**
+      * `Choose + next to a workspace, folder or page. Create a page and enter a title and content, or select Word, Excel or another format when you need a real file.`
+      */
+    ["com.affine.localmind.help.guide.start.first.step2"](): string;
+    /**
+      * `Reopen the resource from the sidebar or All docs. For project work, open Project hub and create or select a project.`
+      */
+    ["com.affine.localmind.help.guide.start.first.step3"](): string;
+    /**
+      * `The resource reopens from its intended location. Project resources appear in that project's file area.`
+      */
+    ["com.affine.localmind.help.guide.start.first.result"](): string;
+    /**
+      * `Local workspaces retain local page and canvas features. Native files and server AI require the corresponding online services. Joining a Project does not join a Workspace.`
+      */
+    ["com.affine.localmind.help.guide.start.first.note"](): string;
+    /**
+      * `Organize and find resources`
+      */
+    ["com.affine.localmind.help.guide.start.organize.title"](): string;
+    /**
+      * `Folders organize resources. Pages can contain both written content and children. Canvases, Office files and ordinary files are not containers.`
+      */
+    ["com.affine.localmind.help.guide.start.organize.description"](): string;
+    /**
+      * `Choose + at the destination and select Folder, Page or Upload. Check the creation location shown in the menu before submitting.`
+      */
+    ["com.affine.localmind.help.guide.start.organize.step1"](): string;
+    /**
+      * `Use Move to to choose a destination, or drag into a container or reorder siblings where available. Choose name sorting or manual order for the current directory.`
+      */
+    ["com.affine.localmind.help.guide.start.organize.step2"](): string;
+    /**
+      * `Search All docs by name, content or file type. Open results through the sidebar, breadcrumbs or quick search.`
+      */
+    ["com.affine.localmind.help.guide.start.organize.step3"](): string;
+    /**
+      * `Moving retains content and one actual location. Links in text, tags and favorites help navigation without creating another file.`
+      */
+    ["com.affine.localmind.help.guide.start.organize.result"](): string;
+    /**
+      * `The folder menu can convert a folder to a page. Converting a page back to a folder is not currently available. A hidden directory may reflect permissions rather than deletion.`
+      */
+    ["com.affine.localmind.help.guide.start.organize.note"](): string;
+    /**
+      * `Write pages and use canvases`
+      */
+    ["com.affine.localmind.help.guide.start.page.title"](): string;
+    /**
+      * `Pages suit continuous writing; canvases suit spatial layouts. Both use the native LocalMind editor.`
+      */
+    ["com.affine.localmind.help.guide.start.page.description"](): string;
+    /**
+      * `Create a page, enter its title and start writing. Use the insert menu or / commands for headings, lists, tables and other blocks.`
+      */
+    ["com.affine.localmind.help.guide.start.page.step1"](): string;
+    /**
+      * `Switch through the page/canvas mode controls, or create a canvas directly and use its tools to arrange text, shapes and connections.`
+      */
+    ["com.affine.localmind.help.guide.start.page.step2"](): string;
+    /**
+      * `Use available History and Export actions in the document menu. To share, review the access mode offered by the sharing panel.`
+      */
+    ["com.affine.localmind.help.guide.start.page.step3"](): string;
+    /**
+      * `After saving and synchronization, content reopens correctly. Recipients can access only resources they are authorized to view.`
+      */
+    ["com.affine.localmind.help.guide.start.page.result"](): string;
+    /**
+      * `Sharing a parent page does not automatically grant access to every child resource. Create or import an Office file for native Office editing; renaming a page with an Office extension does not convert it.`
+      */
+    ["com.affine.localmind.help.guide.start.page.note"](): string;
+    /**
+      * `Edit Word documents (Docs)`
+      */
+    ["com.affine.localmind.help.guide.start.docs.title"](): string;
+    /**
+      * `Create Word from the creation menu or upload a .docx file. Native editing retains the file and its revision history.`
+      */
+    ["com.affine.localmind.help.guide.start.docs.description"](): string;
+    /**
+      * `Open the file and place the caret in its body. Select text to change font, size, bold, alignment and other formatting.`
+      */
+    ["com.affine.localmind.help.guide.start.docs.step1"](): string;
+    /**
+      * `Use page settings, insertion tools and document navigation for supported margins, tables, images, headers and footers.`
+      */
+    ["com.affine.localmind.help.guide.start.docs.step2"](): string;
+    /**
+      * `Watch the save status and save manually when needed. Use History to inspect older versions, and Download or PDF export to obtain a copy.`
+      */
+    ["com.affine.localmind.help.guide.start.docs.step3"](): string;
+    /**
+      * `Edits remain after reopening, and older revisions remain viewable. Undoing a saved edit creates another revision.`
+      */
+    ["com.affine.localmind.help.guide.start.docs.result"](): string;
+    /**
+      * `Complex Word layouts and objects are not guaranteed to match exactly. Unsupported structures may be preserved without being editable. On a conflict, retain your draft and inspect the latest revision.`
+      */
+    ["com.affine.localmind.help.guide.start.docs.note"](): string;
+    /**
+      * `Edit Excel workbooks (Sheets)`
+      */
+    ["com.affine.localmind.help.guide.start.sheets.title"](): string;
+    /**
+      * `Create Excel or upload .xlsx, then locate data through sheets, cell addresses and selections.`
+      */
+    ["com.affine.localmind.help.guide.start.sheets.description"](): string;
+    /**
+      * `Select a cell and enter text, a number or a formula. Interactive input beginning with = is treated as a formula; use literal text entry when needed.`
+      */
+    ["com.affine.localmind.help.guide.start.sheets.step1"](): string;
+    /**
+      * `Use sheet and inspector tools for rows, columns, formatting, merges, filters, validation and supported charts. Copy values and paste rectangular TSV data.`
+      */
+    ["com.affine.localmind.help.guide.start.sheets.step2"](): string;
+    /**
+      * `Save and inspect calculated results. Download the current revision; for supported legacy export issues, use Download compatibility copy while retaining access to the original.`
+      */
+    ["com.affine.localmind.help.guide.start.sheets.step3"](): string;
+    /**
+      * `Data and formulas reopen, and a compatibility download does not replace the stored original.`
+      */
+    ["com.affine.localmind.help.guide.start.sheets.result"](): string;
+    /**
+      * `Only the implemented formula subset is supported. Copying values does not copy formulas or formatting. Complex charts, frozen panes and some date/custom format previews have limitations; the preview does not imply full Excel compatibility.`
+      */
+    ["com.affine.localmind.help.guide.start.sheets.note"](): string;
+    /**
+      * `Edit PowerPoint files (Slides)`
+      */
+    ["com.affine.localmind.help.guide.start.slides.title"](): string;
+    /**
+      * `Native Slides edits .pptx files. These are separate from the web pages generated by Reports.`
+      */
+    ["com.affine.localmind.help.guide.start.slides.description"](): string;
+    /**
+      * `Create PowerPoint or upload .pptx, then select a slide.`
+      */
+    ["com.affine.localmind.help.guide.start.slides.step1"](): string;
+    /**
+      * `Edit shape text, position and size. Add text, basic shapes or images, and use the slide list to add, duplicate, delete or reorder slides.`
+      */
+    ["com.affine.localmind.help.guide.start.slides.step2"](): string;
+    /**
+      * `Review notes and theme colors, save, then download and inspect the file in the presentation software you intend to use.`
+      */
+    ["com.affine.localmind.help.guide.start.slides.step3"](): string;
+    /**
+      * `Saved content and slide order remain after reopening.`
+      */
+    ["com.affine.localmind.help.guide.start.slides.result"](): string;
+    /**
+      * `Unchanged package content is preserved where supported, but complex masters, media and animations may not render fully. Downloading a web report is not an editable PPTX export.`
+      */
+    ["com.affine.localmind.help.guide.start.slides.note"](): string;
+    /**
+      * `View and modify PDFs`
+      */
+    ["com.affine.localmind.help.guide.start.pdf.title"](): string;
+    /**
+      * `PDFs retain fixed layouts. Supported edits focus on annotations, forms and page operations.`
+      */
+    ["com.affine.localmind.help.guide.start.pdf.description"](): string;
+    /**
+      * `Upload and open a PDF to read pages, search text, download or print.`
+      */
+    ["com.affine.localmind.help.guide.start.pdf.step1"](): string;
+    /**
+      * `Choose annotations, supported form fields or page operations in the PDF tools. Verify the region, page and current revision before saving.`
+      */
+    ["com.affine.localmind.help.guide.start.pdf.step2"](): string;
+    /**
+      * `For scanned text extraction, explicitly choose PDF conversion to a normal page during import. OCR requires administrator enablement and human review of the result.`
+      */
+    ["com.affine.localmind.help.guide.start.pdf.step3"](): string;
+    /**
+      * `Saving produces a new revision. The native PDF and an explicitly converted page are separate resources.`
+      */
+    ["com.affine.localmind.help.guide.start.pdf.result"](): string;
+    /**
+      * `A visual signature is not digital signature certification. Redaction affects the new revision while authorized history remains; it does not erase every historical copy. Direct PDF body rewriting or reflow is unsupported.`
+      */
+    ["com.affine.localmind.help.guide.start.pdf.note"](): string;
+    /**
+      * `Upload and edit TXT, Markdown, CSV and JSON`
+      */
+    ["com.affine.localmind.help.guide.start.files.title"](): string;
+    /**
+      * `Ordinary files retain their formats and appear alongside pages and Office resources.`
+      */
+    ["com.affine.localmind.help.guide.start.files.description"](): string;
+    /**
+      * `Choose + at the destination to create a text file or upload local files. Inspect waiting, uploading, successful and failed entries in upload progress.`
+      */
+    ["com.affine.localmind.help.guide.start.files.step1"](): string;
+    /**
+      * `Open TXT, Markdown, CSV or JSON, edit the full text and save. For other formats, use the offered preview, download or version replacement actions.`
+      */
+    ["com.affine.localmind.help.guide.start.files.step2"](): string;
+    /**
+      * `Use the resource menu to rename or move, and open file history where available. Retain input after failure, fix the cause and retry the original operation.`
+      */
+    ["com.affine.localmind.help.guide.start.files.step3"](): string;
+    /**
+      * `The file keeps its format and the saved revision reopens. A failed save is not replaced by creating a new file with the same name.`
+      */
+    ["com.affine.localmind.help.guide.start.files.result"](): string;
+    /**
+      * `UTF-8 online text editing is limited to 1 MiB. Ordinary uploads are limited to 32 MiB and Office uploads to 512 MiB. Closing the browser interrupts unfinished uploads.`
+      */
+    ["com.affine.localmind.help.guide.start.files.note"](): string;
+    /**
+      * `Trash, restore and permanently delete`
+      */
+    ["com.affine.localmind.help.guide.start.trash.title"](): string;
+    /**
+      * `Moving to Trash and permanent deletion are different actions. Manage each resource within its owning workspace or project.`
+      */
+    ["com.affine.localmind.help.guide.start.trash.description"](): string;
+    /**
+      * `Choose Move to trash in the resource menu. Open Workspace Trash from the sidebar's more menu, or use the project's own trash entry.`
+      */
+    ["com.affine.localmind.help.guide.start.trash.step1"](): string;
+    /**
+      * `Restore and check the original location. If it is unavailable, restore its directory first or explicitly select another authorized destination.`
+      */
+    ["com.affine.localmind.help.guide.start.trash.step2"](): string;
+    /**
+      * `Permanently delete an already trashed resource only when it is no longer needed, after reading the confirmation.`
+      */
+    ["com.affine.localmind.help.guide.start.trash.step3"](): string;
+    /**
+      * `Restored resources retain identity and history. Independent copies or publications are unaffected by this trash operation.`
+      */
+    ["com.affine.localmind.help.guide.start.trash.result"](): string;
+    /**
+      * `Permanent deletion cannot be undone through the product. Audit or backup retention does not imply user recovery. Restoring a folder does not restore files separately trashed beforehand.`
+      */
+    ["com.affine.localmind.help.guide.start.trash.note"](): string;
+    /**
+      * `Ask questions, attach sources and save results`
+      */
+    ["com.affine.localmind.help.guide.ai.chat.title"](): string;
+    /**
+      * `AI uses sources accessible to the current conversation. An answer, a running task and a saved file are distinct states.`
+      */
+    ["com.affine.localmind.help.guide.ai.chat.description"](): string;
+    /**
+      * `Open AI in the intended Workspace or Project. Use + by the composer to select sources or attach files, and verify the conversation and scope.`
+      */
+    ["com.affine.localmind.help.guide.ai.chat.step1"](): string;
+    /**
+      * `Specify the task, sources, output format and constraints. For example: “Create budget.xlsx using only the selected sources, leave missing numbers blank and save it in this project.”`
+      */
+    ["com.affine.localmind.help.guide.ai.chat.step2"](): string;
+    /**
+      * `Wait for the execution result, then open the returned resource link and inspect it. Identify the exact existing resource when editing rather than relying on an ambiguous title.`
+      */
+    ["com.affine.localmind.help.guide.ai.chat.step3"](): string;
+    /**
+      * `Saved results can be found again in the resource list. Project generation stays inside the project by default.`
+      */
+    ["com.affine.localmind.help.guide.ai.chat.result"](): string;
+    /**
+      * `Initial Office generation supports basic documents, sheets and slides; advanced layouts require further editing. Contact the instance administrator if no model is available. AI does not gain additional resource access.`
+      */
+    ["com.affine.localmind.help.guide.ai.chat.note"](): string;
+    /**
+      * `Source updates and long conversations`
+      */
+    ["com.affine.localmind.help.guide.ai.updates.title"](): string;
+    /**
+      * `Conversations retain the source versions they read. Refreshing affects later messages without rewriting evidence for earlier answers.`
+      */
+    ["com.affine.localmind.help.guide.ai.updates.description"](): string;
+    /**
+      * `Save and synchronize the source first. In a Project conversation, refresh context when an update is shown. In a regular Workspace conversation, follow the notice to start a new chat and reselect the source.`
+      */
+    ["com.affine.localmind.help.guide.ai.updates.step1"](): string;
+    /**
+      * `When context compaction appears, inspect queued or processing progress. Use its status card to start manually, cancel or retry after a failure.`
+      */
+    ["com.affine.localmind.help.guide.ai.updates.step2"](): string;
+    /**
+      * `Review the summary and omitted material before asking the next question. Start a new chat when the objective changes.`
+      */
+    ["com.affine.localmind.help.guide.ai.updates.step3"](): string;
+    /**
+      * `Later questions use the selected version, historical answers keep their evidence, and the compacted summary belongs only to the current conversation.`
+      */
+    ["com.affine.localmind.help.guide.ai.updates.result"](): string;
+    /**
+      * `Completed compaction does not mean every long source was fully covered. Dismissing an update notice does not refresh it, and a session summary does not automatically become shared project memory.`
+      */
+    ["com.affine.localmind.help.guide.ai.updates.note"](): string;
+    /**
+      * `Rules, personal memory and shared project memory`
+      */
+    ["com.affine.localmind.help.guide.ai.memory.title"](): string;
+    /**
+      * `Rules store explicit ongoing instructions. Automatic Memory captures stable facts. Project Memory belongs to a shared project library.`
+      */
+    ["com.affine.localmind.help.guide.ai.memory.description"](): string;
+    /**
+      * `Manage personal Rules and Memory in Workspace settings > AI context. Check scope, enabled status and content.`
+      */
+    ["com.affine.localmind.help.guide.ai.memory.step1"](): string;
+    /**
+      * `Manage shared memory in Project settings. The owner controls automatic capture; members manage their eligible individual contributions and the owner manages shared records.`
+      */
+    ["com.affine.localmind.help.guide.ai.memory.step2"](): string;
+    /**
+      * `Save stable instructions such as “Mark missing information as needing confirmation.” Review incorrect, conflicting or outdated facts and edit, disable or delete them as permitted.`
+      */
+    ["com.affine.localmind.help.guide.ai.memory.step3"](): string;
+    /**
+      * `Personal and shared scopes are clear, and a new conversation can verify the effect.`
+      */
+    ["com.affine.localmind.help.guide.ai.memory.result"](): string;
+    /**
+      * `Project conversations do not have individual automatic-contribution switches; project settings still govern extraction. Shared memory does not expose private chats, attachments or rolling summaries. Disabling automatic capture does not delete existing memory.`
+      */
+    ["com.affine.localmind.help.guide.ai.memory.note"](): string;
+    /**
+      * `Ask AI to edit the current Office file`
+      */
+    ["com.affine.localmind.help.guide.ai.office.title"](): string;
+    /**
+      * `Opening AI from the native editor attaches the current file, revision and selection.`
+      */
+    ["com.affine.localmind.help.guide.ai.office.description"](): string;
+    /**
+      * `Select a paragraph, cell range or object, open AI from the editor toolbar and inspect the attached file and selection.`
+      */
+    ["com.affine.localmind.help.guide.ai.office.step1"](): string;
+    /**
+      * `Describe the edit. Explicit Workspace requests are queued for execution. If a Project approval card appears, inspect its preview and approve, reject or cancel.`
+      */
+    ["com.affine.localmind.help.guide.ai.office.step2"](): string;
+    /**
+      * `Wait for the completion receipt and editor refresh, then inspect the new revision. Resolve version conflicts or edit locks before making another request.`
+      */
+    ["com.affine.localmind.help.guide.ai.office.step3"](): string;
+    /**
+      * `A new revision exists only after successful execution. An atomic batch is saved only when every command succeeds.`
+      */
+    ["com.affine.localmind.help.guide.ai.office.result"](): string;
+    /**
+      * `AI remains subject to current permissions, versions and supported commands. AI does not expand PDF editing beyond fixed-layout operations. After cancelling work already underway, inspect its final receipt.`
+      */
+    ["com.affine.localmind.help.guide.ai.office.note"](): string;
+    /**
+      * `Create a project and invite members`
+      */
+    ["com.affine.localmind.help.guide.projects.create.title"](): string;
+    /**
+      * `A Project has its own file tree, members and settings. Its files do not belong to a Workspace.`
+      */
+    ["com.affine.localmind.help.guide.projects.create.description"](): string;
+    /**
+      * `Open Projects in the sidebar, create a project and describe its name and goal.`
+      */
+    ["com.affine.localmind.help.guide.projects.create.step1"](): string;
+    /**
+      * `The owner manages membership in Project settings. Members can read and edit project resources.`
+      */
+    ["com.affine.localmind.help.guide.projects.create.step2"](): string;
+    /**
+      * `Open the project and locate its files and AI conversation. Save shared materials in its file tree.`
+      */
+    ["com.affine.localmind.help.guide.projects.create.step3"](): string;
+    /**
+      * `Members collaborate in one project, with separate entry points for shared files and personal conversations.`
+      */
+    ["com.affine.localmind.help.guide.projects.create.result"](): string;
+    /**
+      * `Personal AI chats are not automatically visible to other members. Users must create projects and manage members and permissions themselves; AI cannot perform these actions.`
+      */
+    ["com.affine.localmind.help.guide.projects.create.note"](): string;
+    /**
+      * `Manage project files and concurrent editing`
+      */
+    ["com.affine.localmind.help.guide.projects.resources.title"](): string;
+    /**
+      * `Pages, Office files and other files created in a project stay inside that project by default.`
+      */
+    ["com.affine.localmind.help.guide.projects.resources.description"](): string;
+    /**
+      * `Create, upload or organize resources in the project file tree, then open them in the appropriate editor.`
+      */
+    ["com.affine.localmind.help.guide.projects.resources.step1"](): string;
+    /**
+      * `Check the save status before editing. If another editor holds the file, wait for them to finish and reopen it instead of repeatedly overwriting it.`
+      */
+    ["com.affine.localmind.help.guide.projects.resources.step2"](): string;
+    /**
+      * `Specify the project file when asking AI to edit it. Open that file after completion and verify its content and revision.`
+      */
+    ["com.affine.localmind.help.guide.projects.resources.step3"](): string;
+    /**
+      * `Changes are saved to the same project resource. Members see the revision stored inside the project.`
+      */
+    ["com.affine.localmind.help.guide.projects.resources.result"](): string;
+    /**
+      * `Some native resources use an exclusive editing lease, including across windows of the same account. Owners cannot forcibly take it over. Project membership does not grant continuing access to external source files.`
+      */
+    ["com.affine.localmind.help.guide.projects.resources.note"](): string;
+    /**
+      * `Import from or publish to a workspace`
+      */
+    ["com.affine.localmind.help.guide.projects.exchange.title"](): string;
+    /**
+      * `Import and publication create independent copies. Editing a project copy does not modify its source, and publishing does not establish automatic synchronization.`
+      */
+    ["com.affine.localmind.help.guide.projects.exchange.description"](): string;
+    /**
+      * `Use the project's import action to select an authorized source. If copying requires permission, submit a request and wait for the approval notification.`
+      */
+    ["com.affine.localmind.help.guide.projects.exchange.step1"](): string;
+    /**
+      * `Edit the imported copy inside the project. When publishing, explicitly choose the destination workspace and location, and check whether you are creating or updating a copy.`
+      */
+    ["com.affine.localmind.help.guide.projects.exchange.step2"](): string;
+    /**
+      * `Check the source, project copy and published destination to confirm the expected versions and access.`
+      */
+    ["com.affine.localmind.help.guide.projects.exchange.step3"](): string;
+    /**
+      * `Publication happens only after an explicit action. Updates validate the target and its revision.`
+      */
+    ["com.affine.localmind.help.guide.projects.exchange.result"](): string;
+    /**
+      * `Resolve permission or revision errors before retrying; avoid creating repeated same-name copies. Approvers handle copy requests in Notifications. Approved copying permission cannot be withdrawn; pending requests can be withdrawn.`
+      */
+    ["com.affine.localmind.help.guide.projects.exchange.note"](): string;
+    /**
+      * `Request work and confirm delivery`
+      */
+    ["com.affine.localmind.help.guide.projects.orders.title"](): string;
+    /**
+      * `A work order ties requirements, a recipient and a final receipt together to collect specific text or file deliverables.`
+      */
+    ["com.affine.localmind.help.guide.projects.orders.description"](): string;
+    /**
+      * `Ask Project AI to draft a work order. Review the recipient, deliverables and acceptance requirements, then confirm sending it.`
+      */
+    ["com.affine.localmind.help.guide.projects.orders.step1"](): string;
+    /**
+      * `The recipient opens a separate private conversation from Notifications or My projects, prepares text or files and matches each item to a requirement.`
+      */
+    ["com.affine.localmind.help.guide.projects.orders.step2"](): string;
+    /**
+      * `After server checks pass, the recipient confirms completion and sends the delivery back using the confirmation card. The sender reviews the immutable receipt and can separately adopt its files.`
+      */
+    ["com.affine.localmind.help.guide.projects.orders.step3"](): string;
+    /**
+      * `The work order shows successful completion with accessible deliverables and a receipt.`
+      */
+    ["com.affine.localmind.help.guide.projects.orders.result"](): string;
+    /**
+      * `Saying “done”, receiving model approval or staging a file does not complete delivery. Checks cover supported formats and constraints; people still review quality. Deliverables are not automatically published into the project file tree.`
+      */
+    ["com.affine.localmind.help.guide.projects.orders.note"](): string;
+    /**
+      * `Handle notifications, tasks and access requests`
+      */
+    ["com.affine.localmind.help.guide.projects.notifications.title"](): string;
+    /**
+      * `Notifications flag events, while tasks keep track of work you need to follow up on.`
+      */
+    ["com.affine.localmind.help.guide.projects.notifications.description"](): string;
+    /**
+      * `Open Notifications and inspect the source and sender of an access request, work order or project event.`
+      */
+    ["com.affine.localmind.help.guide.projects.notifications.step1"](): string;
+    /**
+      * `Before approving a request, inspect the resource, requested scope and recipient, then approve or reject it from the notification.`
+      */
+    ["com.affine.localmind.help.guide.projects.notifications.step2"](): string;
+    /**
+      * `Applicants can check their waiting task or associated resource for the outcome. Work-order recipients continue delivery in their private conversation.`
+      */
+    ["com.affine.localmind.help.guide.projects.notifications.step3"](): string;
+    /**
+      * `The decision remains attached to the request, allowing the blocked action to proceed or explaining its rejection.`
+      */
+    ["com.affine.localmind.help.guide.projects.notifications.result"](): string;
+    /**
+      * `Being an approver does not create an extra copy-approval task or grant continuing access to the source. AI cannot approve or reject authorization on a person's behalf.`
+      */
+    ["com.affine.localmind.help.guide.projects.notifications.note"](): string;
+    /**
+      * `Generate a report`
+      */
+    ["com.affine.localmind.help.guide.reports.generate.title"](): string;
+    /**
+      * `Reports generates a responsive, scrollable web report. This is a different resource from a native PPTX file.`
+      */
+    ["com.affine.localmind.help.guide.reports.generate.description"](): string;
+    /**
+      * `Open Reports, choose a template or custom design, and describe the audience, topic and priorities.`
+      */
+    ["com.affine.localmind.help.guide.reports.generate.step1"](): string;
+    /**
+      * `Select authorized sources and an available AI configuration. Choose the more detailed mode when you need a fuller generation process.`
+      */
+    ["com.affine.localmind.help.guide.reports.generate.step2"](): string;
+    /**
+      * `Submit the request, follow its status and open the finished report. Review numbers, conclusions and references.`
+      */
+    ["com.affine.localmind.help.guide.reports.generate.step3"](): string;
+    /**
+      * `You receive one web report that supports both reading and section-based presentation.`
+      */
+    ["com.affine.localmind.help.guide.reports.generate.result"](): string;
+    /**
+      * `Generation does not modify source materials. Resolve source-access, model-configuration or task errors as shown. The legacy project report studio is not the current default entry point.`
+      */
+    ["com.affine.localmind.help.guide.reports.generate.note"](): string;
+    /**
+      * `Present, download and share a report`
+      */
+    ["com.affine.localmind.help.guide.reports.present.title"](): string;
+    /**
+      * `Reading and presenting use the same web content. Sharing has its own access controls.`
+      */
+    ["com.affine.localmind.help.guide.reports.present.description"](): string;
+    /**
+      * `Open a completed report to read it by scrolling, or enter full-screen presentation and move between sections.`
+      */
+    ["com.affine.localmind.help.guide.reports.present.step1"](): string;
+    /**
+      * `Use Download for an offline copy. The current download is an HTML web file.`
+      */
+    ["com.affine.localmind.help.guide.reports.present.step2"](): string;
+    /**
+      * `When sharing, set an expiration, optional password and download permission. Revoke the share when access should end.`
+      */
+    ["com.affine.localmind.help.guide.reports.present.step3"](): string;
+    /**
+      * `Check the link from a recipient's perspective, including expiration and download permissions.`
+      */
+    ["com.affine.localmind.help.guide.reports.present.result"](): string;
+    /**
+      * `Download here is not the legacy studio's PDF/PPTX export. Sharing remains subject to source authorization and sharing restrictions. Revoking a link cannot retrieve files already downloaded.`
+      */
+    ["com.affine.localmind.help.guide.reports.present.note"](): string;
+    /**
+      * `Open /admin and understand access`
+      */
+    ["com.affine.localmind.help.guide.admin.access.title"](): string;
+    /**
+      * `These instructions are readable by all users and do not retrieve or display the instance's actual configuration.`
+      */
+    ["com.affine.localmind.help.guide.admin.access.description"](): string;
+    /**
+      * `Open /admin on your current server and sign in with an instance administrator account. A workspace or project owner is not necessarily an instance administrator.`
+      */
+    ["com.affine.localmind.help.guide.admin.access.step1"](): string;
+    /**
+      * `Choose Accounts, AI, Queue, Logs or Settings from the sidebar. Available entries depend on deployment mode and enabled features.`
+      */
+    ["com.affine.localmind.help.guide.admin.access.step2"](): string;
+    /**
+      * `Confirm the instance and target before editing. After saving, run the relevant test and verify one real operation.`
+      */
+    ["com.affine.localmind.help.guide.admin.access.step3"](): string;
+    /**
+      * `Ordinary members can read the guide without gaining access to administrative data or server settings.`
+      */
+    ["com.affine.localmind.help.guide.admin.access.result"](): string;
+    /**
+      * `Do not paste API keys, passwords, tokens or private connection strings into documentation, screenshots or work orders. The deployment operator handles initial setup, administrator provisioning and account recovery.`
+      */
+    ["com.affine.localmind.help.guide.admin.access.note"](): string;
+    /**
+      * `Create, import and maintain accounts`
+      */
+    ["com.affine.localmind.help.guide.admin.accounts.title"](): string;
+    /**
+      * `Account management controls server users. Workspace and project membership is managed in their respective product interfaces.`
+      */
+    ["com.affine.localmind.help.guide.admin.accounts.description"](): string;
+    /**
+      * `Open Accounts and search by email or name. Use Create or Import to add users, checking the required fields.`
+      */
+    ["com.affine.localmind.help.guide.admin.accounts.step1"](): string;
+    /**
+      * `Open an account to edit its details, obtain a password-reset link or change its availability as needed.`
+      */
+    ["com.affine.localmind.help.guide.admin.accounts.step2"](): string;
+    /**
+      * `When assigning a Workspace AI Profile, confirm that it belongs to the intended workspace and is enabled. Have the user verify the models actually available to them.`
+      */
+    ["com.affine.localmind.help.guide.admin.accounts.step3"](): string;
+    /**
+      * `The user can sign in and access their authorized workspaces and AI configuration.`
+      */
+    ["com.affine.localmind.help.guide.admin.accounts.result"](): string;
+    /**
+      * `Review the impact and confirmation before disabling, suspending or deleting an account. Password-reset links are sensitive. Having an account does not mean membership in every workspace or project.`
+      */
+    ["com.affine.localmind.help.guide.admin.accounts.note"](): string;
+    /**
+      * `Change server, authentication and general settings`
+      */
+    ["com.affine.localmind.help.guide.admin.settings.title"](): string;
+    /**
+      * `Settings saves configuration by module, including server addresses, authentication and OAuth. Modules are submitted separately.`
+      */
+    ["com.affine.localmind.help.guide.admin.settings.description"](): string;
+    /**
+      * `Check that the public address, allowed hosts and registration policy match the deployment. OAuth also requires matching callbacks at the identity provider.`
+      */
+    ["com.affine.localmind.help.guide.admin.settings.step1"](): string;
+    /**
+      * `Edit the relevant module, review its field descriptions and save that module. Reset discards unsaved edits.`
+      */
+    ["com.affine.localmind.help.guide.admin.settings.step2"](): string;
+    /**
+      * `Reopen the page to verify persistence, then test affected actions such as login, invitations or generated links.`
+      */
+    ["com.affine.localmind.help.guide.admin.settings.step3"](): string;
+    /**
+      * `The page reads back the saved values and the affected operation uses the intended configuration.`
+      */
+    ["com.affine.localmind.help.guide.admin.settings.result"](): string;
+    /**
+      * `Saved administrative configuration can override deployment defaults. Do not assume changing an environment variable replaces a saved setting. Some changes still need a restart or deployment adjustment; follow field guidance and verify behavior.`
+      */
+    ["com.affine.localmind.help.guide.admin.settings.note"](): string;
+    /**
+      * `Configure SMTP and test email`
+      */
+    ["com.affine.localmind.help.guide.admin.mail.title"](): string;
+    /**
+      * `Email supports flows such as sign-in, password resets and notifications.`
+      */
+    ["com.affine.localmind.help.guide.admin.mail.description"](): string;
+    /**
+      * `Open the mail or Notification settings and enter the SMTP host, port, credentials and sender.`
+      */
+    ["com.affine.localmind.help.guide.admin.mail.step1"](): string;
+    /**
+      * `Set TLS options according to your mail provider and save. Do not bypass connection errors by arbitrarily disabling TLS checks.`
+      */
+    ["com.affine.localmind.help.guide.admin.mail.step2"](): string;
+    /**
+      * `Send a test message to an inbox you can inspect, check inbox and spam folders, then verify a real notification flow.`
+      */
+    ["com.affine.localmind.help.guide.admin.mail.step3"](): string;
+    /**
+      * `Both test and actual emails arrive, with the expected sender and links to the correct instance.`
+      */
+    ["com.affine.localmind.help.guide.admin.mail.result"](): string;
+    /**
+      * `A successful connection does not guarantee delivery. Check networking, authentication, sender-domain verification and logs. Do not include the mail password in an error report.`
+      */
+    ["com.affine.localmind.help.guide.admin.mail.note"](): string;
+    /**
+      * `Configure file and avatar storage`
+      */
+    ["com.affine.localmind.help.guide.admin.storage.title"](): string;
+    /**
+      * `Storage configures file blobs and avatars separately, using a local filesystem or a listed object-storage provider.`
+      */
+    ["com.affine.localmind.help.guide.admin.storage.description"](): string;
+    /**
+      * `Confirm existing data locations and backups. Select the appropriate provider, such as fs, aws-s3 or cloudflare-r2, and fill in its bucket and connection settings.`
+      */
+    ["com.affine.localmind.help.guide.admin.storage.step1"](): string;
+    /**
+      * `Save file and avatar settings separately. Check publicPath where needed for avatars, and keep credentials confined to the configuration form.`
+      */
+    ["com.affine.localmind.help.guide.admin.storage.step2"](): string;
+    /**
+      * `Upload and reopen a test file, and verify that existing files and avatars remain readable.`
+      */
+    ["com.affine.localmind.help.guide.admin.storage.step3"](): string;
+    /**
+      * `New writes and existing reads both work, with the expected download URLs and access controls.`
+      */
+    ["com.affine.localmind.help.guide.admin.storage.result"](): string;
+    /**
+      * `Changing providers does not migrate existing files. The deployment operator must coordinate data migration, mounts and object-store permissions; saving a new bucket is not a completed migration.`
+      */
+    ["com.affine.localmind.help.guide.admin.storage.note"](): string;
+    /**
+      * `Configure Workspace AI with BYOK and Profiles`
+      */
+    ["com.affine.localmind.help.guide.admin.workspace-ai.title"](): string;
+    /**
+      * `At /admin/ai, manage model credentials and Profiles for a selected workspace. Profiles determine which credentials users can use.`
+      */
+    ["com.affine.localmind.help.guide.admin.workspace-ai.description"](): string;
+    /**
+      * `Select the target workspace and add a named credential. Enter the provider, API address, API style, exact model ID and API key, then test connectivity or the model catalog.`
+      */
+    ["com.affine.localmind.help.guide.admin.workspace-ai.step1"](): string;
+    /**
+      * `Complete model verification when saving and enable the credential. Create or edit a Profile, choose credentials, and set enabled or workspace-default status as needed.`
+      */
+    ["com.affine.localmind.help.guide.admin.workspace-ai.step2"](): string;
+    /**
+      * `Assign a user's Profile in account details, or use an enabled workspace default. Make a real AI request in that workspace.`
+      */
+    ["com.affine.localmind.help.guide.admin.workspace-ai.step3"](): string;
+    /**
+      * `The user can select and call the configured model. An explicit user assignment takes precedence over the workspace default.`
+      */
+    ["com.affine.localmind.help.guide.admin.workspace-ai.result"](): string;
+    /**
+      * `A successful catalog test does not prove the chosen model works; verify that model. Once Profiles exist, do not rely on implicit legacy-credential fallback. Project AI uses separate global configuration and does not read these credentials.`
+      */
+    ["com.affine.localmind.help.guide.admin.workspace-ai.note"](): string;
+    /**
+      * `Configure global Project AI and work-order AI`
+      */
+    ["com.affine.localmind.help.guide.admin.project-ai.title"](): string;
+    /**
+      * `All Project conversations use the instance-wide Project BYOK configuration, independently of Workspace and user Profiles.`
+      */
+    ["com.affine.localmind.help.guide.admin.project-ai.description"](): string;
+    /**
+      * `Find global Project BYOK at /admin/ai and enter the provider, endpoint, API style, exact model ID and API key.`
+      */
+    ["com.affine.localmind.help.guide.admin.project-ai.step1"](): string;
+    /**
+      * `Test the model catalog if needed, then verify and save. Confirm that the global configuration is enabled.`
+      */
+    ["com.affine.localmind.help.guide.admin.project-ai.step2"](): string;
+    /**
+      * `Enable the separate work-order AI switch if needed. Test conversation in a real project, then test work-order drafting.`
+      */
+    ["com.affine.localmind.help.guide.admin.project-ai.step3"](): string;
+    /**
+      * `Project conversations use the global model, and work-order AI follows its separate switch.`
+      */
+    ["com.affine.localmind.help.guide.admin.project-ai.result"](): string;
+    /**
+      * `Missing or disabled configuration does not fall back to Workspace credentials, local device keys or platform credits. Check the impact on all projects before disabling it. Ordinary members cannot replace global credentials from a project conversation.`
+      */
+    ["com.affine.localmind.help.guide.admin.project-ai.note"](): string;
+    /**
+      * `Configure retrieval, Embedding, Rerank and OCR`
+      */
+    ["com.affine.localmind.help.guide.admin.retrieval.title"](): string;
+    /**
+      * `Chat models, indexing vectors and reranking serve different purposes. Retrieval infrastructure is configured centrally while source access remains permission-checked.`
+      */
+    ["com.affine.localmind.help.guide.admin.retrieval.description"](): string;
+    /**
+      * `Check providers, models and task routes such as embedding, workspaceIndexing and rerank in AI settings. Do not substitute a chat model for an embedding model.`
+      */
+    ["com.affine.localmind.help.guide.admin.retrieval.step1"](): string;
+    /**
+      * `Inspect indexing in the target workspace and test retrieval with an authorized indexed document. Follow the maintenance process for existing indexes when changing embedding models.`
+      */
+    ["com.affine.localmind.help.guide.admin.retrieval.step2"](): string;
+    /**
+      * `For scanned-document OCR, configure and enable the documentOcr HTTPS service, allowed host, model and key, then test a supported import action.`
+      */
+    ["com.affine.localmind.help.guide.admin.retrieval.step3"](): string;
+    /**
+      * `Retrieval finds authorized materials and OCR results can be reviewed. Validate these settings separately from chat credentials.`
+      */
+    ["com.affine.localmind.help.guide.admin.retrieval.result"](): string;
+    /**
+      * `Missing reranking can fall back to vector distance; missing embeddings cannot build a vector index. OCR sends material to the configured service, so confirm that the material may be processed there.`
+      */
+    ["com.affine.localmind.help.guide.admin.retrieval.note"](): string;
+    /**
+      * `Configure MCP and external integrations`
+      */
+    ["com.affine.localmind.help.guide.admin.integrations.title"](): string;
+    /**
+      * `Outbound tool connections and public Workspace MCP are separate entry points with independent credentials and capabilities.`
+      */
+    ["com.affine.localmind.help.guide.admin.integrations.description"](): string;
+    /**
+      * `The administrator enables the required services, providers and tool scope. Users then connect or authorize their own integration in Settings.`
+      */
+    ["com.affine.localmind.help.guide.admin.integrations.step1"](): string;
+    /**
+      * `To connect an external client to a workspace, create credentials at Workspace settings > Integrations > MCP Server. Explicitly choose delegated AI or direct-resource capabilities and save the token shown only once.`
+      */
+    ["com.affine.localmind.help.guide.admin.integrations.step2"](): string;
+    /**
+      * `Test with the minimum required permissions. Users confirm required approvals. After disabling a connection or revoking credentials, verify that access stops.`
+      */
+    ["com.affine.localmind.help.guide.admin.integrations.step3"](): string;
+    /**
+      * `Clients can use only granted capabilities, and execution still checks current user and resource permissions.`
+      */
+    ["com.affine.localmind.help.guide.admin.integrations.result"](): string;
+    /**
+      * `Direct-resource tools require the deployment flag LOCALMIND_MCP_RESOURCES_ENABLED, off by default. Enabling it does not expand existing tokens. Direct-resource operations do not run through AI. Do not interchange public MCP tokens, external service keys or one-time connection tickets.`
+      */
+    ["com.affine.localmind.help.guide.admin.integrations.note"](): string;
+    /**
+      * `Inspect AI runs, queues and repair tasks`
+      */
+    ["com.affine.localmind.help.guide.admin.runtime.title"](): string;
+    /**
+      * `/admin/ai/runtime provides run and diagnostic views, while Queue shows background work. Interpret status together with execution receipts.`
+      */
+    ["com.affine.localmind.help.guide.admin.runtime.description"](): string;
+    /**
+      * `Select the correct workspace and time range, then inspect the run, steps, request identifiers, errors and approval state.`
+      */
+    ["com.affine.localmind.help.guide.admin.runtime.step1"](): string;
+    /**
+      * `Run health checks or prechecks first. If a Support Bundle is needed, request it through the interface, wait for its archive and check download access.`
+      */
+    ["com.affine.localmind.help.guide.admin.runtime.step2"](): string;
+    /**
+      * `Review the preview, precheck and approvals before executing repairs. Use only cancellation or retry actions currently offered for that task.`
+      */
+    ["com.affine.localmind.help.guide.admin.runtime.step3"](): string;
+    /**
+      * `The task has a clear final state, execution result and audit history, and the target resource reflects the actual outcome.`
+      */
+    ["com.affine.localmind.help.guide.admin.runtime.result"](): string;
+    /**
+      * `Being queued, showing healthy status or producing a successful model reply does not prove a write completed. Do not bypass approvals, leases or version checks by editing the database, deleting queue records or repeatedly submitting work.`
+      */
+    ["com.affine.localmind.help.guide.admin.runtime.note"](): string;
+    /**
+      * `Search logs and manage retention and archives`
+      */
+    ["com.affine.localmind.help.guide.admin.logs.title"](): string;
+    /**
+      * `Observability provides runtime logs, failure events and retention settings for tracing problems by request.`
+      */
+    ["com.affine.localmind.help.guide.admin.logs.description"](): string;
+    /**
+      * `Filter logs by time, severity, event, requestId, traceId or keyword, and follow related context from a failure event.`
+      */
+    ["com.affine.localmind.help.guide.admin.logs.step1"](): string;
+    /**
+      * `Review retention periods, freezes and legal holds in settings. Preview cleanup and confirm its scope before executing it.`
+      */
+    ["com.affine.localmind.help.guide.admin.logs.step2"](): string;
+    /**
+      * `Preview and create archives when evidence must be retained, then check task status and download results. Inspect session-deletion records for status and backup evidence.`
+      */
+    ["com.affine.localmind.help.guide.admin.logs.step3"](): string;
+    /**
+      * `Retention or cleanup has a traceable outcome, and issue reports contain useful request identifiers.`
+      */
+    ["com.affine.localmind.help.guide.admin.logs.result"](): string;
+    /**
+      * `Logs and archives may contain business information. Review and redact them before sharing. Do not paste full logs, private content or credentials to unrelated recipients.`
+      */
+    ["com.affine.localmind.help.guide.admin.logs.note"](): string;
+    /**
+      * `A feature, file or project is missing`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.missing.title"](): string;
+    /**
+      * `Check your location and identity first, then permissions and feature availability.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.missing.description"](): string;
+    /**
+      * `Confirm your account, server and workspace. Look for project resources in that project's own file tree.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.missing.step1"](): string;
+    /**
+      * `Check search filters, Trash, project membership and source permissions. Possessing a link does not grant access.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.missing.step2"](): string;
+    /**
+      * `If an entry is still missing, ask an administrator to check feature flags and the deployed version. Include the page path and time of the issue.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.missing.step3"](): string;
+    /**
+      * `You can distinguish a wrong location, deletion, denied access and a feature unavailable in the current environment.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.missing.result"](): string;
+    /**
+      * `Everyone can read the guide, but not every account has every capability. Project authorization does not automatically allow direct access to a source inside a Workspace.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.missing.note"](): string;
+    /**
+      * `Saving fails, revisions conflict or a file is locked`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.save.title"](): string;
+    /**
+      * `File type, permissions, revision checks and editing leases can affect saving.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.save.description"](): string;
+    /**
+      * `Preserve unsaved content. Check network access, file-size limits and format errors, and wait for confirmed success before closing.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.save.step1"](): string;
+    /**
+      * `For a revision conflict, compare your work with the latest version. For an edit lock, close your other editing windows or wait for the current editor to release it.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.save.step2"](): string;
+    /**
+      * `Reopen the target and inspect revision history. If saving still fails, record the error and location so an administrator can trace the request.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.save.step3"](): string;
+    /**
+      * `The intended resource has the expected new revision, and the content remains after reopening.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.save.result"](): string;
+    /**
+      * `A filename or “saved” message in chat is not proof of a saved file. Do not bypass conflicts by creating same-name copies. Office compatibility and export options depend on the specific editor.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.save.note"](): string;
+    /**
+      * `AI has no model, authentication fails or retrieval misses files`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.models.title"](): string;
+    /**
+      * `Distinguish Workspace AI, Project AI and retrieval indexing before checking configuration.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.models.description"](): string;
+    /**
+      * `For a Workspace, check assigned or default Profiles and enabled credentials. For a Project, ask the administrator to check global Project BYOK.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.models.step1"](): string;
+    /**
+      * `For authentication or model errors, check the endpoint, API style, exact model ID and provider quota, then verify the model again. A catalog test alone is insufficient.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.models.step2"](): string;
+    /**
+      * `If a source is not found, check access, indexing status and embedding configuration. For recently changed sources, refresh context or start a new conversation as prompted.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.models.step3"](): string;
+    /**
+      * `A real chat request succeeds, and retrieval can cite an authorized, indexed source.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.models.result"](): string;
+    /**
+      * `Missing global Project configuration does not fall back to personal or workspace credentials. Working chat does not prove that retrieval, image generation or OCR has been configured.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.models.note"](): string;
+    /**
+      * `AI keeps waiting, a task fails or a work order is unfinished`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.tasks.title"](): string;
+    /**
+      * `Inspect the waiting reason and actual receipt before approving, retrying or cancelling.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.tasks.description"](): string;
+    /**
+      * `Check whether the task is waiting for tool approval, copy permission, an editing lease or queue execution. Complete the required action in its card or notification.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.tasks.step1"](): string;
+    /**
+      * `Read the specific error and resolve its cause before using an available retry action. After cancellation, inspect any effects that already occurred.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.tasks.step2"](): string;
+    /**
+      * `A work order requires every deliverable to pass server checks and the recipient to confirm completion. For other AI writes, inspect the target resource and its new revision.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.tasks.step3"](): string;
+    /**
+      * `Success is evidenced by a persisted result or formal delivery receipt, and any remaining blocker can be identified.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.tasks.result"](): string;
+    /**
+      * `Cancelling cannot necessarily undo an external action already completed. Report the time, resource location and run or request ID, excluding keys, tokens and unrelated private content.`
+      */
+    ["com.affine.localmind.help.guide.troubleshooting.tasks.note"](): string;
+    /**
       * `An internal error occurred.`
       */
     ["error.INTERNAL_SERVER_ERROR"](): string;

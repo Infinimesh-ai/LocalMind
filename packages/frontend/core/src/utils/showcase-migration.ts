@@ -123,7 +123,7 @@ const textReplacements: Replacement[] = [
       {
         insert: 'Import Markdown, HTML, Notion, and other supported formats',
         attributes: {
-          link: 'https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/localmind-user-guide.zh-CN.md',
+          link: 'https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/README.md#user-guide',
         },
       },
     ],
@@ -134,7 +134,7 @@ const textReplacements: Replacement[] = [
       {
         insert: 'Import a LocalMind backup',
         attributes: {
-          link: 'https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/localmind-user-guide.zh-CN.md',
+          link: 'https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/README.md#user-guide',
         },
       },
     ],
@@ -145,7 +145,7 @@ const textReplacements: Replacement[] = [
       {
         insert: 'Read the LocalMind user guide',
         attributes: {
-          link: 'https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/localmind-user-guide.zh-CN.md',
+          link: 'https://github.com/Infinimesh-ai/LocalMind/blob/main/docs/README.md#user-guide',
         },
       },
     ],

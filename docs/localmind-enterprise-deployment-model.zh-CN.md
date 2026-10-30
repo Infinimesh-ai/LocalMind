@@ -13,7 +13,7 @@
 - [LocalMind 部署指南](localmind-deployment.zh-CN.md)
 - [Project 原生资源](ai-modernization/tracks/project-native-resources.md)
 - [Project 工作台重构](ai-modernization/tracks/project-workbench-redesign.md)
-- [LocalMind 用户使用指南](localmind-user-guide.zh-CN.md)
+- [LocalMind 应用内帮助与指南入口](README.md#user-guide)
 
 ## 2. 核心结论
 
