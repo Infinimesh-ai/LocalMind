@@ -104,6 +104,9 @@ copilot.run.completed
 copilot.provider.request.failed
 mcp.tool.execution.denied
 log.ingestion.degraded
+log.ingestion.recovered
+log.ingestion.summary
+graphql.request.summary
 log.retention.completed
 ```
 
@@ -200,6 +203,23 @@ auditEventId    业务审计事件
 - spool 批次使用原子临时文件 + rename、checksum、文件锁或租约；容器替换、滚动升级和异常退出后可恢复未完成批次。达到容量上限时优先丢弃可采样的低级运行日志，并记录 `log.spool.capacity_reached`；审计事件不得静默丢弃。
 - PostgreSQL 日志表按时间分区并建立 `event_id`、`occurred_at`、关联 ID、severity、event name 和租户范围索引。写入器使用有界批量、背压和数据库连接超时；查询、导出和 metadata 均有行数/字节上限。
 - retention worker 必须在删除前锁定分区或批次范围，支持 dry-run、法务留置和失败重试；清理期间产生的证据写入仍可查询。
+
+### 12.2 运行日志采样与写入预算
+
+以下规则来自 2026-10-30 堆内存耗尽故障的修复（见[故障分析](localmind-logging-heap-oom-investigation.zh-CN.md)），只适用于运行日志；`writeAudit()` 的同步写入、落 spool 与 fail-closed 语义不变。
+
+- **请求完成日志：** 成功且耗时低于 3 秒的 GraphQL 请求不逐条入库，按 operation 每分钟写一条 `graphql.request.summary`（次数、P50、P95、最大耗时）；operation 键最多 200 个，超出部分计入 `__other__`。失败或慢请求仍逐条写 `graphql.request.completed`。`/graphql` 与 `/api/logs/batch` 的成功 HTTP 完成日志不入库，失败、慢请求及其他路径照常记录，`path` 使用不含查询参数的原始路径。成功请求因此不能再按 requestId 逐条查询。
+- **debug：** severity 为 `debug` 的事件默认只输出 stdout，设置 `LOCALMIND_LOG_PERSIST_DEBUG=true` 才入库。每秒或每 5 秒的定时任务入队不再写 debug。
+- **准入：** 同时在途的运行日志最多 1,000 条、4 MiB；超出时 info、warn、debug 事件直接丢弃，error、fatal 可再使用一倍预算，超过后同样丢弃。客户端批量接口超出预算时整批不确认，由客户端保留重试副本。
+- **熔断：** 写库连续 5 次失败或耗时超过 2 秒即熔断，熔断期间运行日志直接写 spool、暂停 spool 补写；退避从 5 秒起倍增至 60 秒，每次只放行一条探测写入，成功后恢复。
+- **降级报告：** 进入熔断时写一条 `log.ingestion.degraded`，恢复时写一条 `log.ingestion.recovered`，不再为每条失败事件生成降级文件。失败、慢写、落盘和按原因分类的丢弃次数按 60 秒窗口汇总为 `log.ingestion.summary`。
+- **spool 容量：** 进程首次使用时流式扫描一次目录，之后在内存维护已提交字节、文件数与在途预留，追加和补写不再扫描整个目录；目录必须由单一进程拥有。
+- **stdout 镜像：** 待写队列超过 8 MiB 时跳过镜像并计数，恢复后先输出一条 `log.mirror.skipped`；数据库或 spool 中的记录不受影响。
+- **批量写入：** 准入后的运行日志进入有界内存队列，每 200 ms 或满 100 条、256 KiB 合成一批，同时只有一个批次在途；服务端生成 ID 的首次写入跳过 advisory lock 与查重，由全局 ID 登记触发器兜底，客户端批量与 spool 回放仍先锁定再查重。运行日志写入、spool 回放和保留清理使用独立的小连接池（默认 3 个连接，`LOCALMIND_LOG_DB_CONNECTION_LIMIT` 可调，`LOCALMIND_LOG_DB_SHARED_POOL=true` 退回共享连接池）；它不隔离磁盘与 CPU。
+- **spool 目录与回放：** 目录名使用稳定的 `LOCALMIND_NODE_ID`（默认 `primary`），不再使用进程 ID；首次回放时把旧版本按进程 ID 命名、且未被锁定的目录中的待补写文件迁入当前目录。每次回放最多 500 个文件、10 秒，按 100 条一个事务写入；无法读取或校验失败的文件移入 `quarantine/` 并计数，不再阻塞后续回放。
+- **保留清理：** 每批在独立事务中用 `pg_try_advisory_xact_lock` 抢锁，抢不到即本轮让出；按 `(occurred_at, id)` 游标前进，批大小在 200—10,000 行之间按耗时调整，每轮最多 60 秒、50 万行，执行路径不再做精确总数统计，dry-run 计数上限 10 万。批次之间重新检查法务留置与冻结。每轮的状态（`completed`、`partial`、`contended`、`paused`、`failed`、`interrupted`）、计数与游标位置写入 `localmind_log_retention_runs`，保留 90 天；归档使用相同的保留分类，error、fatal 按失败保留期处理。
+- **接收健康状态：** Admin 查询 `localmindLogIngestionStatus` 返回 spool 字节与文件数、在途与排队数量、熔断与降级状态、当前窗口计数，以及最近 5 轮保留清理；内存计数不依赖日志表，清理记录读取超过 2 秒即返回不可用。
+- **前端权限刷新：** 已打开文档的界面权限每 5 秒刷新，资源列表、侧栏与搜索候选每 60 秒刷新；页面隐藏时暂停，同一文档的并发检查合并，全局最多 4 个并发请求。列表候选通过 `workspace.docsPermissions(docIds)` 每次最多检查 100 篇，服务端逐篇执行与单篇查询相同的实时 ACL 判断；未存储的文档返回 `missing` 并由客户端改用单篇查询，旧服务端不支持该字段时自动退回逐篇查询。服务端对每次访问的实时 ACL 检查不变。
 
 ## 13. 实施阶段
 

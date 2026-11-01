@@ -6,6 +6,9 @@ services:
       context: ../..
       dockerfile: Dockerfile.localmind
     container_name: localmind_affine_server
+    # Without an init process node runs as PID 1, which changes how fatal
+    # signals end the process.
+    init: true
     ports:
       - '${BIND_ADDRESS:-0.0.0.0}:${PORT:-3011}:3010'
     depends_on:
@@ -23,10 +26,13 @@ services:
       - ${ENTERPRISE_CLI_DATA_LOCATION:-./data/localmind/enterprise-cli}:/var/lib/localmind/enterprise-cli
       - ${AUDIT_ARCHIVE_LOCATION:-./data/localmind/audit-archive}:/var/lib/localmind/audit-archive
       - ${RECOVERY_BARRIER_LOCATION:-./data/localmind/recovery-barrier}:/var/lib/localmind/recovery-barrier:ro
+      - ${LOG_SPOOL_LOCATION:-./data/localmind/log-spool}:/var/lib/localmind/log-spool
+      - ${DIAGNOSTICS_LOCATION:-./data/localmind/diagnostics}:/var/lib/localmind/diagnostics
     env_file:
       - path: .env
         required: false
     environment:
+      - LOCALMIND_LOG_SPOOL_DIR=/var/lib/localmind/log-spool/${LOCALMIND_NODE_ID:-primary}
       - REDIS_SERVER_HOST=redis
       - DATABASE_URL=postgresql://${DB_USERNAME:-affine}:${DB_PASSWORD:-affine}@postgres:5432/${DB_DATABASE:-affine}
       - AFFINE_INDEXER_ENABLED=false
@@ -46,6 +52,19 @@ services:
       - LOCALMIND_OCR_MAX_OUTPUT_BYTES=${LOCALMIND_OCR_MAX_OUTPUT_BYTES:-1048576}
       - LOCALMIND_OCR_MAX_TOKENS=${LOCALMIND_OCR_MAX_TOKENS:-16384}
       - LOCALMIND_OCR_MAX_CONCURRENCY=${LOCALMIND_OCR_MAX_CONCURRENCY:-2}
+    # Liveness only: /info does not touch the database. Docker marks the
+    # container unhealthy but does not restart it; see localmind-watchdog.sh.
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', '-m', '5', 'http://127.0.0.1:3010/info']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    logging:
+      driver: json-file
+      options:
+        max-size: ${SERVER_LOG_MAX_SIZE:-100m}
+        max-file: '${SERVER_LOG_MAX_FILE:-5}'
     restart: unless-stopped
 
   sparkclaw_adapter:
@@ -235,6 +254,14 @@ services:
       POSTGRES_DB: ${DB_DATABASE:-affine}
       POSTGRES_INITDB_ARGS: '--data-checksums'
       POSTGRES_HOST_AUTH_METHOD: trust
+    # Defaults match PostgreSQL's own; raise shared_buffers to about 25% of
+    # the memory reserved for PostgreSQL. Changing it restarts the database.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-128MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-4GB}
     healthcheck:
       test:
         [

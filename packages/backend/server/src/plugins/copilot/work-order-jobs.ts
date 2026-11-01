@@ -44,12 +44,14 @@ export class WorkOrderJobs {
     await this.queue.add(
       'copilot.workOrder.deliverOutbox',
       { limit: 100 },
-      { jobId: 'copilot-work-order-deliver-outbox' }
+      { jobId: 'copilot-work-order-deliver-outbox' },
+      { quiet: true }
     );
     await this.queue.add(
       'copilot.workOrder.runPrivateFileGeneration',
       {},
-      { jobId: 'copilot-work-order-private-file-generation' }
+      { jobId: 'copilot-work-order-private-file-generation' },
+      { quiet: true }
     );
   }
 

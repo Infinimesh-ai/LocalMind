@@ -439,16 +439,27 @@ export function WorkspaceResourceExplorer({
   const [matchingDocs, setMatchingDocs] = useState(new Set<string>());
   const [droppedFiles, setDroppedFiles] = useState<File[]>();
   const guard = useService(GuardService);
+  // Group updates often rebuild the array; re-check ACLs only when the
+  // candidate set itself changes.
+  const candidateDocKey = useMemo(
+    () =>
+      trash
+        ? ''
+        : [...new Set(docGroups.flatMap(group => group.items))]
+            .sort()
+            .join('\n'),
+    [docGroups, trash]
+  );
   const readableDocs = useLiveData(
     useMemo(
       () =>
         LiveData.from(
           guard.readableDocIds$(
-            trash ? [] : docGroups.flatMap(group => group.items)
+            candidateDocKey ? candidateDocKey.split('\n') : []
           ),
           new Set<string>()
         ),
-      [guard, docGroups, trash]
+      [guard, candidateDocKey]
     )
   );
   const graphql = useServiceOptional(GraphQLService);

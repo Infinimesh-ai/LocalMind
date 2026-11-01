@@ -325,3 +325,218 @@ describe('GuardService document scope', () => {
     }
   });
 });
+
+describe('GuardService refresh budget', () => {
+  const callsFor = (mock: ReturnType<typeof vi.fn>, docId: string) =>
+    mock.mock.calls.filter(([id]) => id === docId).length;
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  test('refreshes opened documents every 5 seconds and listed rows every minute', async () => {
+    vi.useFakeTimers();
+    const { service, getDocPermissions } = createGuard('write', false);
+    subscriptions.push(
+      service.readableDocIds$(['listed']).subscribe(() => {}),
+      service.can$('Doc_Update', 'opened').subscribe(() => {})
+    );
+    service.revalidateCan('Doc_Update', 'opened');
+    await vi.waitFor(() => expect(getDocPermissions).toHaveBeenCalledTimes(2));
+    getDocPermissions.mockClear();
+
+    await vi.advanceTimersByTimeAsync(55_000);
+    expect(callsFor(getDocPermissions, 'opened')).toBe(11);
+    expect(callsFor(getDocPermissions, 'listed')).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(callsFor(getDocPermissions, 'opened')).toBe(12);
+    expect(callsFor(getDocPermissions, 'listed')).toBe(1);
+  });
+
+  test('pauses refreshes while the page is hidden', async () => {
+    vi.useFakeTimers();
+    const listeners = new Map<string, () => void>();
+    const page = {
+      visibilityState: 'hidden',
+      addEventListener: (type: string, listener: () => void) =>
+        listeners.set(type, listener),
+      removeEventListener: (type: string) => listeners.delete(type),
+    };
+    vi.stubGlobal('document', page);
+    const { service, getDocPermissions } = createGuard('write', false);
+    subscriptions.push(
+      service.can$('Doc_Update', 'opened').subscribe(() => {})
+    );
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(getDocPermissions).not.toHaveBeenCalled();
+
+    page.visibilityState = 'visible';
+    listeners.get('visibilitychange')?.();
+    await vi.waitFor(() =>
+      expect(getDocPermissions).toHaveBeenCalledWith('opened')
+    );
+  });
+
+  test('coalesces concurrent checks and bounds requests across callers', async () => {
+    const { service, getDocPermissions } = createGuard('write', false);
+    let active = 0;
+    let maximum = 0;
+    getDocPermissions.mockImplementation(async () => {
+      maximum = Math.max(maximum, ++active);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      active--;
+      return { Doc_Read: true };
+    });
+    const ids = Array.from({ length: 10 }, (_, index) => `doc-${index}`);
+    await Promise.all(
+      [...ids, ...ids, 'doc-0'].map(id => service.can('Doc_Read', id))
+    );
+    expect(getDocPermissions).toHaveBeenCalledTimes(10);
+    expect(maximum).toBeLessThanOrEqual(4);
+  });
+
+  test('stops retrying a failing check and keeps later revalidations working', async () => {
+    vi.useFakeTimers();
+    const { service, getDocPermissions } = createGuard('write', false);
+    getDocPermissions.mockRejectedValue(new Error('Network unavailable'));
+    service.revalidateCan('Doc_Read', 'doc-1');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(getDocPermissions).toHaveBeenCalledTimes(4);
+
+    getDocPermissions.mockResolvedValue({ Doc_Read: true });
+    const canRead$ = service.can$('Doc_Read', 'doc-1');
+    subscriptions.push(canRead$.subscribe(() => {}));
+    service.revalidateCan('Doc_Read', 'doc-1');
+    await vi.waitFor(() => expect(canRead$.value).toBe(true));
+  });
+});
+
+describe('GuardService batch permission checks', () => {
+  const createBatchGuard = () => {
+    const getDocPermissions = vi.fn().mockResolvedValue({ Doc_Read: true });
+    const getDocsPermissions = vi.fn(async (ids: string[]) =>
+      ids.map(docId =>
+        docId.startsWith('denied')
+          ? { docId, status: 'denied', permissions: null }
+          : docId.startsWith('missing')
+            ? { docId, status: 'missing', permissions: null }
+            : { docId, status: 'granted', permissions: { Doc_Read: true } }
+      )
+    );
+    const framework = new Framework();
+    framework.service(
+      GuardService,
+      () =>
+        new GuardService(
+          {
+            getDocPermissions,
+            getDocsPermissions,
+            getWorkspacePermissions: vi.fn(),
+          } as never,
+          { workspace: { flavour: 'server-1', openOptions: {} } } as never,
+          {
+            permission: {
+              isOwner$: new LiveData(false),
+              isAdmin$: new LiveData(false),
+              waitForRevalidation: vi.fn(),
+              revalidate: vi.fn(),
+            },
+          } as never
+        )
+    );
+    const service = framework.provider().get(GuardService);
+    services.push(service);
+    return { service, getDocPermissions, getDocsPermissions };
+  };
+
+  test('checks listed candidates with one request per hundred documents', async () => {
+    const { service, getDocPermissions, getDocsPermissions } =
+      createBatchGuard();
+    const ids = [
+      ...Array.from({ length: 150 }, (_, index) => `doc-${index}`),
+      'denied-1',
+      'missing-1',
+    ];
+    let visible: ReadonlySet<string> = new Set();
+    subscriptions.push(
+      service.readableDocIds$(ids).subscribe(value => {
+        visible = value;
+      })
+    );
+    await vi.waitFor(() => expect(visible.size).toBe(151));
+    expect(getDocsPermissions).toHaveBeenCalledTimes(2);
+    expect(
+      getDocsPermissions.mock.calls.map(([chunk]) => chunk.length)
+    ).toEqual([100, 52]);
+    expect(visible.has('denied-1')).toBe(false);
+    // Only the document the server has no record of uses the single query.
+    expect(getDocPermissions).toHaveBeenCalledTimes(1);
+    expect(getDocPermissions).toHaveBeenCalledWith('missing-1');
+  });
+
+  test('refreshes listed candidates in batches and applies revocations', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, getDocsPermissions } = createBatchGuard();
+      let visible: ReadonlySet<string> = new Set();
+      subscriptions.push(
+        service.readableDocIds$(['doc-a', 'doc-b']).subscribe(value => {
+          visible = value;
+        })
+      );
+      await vi.waitFor(() => expect(visible.size).toBe(2));
+      getDocsPermissions.mockImplementation(async (ids: string[]) =>
+        ids.map(docId =>
+          docId === 'doc-b'
+            ? { docId, status: 'denied', permissions: null }
+            : { docId, status: 'granted', permissions: { Doc_Read: true } }
+        )
+      );
+      getDocsPermissions.mockClear();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(getDocsPermissions).toHaveBeenCalledTimes(1);
+      expect(visible.has('doc-a')).toBe(true);
+      expect(visible.has('doc-b')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('falls back to single checks when the server lacks the batch query', async () => {
+    const { service, getDocPermissions, getDocsPermissions } =
+      createBatchGuard();
+    getDocsPermissions.mockRejectedValue(
+      new Error('Cannot query field "docsPermissions" on type "WorkspaceType".')
+    );
+    let visible: ReadonlySet<string> = new Set();
+    subscriptions.push(
+      service.readableDocIds$(['doc-a', 'doc-b']).subscribe(value => {
+        visible = value;
+      })
+    );
+    await vi.waitFor(() => expect(visible.size).toBe(2));
+    expect(getDocPermissions).toHaveBeenCalledTimes(2);
+    subscriptions.push(service.readableDocIds$(['doc-c']).subscribe(() => {}));
+    await vi.waitFor(() => expect(getDocPermissions).toHaveBeenCalledTimes(3));
+    expect(getDocsPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not fall back to many single requests when the batch fails transiently', async () => {
+    const { service, getDocPermissions, getDocsPermissions } =
+      createBatchGuard();
+    getDocsPermissions.mockRejectedValue(new Error('Network unavailable'));
+    const values: number[] = [];
+    subscriptions.push(
+      service
+        .readableDocIds$(['doc-a', 'doc-b'])
+        .subscribe(value => values.push(value.size))
+    );
+    await vi.waitFor(() => expect(getDocsPermissions).toHaveBeenCalled());
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(getDocPermissions).not.toHaveBeenCalled();
+    expect(values.every(size => size === 0)).toBe(true);
+  });
+});

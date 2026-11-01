@@ -184,7 +184,8 @@ export class ProjectRealtimeProvider implements OnModuleInit {
     await this.queue.add(
       'notification.projectRealtime',
       {},
-      { jobId: 'project-realtime-deliver' }
+      { jobId: 'project-realtime-deliver' },
+      { quiet: true }
     );
   }
 

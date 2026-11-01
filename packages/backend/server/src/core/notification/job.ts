@@ -53,7 +53,8 @@ export class NotificationJob {
       {},
       {
         jobId: 'notification-access-request-refresh',
-      }
+      },
+      { quiet: true }
     );
   }
 

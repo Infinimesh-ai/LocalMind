@@ -206,8 +206,12 @@ COPY --from=package /app /app
 COPY packages/common/office/package.json /app/dist/node_modules/@localmind/office/package.json
 COPY packages/common/office/assets /app/dist/node_modules/@localmind/office/assets
 
+RUN install -d -m 0700 /var/lib/localmind/log-spool /var/lib/localmind/diagnostics
+
 VOLUME ["/var/lib/localmind/enterprise-cli"]
 
 EXPOSE 3010
 
-CMD ["node", "./dist/main.js"]
+# A fatal error (including V8 heap exhaustion) writes a diagnostic report with
+# the JS stack, heap spaces and libuv handles; environment values are excluded.
+CMD ["node", "--report-on-fatalerror", "--report-exclude-env", "--report-directory=/var/lib/localmind/diagnostics", "./dist/main.js"]

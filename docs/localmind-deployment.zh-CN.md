@@ -102,9 +102,19 @@ openssl rand -hex 32
 | `ENTERPRISE_CLI_DATA_LOCATION` | 模板默认值                          | 使用企业连接器时需要持久化和严格保护 |
 | `AUDIT_ARCHIVE_LOCATION`       | `./data/localmind/audit-archive`    | 私有签名审计归档，必须持久化和备份   |
 | `RECOVERY_BARRIER_LOCATION`    | `./data/localmind/recovery-barrier` | 生产环境应改为备份故障域外的绝对路径 |
+| `LOG_SPOOL_LOCATION`           | `./data/localmind/log-spool`        | 待补写日志缓冲，必须持久化           |
+| `DIAGNOSTICS_LOCATION`         | `./data/localmind/diagnostics`      | 致命错误诊断报告，按敏感数据保护     |
+| `POSTGRES_SHARED_BUFFERS`      | `128MB`（PostgreSQL 默认）          | 建议约为数据库可用内存的 25%         |
 
 `.env` 已被 Git 忽略。不要把数据库密码、模型密钥、MCP token 或企业连接器凭据提交到
 仓库。
+
+服务端容器使用 `init: true` 运行，日志缓冲目录固定为
+`LOG_SPOOL_LOCATION/${LOCALMIND_NODE_ID:-primary}`；多副本部署时为每个副本设置不同的
+`LOCALMIND_NODE_ID`。致命错误（包括 V8 堆耗尽）会在 `DIAGNOSTICS_LOCATION` 写入不含环境
+变量的 Node.js 诊断报告。修改 `POSTGRES_SHARED_BUFFERS` 会重启数据库容器，应安排维护
+窗口。服务端容器日志默认按 100 MB × 5 份轮转，可用 `SERVER_LOG_MAX_SIZE`、
+`SERVER_LOG_MAX_FILE` 调整。
 
 ### 审计归档与恢复屏障
 
@@ -391,3 +401,17 @@ docker compose \
   服务；这通常不是数据库或基础部署故障。
 - 新版本异常：保留当前数据库和数据目录，不要只回退代码后强行启动旧 schema。先根据
   备份制定数据库与文件数据一致的回退方案。
+- 容器在运行但页面无响应：服务端健康检查只请求不访问数据库的 `/info`，连续失败后
+  容器标记为 `unhealthy`，但 Docker 重启策略不会因此重启容器。可以在主机上用 cron 或
+  systemd timer 每分钟运行 `.docker/selfhost/localmind-watchdog.sh`：它只在容器
+  `unhealthy` 时先保存最近日志再重启，两次重启至少间隔 15 分钟，24 小时内超过 6 次即
+  停止并要求人工处理。是否启用由运维决定。
+
+### 9.1 日志保留清理
+
+日志保留清理每小时分批执行，每轮最多运行 60 秒、删除 50 万行，进度和结果写入
+`localmind_log_retention_runs`；管理员可通过 GraphQL 查询 `localmindLogIngestionStatus`
+的 `retention` 字段查看最近 5 轮。积压较多时，一轮结束后状态为 `partial`，下一轮继续。
+首次处理大量积压应选择低峰期，由管理员调用 `cleanupLocalmindLogRetention` mutation
+手动触发（每次同样受 60 秒预算限制），并观察数据库 I/O；删除后的空间由 autovacuum
+复用，不要为了回收磁盘执行 `VACUUM FULL`。

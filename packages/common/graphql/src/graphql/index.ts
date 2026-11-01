@@ -9379,6 +9379,38 @@ export const getDocRolePermissionsQuery = {
 }`,
 };
 
+export const getDocsRolePermissionsQuery = {
+  id: 'getDocsRolePermissionsQuery' as const,
+  op: 'getDocsRolePermissions',
+  query: `query getDocsRolePermissions($workspaceId: String!, $docIds: [String!]!) {
+  workspace(id: $workspaceId) {
+    docsPermissions(docIds: $docIds) {
+      docId
+      status
+      permissions {
+        Doc_Copy
+        Doc_Delete
+        Doc_Duplicate
+        Doc_Properties_Read
+        Doc_Properties_Update
+        Doc_Publish
+        Doc_Read
+        Doc_Restore
+        Doc_TransferOwner
+        Doc_Trash
+        Doc_Update
+        Doc_Users_Manage
+        Doc_Users_Read
+        Doc_Comments_Create
+        Doc_Comments_Delete
+        Doc_Comments_Read
+        Doc_Comments_Resolve
+      }
+    }
+  }
+}`,
+};
+
 export const beginEnterpriseAuthorizationMutation = {
   id: 'beginEnterpriseAuthorizationMutation' as const,
   op: 'beginEnterpriseAuthorization',

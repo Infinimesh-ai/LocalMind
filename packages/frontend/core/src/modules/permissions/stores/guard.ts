@@ -1,6 +1,8 @@
 import {
   type GetDocRolePermissionsQuery,
   getDocRolePermissionsQuery,
+  type GetDocsRolePermissionsQuery,
+  getDocsRolePermissionsQuery,
 } from '@affine/graphql';
 import { Store } from '@toeverything/infra';
 
@@ -14,6 +16,9 @@ export type DocPermissionActions = keyof Omit<
   GetDocRolePermissionsQuery['workspace']['doc']['permissions'],
   '__typename'
 >;
+
+export type DocPermissionCheck =
+  GetDocsRolePermissionsQuery['workspace']['docsPermissions'][number];
 
 export class GuardStore extends Store {
   constructor(
@@ -49,5 +54,20 @@ export class GuardStore extends Store {
       },
     });
     return data.workspace.doc.permissions;
+  }
+
+  /** Live ACL check for up to 100 documents in one request. */
+  async getDocsPermissions(docIds: string[]): Promise<DocPermissionCheck[]> {
+    if (!this.workspaceServerService.server) {
+      throw new Error('No server');
+    }
+    const data = await this.workspaceServerService.server.gql({
+      query: getDocsRolePermissionsQuery,
+      variables: {
+        workspaceId: this.workspaceService.workspace.id,
+        docIds,
+      },
+    });
+    return data.workspace.docsPermissions;
   }
 }

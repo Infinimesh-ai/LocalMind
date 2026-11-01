@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { readdir, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnModuleDestroy, Optional } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ClsServiceManager } from 'nestjs-cls';
@@ -15,12 +16,58 @@ import {
   readLocalMindLogArchiveKeyring,
   writeLocalMindLogArchiveEnvelope,
 } from './localmind-log-archive';
+import { LocalMindLogDatabase } from './localmind-log-database';
 import { hashActor, redact } from './redactor';
 import {
   LocalMindLogSpool,
   SpoolCapacityError,
   type SpoolRecord,
 } from './spool';
+
+/** Requests at or above this duration keep a per-request completion log. */
+export const SLOW_REQUEST_THRESHOLD_MS = 3_000;
+
+/**
+ * Runtime log ingestion budgets. Records beyond them are dropped and counted
+ * instead of queueing unbounded work; audit writes do not use this path.
+ */
+export const LOCALMIND_LOG_INGESTION_LIMITS = {
+  maxInFlightRecords: 1_000,
+  maxInFlightBytes: 4 * 1024 * 1024,
+  // error/fatal may use a reserved share above the runtime budget.
+  criticalBudgetFactor: 2,
+  breakerFailureThreshold: 5,
+  breakerInitialOpenMs: 5_000,
+  breakerMaxOpenMs: 60_000,
+  slowPersistMs: 2_000,
+  mirrorMaxQueuedBytes: 8 * 1024 * 1024,
+  summaryIntervalMs: 60_000,
+  // Accepted runtime records are written in small batches, one at a time.
+  batchMaxRecords: 100,
+  batchMaxBytes: 256 * 1024,
+  batchDelayMs: 200,
+  // Each scheduled spool replay is bounded by files and wall time.
+  spoolReplayLimit: 500,
+  spoolReplayBatch: 100,
+  spoolReplayBudgetMs: 10_000,
+  // Retention deletes in committed batches sized to the measured duration.
+  retentionInitialBatch: 2_000,
+  retentionMinBatch: 200,
+  retentionMaxBatch: 10_000,
+  retentionTargetBatchMs: 2_000,
+  retentionBatchTimeoutMs: 20_000,
+  retentionRunBudgetMs: 60_000,
+  retentionRunMaxRows: 500_000,
+  retentionRunHistoryDays: 90,
+  retentionDryRunCountLimit: 100_000,
+};
+
+type PendingRuntimeRecord = {
+  record: SpoolRecord;
+  bytes: number;
+  fresh: boolean;
+  resolve: (eventId: string) => void;
+};
 
 export type LocalMindLogInput = {
   eventId?: string;
@@ -60,32 +107,61 @@ export type LocalMindAuditInput = {
 };
 
 @Injectable()
-export class LocalMindLogService {
+export class LocalMindLogService implements OnModuleDestroy {
   private static sink?: (input: LocalMindLogInput) => void;
   private static consoleInstalled = false;
   private readonly instanceId = process.env.LOCALMIND_INSTANCE_ID ?? 'local';
   private readonly nodeId = process.env.LOCALMIND_NODE_ID ?? `${process.pid}`;
+  private readonly spoolRoot = join(
+    process.env.LOCALMIND_DATA_DIR ?? '/tmp/localmind',
+    'logs',
+    'spool'
+  );
+  // The spool directory name must survive restarts; a process ID does not.
   private readonly spool = new LocalMindLogSpool(
     process.env.LOCALMIND_LOG_SPOOL_DIR ??
-      join(
-        process.env.LOCALMIND_DATA_DIR ?? '/tmp/localmind',
-        'logs',
-        'spool',
-        this.nodeId
-      )
+      join(this.spoolRoot, process.env.LOCALMIND_NODE_ID ?? 'primary')
   );
+  private legacySpoolsAdopted = false;
   private flushing = false;
   private lastSpoolError?: string;
   private lastSpoolFlushAt?: Date;
   private lastSpoolFlushed = 0;
+  readonly limits = { ...LOCALMIND_LOG_INGESTION_LIMITS };
+  private inFlightRecords = 0;
+  private inFlightBytes = 0;
+  private consecutiveFailures = 0;
+  private breakerOpenUntil = 0;
+  private breakerOpenMs = this.limits.breakerInitialOpenMs;
+  private probeInFlight = false;
+  private degradedSince?: Date;
+  private window = LocalMindLogService.emptyWindow();
+  private mirrorSkipped = 0;
+  private readonly pending: PendingRuntimeRecord[] = [];
+  private pendingBytes = 0;
+  private draining = false;
+  private drainTimer?: ReturnType<typeof setTimeout>;
+  /** Runtime ingestion, spool replay and retention use the small log pool. */
+  private readonly logDb: PrismaClient;
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    @Optional() logDatabase?: LocalMindLogDatabase
+  ) {
+    this.logDb = logDatabase?.client ?? prisma;
+  }
 
   static registerSink(sink: (input: LocalMindLogInput) => void) {
     LocalMindLogService.sink = sink;
   }
 
   static emit(input: LocalMindLogInput) {
+    // Debug output stays on stdout unless persistence is explicitly enabled.
+    if (
+      input.severity === 'debug' &&
+      process.env.LOCALMIND_LOG_PERSIST_DEBUG !== 'true'
+    )
+      return;
     try {
       LocalMindLogService.sink?.(input);
     } catch {
@@ -120,14 +196,303 @@ export class LocalMindLogService {
     }
   }
 
+  /**
+   * Accepts a runtime record into the bounded batch writer. The promise settles
+   * once its batch reached the database or spool, or was dropped; callers that
+   * do not await it are never blocked by log I/O.
+   */
   async write(input: LocalMindLogInput) {
     const record = this.buildRecord(input);
-    try {
-      if (await this.persist(record)) this.mirror(record);
-    } catch {
-      if (await this.spoolRuntime(record)) this.mirror(record);
+    const bytes = Buffer.byteLength(JSON.stringify(record));
+    if (!this.admit(1, bytes, isCritical(record))) {
+      this.countDropped('admission');
+      return record.eventId;
     }
-    return record.eventId;
+    return await new Promise<string>(resolve => {
+      // A server-generated ID on its first attempt cannot already be stored.
+      this.pending.push({
+        record,
+        bytes,
+        fresh: input.eventId === undefined,
+        resolve,
+      });
+      this.pendingBytes += bytes;
+      this.scheduleDrain();
+    });
+  }
+
+  private scheduleDrain() {
+    if (this.draining) return;
+    if (
+      this.pending.length >= this.limits.batchMaxRecords ||
+      this.pendingBytes >= this.limits.batchMaxBytes
+    ) {
+      this.drain().catch(() => undefined);
+      return;
+    }
+    if (this.drainTimer) return;
+    this.drainTimer = setTimeout(() => {
+      this.drainTimer = undefined;
+      this.drain().catch(() => undefined);
+    }, this.limits.batchDelayMs);
+  }
+
+  /** Flushes queued runtime records on shutdown, bounded so exit is not held. */
+  async onModuleDestroy() {
+    await Promise.race([
+      this.drain(),
+      new Promise(resolve => setTimeout(resolve, 2_000).unref?.()),
+    ]);
+  }
+
+  /** Writes queued records one batch at a time until the queue is empty. */
+  private async drain() {
+    if (this.draining) return;
+    this.draining = true;
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = undefined;
+    }
+    try {
+      while (this.pending.length) {
+        const batch = this.takeBatch();
+        try {
+          await this.persistRuntimeRecords(
+            batch.map(entry => entry.record),
+            { fresh: batch.every(entry => entry.fresh) }
+          );
+        } catch {
+          // Spool failures are already counted; the queue must keep moving.
+        }
+        for (const entry of batch) {
+          this.release(1, entry.bytes);
+          entry.resolve(entry.record.eventId);
+        }
+      }
+    } finally {
+      this.draining = false;
+      if (this.pending.length) this.scheduleDrain();
+    }
+  }
+
+  private takeBatch() {
+    let bytes = 0;
+    let count = 0;
+    while (
+      count < this.pending.length &&
+      count < this.limits.batchMaxRecords &&
+      (count === 0 ||
+        bytes + this.pending[count].bytes <= this.limits.batchMaxBytes)
+    ) {
+      bytes += this.pending[count].bytes;
+      count++;
+    }
+    this.pendingBytes -= bytes;
+    return this.pending.splice(0, count);
+  }
+
+  /**
+   * Persists one runtime batch in a single transaction, or spools each record
+   * when the breaker is open or the write fails. Returns accepted event IDs.
+   */
+  private async persistRuntimeRecords(
+    records: SpoolRecord[],
+    { fresh = false, rethrowSpoolErrors = false } = {}
+  ) {
+    const mode = this.databaseMode();
+    if (mode !== 'open') {
+      const startedAt = Date.now();
+      try {
+        const inserted = await this.logDb.$transaction(
+          tx => this.persistRuntimeBatch(tx, records, { fresh }),
+          { maxWait: 5000 }
+        );
+        this.recordDatabaseResult(true, Date.now() - startedAt, mode);
+        const insertedIds = new Set(inserted.map(row => row.eventId));
+        for (const record of records) {
+          if (insertedIds.has(record.eventId)) this.mirror(record);
+        }
+        // Rows that already existed are durable and keep their receipt.
+        return records.map(record => record.eventId);
+      } catch {
+        this.recordDatabaseResult(false, Date.now() - startedAt, mode);
+      }
+    }
+    // A database outage costs one failed insert per batch, then durable spool.
+    const accepted: string[] = [];
+    for (const record of records) {
+      try {
+        if (await this.spoolRuntime(record)) {
+          this.mirror(record);
+          accepted.push(record.eventId);
+        }
+      } catch (error) {
+        if (rethrowSpoolErrors) throw error;
+        this.countDropped('spool_failed');
+      }
+    }
+    return accepted;
+  }
+
+  /** Current ingestion budgets and breaker state, without touching the database. */
+  ingestionStatus() {
+    return {
+      inFlightRecords: this.inFlightRecords,
+      inFlightBytes: this.inFlightBytes,
+      consecutiveFailures: this.consecutiveFailures,
+      breakerOpen: this.breakerIsOpen(),
+      degradedSince: this.degradedSince?.toISOString(),
+      window: {
+        ...this.window,
+        startedAt: new Date(this.window.startedAt).toISOString(),
+        dropped: Object.fromEntries(this.window.dropped),
+      },
+    };
+  }
+
+  private static emptyWindow() {
+    return {
+      startedAt: Date.now(),
+      failures: 0,
+      slow: 0,
+      spooled: 0,
+      mirrorSkipped: 0,
+      dropped: new Map<string, number>(),
+    };
+  }
+
+  private admit(records: number, bytes: number, critical: boolean) {
+    const factor = critical ? this.limits.criticalBudgetFactor : 1;
+    if (
+      this.inFlightRecords + records >
+        this.limits.maxInFlightRecords * factor ||
+      this.inFlightBytes + bytes > this.limits.maxInFlightBytes * factor
+    )
+      return false;
+    this.inFlightRecords += records;
+    this.inFlightBytes += bytes;
+    return true;
+  }
+
+  private release(records: number, bytes: number) {
+    this.inFlightRecords -= records;
+    this.inFlightBytes -= bytes;
+  }
+
+  private countDropped(reason: string, count = 1) {
+    this.window.dropped.set(
+      reason,
+      (this.window.dropped.get(reason) ?? 0) + count
+    );
+  }
+
+  private breakerIsOpen() {
+    return this.consecutiveFailures >= this.limits.breakerFailureThreshold;
+  }
+
+  /**
+   * closed: write to the database; open: go straight to spool; probe: the one
+   * write allowed through after the backoff to test recovery.
+   */
+  private databaseMode(): 'closed' | 'open' | 'probe' {
+    if (!this.breakerIsOpen()) return 'closed';
+    if (this.probeInFlight || Date.now() < this.breakerOpenUntil) return 'open';
+    this.probeInFlight = true;
+    return 'probe';
+  }
+
+  private recordDatabaseResult(
+    ok: boolean,
+    durationMs: number,
+    mode: 'closed' | 'open' | 'probe'
+  ) {
+    if (mode === 'probe') this.probeInFlight = false;
+    const slow = ok && durationMs >= this.limits.slowPersistMs;
+    if (ok && !slow) {
+      this.consecutiveFailures = 0;
+      this.breakerOpenMs = this.limits.breakerInitialOpenMs;
+      if (this.degradedSince) this.recover();
+      return;
+    }
+    if (slow) this.window.slow++;
+    else this.window.failures++;
+    const wasOpen = this.breakerIsOpen();
+    this.consecutiveFailures++;
+    if (mode === 'probe') {
+      this.breakerOpenMs = Math.min(
+        this.breakerOpenMs * 2,
+        this.limits.breakerMaxOpenMs
+      );
+      this.breakerOpenUntil = Date.now() + this.breakerOpenMs;
+    } else if (!wasOpen && this.breakerIsOpen()) {
+      this.breakerOpenUntil = Date.now() + this.breakerOpenMs;
+      this.enterDegraded(
+        slow ? 'database_write_slow' : 'database_write_failed'
+      );
+    }
+  }
+
+  /** One record per state change instead of one per failed event. */
+  private enterDegraded(reason: string) {
+    if (this.degradedSince) return;
+    this.degradedSince = new Date();
+    const record = this.buildRecord({
+      eventName: 'log.ingestion.degraded',
+      severity: 'warn',
+      status: 'degraded',
+      metadata: {
+        reason,
+        consecutiveFailures: this.consecutiveFailures,
+        breakerOpenMs: this.breakerOpenMs,
+      },
+    });
+    void this.spoolRuntime(record)
+      .then(spooled => spooled && this.mirror(record))
+      .catch(() => undefined);
+  }
+
+  private recover() {
+    const since = this.degradedSince;
+    this.degradedSince = undefined;
+    if (!since) return;
+    void this.write({
+      eventName: 'log.ingestion.recovered',
+      severity: 'info',
+      status: 'recovered',
+      durationMs: Date.now() - since.getTime(),
+      metadata: { degradedSince: since.toISOString() },
+    }).catch(() => undefined);
+  }
+
+  /** Writes bounded failure/drop counters for the elapsed window, if any. */
+  async flushIngestionSummary(now = Date.now()) {
+    const window = this.window;
+    if (now - window.startedAt < this.limits.summaryIntervalMs) return false;
+    this.window = LocalMindLogService.emptyWindow();
+    const dropped = Object.fromEntries(window.dropped);
+    if (
+      !window.failures &&
+      !window.slow &&
+      !window.spooled &&
+      !window.mirrorSkipped &&
+      !Object.keys(dropped).length
+    )
+      return false;
+    await this.write({
+      eventName: 'log.ingestion.summary',
+      severity: 'warn',
+      status: this.degradedSince ? 'degraded' : 'ok',
+      metadata: {
+        windowStartedAt: new Date(window.startedAt).toISOString(),
+        windowMs: now - window.startedAt,
+        failures: window.failures,
+        slow: window.slow,
+        spooled: window.spooled,
+        mirrorSkipped: window.mirrorSkipped,
+        dropped,
+      },
+    });
+    return true;
   }
 
   async writeBatch(inputs: LocalMindLogInput[]) {
@@ -137,33 +502,29 @@ export class LocalMindLogService {
       if (!records.has(record.eventId)) records.set(record.eventId, record);
     }
     if (!records.size) return [];
-    let inserted: { eventId: string }[];
+    const bytes = [...records.values()].reduce(
+      (total, record) => total + Buffer.byteLength(JSON.stringify(record)),
+      0
+    );
+    // Over budget, nothing is accepted and the client keeps its retry copy.
+    if (!this.admit(records.size, bytes, false)) {
+      this.countDropped('admission', records.size);
+      return [];
+    }
     try {
-      inserted = await this.prisma.$transaction(
-        tx => this.persistRuntimeBatch(tx, [...records.values()]),
-        { maxWait: 5000 }
-      );
-    } catch {
-      // A database outage costs one failed insert per batch, then durable spool.
-      const accepted: string[] = [];
-      for (const record of records.values()) {
-        if (await this.spoolRuntime(record)) {
-          this.mirror(record);
-          accepted.push(record.eventId);
-        }
-      }
-      return accepted;
+      // Client receipts must surface a critical spool failure to the caller.
+      return await this.persistRuntimeRecords([...records.values()], {
+        rethrowSpoolErrors: true,
+      });
+    } finally {
+      this.release(records.size, bytes);
     }
-    for (const { eventId } of inserted) {
-      const record = records.get(eventId);
-      if (record) this.mirror(record);
-    }
-    return [...records.keys()];
   }
 
   private async spoolRuntime(record: SpoolRecord) {
-    const critical = record.severity === 'error' || record.severity === 'fatal';
+    const critical = isCritical(record);
     const capacityReached = () => {
+      this.countDropped('spool_capacity');
       this.mirror({
         ...record,
         eventId: randomUUID(),
@@ -183,25 +544,8 @@ export class LocalMindLogService {
       capacityReached();
       return false;
     }
-    if (record.eventName !== 'log.ingestion.degraded') {
-      try {
-        await this.spool.append({
-          ...record,
-          eventId: randomUUID(),
-          eventName: 'log.ingestion.degraded',
-          severity: 'warn',
-          status: 'degraded',
-          metadata: {
-            reason: 'postgres_unavailable',
-            failedEventName: record.eventName,
-          },
-        });
-      } catch (error) {
-        if (!(error instanceof SpoolCapacityError)) throw error;
-        // The original event is already durable; a full spool cannot undo it.
-        capacityReached();
-      }
-    }
+    // Degradation is reported once per state change and in window summaries.
+    this.window.spooled++;
     return true;
   }
 
@@ -309,37 +653,77 @@ export class LocalMindLogService {
     return auditEventId;
   }
 
-  async flushSpool(limit = 100) {
-    if (this.flushing) return 0;
+  /**
+   * Replays spooled records: runtime records in deduplicated batches, audit
+   * envelopes one by one. Corrupted files are quarantined instead of blocking
+   * every later replay. Bounded by file count and wall time per call.
+   */
+  async flushSpool(limit = this.limits.spoolReplayLimit) {
+    // While the breaker is open the probe write decides recovery; replaying
+    // the backlog would only add load to a failing database.
+    if (this.flushing || this.breakerIsOpen()) return 0;
     const releaseLease = await this.spool.acquireFlushLease();
     if (!releaseLease) return 0;
     this.flushing = true;
     try {
+      if (!this.legacySpoolsAdopted) {
+        this.legacySpoolsAdopted = true;
+        await this.adoptLegacySpools().catch(() => undefined);
+      }
       let flushed = 0;
+      const deadline = Date.now() + this.limits.spoolReplayBudgetMs;
       this.lastSpoolFlushAt = new Date();
       this.lastSpoolError = undefined;
-      for (const file of (await this.spool.list()).slice(0, limit)) {
-        let record: SpoolRecord | undefined;
-        try {
-          record = await this.spool.read(file);
-          await this.persist(record);
-          await this.spool.remove(file);
-          flushed++;
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            if (record?.auditEnvelope) {
-              await this.persistAuditEnvelopeOnly(record);
+      const files = await this.spool.list(limit);
+      replay: for (
+        let offset = 0;
+        offset < files.length && Date.now() < deadline;
+        offset += this.limits.spoolReplayBatch
+      ) {
+        const runtime: { file: string; record: SpoolRecord }[] = [];
+        for (const file of files.slice(
+          offset,
+          offset + this.limits.spoolReplayBatch
+        )) {
+          let record: SpoolRecord;
+          try {
+            record = await this.spool.read(file);
+          } catch (error) {
+            this.lastSpoolError =
+              error instanceof Error ? error.message : String(error);
+            if (await this.spool.quarantine(file).catch(() => false)) {
+              this.countDropped('spool_quarantined');
             }
-            await this.spool.remove(file);
-            flushed++;
             continue;
           }
+          if (!record.auditEnvelope) {
+            runtime.push({ file, record });
+            continue;
+          }
+          if (!(await this.replayAuditRecord(file, record))) break replay;
+          flushed++;
+        }
+        if (!runtime.length) continue;
+        const startedAt = Date.now();
+        try {
+          await this.logDb.$transaction(
+            tx =>
+              this.persistRuntimeBatch(
+                tx,
+                runtime.map(entry => entry.record)
+              ),
+            { maxWait: 5000 }
+          );
+          this.recordDatabaseResult(true, Date.now() - startedAt, 'closed');
+        } catch (error) {
           this.lastSpoolError =
             error instanceof Error ? error.message : String(error);
+          this.recordDatabaseResult(false, Date.now() - startedAt, 'closed');
           break;
+        }
+        for (const { file } of runtime) {
+          await this.spool.remove(file).catch(() => undefined);
+          flushed++;
         }
       }
       this.lastSpoolFlushed = flushed;
@@ -350,14 +734,71 @@ export class LocalMindLogService {
     }
   }
 
+  /**
+   * Earlier versions named the spool directory after the process ID. Pending
+   * files left in such directories are moved into the current spool once,
+   * unless another process currently holds that directory's flush lock.
+   */
+  private async adoptLegacySpools() {
+    const entries = await readdir(this.spoolRoot, {
+      withFileTypes: true,
+    }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+      const directory = join(this.spoolRoot, entry.name);
+      if (resolve(directory) === resolve(this.spool.directory)) continue;
+      const locked = await stat(join(directory, '.flush-lock')).then(
+        () => true,
+        () => false
+      );
+      if (locked) continue;
+      const files = await this.spool.adopt(directory);
+      if (files) {
+        this.write({
+          eventName: 'log.spool.adopted',
+          severity: 'info',
+          metadata: { legacyDirectory: entry.name, files },
+        }).catch(() => undefined);
+      }
+    }
+  }
+
+  private async replayAuditRecord(file: string, record: SpoolRecord) {
+    const startedAt = Date.now();
+    try {
+      await this.persist(record);
+      this.recordDatabaseResult(true, Date.now() - startedAt, 'closed');
+    } catch (error) {
+      if (
+        !(
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        )
+      ) {
+        this.lastSpoolError =
+          error instanceof Error ? error.message : String(error);
+        this.recordDatabaseResult(false, Date.now() - startedAt, 'closed');
+        return false;
+      }
+      await this.persistAuditEnvelopeOnly(record);
+    }
+    await this.spool.remove(file);
+    return true;
+  }
+
   @Interval(15_000)
   async scheduledSpoolFlush() {
     await this.flushSpool();
+    await this.flushIngestionSummary().catch(() => undefined);
   }
 
   @Interval(3_600_000)
   async scheduledRetentionCleanup() {
-    const result = await this.cleanupRetention();
+    // A failed run is recorded in localmind_log_retention_runs.
+    const result = await this.cleanupRetention(new Date(), {
+      trigger: 'scheduled',
+    }).catch(() => null);
+    if (!result) return;
     try {
       await this.writeAudit({
         action: 'logs.retention.scheduled_cleanup',
@@ -435,14 +876,36 @@ export class LocalMindLogService {
     });
   }
 
+  /**
+   * Ingestion health for Admin. In-memory counters never wait on the log
+   * table; the retention history read is bounded and may be unavailable.
+   */
   async spoolStatus() {
+    const retention = await Promise.race([
+      this.retentionRuns(5).then(
+        runs => ({ available: true as const, runs }),
+        () => ({ available: false as const, runs: [] })
+      ),
+      new Promise<{ available: false; runs: [] }>(resolve =>
+        setTimeout(
+          () => resolve({ available: false, runs: [] }),
+          2_000
+        ).unref?.()
+      ),
+    ]);
     return {
       directory: this.spool.directory,
       bytes: await this.spool.bytes(),
-      files: (await this.spool.list()).length,
+      files: await this.spool.files(),
       lastFlushAt: this.lastSpoolFlushAt,
       lastFlushed: this.lastSpoolFlushed,
       lastError: this.lastSpoolError,
+      ingestion: {
+        ...this.ingestionStatus(),
+        queuedRecords: this.pending.length,
+        queuedBytes: this.pendingBytes,
+      },
+      retention,
     };
   }
 
@@ -567,7 +1030,20 @@ export class LocalMindLogService {
     return policy;
   }
 
-  async cleanupRetention(now = new Date(), options: { dryRun?: boolean } = {}) {
+  /**
+   * Deletes expired runtime logs in small committed batches. Each batch takes a
+   * non-blocking advisory lock, scans forward by (occurred_at, id) and adapts
+   * its size to the measured duration; legal hold and freeze are re-checked
+   * between batches. Progress and outcome are stored per run.
+   */
+  async cleanupRetention(
+    now = new Date(),
+    options: {
+      dryRun?: boolean;
+      trigger?: 'scheduled' | 'manual';
+      maxDurationMs?: number;
+    } = {}
+  ) {
     const policy = await this.getPolicy();
     if (policy.legalHold || policy.retentionFrozen)
       return { skipped: true, dryRun: !!options.dryRun, deleted: 0 };
@@ -577,7 +1053,264 @@ export class LocalMindLogService {
     const failureCutoff = new Date(
       now.getTime() - policy.failureRetentionDays * 86400000
     );
-    const where: Prisma.LocalMindLogEventWhereInput = {
+    if (options.dryRun) {
+      // Bounded: the exact total of a large backlog is not worth a full scan.
+      const deleted = await this.logDb.localMindLogEvent.count({
+        where: {
+          OR: [
+            {
+              retentionClass: 'runtime',
+              occurredAt: { lt: runtimeCutoff },
+              severity: { notIn: ['error', 'fatal'] },
+            },
+            {
+              retentionClass: 'runtime',
+              occurredAt: { lt: failureCutoff },
+              severity: { in: ['error', 'fatal'] },
+            },
+          ],
+        },
+        take: this.limits.retentionDryRunCountLimit,
+      });
+      return {
+        skipped: false,
+        dryRun: true,
+        deleted,
+        bounded: deleted >= this.limits.retentionDryRunCountLimit,
+      };
+    }
+
+    await this.markInterruptedRetentionRuns(now);
+    const run = await this.logDb.localMindLogRetentionRun.create({
+      data: {
+        id: randomUUID(),
+        kind: 'cleanup',
+        trigger: options.trigger ?? 'manual',
+        status: 'running',
+        runtimeCutoff,
+        failureCutoff,
+      },
+    });
+    const deadline =
+      Date.now() + (options.maxDurationMs ?? this.limits.retentionRunBudgetMs);
+    const scanUntil =
+      runtimeCutoff > failureCutoff ? runtimeCutoff : failureCutoff;
+    let cursor = { at: new Date(0), id: '' };
+    let batchSize = this.limits.retentionInitialBatch;
+    let scanned = 0;
+    let deleted = 0;
+    let batches = 0;
+    let status: 'completed' | 'partial' | 'contended' | 'paused' = 'completed';
+    try {
+      while (true) {
+        if (
+          Date.now() >= deadline ||
+          deleted >= this.limits.retentionRunMaxRows
+        ) {
+          status = 'partial';
+          break;
+        }
+        if (batches > 0 && (await this.retentionPaused())) {
+          status = 'paused';
+          break;
+        }
+        const startedAt = Date.now();
+        const batch = await this.deleteRetentionBatch({
+          cursor,
+          scanUntil,
+          runtimeCutoff,
+          failureCutoff,
+          batchSize,
+        });
+        if (!batch) {
+          status = 'contended';
+          break;
+        }
+        batches++;
+        scanned += batch.scanned;
+        deleted += batch.deleted;
+        const elapsed = Date.now() - startedAt;
+        if (batch.scanned < batchSize || !batch.lastAt || !batch.lastId) break;
+        cursor = { at: batch.lastAt, id: batch.lastId };
+        batchSize =
+          elapsed > this.limits.retentionTargetBatchMs
+            ? Math.max(this.limits.retentionMinBatch, Math.floor(batchSize / 2))
+            : elapsed < this.limits.retentionTargetBatchMs / 4
+              ? Math.min(this.limits.retentionMaxBatch, batchSize * 2)
+              : batchSize;
+        await this.logDb.localMindLogRetentionRun.update({
+          where: { id: run.id },
+          data: { scanned, deleted, batches, lastOccurredAt: cursor.at },
+        });
+      }
+    } catch (error) {
+      await this.logDb.localMindLogRetentionRun
+        .update({
+          where: { id: run.id },
+          data: {
+            status: 'failed',
+            scanned,
+            deleted,
+            batches,
+            failureCode:
+              error instanceof Error &&
+              /^LOCALMIND_[A-Z0-9_]+$/.test(error.message)
+                ? error.message
+                : 'LOCALMIND_LOG_RETENTION_FAILED',
+            finishedAt: new Date(),
+            nextAttemptAt: new Date(Date.now() + 3_600_000),
+          },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
+    await this.logDb.localMindLogRetentionRun.update({
+      where: { id: run.id },
+      data: {
+        status,
+        scanned,
+        deleted,
+        batches,
+        lastOccurredAt: batches ? cursor.at : null,
+        finishedAt: new Date(),
+        nextAttemptAt: new Date(Date.now() + 3_600_000),
+      },
+    });
+    await this.logDb.localMindLogRetentionRun
+      .deleteMany({
+        where: {
+          finishedAt: {
+            lt: new Date(
+              now.getTime() - this.limits.retentionRunHistoryDays * 86400000
+            ),
+          },
+        },
+      })
+      .catch(() => undefined);
+    return {
+      skipped: status === 'contended' || status === 'paused',
+      dryRun: false,
+      deleted,
+      scanned,
+      batches,
+      status,
+      complete: status === 'completed',
+      runId: run.id,
+    };
+  }
+
+  /** Latest retention runs for the Admin ingestion status. */
+  async retentionRuns(limit = 5) {
+    return await this.logDb.localMindLogRetentionRun.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 50),
+    });
+  }
+
+  private async markInterruptedRetentionRuns(now: Date) {
+    // A process that died mid-run leaves `running`; batches it committed stay.
+    await this.logDb.localMindLogRetentionRun.updateMany({
+      where: {
+        status: 'running',
+        updatedAt: { lt: new Date(now.getTime() - 3_600_000) },
+      },
+      data: {
+        status: 'interrupted',
+        failureCode: 'LOCALMIND_LOG_RETENTION_INTERRUPTED',
+        finishedAt: now,
+      },
+    });
+  }
+
+  private async retentionPaused() {
+    const policy = await this.logDb.localMindLogPolicy.findUnique({
+      where: { id: 'default' },
+      select: { legalHold: true, retentionFrozen: true },
+    });
+    return !!(policy?.legalHold || policy?.retentionFrozen);
+  }
+
+  /**
+   * One committed delete batch. Returns null when another worker holds the
+   * retention lock. `scanned` counts expired-window runtime rows visited, so a
+   * short batch means the window is exhausted.
+   */
+  private async deleteRetentionBatch(args: {
+    cursor: { at: Date; id: string };
+    scanUntil: Date;
+    runtimeCutoff: Date;
+    failureCutoff: Date;
+    batchSize: number;
+  }) {
+    return await this.logDb.$transaction(
+      async tx => {
+        const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`
+          SELECT pg_try_advisory_xact_lock(hashtext('localmind_log_retention')) AS locked
+        `;
+        if (!lock?.locked) return null;
+        const [row] = await tx.$queryRaw<
+          {
+            scanned: number;
+            deleted: number;
+            lastAt: Date | null;
+            lastId: string | null;
+          }[]
+        >`
+          WITH scanned AS (
+            SELECT "id", "occurred_at", "severity"
+            FROM "localmind_log_events"
+            WHERE "retention_class" = 'runtime'
+              AND "occurred_at" < ${args.scanUntil}
+              AND "occurred_at" >= ${args.cursor.at}
+              AND ("occurred_at", "id") > (${args.cursor.at}, ${args.cursor.id})
+            ORDER BY "occurred_at", "id"
+            LIMIT ${args.batchSize}
+          ), removed AS (
+            DELETE FROM "localmind_log_events" AS e
+            USING scanned AS s
+            WHERE e."id" = s."id"
+              AND e."occurred_at" = s."occurred_at"
+              AND (
+                (s."severity" NOT IN ('error', 'fatal') AND s."occurred_at" < ${args.runtimeCutoff})
+                OR (s."severity" IN ('error', 'fatal') AND s."occurred_at" < ${args.failureCutoff})
+              )
+            RETURNING 1
+          ), last AS (
+            SELECT "occurred_at", "id" FROM scanned
+            ORDER BY "occurred_at" DESC, "id" DESC
+            LIMIT 1
+          )
+          SELECT
+            (SELECT count(*) FROM scanned)::int AS "scanned",
+            (SELECT count(*) FROM removed)::int AS "deleted",
+            (SELECT "occurred_at" FROM last) AS "lastAt",
+            (SELECT "id" FROM last) AS "lastId"
+        `;
+        return row ?? { scanned: 0, deleted: 0, lastAt: null, lastId: null };
+      },
+      {
+        maxWait: 5000,
+        timeout: this.limits.retentionBatchTimeoutMs,
+      }
+    );
+  }
+
+  async archiveRetention(now = new Date(), options: { dryRun?: boolean } = {}) {
+    const policy = await this.getPolicy();
+    if (policy.legalHold || policy.retentionFrozen)
+      return { skipped: true, dryRun: !!options.dryRun, archived: 0 };
+    const runtimeCutoff = new Date(
+      now.getTime() - policy.runtimeRetentionDays * 86400000
+    );
+    const failureCutoff = new Date(
+      now.getTime() - policy.failureRetentionDays * 86400000
+    );
+    const auditCutoff = new Date(
+      now.getTime() - policy.auditRetentionDays * 86400000
+    );
+    // Same retention classes as cleanup: error/fatal stay online for the
+    // failure retention period.
+    const archiveWhere: Prisma.LocalMindLogEventWhereInput = {
       OR: [
         {
           retentionClass: 'runtime',
@@ -589,36 +1322,6 @@ export class LocalMindLogService {
           occurredAt: { lt: failureCutoff },
           severity: { in: ['error', 'fatal'] },
         },
-      ],
-    };
-    const result = await this.prisma.$transaction(async tx => {
-      // Serialize cleanup workers across replicas and provide a bounded
-      // partition/batch lock window while retention evidence is evaluated.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('localmind_log_retention'))`;
-      const count = await tx.localMindLogEvent.count({ where });
-      if (options.dryRun) return count;
-      const deleted = await tx.localMindLogEvent.deleteMany({ where });
-      return deleted.count;
-    });
-    return { skipped: false, dryRun: !!options.dryRun, deleted: result };
-  }
-
-  async archiveRetention(now = new Date(), options: { dryRun?: boolean } = {}) {
-    const policy = await this.getPolicy();
-    if (policy.legalHold || policy.retentionFrozen)
-      return { skipped: true, dryRun: !!options.dryRun, archived: 0 };
-    const runtimeCutoff = new Date(
-      now.getTime() - policy.runtimeRetentionDays * 86400000
-    );
-    const auditCutoff = new Date(
-      now.getTime() - policy.auditRetentionDays * 86400000
-    );
-    const archiveWhere: Prisma.LocalMindLogEventWhereInput = {
-      OR: [
-        {
-          retentionClass: 'runtime',
-          occurredAt: { lt: runtimeCutoff },
-        },
         {
           retentionClass: 'audit',
           occurredAt: { lt: auditCutoff },
@@ -626,17 +1329,22 @@ export class LocalMindLogService {
       ],
     };
     if (options.dryRun) {
+      // One archive batch holds at most 1000 rows; do not count past that.
       const archived = await this.prisma.localMindLogEvent.count({
         where: archiveWhere,
+        take: 1000,
       });
       return {
         skipped: false,
         dryRun: true,
-        archived: Math.min(archived, 1000),
+        archived,
       };
     }
     if (
-      (await this.prisma.localMindLogEvent.count({ where: archiveWhere })) === 0
+      !(await this.prisma.localMindLogEvent.findFirst({
+        where: archiveWhere,
+        select: { id: true },
+      }))
     ) {
       return { skipped: true, dryRun: false, archived: 0 };
     }
@@ -882,7 +1590,7 @@ export class LocalMindLogService {
 
   private async persist(record: SpoolRecord) {
     if (record.auditEnvelope) {
-      await this.prisma.$transaction(async tx => {
+      await this.logDb.$transaction(async tx => {
         await this.persistWithClient(tx, record);
         await tx.localMindAuditEnvelope.create({
           data: {
@@ -918,7 +1626,7 @@ export class LocalMindLogService {
       });
       return true;
     }
-    const inserted = await this.prisma.$transaction(
+    const inserted = await this.logDb.$transaction(
       tx => this.persistRuntimeBatch(tx, [record]),
       { maxWait: 5000 }
     );
@@ -927,8 +1635,17 @@ export class LocalMindLogService {
 
   private async persistRuntimeBatch(
     tx: Prisma.TransactionClient,
-    records: SpoolRecord[]
+    records: SpoolRecord[],
+    { fresh = false }: { fresh?: boolean } = {}
   ) {
+    if (fresh) {
+      // First attempts of server-generated UUIDs skip the lock and lookups; the
+      // global event ID registry trigger still rejects any duplicate.
+      return await tx.localMindLogEvent.createManyAndReturn({
+        data: records.map(record => this.eventData(record)),
+        select: { eventId: true },
+      });
+    }
     const eventIds = records.map(record => record.eventId);
     // Time partitions cannot enforce global event_id uniqueness. Lock hashes in
     // a stable order, then check committed live/archive rows before insertion.
@@ -950,17 +1667,17 @@ export class LocalMindLogService {
       WHERE event_id IN (${Prisma.join(eventIds)})
     `);
     const existing = new Set(accepted.map(row => row.eventId));
-    const fresh = records.filter(record => !existing.has(record.eventId));
-    if (!fresh.length) return [];
+    const missing = records.filter(record => !existing.has(record.eventId));
+    if (!missing.length) return [];
     return await tx.localMindLogEvent.createManyAndReturn({
-      data: fresh.map(record => this.eventData(record)),
+      data: missing.map(record => this.eventData(record)),
       skipDuplicates: true,
       select: { eventId: true },
     });
   }
 
   private async persistAuditEnvelopeOnly(record: SpoolRecord) {
-    const existing = await this.prisma.localMindAuditEnvelope.findUnique({
+    const existing = await this.logDb.localMindAuditEnvelope.findUnique({
       where: { auditEventId: record.eventId },
       select: { auditEventId: true, fingerprint: true },
     });
@@ -970,7 +1687,7 @@ export class LocalMindLogService {
       }
       return;
     }
-    await this.prisma.localMindAuditEnvelope.create({
+    await this.logDb.localMindAuditEnvelope.create({
       data: {
         id: randomUUID(),
         auditEventId: record.eventId,
@@ -1089,9 +1806,35 @@ export class LocalMindLogService {
       : value;
   }
 
+  /**
+   * stdout is a compatibility mirror. When its reader stalls Node queues the
+   * strings in the JS heap, so skip and count instead of growing the queue.
+   */
   private mirror(record: SpoolRecord) {
+    if (process.stdout.writableLength > this.limits.mirrorMaxQueuedBytes) {
+      this.mirrorSkipped++;
+      this.window.mirrorSkipped++;
+      return;
+    }
+    if (this.mirrorSkipped) {
+      const skipped = this.mirrorSkipped;
+      this.mirrorSkipped = 0;
+      process.stdout.write(
+        `${JSON.stringify({
+          eventName: 'log.mirror.skipped',
+          severity: 'warn',
+          occurredAt: new Date().toISOString(),
+          metadata: { skipped },
+          transport: 'stdout-mirror',
+        })}\n`
+      );
+    }
     process.stdout.write(
       `${JSON.stringify({ ...record, transport: 'stdout-mirror' })}\n`
     );
   }
+}
+
+function isCritical(record: SpoolRecord) {
+  return record.severity === 'error' || record.severity === 'fatal';
 }

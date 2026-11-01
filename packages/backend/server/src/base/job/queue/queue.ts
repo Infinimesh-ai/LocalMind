@@ -40,7 +40,16 @@ export class JobQueue {
 
   constructor(private readonly moduleRef: ModuleRef) {}
 
-  async add<T extends JobName>(name: T, payload: Jobs[T], opts?: JobsOptions) {
+  /**
+   * `quiet` skips the enqueue debug line for high-frequency scheduler ticks;
+   * enqueue failures still reject to the caller.
+   */
+  async add<T extends JobName>(
+    name: T,
+    payload: Jobs[T],
+    opts?: JobsOptions,
+    { quiet = false }: { quiet?: boolean } = {}
+  ) {
     const ns = namespace(name);
     const queue = this.getQueue(ns);
     const normalizedOpts = opts?.jobId
@@ -55,7 +64,7 @@ export class JobQueue {
       } as JobData<T>,
       normalizedOpts
     );
-    this.logger.debug(`Job [${name}] added; id=${job.id}`);
+    if (!quiet) this.logger.debug(`Job [${name}] added; id=${job.id}`);
     return job;
   }
 
