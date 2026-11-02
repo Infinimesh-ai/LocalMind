@@ -1267,6 +1267,50 @@ test('ConversationHost records cancellation before the first token without fabri
   });
 });
 
+test('ConversationHost schedules a title only after a completed assistant turn', async t => {
+  const appendTurn = Sinon.stub().callsFake(async input => ({
+    ...input.turn,
+    id: `assistant-${appendTurn.callCount}`,
+  }));
+  const scheduleTitleGeneration = Sinon.stub().resolves();
+  const host = new ConversationHost(
+    { appendTurn, scheduleTitleGeneration } as never,
+    {} as never,
+    {} as never,
+    {} as never
+  );
+  const prompt = { name: 'Chat With LocalMind AI', action: undefined };
+  const session = {
+    config: { sessionId: 'session-1', userId: 'user-1' },
+    model: 'test',
+    prompt,
+    pushPersistedTurn: Sinon.spy(),
+  };
+  const postprocessor = new ResponsePostprocessor();
+
+  await host.persistAssistantTurn(
+    session as never,
+    postprocessor.buildTextAssistantTurn('session-1', 'Partial'),
+    true
+  );
+  t.is(scheduleTitleGeneration.callCount, 0);
+
+  await host.persistAssistantTurn(
+    session as never,
+    postprocessor.buildTextAssistantTurn('session-1', 'Answer'),
+    false
+  );
+  t.is(scheduleTitleGeneration.callCount, 1);
+  t.deepEqual(scheduleTitleGeneration.firstCall.args[0], {
+    sessionId: 'session-1',
+    prompt,
+  });
+  t.true(
+    scheduleTitleGeneration.firstCall.calledAfter(appendTurn.secondCall),
+    'the title job must only see a persisted assistant turn'
+  );
+});
+
 test('TurnPersistence should delegate assistant turn persistence through ConversationHost', async t => {
   const persistAssistantTurn = Sinon.stub().resolves();
   const persistence = new TurnPersistence(

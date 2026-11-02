@@ -7,6 +7,8 @@ import { AiPromptRole } from '@prisma/client';
 
 import {
   CopilotActionTaken,
+  CopilotByokCredentialDisabled,
+  CopilotByokNotConfigured,
   CopilotMessageNotFound,
   CopilotPromptNotFound,
   CopilotSessionInvalidInput,
@@ -132,6 +134,10 @@ export class ChatSession implements AsyncDisposable {
     }
   ) {
     this.renderPromptSession = renderPromptSession;
+  }
+
+  get prompt() {
+    return this.state.prompt;
   }
 
   get model() {
@@ -490,6 +496,13 @@ export class ChatSessionService {
       (error.message.includes('\\u0000') ||
         error.message.includes('unsupported Unicode escape sequence') ||
         error.message.includes('22P05'))
+    );
+  }
+
+  private isUnavailableTitleRouteError(error: unknown): boolean {
+    return (
+      error instanceof CopilotByokNotConfigured ||
+      error instanceof CopilotByokCredentialDisabled
     );
   }
 
@@ -1289,13 +1302,7 @@ export class ChatSessionService {
           ),
         async state => {
           await this.store.appendTurns(state);
-          if (this.conversationPolicy.shouldScheduleTitle(state.prompt)) {
-            await this.jobs.add(
-              'copilot.session.generateTitle',
-              { sessionId: state.sessionId },
-              { priority: BACKGROUND_COPILOT_JOB_PRIORITY }
-            );
-          }
+          await this.scheduleTitleGeneration(state);
         },
         undefined,
         contextEnabled && contextScope
@@ -1348,6 +1355,32 @@ export class ChatSessionService {
     }
   }
 
+  /**
+   * Titles are best effort: a queue outage must not fail the turn that was
+   * already persisted, and the daily sweep retries sessions left untitled.
+   */
+  async scheduleTitleGeneration(input: {
+    sessionId: string;
+    prompt: Pick<ResolvedPrompt, 'action'>;
+  }) {
+    if (!this.conversationPolicy.shouldScheduleTitle(input.prompt)) return;
+    try {
+      await this.jobs.add(
+        'copilot.session.generateTitle',
+        { sessionId: input.sessionId },
+        {
+          jobId: `copilot-session-title-${input.sessionId}`,
+          priority: BACKGROUND_COPILOT_JOB_PRIORITY,
+        }
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to schedule title generation for session ${input.sessionId}`,
+        { error: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }
+
   @OnJob('copilot.session.generateTitle')
   async generateSessionTitle(job: Jobs['copilot.session.generateTitle']) {
     const { sessionId } = job;
@@ -1384,10 +1417,20 @@ export class ChatSessionService {
 
       const promptContent =
         this.conversationPolicy.buildTitlePromptContent(turns);
+      // Route through the session's own scope so Workspace sessions use their
+      // Workspace BYOK and Project sessions use the global Project BYOK.
       const generatedTitle = this.stripNullBytes(
-        await this.promptRuntime.runText('Summary as title', {
-          content: promptContent,
-        })
+        await this.promptRuntime.runText(
+          'Summary as title',
+          { content: promptContent },
+          {
+            providerOptions: {
+              user: conversation.userId,
+              session: sessionId,
+              workspace: conversation.workspaceId ?? undefined,
+            },
+          }
+        )
       ).trim();
 
       if (!generatedTitle) {
@@ -1418,6 +1461,15 @@ export class ChatSessionService {
         this.logger.warn(
           `Skip title generation for session ${sessionId} due to invalid null bytes in stored data`,
           context
+        );
+        return;
+      }
+      if (this.isUnavailableTitleRouteError(error)) {
+        // Retrying cannot succeed until an administrator changes the model
+        // configuration; the daily sweep picks the session up afterwards.
+        this.logger.warn(
+          `Skip title generation for session ${sessionId}: no usable AI provider`,
+          { sessionId, error: (error as Error).name }
         );
         return;
       }

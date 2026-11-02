@@ -29,6 +29,11 @@ export const passwordButtonRow = style({
   marginBottom: '30px',
 });
 
+export const passwordVisibilityButton = style({
+  marginRight: 8,
+  flexShrink: 0,
+});
+
 export const linkButton = style({
   color: cssVar('linkColor'),
   background: 'transparent',

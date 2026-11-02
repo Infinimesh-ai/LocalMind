@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 
 import { ProjectRoot } from '@affine-tools/utils/path';
 import { McpAccessMode, PrismaClient } from '@prisma/client';
-import type { TestFn } from 'ava';
+import type { ExecutionContext, TestFn } from 'ava';
 import ava from 'ava';
 import { nanoid } from 'nanoid';
 import Sinon from 'sinon';
@@ -2994,8 +2994,112 @@ test('should schedule title generation as a background job', async t => {
   t.deepEqual(addJob.firstCall.args, [
     'copilot.session.generateTitle',
     { sessionId },
-    { priority: 100 },
+    { jobId: `copilot-session-title-${sessionId}`, priority: 100 },
   ]);
+});
+
+const seedTitleConversation = async (
+  t: ExecutionContext<Context>,
+  scope: { workspaceId: string } | { projectId: string }
+) => {
+  const { prompt, session } = t.context;
+  await prompt.set(promptName, 'model', [
+    { role: 'system', content: 'hello {{word}}' },
+  ]);
+  const sessionId = await session.create({
+    userId,
+    promptName,
+    docId: null,
+    pinned: false,
+    reuseLatestChat: false,
+    ...('workspaceId' in scope
+      ? { workspaceId: scope.workspaceId }
+      : { workspaceId: null, selectedContextProjectId: scope.projectId }),
+  });
+  for (const [role, content] of [
+    ['user', '帮我整理季度销售复盘'],
+    ['assistant', '好的，下面是季度销售复盘的要点。'],
+  ] as const) {
+    await session.appendTurn({
+      sessionId,
+      userId,
+      prompt: { model: 'model' },
+      turn: buildTurn(sessionId, { role, content, createdAt: new Date() }),
+    });
+  }
+  return sessionId;
+};
+
+test('title generation should resolve models through the Workspace session scope', async t => {
+  const { session, promptRuntime, workspace, db } = t.context;
+  const ws = await workspace.create(userId);
+  const sessionId = await seedTitleConversation(t, { workspaceId: ws.id });
+  const runText = Sinon.stub(promptRuntime, 'runText').resolves('季度销售复盘');
+  t.teardown(() => runText.restore());
+
+  await session.generateSessionTitle({ sessionId });
+
+  t.is(runText.callCount, 1);
+  t.is(runText.firstCall.args[0], 'Summary as title');
+  t.deepEqual(runText.firstCall.args[2]?.providerOptions, {
+    user: userId,
+    session: sessionId,
+    workspace: ws.id,
+  });
+  t.like(await db.aiSession.findUnique({ where: { id: sessionId } }), {
+    title: '季度销售复盘',
+    titleSource: 'auto',
+    titleGenerationStatus: 'complete',
+  });
+});
+
+test('title generation should resolve Project sessions without a Workspace scope', async t => {
+  const { session, promptRuntime, models, db } = t.context;
+  const project = await models.copilotContextMemory.createProject({
+    createdByUserId: userId,
+    name: 'Title project',
+  });
+  const sessionId = await seedTitleConversation(t, { projectId: project.id });
+  const runText = Sinon.stub(promptRuntime, 'runText').resolves('项目标题');
+  t.teardown(() => runText.restore());
+
+  await session.generateSessionTitle({ sessionId });
+
+  t.deepEqual(runText.firstCall.args[2]?.providerOptions, {
+    user: userId,
+    session: sessionId,
+    workspace: undefined,
+  });
+  t.like(await db.aiSession.findUnique({ where: { id: sessionId } }), {
+    title: '项目标题',
+    titleSource: 'auto',
+  });
+});
+
+test('title generation should not retry when no AI provider is configured', async t => {
+  const { session, promptRuntime, workspace, db } = t.context;
+  const ws = await workspace.create(userId);
+  const sessionId = await seedTitleConversation(t, { workspaceId: ws.id });
+  const runText = Sinon.stub(promptRuntime, 'runText').rejects(
+    new CopilotByokNotConfigured()
+  );
+  t.teardown(() => runText.restore());
+
+  await t.notThrowsAsync(session.generateSessionTitle({ sessionId }));
+  t.like(await db.aiSession.findUnique({ where: { id: sessionId } }), {
+    title: null,
+    titleSource: 'pending',
+    titleGenerationStatus: 'failed',
+  });
+
+  // Transient provider errors still surface so the queue can retry them.
+  runText.rejects(new Error('upstream timeout'));
+  await t.throwsAsync(session.generateSessionTitle({ sessionId }), {
+    message: 'upstream timeout',
+  });
+  t.like(await db.aiSession.findUnique({ where: { id: sessionId } }), {
+    titleGenerationStatus: 'failed',
+  });
 });
 
 test('should merge latest user turn content and attachments into prompt', async t => {

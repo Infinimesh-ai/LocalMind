@@ -357,6 +357,12 @@ export class ConversationHost {
       turn: assistantTurn,
     });
     session.pushPersistedTurn(persisted);
+    if (!wasAborted) {
+      await this.sessions.scheduleTitleGeneration({
+        sessionId: session.config.sessionId,
+        prompt: session.prompt,
+      });
+    }
     return persisted.id ?? null;
   }
 }

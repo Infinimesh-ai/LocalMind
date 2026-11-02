@@ -6,7 +6,7 @@ import {
   AuthHeader,
   AuthInput,
 } from '@affine/component/auth-components';
-import { Button } from '@affine/component/ui/button';
+import { Button, IconButton } from '@affine/component/ui/button';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
   AuthService,
@@ -19,6 +19,7 @@ import { Unreachable } from '@affine/env/constant';
 import { UserFriendlyError } from '@affine/error';
 import { ServerDeploymentType } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
+import { InvisibleIcon, ViewIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useState } from 'react';
@@ -47,6 +48,7 @@ export const SignInWithPasswordStep = ({
   }
 
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
   const [passwordErrorHint, setPasswordErrorHint] = useState('');
   const captchaService = useService(CaptchaService);
@@ -161,9 +163,23 @@ export const SignInWithPasswordStep = ({
             data-testid="password-input"
             label={t['com.affine.auth.password']()}
             value={password}
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             name="password"
             autoComplete="current-password"
+            endFix={
+              <IconButton
+                type="button"
+                className={styles.passwordVisibilityButton}
+                aria-label={
+                  showPassword
+                    ? t['com.affine.auth.password.hide']()
+                    : t['com.affine.auth.password.show']()
+                }
+                onClick={() => setShowPassword(visible => !visible)}
+              >
+                {showPassword ? <InvisibleIcon /> : <ViewIcon />}
+              </IconButton>
+            }
             onChange={(value: string) => {
               setPassword(value);
               if (passwordError) {

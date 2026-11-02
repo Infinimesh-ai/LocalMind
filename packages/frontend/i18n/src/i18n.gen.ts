@@ -2312,9 +2312,17 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.auth.password.error"](): string;
     /**
+      * `Hide password`
+      */
+    ["com.affine.auth.password.hide"](): string;
+    /**
       * `Set password failed`
       */
     ["com.affine.auth.password.set-failed"](): string;
+    /**
+      * `Show password`
+      */
+    ["com.affine.auth.password.show"](): string;
     /**
       * `Reset password`
       */
