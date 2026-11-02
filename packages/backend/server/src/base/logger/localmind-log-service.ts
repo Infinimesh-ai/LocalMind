@@ -2,7 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { Injectable, type OnModuleDestroy, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  type OnModuleDestroy,
+  Optional,
+} from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ClsServiceManager } from 'nestjs-cls';
@@ -51,11 +56,17 @@ export const LOCALMIND_LOG_INGESTION_LIMITS = {
   spoolReplayBatch: 100,
   spoolReplayBudgetMs: 10_000,
   // Retention deletes in committed batches sized to the measured duration.
-  retentionInitialBatch: 2_000,
-  retentionMinBatch: 200,
-  retentionMaxBatch: 10_000,
+  // Each deleted row also removes its global ID registration; on cold storage
+  // that costs about 10-20 ms per row, so batches start small.
+  retentionInitialBatch: 100,
+  retentionMinBatch: 10,
+  retentionMaxBatch: 5_000,
   retentionTargetBatchMs: 2_000,
-  retentionBatchTimeoutMs: 20_000,
+  // PostgreSQL cancels a slow batch first; the transaction budget is larger.
+  retentionStatementTimeoutMs: 10_000,
+  retentionBatchTimeoutMs: 15_000,
+  // An unfinished run is continued by the next one within this window.
+  retentionResumeWindowMs: 24 * 60 * 60 * 1000,
   retentionRunBudgetMs: 60_000,
   retentionRunMaxRows: 500_000,
   retentionRunHistoryDays: 90,
@@ -141,6 +152,7 @@ export class LocalMindLogService implements OnModuleDestroy {
   private pendingBytes = 0;
   private draining = false;
   private drainTimer?: ReturnType<typeof setTimeout>;
+  private readonly logger = new Logger(LocalMindLogService.name);
   /** Runtime ingestion, spool replay and retention use the small log pool. */
   private readonly logDb: PrismaClient;
 
@@ -794,10 +806,16 @@ export class LocalMindLogService implements OnModuleDestroy {
 
   @Interval(3_600_000)
   async scheduledRetentionCleanup() {
-    // A failed run is recorded in localmind_log_retention_runs.
+    // A failed run is recorded in localmind_log_retention_runs; the reason is
+    // also logged here instead of being swallowed.
     const result = await this.cleanupRetention(new Date(), {
       trigger: 'scheduled',
-    }).catch(() => null);
+    }).catch((error: unknown) => {
+      this.logger.error(
+        `Scheduled log retention cleanup failed: ${retentionFailureMessage(error)}`
+      );
+      return null;
+    });
     if (!result) return;
     try {
       await this.writeAudit({
@@ -1095,11 +1113,26 @@ export class LocalMindLogService implements OnModuleDestroy {
       Date.now() + (options.maxDurationMs ?? this.limits.retentionRunBudgetMs);
     const scanUntil =
       runtimeCutoff > failureCutoff ? runtimeCutoff : failureCutoff;
-    let cursor = { at: new Date(0), id: '' };
+    // Continue after the previous unfinished run: rows it already passed were
+    // deleted or kept, and rescanning them (and their not yet vacuumed dead
+    // tuples) on cold storage costs the whole budget. A completed run resets
+    // the cursor so kept failures are reconsidered once they expire.
+    let cursor = {
+      at: (await this.retentionResumePoint(run.id, now)) ?? new Date(0),
+      id: '',
+    };
+    const resumedFrom = cursor.at.getTime() > 0 ? cursor.at : null;
     let batchSize = this.limits.retentionInitialBatch;
     let scanned = 0;
     let deleted = 0;
     let batches = 0;
+    const timing = {
+      lastBatchSize: null as number | null,
+      lastBatchMs: null as number | null,
+      maxBatchMs: null as number | null,
+      batchTimeouts: 0,
+    };
+    let lastTimeout: string | undefined;
     let status: 'completed' | 'partial' | 'contended' | 'paused' = 'completed';
     try {
       while (true) {
@@ -1115,13 +1148,33 @@ export class LocalMindLogService implements OnModuleDestroy {
           break;
         }
         const startedAt = Date.now();
-        const batch = await this.deleteRetentionBatch({
-          cursor,
-          scanUntil,
-          runtimeCutoff,
-          failureCutoff,
-          batchSize,
-        });
+        let batch: RetentionBatchResult | null;
+        try {
+          batch = await this.deleteRetentionBatch({
+            cursor,
+            scanUntil,
+            runtimeCutoff,
+            failureCutoff,
+            batchSize,
+          });
+        } catch (error) {
+          if (!isRetentionBatchTimeout(error)) throw error;
+          // The batch rolled back; retry the same cursor with a smaller batch
+          // instead of failing the whole run.
+          timing.batchTimeouts++;
+          lastTimeout = retentionFailureMessage(error);
+          if (batchSize <= this.limits.retentionMinBatch) {
+            throw new RetentionRunError(
+              'LOCALMIND_LOG_RETENTION_BATCH_TIMEOUT',
+              lastTimeout
+            );
+          }
+          batchSize = Math.max(
+            this.limits.retentionMinBatch,
+            Math.floor(batchSize / 4)
+          );
+          continue;
+        }
         if (!batch) {
           status = 'contended';
           break;
@@ -1130,6 +1183,9 @@ export class LocalMindLogService implements OnModuleDestroy {
         scanned += batch.scanned;
         deleted += batch.deleted;
         const elapsed = Date.now() - startedAt;
+        timing.lastBatchSize = batchSize;
+        timing.lastBatchMs = elapsed;
+        timing.maxBatchMs = Math.max(timing.maxBatchMs ?? 0, elapsed);
         if (batch.scanned < batchSize || !batch.lastAt || !batch.lastId) break;
         cursor = { at: batch.lastAt, id: batch.lastId };
         batchSize =
@@ -1140,7 +1196,13 @@ export class LocalMindLogService implements OnModuleDestroy {
               : batchSize;
         await this.logDb.localMindLogRetentionRun.update({
           where: { id: run.id },
-          data: { scanned, deleted, batches, lastOccurredAt: cursor.at },
+          data: {
+            scanned,
+            deleted,
+            batches,
+            lastOccurredAt: cursor.at,
+            ...timing,
+          },
         });
       }
     } catch (error) {
@@ -1152,11 +1214,16 @@ export class LocalMindLogService implements OnModuleDestroy {
             scanned,
             deleted,
             batches,
+            ...timing,
+            lastOccurredAt: batches ? cursor.at : resumedFrom,
             failureCode:
-              error instanceof Error &&
-              /^LOCALMIND_[A-Z0-9_]+$/.test(error.message)
-                ? error.message
-                : 'LOCALMIND_LOG_RETENTION_FAILED',
+              error instanceof RetentionRunError
+                ? error.code
+                : error instanceof Error &&
+                    /^LOCALMIND_[A-Z0-9_]+$/.test(error.message)
+                  ? error.message
+                  : 'LOCALMIND_LOG_RETENTION_FAILED',
+            failureMessage: retentionFailureMessage(error),
             finishedAt: new Date(),
             nextAttemptAt: new Date(Date.now() + 3_600_000),
           },
@@ -1171,7 +1238,10 @@ export class LocalMindLogService implements OnModuleDestroy {
         scanned,
         deleted,
         batches,
-        lastOccurredAt: batches ? cursor.at : null,
+        ...timing,
+        // A timeout that was recovered by a smaller batch is kept for review.
+        failureMessage: lastTimeout ?? null,
+        lastOccurredAt: batches ? cursor.at : resumedFrom,
         finishedAt: new Date(),
         nextAttemptAt: new Date(Date.now() + 3_600_000),
       },
@@ -1195,8 +1265,31 @@ export class LocalMindLogService implements OnModuleDestroy {
       batches,
       status,
       complete: status === 'completed',
+      batchTimeouts: timing.batchTimeouts,
+      maxBatchMs: timing.maxBatchMs,
       runId: run.id,
     };
+  }
+
+  /** Cursor time left by the latest run, if it stopped before finishing. */
+  private async retentionResumePoint(currentRunId: string, now: Date) {
+    const previous = await this.logDb.localMindLogRetentionRun.findFirst({
+      where: { kind: 'cleanup', id: { not: currentRunId } },
+      orderBy: { startedAt: 'desc' },
+      select: { status: true, lastOccurredAt: true, finishedAt: true },
+    });
+    if (
+      !previous?.lastOccurredAt ||
+      !['partial', 'failed', 'paused', 'contended', 'interrupted'].includes(
+        previous.status
+      ) ||
+      (previous.finishedAt &&
+        now.getTime() - previous.finishedAt.getTime() >
+          this.limits.retentionResumeWindowMs)
+    ) {
+      return null;
+    }
+    return previous.lastOccurredAt;
   }
 
   /** Latest retention runs for the Admin ingestion status. */
@@ -1242,20 +1335,22 @@ export class LocalMindLogService implements OnModuleDestroy {
     failureCutoff: Date;
     batchSize: number;
   }) {
+    const statementTimeoutMs = Math.max(
+      1,
+      Math.floor(this.limits.retentionStatementTimeoutMs)
+    );
     return await this.logDb.$transaction(
       async tx => {
+        // Cancel a slow batch inside PostgreSQL rather than leaving the delete
+        // running after the client-side transaction timeout.
+        await tx.$executeRawUnsafe(
+          `SET LOCAL statement_timeout = ${statementTimeoutMs}`
+        );
         const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`
           SELECT pg_try_advisory_xact_lock(hashtext('localmind_log_retention')) AS locked
         `;
         if (!lock?.locked) return null;
-        const [row] = await tx.$queryRaw<
-          {
-            scanned: number;
-            deleted: number;
-            lastAt: Date | null;
-            lastId: string | null;
-          }[]
-        >`
+        const [row] = await tx.$queryRaw<RetentionBatchResult[]>`
           WITH scanned AS (
             SELECT "id", "occurred_at", "severity"
             FROM "localmind_log_events"
@@ -1837,4 +1932,46 @@ export class LocalMindLogService implements OnModuleDestroy {
 
 function isCritical(record: SpoolRecord) {
   return record.severity === 'error' || record.severity === 'fatal';
+}
+
+type RetentionBatchResult = {
+  scanned: number;
+  deleted: number;
+  lastAt: Date | null;
+  lastId: string | null;
+};
+
+/** A retention run failure with a stable code for the run record. */
+class RetentionRunError extends Error {
+  constructor(
+    readonly code: string,
+    detail: string
+  ) {
+    super(`${code}: ${detail}`);
+    this.name = 'RetentionRunError';
+  }
+}
+
+/**
+ * Batch timeouts: PostgreSQL statement timeout (57014), Prisma interactive
+ * transaction expiry (P2028) and connection acquisition timeout (P2024).
+ */
+function isRetentionBatchTimeout(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2028' || error.code === 'P2024') return true;
+    if (error.code === 'P2010' && error.meta?.code === '57014') return true;
+  }
+  return (
+    error instanceof Error &&
+    /statement timeout|expired transaction|transaction already closed/i.test(
+      error.message
+    )
+  );
+}
+
+/** Bounded single-line failure text; query parameters are never included. */
+function retentionFailureMessage(error: unknown) {
+  const text =
+    error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return text.replace(/\s+/g, ' ').trim().slice(0, 500);
 }

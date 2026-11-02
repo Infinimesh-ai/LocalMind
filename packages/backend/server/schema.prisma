@@ -4914,7 +4914,12 @@ model LocalMindLogRetentionRun {
   deleted        Int       @default(0)
   batches        Int       @default(0)
   lastOccurredAt DateTime? @map("last_occurred_at") @db.Timestamptz(3)
+  lastBatchSize  Int?      @map("last_batch_size")
+  lastBatchMs    Int?      @map("last_batch_ms")
+  maxBatchMs     Int?      @map("max_batch_ms")
+  batchTimeouts  Int       @default(0) @map("batch_timeouts")
   failureCode    String?   @map("failure_code") @db.VarChar
+  failureMessage String?   @map("failure_message") @db.VarChar(500)
   startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   finishedAt     DateTime? @map("finished_at") @db.Timestamptz(3)

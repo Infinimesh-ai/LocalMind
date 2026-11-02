@@ -349,3 +349,22 @@ test('GraphQL summaries aggregate per operation with bounded keys', t => {
   summary.flush();
   t.is(captured.length, 201);
 });
+
+test('scheduled retention cleanup logs the failure instead of swallowing it', async t => {
+  const { service } = await createService(t, inserted);
+  silenceStdout(t);
+  const cleanup = mock.method(service, 'cleanupRetention', async () => {
+    throw new Error(
+      'LOCALMIND_LOG_RETENTION_BATCH_TIMEOUT: canceling statement due to statement timeout'
+    );
+  });
+  t.teardown(() => cleanup.mock.restore());
+  const logged = mock.method((service as any).logger, 'error', () => undefined);
+  t.teardown(() => logged.mock.restore());
+  await service.scheduledRetentionCleanup();
+  t.is(logged.mock.callCount(), 1);
+  t.regex(
+    String(logged.mock.calls[0].arguments[0]),
+    /Scheduled log retention cleanup failed: Error: LOCALMIND_LOG_RETENTION_BATCH_TIMEOUT/
+  );
+});

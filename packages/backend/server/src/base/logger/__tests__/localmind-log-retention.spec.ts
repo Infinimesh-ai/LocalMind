@@ -55,6 +55,8 @@ async function remaining() {
 
 test.beforeEach(async () => {
   await db.localMindLogEvent.deleteMany({ where: { eventName: marker } });
+  // Runs resume from the previous unfinished run; start each test clean.
+  await db.localMindLogRetentionRun.deleteMany();
   await db.localMindLogPolicy.upsert({
     where: { id: 'default' },
     create: { id: 'default' },
@@ -182,6 +184,119 @@ test.serial(
       dryRun: false,
       deleted: 0,
     });
+  }
+);
+
+async function withSlowDeletes(
+  t: { teardown: (fn: () => unknown) => void },
+  seconds: number
+) {
+  // Simulates cold storage: every deleted log row costs a fixed delay.
+  await db.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION lm_test_slow_delete() RETURNS trigger
+    LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(${seconds}); RETURN OLD; END $$
+  `);
+  await db.$executeRawUnsafe(
+    'CREATE TRIGGER lm_test_slow_delete BEFORE DELETE ON localmind_log_events FOR EACH ROW EXECUTE FUNCTION lm_test_slow_delete()'
+  );
+  t.teardown(async () => {
+    await db.$executeRawUnsafe(
+      'DROP TRIGGER IF EXISTS lm_test_slow_delete ON localmind_log_events'
+    );
+    await db.$executeRawUnsafe('DROP FUNCTION IF EXISTS lm_test_slow_delete()');
+  });
+}
+
+test.serial(
+  'a timed-out batch is retried smaller and the run records batch timing',
+  async t => {
+    await seed(Array.from({ length: 30 }, () => ({ ageDays: 45 })));
+    await withSlowDeletes(t, 0.01);
+    const service = createService();
+    service.limits.retentionInitialBatch = 40;
+    service.limits.retentionMinBatch = 4;
+    service.limits.retentionMaxBatch = 10;
+    service.limits.retentionStatementTimeoutMs = 200;
+    service.limits.retentionBatchTimeoutMs = 2_000;
+
+    const result = await service.cleanupRetention(now);
+    t.like(result, { status: 'completed', complete: true });
+    t.true((result as { batchTimeouts: number }).batchTimeouts >= 1);
+    t.is((await remaining()).length, 0);
+    const run = await db.localMindLogRetentionRun.findUniqueOrThrow({
+      where: { id: (result as { runId: string }).runId },
+    });
+    t.is(run.status, 'completed');
+    t.true(run.batchTimeouts >= 1);
+    t.true((run.lastBatchSize ?? 0) <= 10);
+    t.true((run.maxBatchMs ?? 0) > 0);
+    t.regex(run.failureMessage ?? '', /statement timeout/i);
+  }
+);
+
+test.serial(
+  'a run fails with a timeout code when even the smallest batch is too slow',
+  async t => {
+    await seed(Array.from({ length: 8 }, () => ({ ageDays: 45 })));
+    await withSlowDeletes(t, 0.02);
+    const service = createService();
+    service.limits.retentionInitialBatch = 16;
+    service.limits.retentionMinBatch = 4;
+    service.limits.retentionStatementTimeoutMs = 30;
+    service.limits.retentionBatchTimeoutMs = 2_000;
+
+    await t.throwsAsync(service.cleanupRetention(now), {
+      message: /LOCALMIND_LOG_RETENTION_BATCH_TIMEOUT/,
+    });
+    const [run] = await db.localMindLogRetentionRun.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: 1,
+    });
+    t.like(run, {
+      status: 'failed',
+      failureCode: 'LOCALMIND_LOG_RETENTION_BATCH_TIMEOUT',
+      batches: 0,
+    });
+    t.is(run.batchTimeouts, 2);
+    t.regex(run.failureMessage ?? '', /statement timeout/i);
+    // Rolled-back batches deleted nothing.
+    t.is((await remaining()).length, 8);
+  }
+);
+
+test.serial(
+  'an unfinished run is continued by the next run, a completed run resets',
+  async t => {
+    // Two kept failures first, then four deletable rows.
+    await seed([
+      { ageDays: 50, severity: 'error' },
+      { ageDays: 49, severity: 'error' },
+      { ageDays: 45 },
+      { ageDays: 44 },
+      { ageDays: 43 },
+      { ageDays: 42 },
+    ]);
+    const service = createService();
+    service.limits.retentionInitialBatch = 2;
+    service.limits.retentionMinBatch = 2;
+    service.limits.retentionMaxBatch = 2;
+    service.limits.retentionRunMaxRows = 2;
+
+    const first = await service.cleanupRetention(now);
+    t.like(first, { status: 'partial', deleted: 2 });
+    t.is(first.scanned, 4);
+
+    // Resumes after the cursor: the kept failures are not scanned again.
+    service.limits.retentionRunMaxRows = 100;
+    const second = await service.cleanupRetention(now);
+    t.like(second, { status: 'completed', deleted: 2 });
+    t.is(second.scanned, 2);
+
+    // After a completed run the next one starts from the beginning again.
+    const third = await service.cleanupRetention(now);
+    t.like(third, { status: 'completed', deleted: 0 });
+    t.is(third.scanned, 2);
+    t.is((await remaining()).length, 2);
   }
 );
 
