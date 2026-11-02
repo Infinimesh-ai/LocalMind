@@ -397,6 +397,95 @@ test.serial(
   }
 );
 
+test.serial(
+  'spool replay writes repeated client events once and quarantines bad records',
+  async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'localmind-dup-replay-'));
+    t.teardown(() => rm(directory, { recursive: true, force: true }));
+    const spool = new LocalMindLogSpool(directory);
+    const record = (eventId: string, occurredAt = now.toISOString()) => ({
+      eventId,
+      occurredAt,
+      instanceId: 'test',
+      nodeId: 'test',
+      service: 'backend',
+      severity: 'debug',
+      eventName: marker,
+      retentionClass: 'runtime',
+    });
+    // A client retried its upload: the same event ID was spooled three times.
+    const repeated = randomUUID();
+    const single = randomUUID();
+    for (let index = 0; index < 3; index++) {
+      await spool.append(record(repeated));
+    }
+    await spool.append(record(single));
+    await spool.append(record(randomUUID(), 'not a date'));
+    const service = createService(directory);
+    const stdout = mock.method(process.stdout, 'write', () => true);
+    t.teardown(() => stdout.mock.restore());
+
+    t.is(await service.flushSpool(), 4);
+    t.deepEqual(
+      (await remaining()).map(row => row.eventId).sort(),
+      [repeated, single].sort()
+    );
+    t.deepEqual(
+      (await readdir(directory)).filter(name => name.endsWith('.json')),
+      []
+    );
+    t.is((await readdir(join(directory, 'quarantine'))).length, 1);
+    // The next replay has nothing left to retry.
+    t.is(await service.flushSpool(), 0);
+  }
+);
+
+test.serial(
+  'a replayed event already registered elsewhere is treated as stored',
+  async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'localmind-registered-'));
+    t.teardown(() => rm(directory, { recursive: true, force: true }));
+    const registered = randomUUID();
+    const fresh = randomUUID();
+    // Only the global registry knows this ID, so the pre-insert lookup misses
+    // it and the registry trigger rejects the insert with a real error.
+    await db.$executeRaw`
+      INSERT INTO localmind_log_event_ids (event_id, log_id, occurred_at)
+      VALUES (${registered}, ${randomUUID()}, ${now})
+    `;
+    t.teardown(
+      () =>
+        db.$executeRaw`DELETE FROM localmind_log_event_ids WHERE event_id = ${registered}`
+    );
+    const spool = new LocalMindLogSpool(directory);
+    for (const eventId of [registered, fresh]) {
+      await spool.append({
+        eventId,
+        occurredAt: now.toISOString(),
+        instanceId: 'test',
+        nodeId: 'test',
+        service: 'backend',
+        severity: 'info',
+        eventName: marker,
+        retentionClass: 'runtime',
+      });
+    }
+    const service = createService(directory);
+    const stdout = mock.method(process.stdout, 'write', () => true);
+    t.teardown(() => stdout.mock.restore());
+
+    t.is(await service.flushSpool(), 2);
+    t.deepEqual(
+      (await remaining()).map(row => row.eventId),
+      [fresh]
+    );
+    t.deepEqual(
+      (await readdir(directory)).filter(name => name.endsWith('.json')),
+      []
+    );
+  }
+);
+
 test('log pool URLs carry an explicit small connection limit', t => {
   const url = localMindLogDatabaseUrl(
     'postgresql://user:pass@db:5432/affine?sslmode=disable',

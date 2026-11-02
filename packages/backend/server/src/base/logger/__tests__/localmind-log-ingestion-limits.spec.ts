@@ -368,3 +368,72 @@ test('scheduled retention cleanup logs the failure instead of swallowing it', as
     /Scheduled log retention cleanup failed: Error: LOCALMIND_LOG_RETENTION_BATCH_TIMEOUT/
   );
 });
+
+function spoolRecord(eventId: string, eventName = 'runtime.info') {
+  return {
+    eventId,
+    occurredAt: new Date().toISOString(),
+    instanceId: 'test',
+    nodeId: 'test',
+    service: 'backend',
+    severity: 'info',
+    eventName,
+    retentionClass: 'runtime',
+  };
+}
+
+test('spool replay retries a deterministic batch failure record by record', async t => {
+  const stored: string[] = [];
+  const { service, directory } = await createService(t, async args => {
+    const data = Array.isArray(args.data) ? args.data : [args.data];
+    // The batch fails because one record conflicts; alone, only that one does.
+    if (data.some(record => record.eventId === 'conflict')) {
+      throw new Prisma.PrismaClientKnownRequestError(
+        'duplicate LocalMind log event_id: conflict',
+        { code: 'P2002', clientVersion: 'test' }
+      );
+    }
+    if (data.some(record => record.eventId === 'bad')) {
+      throw new Prisma.PrismaClientKnownRequestError('invalid input syntax', {
+        code: 'P2010',
+        clientVersion: 'test',
+        meta: { code: '22P02' },
+      });
+    }
+    stored.push(...data.map(record => record.eventId));
+    return data.map(record => ({ eventId: record.eventId }));
+  });
+  silenceStdout(t);
+  const spool = new LocalMindLogSpool(directory);
+  for (const id of ['a', 'a', 'conflict', 'bad', 'b']) {
+    await spool.append(spoolRecord(id));
+  }
+
+  t.is(await service.flushSpool(), 4);
+  t.deepEqual(stored.sort(), ['a', 'b']);
+  t.deepEqual(await spool.list(), []);
+  t.is((await spool.list(10)).length, 0);
+  t.deepEqual(service.ingestionStatus().window.dropped, {
+    spool_duplicate_files: 1,
+    spool_quarantined: 1,
+  });
+});
+
+test('spool replay keeps every file on a transient failure', async t => {
+  let calls = 0;
+  const { service, directory } = await createService(t, async () => {
+    calls++;
+    throw new Prisma.PrismaClientKnownRequestError("Can't reach database", {
+      code: 'P1001',
+      clientVersion: 'test',
+    });
+  });
+  silenceStdout(t);
+  const spool = new LocalMindLogSpool(directory);
+  for (const id of ['a', 'b', 'c']) await spool.append(spoolRecord(id));
+  t.is(await service.flushSpool(), 0);
+  // One batch attempt, no record-by-record retry, nothing quarantined.
+  t.is(calls, 1);
+  t.is((await spool.list()).length, 3);
+  t.deepEqual(service.ingestionStatus().window.dropped, {});
+});

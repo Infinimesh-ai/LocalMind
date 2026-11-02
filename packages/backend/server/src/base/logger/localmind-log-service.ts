@@ -716,27 +716,9 @@ export class LocalMindLogService implements OnModuleDestroy {
           flushed++;
         }
         if (!runtime.length) continue;
-        const startedAt = Date.now();
-        try {
-          await this.logDb.$transaction(
-            tx =>
-              this.persistRuntimeBatch(
-                tx,
-                runtime.map(entry => entry.record)
-              ),
-            { maxWait: 5000 }
-          );
-          this.recordDatabaseResult(true, Date.now() - startedAt, 'closed');
-        } catch (error) {
-          this.lastSpoolError =
-            error instanceof Error ? error.message : String(error);
-          this.recordDatabaseResult(false, Date.now() - startedAt, 'closed');
-          break;
-        }
-        for (const { file } of runtime) {
-          await this.spool.remove(file).catch(() => undefined);
-          flushed++;
-        }
+        const replayed = await this.replayRuntimeBatch(runtime);
+        flushed += replayed.flushed;
+        if (replayed.stop) break;
       }
       this.lastSpoolFlushed = flushed;
       return flushed;
@@ -773,6 +755,93 @@ export class LocalMindLogService implements OnModuleDestroy {
         }).catch(() => undefined);
       }
     }
+  }
+
+  /**
+   * Replays spooled runtime records. Clients retry uploads, so the spool can
+   * hold several files with one event ID: they are written once and all of
+   * their files removed. A batch failing for a deterministic reason (bad data,
+   * duplicate ID) is retried record by record so one bad record cannot block
+   * the spool forever; records that still fail are quarantined. A transient
+   * failure stops this replay and keeps every file for the next attempt.
+   */
+  private async replayRuntimeBatch(
+    entries: { file: string; record: SpoolRecord }[]
+  ): Promise<{ flushed: number; stop: boolean }> {
+    const byEventId = new Map<
+      string,
+      { record: SpoolRecord; files: string[] }
+    >();
+    for (const { file, record } of entries) {
+      const group = byEventId.get(record.eventId);
+      if (group) group.files.push(file);
+      else byEventId.set(record.eventId, { record, files: [file] });
+    }
+    const groups = [...byEventId.values()];
+    const duplicates = entries.length - groups.length;
+    if (duplicates) this.countDropped('spool_duplicate_files', duplicates);
+    let flushed = 0;
+    const removeAll = async (files: string[]) => {
+      for (const file of files) {
+        await this.spool.remove(file).catch(() => undefined);
+        flushed++;
+      }
+    };
+
+    const startedAt = Date.now();
+    try {
+      await this.logDb.$transaction(
+        tx =>
+          this.persistRuntimeBatch(
+            tx,
+            groups.map(group => group.record)
+          ),
+        { maxWait: 5000 }
+      );
+      this.recordDatabaseResult(true, Date.now() - startedAt, 'closed');
+      for (const group of groups) await removeAll(group.files);
+      return { flushed, stop: false };
+    } catch (error) {
+      this.lastSpoolError = spoolErrorMessage(error);
+      if (isTransientDatabaseError(error)) {
+        this.recordDatabaseResult(false, Date.now() - startedAt, 'closed');
+        return { flushed, stop: true };
+      }
+    }
+
+    // Deterministic batch failure: isolate the record(s) causing it.
+    for (const group of groups) {
+      const recordStartedAt = Date.now();
+      try {
+        await this.logDb.$transaction(
+          tx => this.persistRuntimeBatch(tx, [group.record]),
+          { maxWait: 5000 }
+        );
+        this.recordDatabaseResult(true, Date.now() - recordStartedAt, 'closed');
+        await removeAll(group.files);
+      } catch (error) {
+        this.lastSpoolError = spoolErrorMessage(error);
+        if (isTransientDatabaseError(error)) {
+          this.recordDatabaseResult(
+            false,
+            Date.now() - recordStartedAt,
+            'closed'
+          );
+          return { flushed, stop: true };
+        }
+        if (isDuplicateEventIdError(error)) {
+          // Another writer stored this event ID meanwhile; it is durable.
+          await removeAll(group.files);
+          continue;
+        }
+        for (const file of group.files) {
+          if (await this.spool.quarantine(file).catch(() => false)) {
+            this.countDropped('spool_quarantined');
+          }
+        }
+      }
+    }
+    return { flushed, stop: false };
   }
 
   private async replayAuditRecord(file: string, record: SpoolRecord) {
@@ -1762,7 +1831,13 @@ export class LocalMindLogService implements OnModuleDestroy {
       WHERE event_id IN (${Prisma.join(eventIds)})
     `);
     const existing = new Set(accepted.map(row => row.eventId));
-    const missing = records.filter(record => !existing.has(record.eventId));
+    // One insert per event ID: a second copy in the same statement would be
+    // rejected by the global registry trigger and roll back the whole batch.
+    const missing = records.filter(record => {
+      if (existing.has(record.eventId)) return false;
+      existing.add(record.eventId);
+      return true;
+    });
     if (!missing.length) return [];
     return await tx.localMindLogEvent.createManyAndReturn({
       data: missing.map(record => this.eventData(record)),
@@ -1974,4 +2049,50 @@ function retentionFailureMessage(error: unknown) {
   const text =
     error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return text.replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+
+/**
+ * Failures expected to pass on retry: connection, pool and transaction
+ * timeouts, cancellations, serialization failures and deadlocks.
+ */
+function isTransientDatabaseError(error: unknown) {
+  if (
+    error instanceof Prisma.PrismaClientInitializationError ||
+    error instanceof Prisma.PrismaClientRustPanicError
+  ) {
+    return true;
+  }
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (/^P10\d\d$/.test(error.code)) return true;
+    if (['P2024', 'P2028', 'P2034'].includes(error.code)) return true;
+    const pgCode = String(error.meta?.code ?? '');
+    if (/^(08|53|57|40)/.test(pgCode)) return true;
+    return false;
+  }
+  if (error instanceof Prisma.PrismaClientValidationError) return false;
+  if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+    return !/duplicate LocalMind log event_id|violates|invalid input/i.test(
+      error.message
+    );
+  }
+  return true;
+}
+
+function isDuplicateEventIdError(error: unknown) {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === 'P2002' || error.meta?.code === '23505')
+  ) {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    /duplicate LocalMind log event_id/i.test(error.message)
+  );
+}
+
+function spoolErrorMessage(error: unknown) {
+  return (error instanceof Error ? error.message : String(error))
+    .replace(/\s+/g, ' ')
+    .slice(0, 500);
 }
