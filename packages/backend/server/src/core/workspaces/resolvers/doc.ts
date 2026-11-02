@@ -180,24 +180,8 @@ const DocPermissions = registerObjectType<
   { name: 'DocPermissions' }
 );
 
-/** Upper bound of document IDs accepted by one batch permission check. */
-export const DOC_PERMISSION_BATCH_MAX = 100;
-const DOC_PERMISSION_BATCH_CONCURRENCY = 8;
-
-@ObjectType()
-class DocPermissionCheck {
-  @Field()
-  docId!: string;
-
-  @Field(() => String, {
-    description:
-      'granted: permissions apply; denied: no read access; missing: no stored doc, query the doc directly',
-  })
-  status!: 'granted' | 'denied' | 'missing';
-
-  @Field(() => DocPermissions, { nullable: true })
-  permissions!: InstanceType<typeof DocPermissions> | null;
-}
+/** Upper bound of document IDs accepted by one batch read check. */
+export const READABLE_DOC_IDS_MAX = 100;
 
 @ObjectType()
 export class EditorType implements Partial<Editor> {
@@ -473,58 +457,33 @@ export class WorkspaceDocResolver {
     };
   }
 
-  @ResolveField(() => [DocPermissionCheck], {
+  @ResolveField(() => [String], {
     description:
-      'Permissions of up to 100 docs, each checked against the live ACL',
+      'IDs among up to 100 docs the current user may read, checked against the live Workspace ACL. Denied and unknown docs are both omitted.',
     complexity: 2,
   })
-  async docsPermissions(
+  async readableDocIds(
     @CurrentUser() me: CurrentUser,
     @Parent() workspace: WorkspaceType,
     @Args('docIds', { type: () => [String] }) docIds: string[]
-  ): Promise<DocPermissionCheck[]> {
+  ): Promise<string[]> {
     const ids = [...new Set(docIds)];
-    if (ids.length > DOC_PERMISSION_BATCH_MAX) {
-      throw new QueryTooLong({ max: DOC_PERMISSION_BATCH_MAX });
+    if (ids.length > READABLE_DOC_IDS_MAX) {
+      throw new QueryTooLong({ max: READABLE_DOC_IDS_MAX });
     }
-    const results: DocPermissionCheck[] = [];
-    for (
-      let offset = 0;
-      offset < ids.length;
-      offset += DOC_PERMISSION_BATCH_CONCURRENCY
-    ) {
-      results.push(
-        ...(await Promise.all(
-          ids
-            .slice(offset, offset + DOC_PERMISSION_BATCH_CONCURRENCY)
-            .map(docId => this.checkDocPermissions(me, workspace.id, docId))
-        ))
+    if (!ids.length) return [];
+    // One permission context for the whole batch, the same path as
+    // workspaceDirectory. Without a project scope only personal and Workspace
+    // ACL apply, matching direct Workspace access.
+    const readable = await this.ac
+      .user(me.id)
+      .workspace(workspace.id)
+      .projectScope(null)
+      .docs(
+        ids.map(docId => ({ docId })),
+        'Doc.Read'
       );
-    }
-    return results;
-  }
-
-  /**
-   * Same decision as `workspace.doc(docId).permissions` for stored docs. Docs
-   * without a stored record are reported as missing so the client falls back
-   * to the single-doc query, which also repairs ownership.
-   */
-  private async checkDocPermissions(
-    me: CurrentUser,
-    workspaceId: string,
-    docId: string
-  ): Promise<DocPermissionCheck> {
-    const doc = await this.models.doc.getDocInfo(workspaceId, docId);
-    if (!doc) return { docId, status: 'missing', permissions: null };
-    if (!(await this.ac.user(me.id).doc(workspaceId, docId).can('Doc.Read'))) {
-      return { docId, status: 'denied', permissions: null };
-    }
-    const { permissions } = await this.ac.user(me.id).doc(doc).permissions();
-    return {
-      docId,
-      status: 'granted',
-      permissions: mapPermissionsToGraphqlPermissions(permissions),
-    };
+    return readable.map(doc => doc.docId);
   }
 
   @Mutation(() => DocType)

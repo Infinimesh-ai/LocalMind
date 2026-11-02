@@ -5182,14 +5182,6 @@ export interface DocPageAnalyticsSummary {
   uniqueViews: Scalars['SafeInt']['output'];
 }
 
-export interface DocPermissionCheck {
-  __typename?: 'DocPermissionCheck';
-  docId: Scalars['String']['output'];
-  permissions: Maybe<DocPermissions>;
-  /** granted: permissions apply; denied: no read access; missing: no stored doc, query the doc directly */
-  status: Scalars['String']['output'];
-}
-
 export interface DocPermissions {
   __typename?: 'DocPermissions';
   Doc_Comments_Create: Scalars['Boolean']['output'];
@@ -11065,8 +11057,6 @@ export interface WorkspaceType {
   /** Get get with given id */
   doc: DocType;
   docs: PaginatedDocType;
-  /** Permissions of up to 100 docs, each checked against the live ACL */
-  docsPermissions: Array<DocPermissionCheck>;
   embedding: CopilotWorkspaceConfig;
   /** Enable AI */
   enableAi: Scalars['Boolean']['output'];
@@ -11106,6 +11096,8 @@ export interface WorkspaceType {
   publicDocs: Array<DocType>;
   /** quota of workspace */
   quota: WorkspaceQuotaType;
+  /** IDs among up to 100 docs the current user may read, checked against the live Workspace ACL. Denied and unknown docs are both omitted. */
+  readableDocIds: Array<Scalars['String']['output']>;
   /** Get recently updated docs of a workspace */
   recentlyUpdatedDocs: PaginatedDocType;
   /** Role of current signed in user in workspace */
@@ -11154,10 +11146,6 @@ export interface WorkspaceTypeDocsArgs {
   pagination: PaginationInput;
 }
 
-export interface WorkspaceTypeDocsPermissionsArgs {
-  docIds: Array<Scalars['String']['input']>;
-}
-
 export interface WorkspaceTypeHistoriesArgs {
   before?: InputMaybe<Scalars['DateTime']['input']>;
   guid: Scalars['String']['input'];
@@ -11177,6 +11165,10 @@ export interface WorkspaceTypeMembersArgs {
 
 export interface WorkspaceTypePageMetaArgs {
   pageId: Scalars['String']['input'];
+}
+
+export interface WorkspaceTypeReadableDocIdsArgs {
+  docIds: Array<Scalars['String']['input']>;
 }
 
 export interface WorkspaceTypeRecentlyUpdatedDocsArgs {
@@ -22220,43 +22212,6 @@ export type GetDocRolePermissionsQuery = {
   };
 };
 
-export type GetDocsRolePermissionsQueryVariables = Exact<{
-  workspaceId: Scalars['String']['input'];
-  docIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
-}>;
-
-export type GetDocsRolePermissionsQuery = {
-  __typename?: 'Query';
-  workspace: {
-    __typename?: 'WorkspaceType';
-    docsPermissions: Array<{
-      __typename?: 'DocPermissionCheck';
-      docId: string;
-      status: string;
-      permissions: {
-        __typename?: 'DocPermissions';
-        Doc_Copy: boolean;
-        Doc_Delete: boolean;
-        Doc_Duplicate: boolean;
-        Doc_Properties_Read: boolean;
-        Doc_Properties_Update: boolean;
-        Doc_Publish: boolean;
-        Doc_Read: boolean;
-        Doc_Restore: boolean;
-        Doc_TransferOwner: boolean;
-        Doc_Trash: boolean;
-        Doc_Update: boolean;
-        Doc_Users_Manage: boolean;
-        Doc_Users_Read: boolean;
-        Doc_Comments_Create: boolean;
-        Doc_Comments_Delete: boolean;
-        Doc_Comments_Read: boolean;
-        Doc_Comments_Resolve: boolean;
-      } | null;
-    }>;
-  };
-};
-
 export type BeginEnterpriseAuthorizationMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   connectionId: Scalars['ID']['input'];
@@ -26007,6 +25962,16 @@ export type ReadNotificationMutation = {
   readNotification: boolean;
 };
 
+export type GetReadableDocIdsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  docIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+export type GetReadableDocIdsQuery = {
+  __typename?: 'Query';
+  workspace: { __typename?: 'WorkspaceType'; readableDocIds: Array<string> };
+};
+
 export type RecoverDocMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   docId: Scalars['String']['input'];
@@ -28239,11 +28204,6 @@ export type Queries =
       response: GetDocRolePermissionsQuery;
     }
   | {
-      name: 'getDocsRolePermissionsQuery';
-      variables: GetDocsRolePermissionsQueryVariables;
-      response: GetDocsRolePermissionsQuery;
-    }
-  | {
       name: 'latestEnterpriseAuthorizationSessionQuery';
       variables: LatestEnterpriseAuthorizationSessionQueryVariables;
       response: LatestEnterpriseAuthorizationSessionQuery;
@@ -28622,6 +28582,11 @@ export type Queries =
       name: 'quotaQuery';
       variables: QuotaQueryVariables;
       response: QuotaQuery;
+    }
+  | {
+      name: 'getReadableDocIdsQuery';
+      variables: GetReadableDocIdsQueryVariables;
+      response: GetReadableDocIdsQuery;
     }
   | {
       name: 'reportDeckAiOptionsQuery';

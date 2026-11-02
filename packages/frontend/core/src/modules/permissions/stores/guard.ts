@@ -1,8 +1,7 @@
 import {
   type GetDocRolePermissionsQuery,
   getDocRolePermissionsQuery,
-  type GetDocsRolePermissionsQuery,
-  getDocsRolePermissionsQuery,
+  getReadableDocIdsQuery,
 } from '@affine/graphql';
 import { Store } from '@toeverything/infra';
 
@@ -16,9 +15,6 @@ export type DocPermissionActions = keyof Omit<
   GetDocRolePermissionsQuery['workspace']['doc']['permissions'],
   '__typename'
 >;
-
-export type DocPermissionCheck =
-  GetDocsRolePermissionsQuery['workspace']['docsPermissions'][number];
 
 export class GuardStore extends Store {
   constructor(
@@ -56,18 +52,25 @@ export class GuardStore extends Store {
     return data.workspace.doc.permissions;
   }
 
-  /** Live ACL check for up to 100 documents in one request. */
-  async getDocsPermissions(docIds: string[]): Promise<DocPermissionCheck[]> {
+  /**
+   * Live `Doc.Read` check for up to 100 documents in one request. Returns only
+   * the readable IDs; denied and unknown documents are indistinguishable.
+   */
+  async getReadableDocIds(
+    docIds: string[],
+    signal?: AbortSignal
+  ): Promise<string[]> {
     if (!this.workspaceServerService.server) {
       throw new Error('No server');
     }
     const data = await this.workspaceServerService.server.gql({
-      query: getDocsRolePermissionsQuery,
+      query: getReadableDocIdsQuery,
       variables: {
         workspaceId: this.workspaceService.workspace.id,
         docIds,
       },
+      context: { signal },
     });
-    return data.workspace.docsPermissions;
+    return data.workspace.readableDocIds;
   }
 }

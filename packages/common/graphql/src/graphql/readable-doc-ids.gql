@@ -1,0 +1,5 @@
+query getReadableDocIds($workspaceId: String!, $docIds: [String!]!) {
+  workspace(id: $workspaceId) {
+    readableDocIds(docIds: $docIds)
+  }
+}

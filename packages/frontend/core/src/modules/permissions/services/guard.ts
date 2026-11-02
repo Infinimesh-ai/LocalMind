@@ -42,11 +42,41 @@ const DOCUMENT_SCOPE_READ_ACTIONS = new Set<DocPermissionActions>([
 export const ACTIVE_DOC_PERMISSION_REFRESH_MS = 5_000;
 export const LISTED_DOC_PERMISSION_REFRESH_MS = 60_000;
 export const MAX_CONCURRENT_DOC_PERMISSION_LOADS = 4;
-/** Matches the server's batch limit for `docsPermissions`. */
-export const DOC_PERMISSION_BATCH_MAX = 100;
+/** Matches the server's limit for `workspace.readableDocIds`. */
+export const READ_CHECK_BATCH_MAX = 100;
+/** Read checks from all callers share at most this many requests in flight. */
+export const MAX_IN_FLIGHT_READ_CHECK_BATCHES = 2;
+/** Collects read checks from components mounting over a few renders. */
+export const READ_CHECK_BATCH_WINDOW_MS = 16;
 const DOC_PERMISSION_RETRY_COUNT = 3;
 
 type DocPermissions = Partial<Record<DocPermissionActions, boolean>>;
+
+type ReadCheckWaiter = {
+  resolve: (readable: boolean) => void;
+  reject: (error: unknown) => void;
+  signal?: AbortSignal;
+};
+
+type ReadCheckBatch = {
+  waiters: Map<string, ReadCheckWaiter[]>;
+  live: number;
+  controller: AbortController;
+};
+
+/**
+ * `checking` until the first ACL check of the candidates finishes; `failed`
+ * when some candidates could not be checked (they stay hidden).
+ */
+export type ReadableDocsState = {
+  status: 'checking' | 'ready' | 'failed';
+  readable: ReadonlySet<string>;
+};
+
+const CHECKING_READABLE_DOCS: ReadableDocsState = {
+  status: 'checking',
+  readable: new Set(),
+};
 
 export class GuardService extends Service {
   private readonly documentScopePollTimer?: ReturnType<typeof setInterval>;
@@ -58,6 +88,10 @@ export class GuardService extends Service {
   private readonly docLoadWaiters: (() => void)[] = [];
   // Set when the server lacks the batch query; checks then go one by one.
   private batchUnsupported = false;
+  private readonly queuedReadChecks = new Map<string, ReadCheckWaiter[]>();
+  private readonly inFlightReadChecks = new Map<string, ReadCheckBatch>();
+  private inFlightReadBatches = 0;
+  private readCheckTimer?: ReturnType<typeof setTimeout>;
   private readonly refreshObservedPermissions = () => {
     if (this.isAdmin$.value === true || isPageHidden()) return;
     const docIds = new Set(this.observedDocs.keys());
@@ -227,10 +261,17 @@ export class GuardService extends Service {
 
   /** Search must not reveal cached content before its current ACL is checked. */
   readableDocIds$(docIds: readonly string[]): Observable<ReadonlySet<string>> {
+    return this.readableDocsState$(docIds).pipe(map(state => state.readable));
+  }
+
+  /** Same as `readableDocIds$`, plus whether the check is pending or failed. */
+  readableDocsState$(docIds: readonly string[]): Observable<ReadableDocsState> {
     const ids = [...new Set(docIds)];
-    if (!ids.length) return of(new Set<string>());
+    if (!ids.length) {
+      return of<ReadableDocsState>({ status: 'ready', readable: new Set() });
+    }
     if (this.workspaceService.workspace.flavour === 'local') {
-      return of(new Set(ids));
+      return of<ReadableDocsState>({ status: 'ready', readable: new Set(ids) });
     }
     return defer(() =>
       fromPromise(async signal => {
@@ -246,12 +287,15 @@ export class GuardService extends Service {
           return await this.loadDocPermissions(ids, signal);
         } catch {
           // A failed check cannot authorize a locally indexed result.
-          return new Set<string>();
+          return { checked: new Set<string>(), failed: ids.length };
         }
       })
     ).pipe(
-      switchMap(checked => {
-        if (!checked.size) return of(new Set<string>());
+      switchMap(({ checked, failed }): Observable<ReadableDocsState> => {
+        const status: ReadableDocsState['status'] = failed ? 'failed' : 'ready';
+        if (!checked.size) {
+          return of<ReadableDocsState>({ status, readable: new Set() });
+        }
         const checkedIds = [...checked];
         // Listed candidates follow the slower refresh pool; opening a document
         // still subscribes it to the active pool through can$.
@@ -259,17 +303,22 @@ export class GuardService extends Service {
           checkedIds.map(id => this.watch$('Doc_Read', id, this.listedDocs))
         ).pipe(
           map(
-            permissions =>
-              new Set(checkedIds.filter((_, i) => permissions[i] === true))
+            (permissions): ReadableDocsState => ({
+              status,
+              readable: new Set(
+                checkedIds.filter((_, i) => permissions[i] === true)
+              ),
+            })
           )
         );
       }),
-      startWith(new Set<string>())
+      startWith(CHECKING_READABLE_DOCS)
     );
   }
 
   private async checkEach(ids: string[], signal: AbortSignal) {
     const checked = new Set<string>();
+    let failed = 0;
     let next = 0;
     await Promise.all(
       Array.from({ length: Math.min(4, ids.length) }, async () => {
@@ -280,74 +329,180 @@ export class GuardService extends Service {
             checked.add(id);
           } catch {
             // A failed check cannot authorize a locally indexed result.
+            failed++;
           }
         }
       })
     );
-    return checked;
+    return { checked, failed };
   }
 
   /**
-   * Loads the live ACL of many documents with one request per 100 IDs and
-   * returns the IDs whose result is known. Documents the server has no record
-   * of, and servers without the batch query, use the single-doc check.
+   * Checks `Doc_Read` for many documents through the shared read-check batcher
+   * and returns the IDs whose result is known.
    */
   private async loadDocPermissions(
     docIds: readonly string[],
     signal?: AbortSignal
   ) {
     const ids = [...new Set(docIds)];
+    const results = await Promise.allSettled(
+      ids.map(id => this.checkReadable(id, signal))
+    );
     const checked = new Set<string>();
-    const single = async (pending: string[]) => {
-      await Promise.all(
-        pending.map(async id => {
-          try {
-            await this.loadDocPermission(id);
-            checked.add(id);
-          } catch {
-            // Unknown results stay hidden until a later check succeeds.
-          }
-        })
+    let failed = 0;
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') checked.add(ids[index]);
+      else if (!signal?.aborted) failed++;
+    });
+    return { checked, failed };
+  }
+
+  /**
+   * DataLoader-style read check: calls from every list, sidebar node and
+   * search within a short window are merged into requests of at most 100 IDs,
+   * with at most two requests in flight. A check for a document already in
+   * flight joins that request. A request is aborted only after all of its
+   * waiters were aborted. Results only update `Doc_Read`; opened documents
+   * still load their full permissions.
+   */
+  private checkReadable(docId: string, signal?: AbortSignal) {
+    return new Promise<boolean>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(abortReason(signal));
+        return;
+      }
+      const waiter: ReadCheckWaiter = { resolve, reject, signal };
+      const inFlight = this.inFlightReadChecks.get(docId);
+      if (inFlight && !inFlight.controller.signal.aborted) {
+        inFlight.waiters.get(docId)?.push(waiter);
+        inFlight.live++;
+      } else {
+        const queued = this.queuedReadChecks.get(docId) ?? [];
+        queued.push(waiter);
+        this.queuedReadChecks.set(docId, queued);
+      }
+      signal?.addEventListener(
+        'abort',
+        () => this.abortReadCheck(docId, waiter),
+        { once: true }
       );
-    };
-    for (
-      let offset = 0;
-      offset < ids.length && !signal?.aborted;
-      offset += DOC_PERMISSION_BATCH_MAX
-    ) {
-      const chunk = ids.slice(offset, offset + DOC_PERMISSION_BATCH_MAX);
-      if (this.batchUnsupported) {
-        await single(chunk);
-        continue;
-      }
-      let checks;
-      try {
-        checks = await this.withDocLoadSlot(() =>
-          this.guardStore.getDocsPermissions(chunk)
-        );
-      } catch (error) {
-        if (!isUnsupportedBatch(error)) throw error;
-        this.batchUnsupported = true;
-        await single(chunk);
-        continue;
-      }
-      const next = { ...this.docPermissions$.value };
-      const missing: string[] = [];
-      for (const check of checks) {
-        if (check.status === 'granted' && check.permissions) {
-          next[check.docId] = check.permissions;
-          checked.add(check.docId);
-        } else if (check.status === 'denied') {
-          next[check.docId] = revokedPermissions(next[check.docId]);
-          checked.add(check.docId);
-        } else {
-          missing.push(check.docId);
-        }
-      }
-      this.docPermissions$.next(next);
-      await single(missing);
+      this.scheduleReadChecks();
+    });
+  }
+
+  private abortReadCheck(docId: string, waiter: ReadCheckWaiter) {
+    const queued = this.queuedReadChecks.get(docId);
+    if (queued?.includes(waiter)) {
+      const rest = queued.filter(item => item !== waiter);
+      if (rest.length) this.queuedReadChecks.set(docId, rest);
+      else this.queuedReadChecks.delete(docId);
+    } else {
+      const batch = this.inFlightReadChecks.get(docId);
+      const waiters = batch?.waiters.get(docId);
+      if (!batch || !waiters?.includes(waiter)) return;
+      batch.waiters.set(
+        docId,
+        waiters.filter(item => item !== waiter)
+      );
+      if (--batch.live === 0) batch.controller.abort();
     }
-    return checked;
+    waiter.reject(abortReason(waiter.signal));
+  }
+
+  private scheduleReadChecks() {
+    if (this.readCheckTimer || !this.queuedReadChecks.size) return;
+    this.readCheckTimer = setTimeout(() => {
+      this.readCheckTimer = undefined;
+      this.startReadChecks();
+    }, READ_CHECK_BATCH_WINDOW_MS);
+  }
+
+  private startReadChecks() {
+    while (
+      this.queuedReadChecks.size &&
+      this.inFlightReadBatches < MAX_IN_FLIGHT_READ_CHECK_BATCHES
+    ) {
+      const waiters = new Map<string, ReadCheckWaiter[]>();
+      for (const [docId, queued] of this.queuedReadChecks) {
+        waiters.set(docId, queued);
+        if (waiters.size >= READ_CHECK_BATCH_MAX) break;
+      }
+      waiters.forEach((_, docId) => this.queuedReadChecks.delete(docId));
+      const batch: ReadCheckBatch = {
+        waiters,
+        live: [...waiters.values()].reduce((sum, list) => sum + list.length, 0),
+        controller: new AbortController(),
+      };
+      waiters.forEach((_, docId) => this.inFlightReadChecks.set(docId, batch));
+      this.inFlightReadBatches++;
+      this.runReadCheckBatch(batch)
+        .catch(() => undefined)
+        .finally(() => {
+          waiters.forEach((_, docId) => {
+            if (this.inFlightReadChecks.get(docId) === batch) {
+              this.inFlightReadChecks.delete(docId);
+            }
+          });
+          this.inFlightReadBatches--;
+          this.scheduleReadChecks();
+        });
+    }
+  }
+
+  private async runReadCheckBatch(batch: ReadCheckBatch) {
+    const ids = [...batch.waiters.keys()];
+    const settle = (docId: string, result: boolean | { error: unknown }) => {
+      for (const waiter of batch.waiters.get(docId) ?? []) {
+        if (typeof result === 'boolean') waiter.resolve(result);
+        else waiter.reject(result.error);
+      }
+    };
+    if (this.batchUnsupported) {
+      await this.readChecksOneByOne(ids, settle);
+      return;
+    }
+    let readable: Set<string>;
+    try {
+      readable = new Set(
+        await this.guardStore.getReadableDocIds(ids, batch.controller.signal)
+      );
+    } catch (error) {
+      if (batch.controller.signal.aborted) return;
+      if (isUnsupportedBatch(error)) {
+        this.batchUnsupported = true;
+        await this.readChecksOneByOne(ids, settle);
+        return;
+      }
+      // Do not fall back to one request per document on transient failure.
+      ids.forEach(docId => settle(docId, { error }));
+      return;
+    }
+    const next = { ...this.docPermissions$.value };
+    for (const docId of ids) {
+      next[docId] = readable.has(docId)
+        ? { ...next[docId], Doc_Read: true }
+        : revokedPermissions(next[docId]);
+    }
+    this.docPermissions$.next(next);
+    ids.forEach(docId => settle(docId, readable.has(docId)));
+  }
+
+  /** Older servers: full single-doc checks, still bounded by the load slots. */
+  private async readChecksOneByOne(
+    ids: string[],
+    settle: (docId: string, result: boolean | { error: unknown }) => void
+  ) {
+    await Promise.all(
+      ids.map(async docId => {
+        try {
+          const permissions = await this.loadDocPermission(docId);
+          settle(docId, permissions.Doc_Read === true);
+        } catch (error) {
+          settle(docId, { error });
+        }
+      })
+    );
   }
 
   revalidateCan<T extends WorkspacePermissionActions | DocPermissionActions>(
@@ -513,8 +668,12 @@ function revokedPermissions(previous?: DocPermissions): DocPermissions {
 /** An older server without `docsPermissions` rejects the query as invalid. */
 function isUnsupportedBatch(error: unknown) {
   if (error instanceof TypeError) return true;
-  if (error instanceof Error && error.message.includes('docsPermissions')) {
+  if (error instanceof Error && error.message.includes('readableDocIds')) {
     return true;
   }
   return UserFriendlyError.fromAny(error).status === 400;
+}
+
+function abortReason(signal?: AbortSignal) {
+  return signal?.reason ?? new DOMException('Aborted', 'AbortError');
 }

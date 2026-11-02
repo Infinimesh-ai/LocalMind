@@ -22,7 +22,10 @@ import { DocsService } from '@affine/core/modules/doc';
 import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
 import { DocsSearchService } from '@affine/core/modules/docs-search';
 import { WorkspacePageTreeService } from '@affine/core/modules/organize';
-import { GuardService } from '@affine/core/modules/permissions';
+import {
+  GuardService,
+  type ReadableDocsState,
+} from '@affine/core/modules/permissions';
 import { TagService } from '@affine/core/modules/tag';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
@@ -83,6 +86,7 @@ import {
   type ResourceDisplayRecord,
 } from './resource-groups';
 import { ResourceListLayout } from './resource-list-layout';
+import { resourceListPlaceholder } from './resource-list-placeholder';
 import {
   ResourceActor,
   ResourceInlineTags,
@@ -450,18 +454,24 @@ export function WorkspaceResourceExplorer({
             .join('\n'),
     [docGroups, trash]
   );
-  const readableDocs = useLiveData(
+  // Bumped by the retry button to run the ACL check again.
+  const [readableCheck, setReadableCheck] = useState(0);
+  const readableState = useLiveData(
     useMemo(
       () =>
-        LiveData.from(
-          guard.readableDocIds$(
+        LiveData.from<ReadableDocsState>(
+          guard.readableDocsState$(
             candidateDocKey ? candidateDocKey.split('\n') : []
           ),
-          new Set<string>()
+          { status: 'checking', readable: new Set<string>() }
         ),
-      [guard, candidateDocKey]
+      // oxlint-disable-next-line react/exhaustive-deps
+      [guard, candidateDocKey, readableCheck]
     )
   );
+  const readableDocs = readableState.readable;
+  const checkingReadable = readableState.status === 'checking';
+  const readableCheckFailed = readableState.status === 'failed';
   const graphql = useServiceOptional(GraphQLService);
   const workspace = useService(WorkspaceService).workspace;
   const workspaceId = workspace.id;
@@ -1298,7 +1308,7 @@ export function WorkspaceResourceExplorer({
                   </Button>
                 </Menu>
               )}
-              {(catalog.loading || queryLoading) && (
+              {(catalog.loading || queryLoading || checkingReadable) && (
                 <span role="status">{t['Loading']()}</span>
               )}
               <div
@@ -1477,6 +1487,18 @@ export function WorkspaceResourceExplorer({
                 </Button>
               </div>
             )}
+            {readableCheckFailed && (
+              <div
+                className={styles.toolbar}
+                role="alert"
+                data-testid="resource-permission-check-failed"
+              >
+                {t['com.affine.localmind.project-files.operationFailed']()}
+                <Button onClick={() => setReadableCheck(value => value + 1)}>
+                  {t['com.affine.error.retry']()}
+                </Button>
+              </div>
+            )}
             {result && (
               <div className={styles.toolbar} role="status">
                 {result}
@@ -1497,14 +1519,27 @@ export function WorkspaceResourceExplorer({
               >
                 {!visibleGroups.some(group => group.items.length) ? (
                   <div className={styles.toolbar} role="status">
-                    {catalog.loading ||
-                    queryLoading ||
-                    (!catalog.ready && !catalog.error) ||
-                    (!!preference.resourceProperties && !docsAvailable)
-                      ? t['Loading']()
-                      : catalog.error || queryError || folderError
-                        ? ''
-                        : t['com.affine.localmind.resources.empty']()}
+                    {
+                      {
+                        loading: t['Loading'](),
+                        // The alert above carries the error and retry action.
+                        error: '',
+                        empty: t['com.affine.localmind.resources.empty'](),
+                      }[
+                        resourceListPlaceholder({
+                          catalogLoading: !!catalog.loading,
+                          catalogReady: !!catalog.ready,
+                          catalogError: !!catalog.error,
+                          queryLoading,
+                          queryError: !!queryError,
+                          folderError: !!folderError,
+                          docsPending:
+                            !!preference.resourceProperties && !docsAvailable,
+                          checkingReadable,
+                          readableCheckFailed,
+                        })
+                      ]
+                    }
                   </div>
                 ) : (
                   <DocsExplorer

@@ -3,7 +3,7 @@ export {
   DocGrantedUsersService,
   type GrantedUser,
 } from './services/doc-granted-users';
-export { GuardService } from './services/guard';
+export { GuardService, type ReadableDocsState } from './services/guard';
 export { MemberSearchService } from './services/member-search';
 export { WorkspaceMembersService } from './services/members';
 export { WorkspacePermissionService } from './services/permission';

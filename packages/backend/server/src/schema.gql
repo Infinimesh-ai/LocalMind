@@ -4570,16 +4570,6 @@ type DocPageAnalyticsSummary {
   uniqueViews: SafeInt!
 }
 
-type DocPermissionCheck {
-  docId: String!
-  permissions: DocPermissions
-
-  """
-  granted: permissions apply; denied: no read access; missing: no stored doc, query the doc directly
-  """
-  status: String!
-}
-
 type DocPermissions {
   Doc_Comments_Create: Boolean!
   Doc_Comments_Delete: Boolean!
@@ -8636,9 +8626,6 @@ type WorkspaceType {
   """Get get with given id"""
   doc(docId: String!): DocType!
   docs(pagination: PaginationInput!): PaginatedDocType!
-
-  """Permissions of up to 100 docs, each checked against the live ACL"""
-  docsPermissions(docIds: [String!]!): [DocPermissionCheck!]!
   embedding: CopilotWorkspaceConfig!
 
   """Enable AI"""
@@ -8691,6 +8678,11 @@ type WorkspaceType {
 
   """quota of workspace"""
   quota: WorkspaceQuotaType!
+
+  """
+  IDs among up to 100 docs the current user may read, checked against the live Workspace ACL. Denied and unknown docs are both omitted.
+  """
+  readableDocIds(docIds: [String!]!): [String!]!
 
   """Get recently updated docs of a workspace"""
   recentlyUpdatedDocs(pagination: PaginationInput!): PaginatedDocType!

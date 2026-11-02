@@ -113,7 +113,7 @@ openssl rand -hex 32
 `LOG_SPOOL_LOCATION/${LOCALMIND_NODE_ID:-primary}`；多副本部署时为每个副本设置不同的
 `LOCALMIND_NODE_ID`。致命错误（包括 V8 堆耗尽）会在 `DIAGNOSTICS_LOCATION` 写入不含环境
 变量的 Node.js 诊断报告。修改 `POSTGRES_SHARED_BUFFERS` 会重启数据库容器，应安排维护
-窗口。服务端容器日志默认按 100 MB × 5 份轮转，可用 `SERVER_LOG_MAX_SIZE`、
+窗口。Compose 为数据库新增了 `command`，即使取默认值，首次 `docker compose up` 也会重建数据库容器；只更新服务端时使用 `docker compose up -d --no-deps affine`。服务端容器日志默认按 100 MB × 5 份轮转，可用 `SERVER_LOG_MAX_SIZE`、
 `SERVER_LOG_MAX_FILE` 调整。
 
 ### 审计归档与恢复屏障

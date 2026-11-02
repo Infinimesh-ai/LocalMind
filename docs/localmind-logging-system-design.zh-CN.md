@@ -206,7 +206,7 @@ auditEventId    业务审计事件
 
 ### 12.2 运行日志采样与写入预算
 
-以下规则来自 2026-10-30 堆内存耗尽故障的修复（见[故障分析](localmind-logging-heap-oom-investigation.zh-CN.md)），只适用于运行日志；`writeAudit()` 的同步写入、落 spool 与 fail-closed 语义不变。
+以下规则来自 2026-10-30 堆内存耗尽故障的修复（见[事故复盘](localmind-incident-2026-10-30-permission-polling-log-oom.zh-CN.md)），只适用于运行日志；`writeAudit()` 的同步写入、落 spool 与 fail-closed 语义不变。
 
 - **请求完成日志：** 成功且耗时低于 3 秒的 GraphQL 请求不逐条入库，按 operation 每分钟写一条 `graphql.request.summary`（次数、P50、P95、最大耗时）；operation 键最多 200 个，超出部分计入 `__other__`。失败或慢请求仍逐条写 `graphql.request.completed`。`/graphql` 与 `/api/logs/batch` 的成功 HTTP 完成日志不入库，失败、慢请求及其他路径照常记录，`path` 使用不含查询参数的原始路径。成功请求因此不能再按 requestId 逐条查询。
 - **debug：** severity 为 `debug` 的事件默认只输出 stdout，设置 `LOCALMIND_LOG_PERSIST_DEBUG=true` 才入库。每秒或每 5 秒的定时任务入队不再写 debug。
@@ -219,7 +219,7 @@ auditEventId    业务审计事件
 - **spool 目录与回放：** 目录名使用稳定的 `LOCALMIND_NODE_ID`（默认 `primary`），不再使用进程 ID；首次回放时把旧版本按进程 ID 命名、且未被锁定的目录中的待补写文件迁入当前目录。每次回放最多 500 个文件、10 秒，按 100 条一个事务写入；无法读取或校验失败的文件移入 `quarantine/` 并计数，不再阻塞后续回放。
 - **保留清理：** 每批在独立事务中用 `pg_try_advisory_xact_lock` 抢锁，抢不到即本轮让出；按 `(occurred_at, id)` 游标前进，批大小在 200—10,000 行之间按耗时调整，每轮最多 60 秒、50 万行，执行路径不再做精确总数统计，dry-run 计数上限 10 万。批次之间重新检查法务留置与冻结。每轮的状态（`completed`、`partial`、`contended`、`paused`、`failed`、`interrupted`）、计数与游标位置写入 `localmind_log_retention_runs`，保留 90 天；归档使用相同的保留分类，error、fatal 按失败保留期处理。
 - **接收健康状态：** Admin 查询 `localmindLogIngestionStatus` 返回 spool 字节与文件数、在途与排队数量、熔断与降级状态、当前窗口计数，以及最近 5 轮保留清理；内存计数不依赖日志表，清理记录读取超过 2 秒即返回不可用。
-- **前端权限刷新：** 已打开文档的界面权限每 5 秒刷新，资源列表、侧栏与搜索候选每 60 秒刷新；页面隐藏时暂停，同一文档的并发检查合并，全局最多 4 个并发请求。列表候选通过 `workspace.docsPermissions(docIds)` 每次最多检查 100 篇，服务端逐篇执行与单篇查询相同的实时 ACL 判断；未存储的文档返回 `missing` 并由客户端改用单篇查询，旧服务端不支持该字段时自动退回逐篇查询。服务端对每次访问的实时 ACL 检查不变。
+- **前端权限刷新：** 已打开文档的界面权限每 5 秒刷新，资源列表、侧栏与搜索候选每 60 秒刷新；页面隐藏时暂停，同一文档的并发检查合并，完整权限加载全局最多 4 个并发。列表候选的可读性通过 `workspace.readableDocIds(docIds)` 批量检查：服务端去重后每次最多 100 篇，复用 `projectScope(null)` 的批量 `Doc.Read` 授权，只返回可读 ID；前端以 16 ms 窗口合并所有调用方，全局最多 2 个批次在途，全部等待者取消后才中止请求，结果只写 `Doc_Read`。旧服务端不支持该字段时自动退回逐篇查询，瞬时失败不逐篇重试。列表行不订阅编辑权限，只在菜单打开时查询。服务端对每次访问的实时 ACL 检查不变。
 
 ## 13. 实施阶段
 

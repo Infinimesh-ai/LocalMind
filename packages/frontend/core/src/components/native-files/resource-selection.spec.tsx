@@ -11,7 +11,7 @@ import {
 import type * as Infra from '@toeverything/infra';
 import type { ComponentProps, ReactNode } from 'react';
 import { useContext } from 'react';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -216,6 +216,11 @@ beforeEach(() => {
     can: async () => true,
     // eslint-disable-next-line rxjs/finnish
     readableDocIds$: () => state.readable,
+    // eslint-disable-next-line rxjs/finnish
+    readableDocsState$: () =>
+      (state.readable as BehaviorSubject<Set<string>>).pipe(
+        map(readable => ({ status: 'ready', readable }))
+      ),
     change: vi.fn(async () => true),
     // The mock keeps the production observable method name.
     // eslint-disable-next-line rxjs/finnish

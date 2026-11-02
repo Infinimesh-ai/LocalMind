@@ -1,7 +1,7 @@
 import { MenuItem, Tooltip, useDraggable } from '@affine/component';
+import { useGuard } from '@affine/core/components/guard';
 import { DocsService } from '@affine/core/modules/doc';
 import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
-import { GuardService } from '@affine/core/modules/permissions';
 import { TagService } from '@affine/core/modules/tag';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { type NativeResource } from '@affine/core/modules/workspace-resources';
@@ -24,7 +24,7 @@ import {
   ViewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 
 import { DocExplorerContext } from '../explorer/context';
 import { MoreMenuButton } from '../explorer/docs-view/more-menu';
@@ -83,6 +83,31 @@ export function NativeTags({ resource }: { resource: NativeResource }) {
   );
 }
 
+/**
+ * Rendered only while the row menu is open, so list rows hold no permission
+ * subscription; the open menu checks the live `Doc_Update` grant.
+ */
+function EditTagsMenuItem({
+  docId,
+  onSelect,
+}: {
+  docId: string;
+  onSelect: () => void;
+}) {
+  const t = useI18n();
+  const canEdit = useGuard('Doc_Update', docId);
+  return (
+    <MenuItem
+      prefixIcon={<TagsIcon />}
+      disabled={canEdit !== true}
+      onSelect={onSelect}
+      data-testid="resource-edit-tags"
+    >
+      {t['com.affine.localmind.resources.editTags']()}
+    </MenuItem>
+  );
+}
+
 export function MixedDocRow({ id }: { id: string }) {
   const doc = useLiveData(useService(DocsService).list.doc$(id));
   const meta = useLiveData(doc?.meta$);
@@ -99,8 +124,6 @@ export function MixedDocRow({ id }: { id: string }) {
   const explicitSelection = useContext(ResourceSelectionModeContext);
   const selectMode = explicitSelection && contextSelectMode;
   const tags = useLiveData(useService(TagService).tagList.tagMetas$);
-  const guard = useService(GuardService);
-  const [canEdit, setCanEdit] = useState(false);
   const [editingTags, setEditingTags] = useState(false);
   const operationRef = useRef<HTMLButtonElement>(null);
   const t = useI18n();
@@ -113,12 +136,6 @@ export function MixedDocRow({ id }: { id: string }) {
     }),
     [id, preference.showDragHandle, selectMode]
   );
-  useEffect(() => {
-    const sub = guard
-      .can$('Doc_Update', id)
-      .subscribe(value => setCanEdit(!!value));
-    return () => sub.unsubscribe();
-  }, [guard, id]);
   if (!doc) return null;
   const tagIds = (meta?.tags ?? []).filter(id =>
     tags.some(tag => tag.id === id)
@@ -165,13 +182,10 @@ export function MixedDocRow({ id }: { id: string }) {
                 'aria-label': `${t['com.affine.localmind.resources.actions']()}: ${title}`,
               }}
               additionalItems={
-                <MenuItem
-                  prefixIcon={<TagsIcon />}
-                  disabled={!canEdit}
+                <EditTagsMenuItem
+                  docId={id}
                   onSelect={() => setEditingTags(true)}
-                >
-                  {t['com.affine.localmind.resources.editTags']()}
-                </MenuItem>
+                />
               }
             />
           </>
