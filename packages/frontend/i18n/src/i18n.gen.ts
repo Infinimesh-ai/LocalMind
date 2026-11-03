@@ -24670,6 +24670,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.reports.formerMember"](): string;
     /**
+      * `Current name`
+      */
+    ["com.affine.localmind.reports.currentName"](): string;
+    /**
       * `Execution path`
       */
     ["com.affine.localmind.workbench.executionPath.title"](): string;

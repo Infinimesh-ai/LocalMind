@@ -42,6 +42,7 @@ import {
   realtimeNotificationRoom,
   realtimeTranscriptTaskRoom,
   realtimeUserProfileRoom,
+  realtimeUserPublicProfileRoom,
   realtimeUserSettingsRoom,
   realtimeWorkspaceAccessRoom,
   realtimeWorkspaceConfigRoom,
@@ -1157,6 +1158,97 @@ test('publisher emits realtime event with shared input key', t => {
       inputKey: getRealtimeInputKey({ workspaceId: 'space', docId: 'doc' }),
       event: { changed: true },
     },
+  });
+});
+
+test('public profile changes reach only the server-computed audience in bounded batches', async t => {
+  const registry = new RealtimeRegistry();
+  const audience = Array.from({ length: 1201 }, (_, index) => `peer-${index}`);
+  const published: unknown[][] = [];
+  const provider = new UserRealtimeProvider(
+    {
+      user: {
+        getPublicProfileAudience: async (userId: string) => {
+          t.is(userId, 'renamed');
+          return audience;
+        },
+      },
+    } as never,
+    registry,
+    {
+      publish: (...args: unknown[]) => published.push(args),
+    } as unknown as RealtimePublisher
+  );
+  provider.onModuleInit();
+
+  t.is(
+    registry.getTopic('user.public-profile.changed').room(user, {}),
+    realtimeUserPublicProfileRoom('u1')
+  );
+  t.throws(() =>
+    registry.getTopic('user.public-profile.changed').room(null, {})
+  );
+
+  await provider.onUserPublicProfileUpdated({ userId: 'renamed' });
+  t.is(published.length, 3);
+  const rooms = published.flatMap(
+    args => (args[3] as { rooms: string[] }).rooms
+  );
+  t.deepEqual(rooms, audience.map(realtimeUserPublicProfileRoom));
+  t.true(
+    published.every(
+      args =>
+        args[0] === 'user.public-profile.changed' &&
+        (args[3] as { rooms: string[] }).rooms.length <= 500
+    )
+  );
+  t.deepEqual(published[0][2], {
+    changed: true,
+    reason: 'user-updated',
+    userIds: ['renamed'],
+  });
+
+  published.length = 0;
+  await provider.onUserDisabled({ id: 'renamed' });
+  t.like(published[0][2], { reason: 'user-disabled', userIds: ['renamed'] });
+});
+
+test('publisher delivers one envelope to several rooms and skips empty fan-out', t => {
+  const registry = new RealtimeRegistry();
+  new UserRealtimeProvider({} as never, registry).onModuleInit();
+  const emitted: unknown[] = [];
+  const publisher = new RealtimePublisher(registry, {
+    broadcast: () => {},
+  } as never);
+  publisher.attachServer({
+    to: (room: string | string[]) => ({
+      emit: (event: string, payload: unknown) =>
+        emitted.push({ room, event, payload }),
+    }),
+  } as never);
+
+  const event = {
+    changed: true as const,
+    reason: 'user-updated',
+    userIds: ['u2'],
+  };
+  publisher.publishLocal({
+    topic: 'user.public-profile.changed',
+    input: {},
+    event,
+    rooms: ['user:a:public-profile', 'user:b:public-profile'],
+  });
+  publisher.publishLocal({
+    topic: 'user.public-profile.changed',
+    input: {},
+    event,
+    rooms: [],
+  });
+
+  t.is(emitted.length, 1);
+  t.like(emitted[0], {
+    room: ['user:a:public-profile', 'user:b:public-profile'],
+    payload: { topic: 'user.public-profile.changed', event },
   });
 });
 

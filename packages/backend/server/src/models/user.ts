@@ -38,6 +38,8 @@ declare global {
     'user.preDelete': { id: string };
     'user.created': User;
     'user.updated': User;
+    // Name or avatar changed; peers should refresh their cached public profile.
+    'user.publicProfile.updated': { userId: string };
     'user.deleted': User & {
       // TODO(@forehalo): unlink foreign key constraint on [WorkspaceUserPermission] to delegate
       // dealing of owned workspaces of deleted users to workspace model
@@ -111,6 +113,36 @@ export class UserModel extends BaseModel {
     }
     const users = await this.getPublicUsers(Array.from(userIds));
     return new Map(users.map(user => [user.id, user]));
+  }
+
+  /**
+   * Users who can currently see this user's public identity through a shared
+   * workspace (members and invitations) or project, including the user.
+   */
+  async getPublicProfileAudience(userId: string): Promise<string[]> {
+    const rows = await this.db.$queryRaw<{ id: string }[]>`
+      WITH workspaces AS (
+        SELECT workspace_id FROM workspace_members WHERE user_id = ${userId}
+        UNION
+        SELECT workspace_id FROM workspace_invitations
+        WHERE invitee_user_id = ${userId} OR inviter_user_id = ${userId}
+      ), projects AS (
+        SELECT project_id FROM ai_context_project_members
+        WHERE user_id = ${userId}
+      )
+      SELECT user_id AS id FROM workspace_members
+      WHERE workspace_id IN (SELECT workspace_id FROM workspaces)
+      UNION
+      SELECT invitee_user_id AS id FROM workspace_invitations
+      WHERE workspace_id IN (SELECT workspace_id FROM workspaces)
+        AND invitee_user_id IS NOT NULL
+      UNION
+      SELECT user_id AS id FROM ai_context_project_members
+      WHERE project_id IN (SELECT project_id FROM projects)
+      UNION
+      SELECT ${userId}::varchar AS id
+    `;
+    return rows.map(row => row.id);
   }
 
   async getWorkspaceUser(id: string): Promise<WorkspaceUser | null> {
@@ -235,6 +267,11 @@ export class UserModel extends BaseModel {
 
     this.logger.debug(`User [${user.id}] updated`);
     this.event.emitDetached('user.updated', user);
+    if (data.name !== undefined || data.avatarUrl !== undefined) {
+      this.event.emitDetached('user.publicProfile.updated', {
+        userId: user.id,
+      });
+    }
     return user;
   }
 

@@ -32,6 +32,7 @@ export {
   realtimeNotificationRoom,
   realtimeTranscriptTaskRoom,
   realtimeUserProfileRoom,
+  realtimeUserPublicProfileRoom,
   realtimeUserQuotaStateRoom,
   realtimeUserRoom,
   realtimeUserSettingsRoom,

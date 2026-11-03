@@ -1,8 +1,10 @@
 import type { TextRendererOptions } from '@affine/core/blocksuite/ai/components/text-renderer';
+import { SignalWatcher } from '@blocksuite/affine/global/lit';
 import type { EditorHost } from '@blocksuite/affine/std';
 import {
   NotificationProvider,
   ThemeProvider,
+  UserProvider,
 } from '@blocksuite/affine-shared/services';
 import { css, html, LitElement } from 'lit';
 import { property } from 'lit/decorators.js';
@@ -15,7 +17,7 @@ import {
 } from '../../../components/ai-chat-messages';
 import { UserInfoTemplate } from './user-info';
 
-export class AIChatBlockMessage extends LitElement {
+export class AIChatBlockMessage extends SignalWatcher(LitElement) {
   static override styles = css`
     .ai-chat-message {
       display: flex;
@@ -48,6 +50,7 @@ export class AIChatBlockMessage extends LitElement {
       streamObjects,
     } = this.message;
     const withAttachments = !!attachments && attachments.length > 0;
+    const author = this._currentAuthor(userId, userName, avatarUrl);
 
     const messageClasses = classMap({
       'with-attachments': withAttachments,
@@ -55,7 +58,7 @@ export class AIChatBlockMessage extends LitElement {
 
     return html`
       <div class="ai-chat-message">
-        ${UserInfoTemplate({ userId, userName, avatarUrl }, role)}
+        ${UserInfoTemplate({ userId, ...author }, role)}
         <div class="ai-chat-content">
           <chat-images .attachments=${attachments}></chat-images>
           <div class=${messageClasses}>
@@ -66,6 +69,28 @@ export class AIChatBlockMessage extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * The block stores the author's name at send time; show the current public
+   * profile of `userId` instead and keep the stored value as fallback.
+   */
+  private _currentAuthor(
+    userId: string | undefined,
+    userName: string | undefined,
+    avatarUrl: string | undefined
+  ) {
+    const userService = userId
+      ? this.host?.std.getOptional(UserProvider)
+      : null;
+    if (!userId || !userService) return { userName, avatarUrl };
+    userService.revalidateUserInfo(userId);
+    const info = userService.userInfo$(userId).value;
+    if (!info || info.removed) return { userName, avatarUrl };
+    return {
+      userName: info.name ?? userName,
+      avatarUrl: info.avatar ?? undefined,
+    };
   }
 
   private renderStreamObjects(answer: StreamObject[]) {

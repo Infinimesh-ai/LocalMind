@@ -5,12 +5,41 @@ import { useLiveData } from '@toeverything/infra';
 import {
   type ComponentType,
   type CSSProperties,
+  useEffect,
   useLayoutEffect,
   useMemo,
 } from 'react';
 
 import { PublicUserService } from '../services/public-user';
 import * as styles from './public-user.css';
+
+type PublicIdentity = { name?: string | null; avatarUrl?: string | null };
+
+/**
+ * Resolve the current public name/avatar of `id`. `stored` is the identity
+ * captured with the record (comment author, notification sender, ...) and is
+ * shown until the current profile loads, or kept when the user was removed.
+ */
+export function useCurrentPublicIdentity<T extends PublicIdentity>(
+  id: string | null | undefined,
+  stored: T
+): T {
+  const serverService = useCurrentServerService();
+  const publicUser = useMemo(
+    () => serverService?.scope.get(PublicUserService),
+    [serverService]
+  );
+  useEffect(() => {
+    if (id) publicUser?.revalidate(id);
+  }, [id, publicUser]);
+  const user = useLiveData(id ? publicUser?.publicUser$(id) : undefined);
+  if (!user || user.removed) return stored;
+  return {
+    ...stored,
+    name: user.name ?? stored.name,
+    avatarUrl: user.avatarUrl ?? null,
+  };
+}
 
 export const PublicUserLabel = ({
   id,

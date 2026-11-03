@@ -10,6 +10,7 @@ import {
 import { useGuard } from '@affine/core/components/guard';
 import { ServerService } from '@affine/core/modules/cloud';
 import { AuthService } from '@affine/core/modules/cloud/services/auth';
+import { useCurrentPublicIdentity } from '@affine/core/modules/cloud/views/public-user';
 import { type DocCommentEntity } from '@affine/core/modules/comment/entities/doc-comment';
 import { CommentPanelService } from '@affine/core/modules/comment/services/comment-panel-service';
 import { DocCommentManagerService } from '@affine/core/modules/comment/services/doc-comment-manager';
@@ -167,7 +168,8 @@ const ActionMenu = ({
 };
 
 interface CommentRowProps {
-  user: { avatarUrl: string | null; name: string };
+  // `id` resolves the author's current identity; name/avatar are the stored fallback.
+  user: { id?: string; avatarUrl: string | null; name: string };
   // Read-only variant
   snapshot?: DocSnapshot;
   time?: number;
@@ -195,12 +197,13 @@ const CommentRow = ({
   uploadCommentAttachment,
   editorRefSetter,
 }: CommentRowProps) => {
+  const author = useCurrentPublicIdentity(snapshot ? user.id : undefined, user);
   if (snapshot) {
     return (
       <div data-time={time} className={styles.readonlyCommentContainer}>
         <div className={styles.userContainer}>
-          <Avatar url={user.avatarUrl ?? null} size={24} />
-          <div className={styles.userName}>{user.name}</div>
+          <Avatar url={author.avatarUrl ?? null} size={24} />
+          <div className={styles.userName}>{author.name}</div>
           {time ? (
             <div className={styles.time}>
               {i18nTime(time, {
@@ -537,6 +540,7 @@ const CommentItem = ({
         ) : (
           <CommentRow
             user={{
+              id: comment.user.id,
               avatarUrl: comment.user.avatarUrl,
               name: comment.user.name,
             }}
@@ -898,6 +902,7 @@ const ReplyItem = ({
       ) : (
         <CommentRow
           user={{
+            id: reply.user.id,
             avatarUrl: reply.user.avatarUrl ?? null,
             name: reply.user.name,
           }}
@@ -957,6 +962,7 @@ const ReplyList = ({
       <>
         <CommentRow
           user={{
+            id: firstReply.user.id,
             avatarUrl: firstReply.user.avatarUrl ?? null,
             name: firstReply.user.name,
           }}

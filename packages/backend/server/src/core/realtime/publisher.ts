@@ -30,13 +30,14 @@ export class RealtimePublisher {
     topic: Topic,
     input: RealtimePublishPayload<Topic>['input'],
     event: RealtimePublishPayload<Topic>['event'],
-    options?: { room?: string }
+    options?: { room?: string; rooms?: string[] }
   ) {
     const payload = {
       topic,
       input,
       event,
       room: options?.room,
+      ...(options?.rooms ? { rooms: options.rooms } : {}),
     } as RealtimePublishPayload<Topic>;
     try {
       this.publishLocal(payload);
@@ -52,7 +53,7 @@ export class RealtimePublisher {
     topic: Topic,
     input: RealtimeTopicInputOf<Topic>,
     reason: string,
-    options?: { room?: string }
+    options?: { room?: string; rooms?: string[] }
   ) {
     this.publish(
       topic,
@@ -64,7 +65,11 @@ export class RealtimePublisher {
 
   publishLocal(payload: RealtimePublishPayload) {
     const handler = this.registry.getTopic(payload.topic);
-    const room = payload.room ?? handler.room(null, payload.input as never);
+    const room =
+      payload.rooms ??
+      payload.room ??
+      handler.room(null, payload.input as never);
+    if (Array.isArray(room) && !room.length) return;
     const envelope: RealtimeEvent = {
       topic: payload.topic,
       inputKey: getRealtimeInputKey(payload.input),

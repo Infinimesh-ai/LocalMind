@@ -11,9 +11,11 @@ import { PrismaClient } from '@prisma/client';
 
 import { AccessDenied, BadRequest } from '../../base';
 import { Models } from '../../models';
-import type {
-  ReportActor,
-  ReportLeaseProof,
+import {
+  currentReportIdentityLabels,
+  type ReportActor,
+  reportIdentityLabel,
+  type ReportLeaseProof,
 } from '../../models/project-report';
 import {
   type ProjectActor,
@@ -59,7 +61,10 @@ export class ProjectReportContentService {
       JSON.parse(bytes.toString('utf8'))
     );
     await this.models.projectReport.get(input);
-    const display = await this.visibleIdentities(document);
+    // Finalized revisions keep the names they were signed off with.
+    const display = await this.visibleIdentities(document, {
+      currentLabels: revision.kind !== 'final',
+    });
     return {
       report: {
         ...report,
@@ -71,8 +76,15 @@ export class ProjectReportContentService {
     };
   }
 
-  /** Resolve deleted identities at read time without modifying immutable evidence. */
-  async visibleIdentities(document: ReportDocument): Promise<ReportDocument> {
+  /**
+   * Resolve identities at read time without modifying immutable evidence:
+   * deleted members always show a placeholder, and with `currentLabels` the
+   * remaining members show their current name instead of the stored label.
+   */
+  async visibleIdentities(
+    document: ReportDocument,
+    options: { currentLabels?: boolean } = {}
+  ): Promise<ReportDocument> {
     const ids = new Set([document.creator.actorId]);
     for (const responsibility of [
       document.responsibility,
@@ -81,23 +93,23 @@ export class ProjectReportContentService {
       if (responsibility?.identity.kind === 'member')
         ids.add(responsibility.identity.actorId);
     }
-    const users = await this.db.user.findMany({
-      where: { id: { in: [...ids] } },
-      select: { id: true },
-    });
-    const available = new Set(users.map(user => user.id));
+    const labels = await currentReportIdentityLabels(this.db, ids);
+    const label = (actorId: string, stored: string) => {
+      const current = labels.get(actorId);
+      if (current === undefined) return '已删除用户';
+      return options.currentLabels ? current : stored;
+    };
     const result = structuredClone(document);
-    if (!available.has(result.creator.actorId))
-      result.creator.label = '已删除用户';
+    result.creator.label = label(result.creator.actorId, result.creator.label);
     for (const responsibility of [
       result.responsibility,
       ...result.chapters.flatMap(c => c.nodes.map(n => n.responsibility)),
     ]) {
-      if (
-        responsibility?.identity.kind === 'member' &&
-        !available.has(responsibility.identity.actorId)
-      )
-        responsibility.identity.label = '已删除用户';
+      if (responsibility?.identity.kind === 'member')
+        responsibility.identity.label = label(
+          responsibility.identity.actorId,
+          responsibility.identity.label
+        );
     }
     return result;
   }
@@ -129,7 +141,7 @@ export class ProjectReportContentService {
     if (!actor) throw new AccessDenied();
     const creator = {
       actorId: input.actorId,
-      label: actor.name || actor.email,
+      label: reportIdentityLabel(actor),
     };
     let document = createReportDocument({
       title: command.title,

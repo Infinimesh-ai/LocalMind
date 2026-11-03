@@ -10,6 +10,7 @@ import { useService } from '@toeverything/infra';
 import { useNavigate } from 'react-router-dom';
 
 import * as styles from './list.style.css';
+import { useNotificationSender } from './sender';
 
 export function ProjectInvitationNotificationItem({
   notification,
@@ -20,6 +21,7 @@ export function ProjectInvitationNotificationItem({
   const list = useService(NotificationListService);
   const navigate = useNavigate();
   const body = notification.body as ProjectInvitationNotificationBodyType;
+  const sender = useNotificationSender(body.createdByUser);
   const statusLabels: Record<string, string> = {
     pending: t['com.affine.localmind.workbench.status.pending'](),
     accepted: t['com.affine.localmind.workbench.status.accepted'](),
@@ -32,17 +34,13 @@ export function ProjectInvitationNotificationItem({
 
   return (
     <div className={styles.itemContainer}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <strong>
           {t['com.affine.localmind.tasks.authorization.invitation']()}
         </strong>
         <div>
-          {body.createdByUser?.name ?? t['com.affine.inactive-member']()} ·{' '}
+          {sender?.name ?? t['com.affine.inactive-member']()} ·{' '}
           {body.projectName}
         </div>
         <div className={styles.itemDate}>{statusLabel}</div>

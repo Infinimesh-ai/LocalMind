@@ -6218,6 +6218,7 @@
   "com.affine.localmind.reports.recipientEmails": "其他收件人邮箱，每行一位",
   "com.affine.localmind.reports.sourceListLimited": "此选择器最多显示 1,000 项资源。选择全部项目文档可枚举完整范围；生成时会明确报告材料覆盖不足。",
   "com.affine.localmind.reports.formerMember": "已不在项目中",
+  "com.affine.localmind.reports.currentName": "现名",
   "com.affine.localmind.workbench.executionPath.title": "执行路径",
   "com.affine.localmind.workbench.executionPath.completed": "完成",
   "com.affine.localmind.workbench.executionPath.running": "执行中",

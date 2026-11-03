@@ -17,6 +17,7 @@ import { useService } from '@toeverything/infra';
 import { useContext, useRef, useState } from 'react';
 
 import * as styles from './list.style.css';
+import { useNotificationSender } from './sender';
 
 export const AccessRequestNotificationItem = ({
   notification,
@@ -28,6 +29,7 @@ export const AccessRequestNotificationItem = ({
   const list = useService(NotificationListService);
   const navigate = useContext(NavigateContext);
   const body = notification.body as AccessRequestNotificationBodyType;
+  const sender = useNotificationSender(body.createdByUser);
   const workspaceId = body.workspace?.id;
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null);
   const [reason, setReason] = useState('');
@@ -104,15 +106,9 @@ export const AccessRequestNotificationItem = ({
   return (
     <>
       <div className={styles.itemContainer}>
-        <Avatar
-          size={22}
-          name={body.createdByUser?.name}
-          url={body.createdByUser?.avatarUrl}
-        />
+        <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
         <div className={styles.accessRequestMain}>
-          <div>
-            {body.createdByUser?.name ?? t['com.affine.inactive-member']()}
-          </div>
+          <div>{sender?.name ?? t['com.affine.inactive-member']()}</div>
           <div>
             {body.projectName ??
               t['com.affine.localmind.accessNotification.personal']()}

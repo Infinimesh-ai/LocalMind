@@ -24,6 +24,26 @@ import {
 } from './project-resource';
 
 export type ReportActor = ProjectActor & { reportId: string };
+
+/** Label a member identity the way report creation does; capped to the schema. */
+export function reportIdentityLabel(user: { name: string; email: string }) {
+  return (user.name || user.email).slice(0, 512);
+}
+
+/**
+ * Current labels of existing users. Missing ids were deleted; callers show the
+ * deleted placeholder for them without touching the stored revision.
+ */
+export async function currentReportIdentityLabels(
+  db: Pick<Prisma.TransactionClient, 'user'>,
+  ids: Iterable<string>
+) {
+  const users = await db.user.findMany({
+    where: { id: { in: [...new Set(ids)] } },
+    select: { id: true, name: true, email: true },
+  });
+  return new Map(users.map(user => [user.id, reportIdentityLabel(user)]));
+}
 export type ReportLeaseProof = {
   tabId: string;
   leaseId: string;
@@ -126,28 +146,18 @@ export class ProjectReportModel extends BaseModel {
       if (responsibility.identity.kind === 'member')
         identities.add(responsibility.identity.actorId);
     }
-    const existingUsers = new Set(
-      (
-        await this.db.user.findMany({
-          where: { id: { in: [...identities] } },
-          select: { id: true },
-        })
-      ).map(user => user.id)
-    );
+    // The list reflects who the people are now; stored labels stay untouched.
+    const labels = await currentReportIdentityLabels(this.db, identities);
     const items = page.map(row => {
       const responsibility = ReportResponsibilitySchema.parse(
         row.responsibility
       );
-      if (
-        responsibility.identity.kind === 'member' &&
-        !existingUsers.has(responsibility.identity.actorId)
-      )
-        responsibility.identity.label = '已删除用户';
+      if (responsibility.identity.kind === 'member')
+        responsibility.identity.label =
+          labels.get(responsibility.identity.actorId) ?? '已删除用户';
       return {
         ...row,
-        creatorLabel: existingUsers.has(row.createdByActorId)
-          ? row.creatorLabel
-          : '已删除用户',
+        creatorLabel: labels.get(row.createdByActorId) ?? '已删除用户',
         responsibility,
       };
     });

@@ -16,8 +16,12 @@ export type ProjectRealtimeTransport = {
     projectId: string,
     channel: 'resource' | 'lease'
   ) => Observable<unknown>;
+  /** Public names/avatars changed; snapshots that embed member identities refetch. */
+  profile?: () => Observable<unknown>;
   onError: (error: unknown) => void;
 };
+
+const PROFILE_KEY = 'profile';
 
 /** One reconciliation clock and one subscription per scope, regardless of mounted queries. */
 export class ProjectRealtimeStore {
@@ -68,6 +72,8 @@ export class ProjectRealtimeStore {
       else if (projectId)
         wanted.set(key, () => this.transport.project(projectId, channel));
     }
+    const profile = this.transport.profile;
+    if (profile && this.listeners.size) wanted.set(PROFILE_KEY, profile);
     for (const [key, subscription] of this.subscriptions) {
       if (!wanted.has(key) || subscription.closed) {
         subscription.unsubscribe();
@@ -76,6 +82,19 @@ export class ProjectRealtimeStore {
     }
     for (const [key, source] of wanted) {
       if (this.subscriptions.has(key)) continue;
+      if (key === PROFILE_KEY) {
+        this.subscriptions.set(
+          key,
+          source().subscribe({
+            next: () => {
+              for (const listener of this.listeners)
+                if (listener.channel !== 'resource') this.refresh(listener);
+            },
+            error: error => this.report(error),
+          })
+        );
+        continue;
+      }
       const [channel, projectId] = JSON.parse(key) as [
         ProjectRefreshChannel,
         string | null,

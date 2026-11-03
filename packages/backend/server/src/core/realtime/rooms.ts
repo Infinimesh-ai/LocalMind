@@ -73,6 +73,10 @@ export function realtimeUserProfileRoom(userId: string) {
   return realtimeUserRoom(userId, 'profile');
 }
 
+export function realtimeUserPublicProfileRoom(userId: string) {
+  return realtimeUserRoom(userId, 'public-profile');
+}
+
 export function realtimeUserSettingsRoom(userId: string) {
   return realtimeUserRoom(userId, 'settings');
 }

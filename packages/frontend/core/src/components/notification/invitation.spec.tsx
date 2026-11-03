@@ -89,6 +89,10 @@ vi.mock('@toeverything/infra', () => ({
       : mocks,
 }));
 
+vi.mock('./sender', () => ({
+  useNotificationSender: <T,>(sender: T | null | undefined) => sender ?? null,
+}));
+
 import { InvitationNotificationItem } from './list';
 
 const notification = {

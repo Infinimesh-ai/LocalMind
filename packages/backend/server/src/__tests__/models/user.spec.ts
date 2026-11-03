@@ -134,6 +134,68 @@ test('should trigger user.updated event', async t => {
   t.true(spy.calledOnceWithExactly(updatedUser));
 });
 
+test('should trigger user.publicProfile.updated only for name or avatar changes', async t => {
+  const event = t.context.module.get(EventBus);
+  const spy = Sinon.spy();
+  event.on('user.publicProfile.updated', spy);
+
+  const user = await t.context.user.create({
+    email: 'test@affine.pro',
+  });
+
+  await t.context.user.update(user.id, { email: 'test2@affine.pro' });
+  await sleep(10);
+  t.is(spy.callCount, 0);
+
+  await t.context.user.update(user.id, { name: 'renamed' });
+  await sleep(10);
+  t.true(spy.calledOnceWithExactly({ userId: user.id }));
+
+  await t.context.user.update(user.id, { avatarUrl: null });
+  await sleep(10);
+  t.is(spy.callCount, 2);
+});
+
+test('public profile audience covers shared workspaces, invitations and projects only', async t => {
+  const { db, user: model } = t.context;
+  const [self, peer, invitee, projectPeer, stranger] = await Promise.all(
+    ['self', 'peer', 'invitee', 'project-peer', 'stranger'].map(name =>
+      model.create({ email: `${name}@affine.pro` })
+    )
+  );
+  const { models } = t.context;
+  const workspace = await models.workspace.create(self.id);
+  await models.workspace.create(stranger.id);
+  await db.workspaceMember.create({
+    data: { workspaceId: workspace.id, userId: peer.id, role: 'member' },
+  });
+  await db.workspaceInvitation.create({
+    data: {
+      workspaceId: workspace.id,
+      inviteeUserId: invitee.id,
+      inviterUserId: self.id,
+      status: 'pending',
+    },
+  });
+  await db.aiContextProject.create({
+    data: {
+      name: 'Shared project',
+      members: {
+        create: [
+          { userId: self.id, role: 'owner' },
+          { userId: projectPeer.id, role: 'member' },
+        ],
+      },
+    },
+  });
+
+  t.deepEqual(
+    (await model.getPublicProfileAudience(self.id)).sort(),
+    [self.id, peer.id, invitee.id, projectPeer.id].sort()
+  );
+  t.deepEqual(await model.getPublicProfileAudience(stranger.id), [stranger.id]);
+});
+
 test('should get user by id', async t => {
   const user = await t.context.user.create({
     email: 'test@affine.pro',

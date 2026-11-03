@@ -29,6 +29,10 @@ vi.mock('@affine/core/modules/notification', () => ({
 }));
 vi.mock('@toeverything/infra', () => ({ useService: () => state }));
 
+vi.mock('./sender', () => ({
+  useNotificationSender: <T,>(sender: T | null | undefined) => sender ?? null,
+}));
+
 import { AccessRequestNotificationItem } from './access-request';
 
 afterEach(() => {

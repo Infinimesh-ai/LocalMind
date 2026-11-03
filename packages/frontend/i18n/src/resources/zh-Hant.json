@@ -2861,6 +2861,7 @@
   "com.affine.localmind.reports.recipientEmails": "其他收件人信箱，每行一位",
   "com.affine.localmind.reports.sourceListLimited": "此選擇器最多顯示 1,000 項資源。選擇全部專案文件可列舉完整範圍；生成時會明確報告材料覆蓋不足。",
   "com.affine.localmind.reports.formerMember": "已不在專案中",
+  "com.affine.localmind.reports.currentName": "現名",
   "com.affine.localmind.workbench.executionPath.title": "執行路徑",
   "com.affine.localmind.workbench.executionPath.completed": "完成",
   "com.affine.localmind.workbench.executionPath.running": "執行中",

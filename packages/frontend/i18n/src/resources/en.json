@@ -6063,6 +6063,7 @@
   "com.affine.localmind.reports.recipientEmails": "Additional email recipients, one per line",
   "com.affine.localmind.reports.sourceListLimited": "This picker shows up to 1,000 resources. Choose all project documents to enumerate the full scope; generation reports any coverage limit.",
   "com.affine.localmind.reports.formerMember": "No longer in this project",
+  "com.affine.localmind.reports.currentName": "Current name",
   "com.affine.localmind.workbench.executionPath.title": "Execution path",
   "com.affine.localmind.workbench.executionPath.completed": "Done",
   "com.affine.localmind.workbench.executionPath.running": "Running",

@@ -112,3 +112,33 @@ test('coalesces events during a snapshot and suppresses stale callbacks after le
   await vi.advanceTimersByTimeAsync(15000);
   expect(refresh).toHaveBeenCalledTimes(2);
 });
+
+test('public profile changes refresh identity-bearing channels but not resource content', async () => {
+  const profile$ = new Subject();
+  const profile = vi.fn(() => profile$);
+  const store = new ProjectRealtimeStore({
+    global: () => new Subject(),
+    project: () => new Subject(),
+    profile,
+    onError: vi.fn(),
+  });
+  const list = vi.fn();
+  const task = vi.fn();
+  const lease = vi.fn();
+  const resource = vi.fn();
+  const stops = [
+    store.subscribe(null, 'list', list),
+    store.subscribe(null, 'task', task),
+    store.subscribe('alpha', 'lease', lease),
+    store.subscribe('alpha', 'resource', resource),
+  ];
+  expect(profile).toHaveBeenCalledOnce();
+  profile$.next(['renamed']);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(list).toHaveBeenCalledOnce();
+  expect(task).toHaveBeenCalledOnce();
+  expect(lease).toHaveBeenCalledOnce();
+  expect(resource).not.toHaveBeenCalled();
+  for (const stop of stops) stop();
+  expect(profile$.observed).toBe(false);
+});

@@ -349,6 +349,14 @@ export interface RealtimeTopicMap {
     input: Record<string, never>;
     event: { changed: true; reason: string };
   };
+  /**
+   * Public identity (name/avatar) of users sharing a workspace or project with
+   * the subscriber changed. Carries ids only; clients refetch public profiles.
+   */
+  'user.public-profile.changed': {
+    input: Record<string, never>;
+    event: { changed: true; reason: string; userIds: string[] };
+  };
   'notification.count.changed': {
     input: Record<string, never>;
     event: {

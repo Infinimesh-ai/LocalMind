@@ -1,3 +1,4 @@
+import { PublicUserService } from '@affine/core/modules/cloud/services/public-user';
 import type {
   RenderReportNode,
   ReportPage,
@@ -6,10 +7,35 @@ import {
   type ReportDocument,
   reportSlideBackgroundAssetId,
 } from '@localmind/office/report';
-import type { CSSProperties, ReactNode } from 'react';
+import { useLiveData, useServiceOptional } from '@toeverything/infra';
+import { type CSSProperties, type ReactNode, useEffect } from 'react';
 
 import { useReportText } from './fields';
 import * as styles from './reports.css';
+
+/**
+ * Drafts already carry current names; a finalized revision keeps the name it
+ * was signed off with and hints the member's current name on hover.
+ */
+function ResponsibleLabel({
+  actorId,
+  label,
+}: {
+  actorId?: string;
+  label: string;
+}) {
+  const t = useReportText();
+  const publicUsers = useServiceOptional(PublicUserService);
+  useEffect(() => {
+    if (actorId) publicUsers?.revalidate(actorId);
+  }, [actorId, publicUsers]);
+  const user = useLiveData(
+    actorId ? publicUsers?.publicUser$(actorId) : undefined
+  );
+  const current = user && !user.removed ? user.name : null;
+  if (!current || current === label) return label;
+  return <span title={`${t('currentName')}: ${current}`}>{label}</span>;
+}
 
 function ReportChart({
   node,
@@ -294,6 +320,12 @@ export function ReportNodeView({
     ('identity' in responsible
       ? responsible.identity.label
       : responsible.label);
+  const responsibleActorId =
+    responsible &&
+    'identity' in responsible &&
+    responsible.identity.kind === 'member'
+      ? responsible.identity.actorId
+      : undefined;
   const defaulted =
     responsible &&
     ('origin' in responsible
@@ -307,7 +339,8 @@ export function ReportNodeView({
       )}
       {label && (
         <small>
-          {t('responsible')}: {label}
+          {t('responsible')}:{' '}
+          <ResponsibleLabel actorId={responsibleActorId} label={label} />
           {defaulted ? ` · ${t('default')}` : ''}
         </small>
       )}

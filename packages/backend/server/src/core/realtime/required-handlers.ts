@@ -34,6 +34,7 @@ export const REALTIME_GATEWAY_REQUIRED_TOPICS = [
   'doc.grants.changed',
   'user.profile.changed',
   'user.settings.changed',
+  'user.public-profile.changed',
   'notification.count.changed',
   'comment.changed',
   'office.comment.changed',

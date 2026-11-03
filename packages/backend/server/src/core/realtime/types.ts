@@ -42,4 +42,6 @@ export type RealtimePublishPayload<
   input: RealtimeTopicInputOf<Topic>;
   event: RealtimeTopicEventOf<Topic>;
   room?: string;
+  /** Deliver to several rooms at once; takes precedence over `room`. */
+  rooms?: string[];
 };

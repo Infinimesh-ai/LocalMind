@@ -224,6 +224,56 @@ test.serial(
 );
 
 test.serial(
+  'renamed members show current names on drafts and lists while finals keep the signed-off name',
+  async t => {
+    const f = await fixture();
+    const final = await f.content.save({
+      ...f.scope,
+      editLease: f.editLease,
+      expectedVersion: 1,
+      requestKey: 'final-before-rename',
+      document: f.document,
+      kind: 'final',
+      reason: 'finalize',
+    });
+    await app.models.user.update(f.owner.id, { name: 'Renamed owner' });
+
+    const finalRead = await f.content.read({
+      ...f.scope,
+      revisionId: final.revision.id,
+    });
+    t.is(finalRead.document.creator.label, 'report-owner');
+    t.is(finalRead.document.responsibility.identity.label, 'report-owner');
+
+    const draftRead = await f.content.read({
+      ...f.scope,
+      revisionId: f.created.revision.id,
+    });
+    t.is(draftRead.document.creator.label, 'Renamed owner');
+    t.is(draftRead.report.creatorLabel, 'Renamed owner');
+    t.is(draftRead.document.responsibility.identity.label, 'Renamed owner');
+
+    const page = await app.models.projectReport.list({
+      projectId: f.scope.projectId,
+      actorId: f.owner.id,
+    });
+    const listed = page.items.find(item => item.id === f.scope.reportId);
+    t.is(listed?.creatorLabel, 'Renamed owner');
+    t.is(listed?.responsibility.identity.label, 'Renamed owner');
+
+    // Stored evidence is not rewritten by reading.
+    t.is(
+      (
+        await f.db.projectReport.findUniqueOrThrow({
+          where: { id: f.scope.reportId },
+        })
+      ).creatorLabel,
+      'report-owner'
+    );
+  }
+);
+
+test.serial(
   'A27 immutable revision cannot be overwritten and restore appends',
   async t => {
     const f = await fixture();

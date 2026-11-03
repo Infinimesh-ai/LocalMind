@@ -55,6 +55,7 @@ import * as styles from './list.style.css';
 import { ProjectFileRequestNotificationItem } from './project-file-request';
 import { ProjectInvitationNotificationItem } from './project-invitation';
 import { ProjectReportNotificationItem } from './project-report';
+import { useNotificationSender } from './sender';
 import { NotificationViewport } from './viewport';
 import { WorkOrderNotificationItem } from './work-order';
 
@@ -360,7 +361,8 @@ const MentionNotificationItem = ({
   const { jumpToPageBlock } = useNavigateHelper();
   const t = useI18n();
   const body = notification.body as MentionNotificationBodyType;
-  const memberInactived = !body.createdByUser;
+  const sender = useNotificationSender(body.createdByUser);
+  const memberInactived = !sender;
 
   const handleClick = useCallback(() => {
     track.$.sidebar.notifications.clickNotification({
@@ -384,11 +386,7 @@ const MentionNotificationItem = ({
 
   return (
     <div className={styles.itemContainer} onClick={handleClick}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -403,8 +401,7 @@ const MentionNotificationItem = ({
               2: <DocNameWithIcon mode={body.doc.mode} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
               docTitle: body.doc.title || t['Untitled'](),
             }}
           />
@@ -428,7 +425,8 @@ const InvitationReviewRequestNotificationItem = ({
   const { jumpToWorkspaceSettings } = useNavigateHelper();
   const t = useI18n();
   const body = notification.body as InvitationReviewRequestNotificationBodyType;
-  const memberInactived = !body.createdByUser;
+  const sender = useNotificationSender(body.createdByUser);
+  const memberInactived = !sender;
   const workspaceInactived = !body.workspace;
   const handleClick = useCallback(() => {
     track.$.sidebar.notifications.clickNotification({
@@ -446,11 +444,7 @@ const InvitationReviewRequestNotificationItem = ({
 
   return (
     <div className={styles.itemContainer} onClick={handleClick}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -465,8 +459,7 @@ const InvitationReviewRequestNotificationItem = ({
               2: <WorkspaceNameWithIcon data-inactived={workspaceInactived} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
               workspaceName:
                 body.workspace?.name ?? t['com.affine.inactive-workspace'](),
             }}
@@ -490,16 +483,13 @@ const InvitationReviewDeclinedNotificationItem = ({
   const t = useI18n();
   const body =
     notification.body as InvitationReviewDeclinedNotificationBodyType;
-  const memberInactived = !body.createdByUser;
+  const sender = useNotificationSender(body.createdByUser);
+  const memberInactived = !sender;
   const workspaceInactived = !body.workspace;
 
   return (
     <div className={styles.itemContainer}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -514,8 +504,7 @@ const InvitationReviewDeclinedNotificationItem = ({
               2: <WorkspaceNameWithIcon data-inactived={workspaceInactived} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
               workspaceName:
                 body.workspace?.name ?? t['com.affine.inactive-workspace'](),
             }}
@@ -541,7 +530,8 @@ const InvitationReviewApprovedNotificationItem = ({
   const t = useI18n();
   const body =
     notification.body as InvitationReviewApprovedNotificationBodyType;
-  const memberInactived = !body.createdByUser;
+  const sender = useNotificationSender(body.createdByUser);
+  const memberInactived = !sender;
   const workspaceInactived = !body.workspace;
 
   const handleClick = useCallback(() => {
@@ -561,11 +551,7 @@ const InvitationReviewApprovedNotificationItem = ({
 
   return (
     <div className={styles.itemContainer}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -580,8 +566,7 @@ const InvitationReviewApprovedNotificationItem = ({
               2: <WorkspaceNameWithIcon data-inactived={workspaceInactived} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
               workspaceName:
                 body.workspace?.name ?? t['com.affine.inactive-workspace'](),
             }}
@@ -617,7 +602,8 @@ const InvitationAcceptedNotificationItem = ({
   const { jumpToWorkspaceSettings } = useNavigateHelper();
   const t = useI18n();
   const body = notification.body as InvitationAcceptedNotificationBodyType;
-  const memberInactived = !body.createdByUser;
+  const sender = useNotificationSender(body.createdByUser);
+  const memberInactived = !sender;
 
   const handleClick = useCallback(() => {
     track.$.sidebar.notifications.clickNotification({
@@ -635,11 +621,7 @@ const InvitationAcceptedNotificationItem = ({
 
   return (
     <div className={styles.itemContainer} onClick={handleClick}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -648,8 +630,7 @@ const InvitationAcceptedNotificationItem = ({
               1: <WorkspaceNameWithIcon data-inactived={memberInactived} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
             }}
           />
         </span>
@@ -726,7 +707,8 @@ export const InvitationNotificationItem = ({
 }) => {
   const t = useI18n();
   const body = notification.body as InvitationNotificationBodyType;
-  const memberInactived = !body.createdByUser;
+  const sender = useNotificationSender(body.createdByUser);
+  const memberInactived = !sender;
   const workspaceInactived = !body.workspace;
   const workspacesService = useService(WorkspacesService);
   const workspaces = useLiveData(workspacesService.list.workspaces$);
@@ -802,11 +784,7 @@ export const InvitationNotificationItem = ({
 
   return (
     <div className={styles.itemContainer}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -821,8 +799,7 @@ export const InvitationNotificationItem = ({
               2: <WorkspaceNameWithIcon data-inactived={workspaceInactived} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
               workspaceName:
                 body.workspace?.name ?? t['com.affine.inactive-workspace'](),
             }}
@@ -921,8 +898,9 @@ const CommentNotificationItem = ({
   const { jumpToPageComment } = useNavigateHelper();
   const t = useI18n();
   const body = notification.body;
+  const sender = useNotificationSender(body.createdByUser);
 
-  const memberInactived = !body.createdByUser;
+  const memberInactived = !sender;
 
   const handleClick = useCallback(() => {
     track.$.sidebar.notifications.clickNotification({
@@ -946,11 +924,7 @@ const CommentNotificationItem = ({
 
   return (
     <div className={styles.itemContainer} onClick={handleClick}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -965,8 +939,7 @@ const CommentNotificationItem = ({
               2: <DocNameWithIcon mode={body.doc?.mode || 'page'} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
               docTitle: body.doc?.title || t['Untitled'](),
             }}
           />
@@ -990,8 +963,9 @@ const CommentMentionNotificationItem = ({
   const { jumpToPageComment } = useNavigateHelper();
   const t = useI18n();
   const body = notification.body;
+  const sender = useNotificationSender(body.createdByUser);
 
-  const memberInactived = !body.createdByUser;
+  const memberInactived = !sender;
 
   const handleClick = useCallback(() => {
     track.$.sidebar.notifications.clickNotification({
@@ -1015,11 +989,7 @@ const CommentMentionNotificationItem = ({
 
   return (
     <div className={styles.itemContainer} onClick={handleClick}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <span>
           <Trans
@@ -1034,8 +1004,7 @@ const CommentMentionNotificationItem = ({
               2: <DocNameWithIcon mode={body.doc?.mode || 'page'} />,
             }}
             values={{
-              username:
-                body.createdByUser?.name ?? t['com.affine.inactive-member'](),
+              username: sender?.name ?? t['com.affine.inactive-member'](),
               docTitle: body.doc?.title || t['Untitled'](),
             }}
           />

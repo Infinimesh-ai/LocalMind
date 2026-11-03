@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { NotificationItemActions } from './cleanup-actions';
 import * as styles from './list.style.css';
+import { useNotificationSender } from './sender';
 
 export function WorkOrderNotificationItem({
   notification,
@@ -26,6 +27,7 @@ export function WorkOrderNotificationItem({
   const list = useService(NotificationListService);
   const navigate = useNavigate();
   const body = notification.body as WorkOrderNotificationBodyType;
+  const sender = useNotificationSender(body.createdByUser);
   const unavailable = body.status === 'unavailable';
   const statusLabels: Record<string, string> = {
     draft: t['com.affine.localmind.workbench.v9.graphStatusDraft'](),
@@ -52,11 +54,7 @@ export function WorkOrderNotificationItem({
 
   return (
     <div className={styles.itemContainer} data-interactive="false">
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <strong
           className={styles.workOrderTitle}

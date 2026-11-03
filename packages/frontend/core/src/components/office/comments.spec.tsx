@@ -117,6 +117,9 @@ vi.mock('@affine/component', async () => ({
   useConfirmModal: () => ({ openConfirmModal }),
 }));
 
+vi.mock('@affine/core/modules/cloud/views/public-user', () => ({
+  useCurrentPublicIdentity: <T,>(_id: string, stored: T) => stored,
+}));
 vi.mock('@affine/core/components/hooks/use-query', () => ({
   useQuery: ({ query }: { query: symbol }) =>
     query === officeCommentsQuery

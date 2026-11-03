@@ -5,7 +5,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useEffect, useRef } from 'react';
 import { Observable } from 'rxjs';
 
-import { ServerService } from '../cloud';
+import { PublicUserService, ServerService } from '../cloud';
 import { NbstoreService } from '../storage';
 import { reportProjectError } from './error';
 import {
@@ -99,6 +99,7 @@ export function useProjectRefresh(
                 : nbstore.realtime.subscribe('project.lease.changed', {
                     projectId: id,
                   }),
+            profile: () => server.scope.get(PublicUserService).changed$,
             onError: reportProjectError,
           });
     stores.set(server, { accountId: account.id, store });

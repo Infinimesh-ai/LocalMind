@@ -10,6 +10,7 @@ import {
 } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import type { GraphQLService } from '@affine/core/modules/cloud';
+import { useCurrentPublicIdentity } from '@affine/core/modules/cloud/views/public-user';
 import {
   isOfficeCommentContent,
   isOfficeCommentReplyContent,
@@ -36,6 +37,36 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as styles from './surface.css';
 
 type OfficeComment = OfficeCommentsQuery['officeComments'][number];
+type OfficeCommentUser = Pick<
+  OfficeComment['user'],
+  'id' | 'name' | 'avatarUrl'
+>;
+
+/** Author avatar and name, following the author's current public profile. */
+function OfficeCommentAuthor({
+  user,
+  size,
+}: {
+  user: OfficeCommentUser;
+  size: number;
+}) {
+  const author = useCurrentPublicIdentity(user.id, user);
+  return (
+    <>
+      <Avatar name={author.name} url={author.avatarUrl} size={size} />
+      <strong>{author.name}</strong>
+    </>
+  );
+}
+
+function OfficeCollaborator({ user }: { user: OfficeCommentUser }) {
+  const current = useCurrentPublicIdentity(user.id, user);
+  return (
+    <Tooltip content={current.name}>
+      <Avatar name={current.name} url={current.avatarUrl} size={24} />
+    </Tooltip>
+  );
+}
 
 function anchorLabel(anchor: OfficeCommentAnchor | null) {
   if (!anchor)
@@ -227,9 +258,7 @@ export function OfficeCommentsPanel({
           <span>{i18n['com.affine.office.collaborators']()}</span>
           <div className={styles.collaboratorAvatars}>
             {collaboratorsQuery.data?.officeCollaborators.map(user => (
-              <Tooltip content={user.name} key={user.id}>
-                <Avatar name={user.name} url={user.avatarUrl} size={24} />
-              </Tooltip>
+              <OfficeCollaborator user={user} key={user.id} />
             ))}
           </div>
         </div>
@@ -294,12 +323,7 @@ export function OfficeCommentsPanel({
                   key={comment.id}
                 >
                   <header className={styles.commentHeader}>
-                    <Avatar
-                      name={comment.user.name}
-                      url={comment.user.avatarUrl}
-                      size={24}
-                    />
-                    <strong>{comment.user.name}</strong>
+                    <OfficeCommentAuthor user={comment.user} size={24} />
                     <time>{new Date(comment.createdAt).toLocaleString()}</time>
                   </header>
                   {isEditing ? (
@@ -449,12 +473,7 @@ export function OfficeCommentsPanel({
                     return (
                       <div className={styles.commentReply} key={reply.id}>
                         <header className={styles.commentHeader}>
-                          <Avatar
-                            name={reply.user.name}
-                            url={reply.user.avatarUrl}
-                            size={20}
-                          />
-                          <strong>{reply.user.name}</strong>
+                          <OfficeCommentAuthor user={reply.user} size={20} />
                           <time>
                             {new Date(reply.createdAt).toLocaleString()}
                           </time>

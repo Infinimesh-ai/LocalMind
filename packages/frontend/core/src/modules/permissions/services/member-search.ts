@@ -25,7 +25,9 @@ export class MemberSearchService extends Service {
       .subscribeMembers(this.workspaceService.workspace.id)
       .subscribe({
         next: () => {
-          if (this.searchText$.value) {
+          // Refresh whatever list is loaded, including the unfiltered one shown
+          // for an empty query, so renamed members are not served stale.
+          if (this.hasLoaded) {
             this.search(this.searchText$.value);
           }
         },
@@ -34,6 +36,7 @@ export class MemberSearchService extends Service {
   }
 
   private readonly subscription: Subscription;
+  private hasLoaded = false;
 
   readonly PAGE_SIZE = 8;
   readonly searchText$ = new LiveData<string>('');
@@ -57,6 +60,7 @@ export class MemberSearchService extends Service {
         );
       }).pipe(
         tap(data => {
+          this.hasLoaded = true;
           this.result$.setValue([...this.result$.value, ...data.members]);
           this.hasMore$.setValue(data.members.length === this.PAGE_SIZE);
         }),

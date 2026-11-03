@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useFileRequestStatus } from '../project-file-request/detail';
 import * as styles from './list.style.css';
+import { useNotificationSender } from './sender';
 
 export function ProjectFileRequestNotificationItem({
   notification,
@@ -21,19 +22,16 @@ export function ProjectFileRequestNotificationItem({
   const statusLabel = useFileRequestStatus();
   const navigate = useNavigate();
   const body = notification.body as ProjectFileRequestNotificationBodyType;
+  const sender = useNotificationSender(body.createdByUser);
   return (
     <div className={styles.itemContainer}>
-      <Avatar
-        size={22}
-        name={body.createdByUser?.name}
-        url={body.createdByUser?.avatarUrl}
-      />
+      <Avatar size={22} name={sender?.name} url={sender?.avatarUrl} />
       <div className={styles.itemMain}>
         <strong>
           {body.title || t['com.affine.localmind.fileRequest.title']()}
         </strong>
         <div>
-          {body.createdByUser?.name} · {body.projectName}
+          {sender?.name} · {body.projectName}
         </div>
         <div className={styles.itemDate}>{statusLabel(body.status)}</div>
         <Button

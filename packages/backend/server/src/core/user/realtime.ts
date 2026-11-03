@@ -14,10 +14,13 @@ import { RealtimePublisher } from '../realtime/publisher';
 import { RealtimeRegistry } from '../realtime/registry';
 import {
   realtimeUserProfileRoom,
+  realtimeUserPublicProfileRoom,
   realtimeUserSettingsRoom,
 } from '../realtime/rooms';
 
 const emptyInput = z.object({}).strict();
+// Bounds a single socket.io fan-out; large audiences are sent in batches.
+const PUBLIC_PROFILE_ROOM_BATCH = 500;
 
 function assertAuthenticated(user?: { id: string }) {
   if (!user) {
@@ -83,6 +86,20 @@ export class UserRealtimeProvider
         },
       },
     });
+
+    // Subscribers only ever join their own room; the server decides who is
+    // told about which user ids, so the topic cannot be used to probe others.
+    this.registry.registerTopic({
+      name: 'user.public-profile.changed',
+      input: emptyInput,
+      authorize: async () => {},
+      room: user => {
+        if (!user) {
+          throw new Error('Authenticated user is required');
+        }
+        return realtimeUserPublicProfileRoom(user.id);
+      },
+    });
   }
 
   @OnEvent('user.updated', { suppressError: true })
@@ -90,6 +107,39 @@ export class UserRealtimeProvider
     this.publisher?.publishChanged('user.profile.changed', {}, 'user-updated', {
       room: realtimeUserProfileRoom(user.id),
     });
+  }
+
+  @OnEvent('user.publicProfile.updated', { suppressError: true })
+  async onUserPublicProfileUpdated({
+    userId,
+  }: Events['user.publicProfile.updated']) {
+    await this.publishPublicProfileChanged(userId, 'user-updated');
+  }
+
+  @OnEvent('user.disabled', { suppressError: true })
+  async onUserDisabled({ id }: Events['user.disabled']) {
+    await this.publishPublicProfileChanged(id, 'user-disabled');
+  }
+
+  private async publishPublicProfileChanged(userId: string, reason: string) {
+    if (!this.publisher) return;
+    const audience = await this.models.user.getPublicProfileAudience(userId);
+    for (
+      let offset = 0;
+      offset < audience.length;
+      offset += PUBLIC_PROFILE_ROOM_BATCH
+    ) {
+      this.publisher.publish(
+        'user.public-profile.changed',
+        {},
+        { changed: true, reason, userIds: [userId] },
+        {
+          rooms: audience
+            .slice(offset, offset + PUBLIC_PROFILE_ROOM_BATCH)
+            .map(realtimeUserPublicProfileRoom),
+        }
+      );
+    }
   }
 
   @OnEvent('user.settings.updated', { suppressError: true })

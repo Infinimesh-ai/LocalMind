@@ -89,6 +89,10 @@ import {
   NotificationCleanupActions,
   NotificationItemActions,
 } from './cleanup-actions';
+vi.mock('./sender', () => ({
+  useNotificationSender: <T,>(sender: T | null | undefined) => sender ?? null,
+}));
+
 import { WorkOrderNotificationItem } from './work-order';
 
 const key = (name: string) => `com.affine.notification.${name}`;
