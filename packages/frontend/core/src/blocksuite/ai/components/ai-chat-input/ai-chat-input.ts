@@ -39,8 +39,12 @@ import { readBlobAsURL } from '../../utils/image';
 import type { SearchMenuConfig } from '../ai-chat-add-context';
 import { addFilesToChat } from '../ai-chat-chips/attachment-utils';
 import type { ChatChip, DocDisplayConfig } from '../ai-chat-chips/type';
-import { isDocChip } from '../ai-chat-chips/utils';
-import type { AIChatInputContext, AIReasoningConfig } from './type';
+import { isDocChip, isFileChip } from '../ai-chat-chips/utils';
+import type {
+  AIChatDraft,
+  AIChatInputContext,
+  AIReasoningConfig,
+} from './type';
 
 function getFirstTwoLines(text: string) {
   const lines = text.split('\n');
@@ -396,6 +400,12 @@ export class AIChatInput extends SignalWatcher(
   accessor chatContextValue!: AIChatInputContext;
 
   @property({ attribute: false })
+  accessor onDraftSend: ((draft: AIChatDraft) => void) | undefined;
+
+  @property({ attribute: false })
+  accessor sendBlocked = false;
+
+  @property({ attribute: false })
   accessor chips: ChatChip[] = [];
 
   @property({ attribute: false })
@@ -565,6 +575,7 @@ export class AIChatInput extends SignalWatcher(
     const dropTargetCleanup = dropTargetForElements({
       element: el,
       canDrop: ({ source }) => {
+        if (this.onDraftSend) return false;
         const entity = (source.data as { entity?: { type?: string } }).entity;
         return entity?.type === 'doc';
       },
@@ -658,7 +669,8 @@ export class AIChatInput extends SignalWatcher(
         @paste=${this._handlePaste}
         data-testid="chat-panel-input"
       ></textarea>
-      ${this.runtimeSnapshot?.scope.kind !== 'project' &&
+      ${!this.onDraftSend &&
+      this.runtimeSnapshot?.scope.kind !== 'project' &&
       this.aiToolsConfigService.config.value.readingDocs === false
         ? html`<div class="chat-document-access-hint" role="status">
             ${I18n['com.affine.ai.chat.preferences.workspace-docs-disabled']()}
@@ -667,8 +679,9 @@ export class AIChatInput extends SignalWatcher(
       <div class="chat-panel-input-actions">
         <div class="chat-input-icon">
           <ai-chat-add-context
-            .attachmentsOnly=${this.runtimeSnapshot?.scope.kind === 'project' &&
-            !this.searchMenuConfig}
+            .attachmentsOnly=${!!this.onDraftSend ||
+            (this.runtimeSnapshot?.scope.kind === 'project' &&
+              !this.searchMenuConfig)}
             .docId=${this.docId}
             .independentMode=${this.independentMode}
             .addChip=${this.addChip}
@@ -679,19 +692,21 @@ export class AIChatInput extends SignalWatcher(
           ></ai-chat-add-context>
         </div>
         <div class="chat-input-footer-spacer"></div>
-        <chat-input-preference
-          .session=${this.session}
-          .workspaceId=${this.workspaceId}
-          .promptName=${this.activePromptName}
-          .extendedThinking=${this._isReasoningActive}
-          .onExtendedThinkingChange=${this._toggleReasoning}
-          .serverService=${this.serverService}
-          .toolsConfigService=${this.aiToolsConfigService}
-          .notificationService=${this.notificationService}
-          .subscriptionService=${this.subscriptionService}
-          .aiModelService=${this.aiModelService}
-          .onAISubscribe=${this.onAISubscribe}
-        ></chat-input-preference>
+        ${this.onDraftSend
+          ? nothing
+          : html`<chat-input-preference
+              .session=${this.session}
+              .workspaceId=${this.workspaceId}
+              .promptName=${this.activePromptName}
+              .extendedThinking=${this._isReasoningActive}
+              .onExtendedThinkingChange=${this._toggleReasoning}
+              .serverService=${this.serverService}
+              .toolsConfigService=${this.aiToolsConfigService}
+              .notificationService=${this.notificationService}
+              .subscriptionService=${this.subscriptionService}
+              .aiModelService=${this.aiModelService}
+              .onAISubscribe=${this.onAISubscribe}
+            ></chat-input-preference>`}
         ${status === 'transmitting' || status === 'loading'
           ? html`<button
               class="chat-panel-stop"
@@ -708,6 +723,7 @@ export class AIChatInput extends SignalWatcher(
               aria-label=${I18n.t('Send')}
               title=${I18n.t('Send')}
               aria-disabled=${this.isSendDisabled}
+              ?disabled=${this.sendBlocked}
               data-testid="chat-panel-send"
             >
               ${ArrowUpBigIcon()}
@@ -717,6 +733,7 @@ export class AIChatInput extends SignalWatcher(
   }
 
   private get isSendDisabled() {
+    if (this.sendBlocked) return true;
     if (this.isInputEmpty) {
       return true;
     }
@@ -868,8 +885,16 @@ export class AIChatInput extends SignalWatcher(
     e.preventDefault();
     e.stopPropagation();
 
+    if (this.sendBlocked) return;
+
     const value = this.textarea.value.trim();
     if (value.length === 0) return;
+
+    // The scope selector may reject submission; keep the entire draft intact.
+    if (this.onDraftSend) {
+      await this.send(value);
+      return;
+    }
 
     this.textarea.value = '';
     this.isInputEmpty = true;
@@ -884,6 +909,15 @@ export class AIChatInput extends SignalWatcher(
   };
 
   send = async (text: string) => {
+    if (this.sendBlocked) return;
+    if (this.onDraftSend) {
+      this.onDraftSend({
+        text,
+        images: [...this.chatContextValue.images],
+        files: this.chips.filter(isFileChip).map(chip => chip.file),
+      });
+      return;
+    }
     if (!this.runtime) return;
     const officeContext = this.officeContext
       ? parseOfficeAiContext(this.officeContext)

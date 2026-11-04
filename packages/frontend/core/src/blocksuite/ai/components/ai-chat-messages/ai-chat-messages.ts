@@ -22,6 +22,7 @@ import { LocalMindIcon } from '../../_common/icons';
 import {
   AIAppEvents,
   type AIError,
+  AIErrorType,
   GeneralNetworkError,
   UnauthorizedError,
 } from '../../provider';
@@ -192,6 +193,9 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
   accessor runtimeSnapshot: AIChatSnapshot | null | undefined;
 
   @property({ attribute: false })
+  accessor configurationNoticeVisible = false;
+
+  @property({ attribute: false })
   accessor updateContext!: (context: Partial<ChatContextValue>) => void;
 
   @property({ attribute: false })
@@ -339,6 +343,9 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
   protected override render() {
     const status = this.chatStatus;
     const error = this.chatError;
+    const configurationErrorHandled =
+      this.configurationNoticeVisible &&
+      error?.type === AIErrorType.ByokNotConfigured;
     const { isHistoryLoading } = this;
     const filteredItems = this.messages;
 
@@ -382,13 +389,24 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
                     .item=${item}
                   ></chat-message-user>`;
                 } else if (isChatMessage(item) && item.role === 'assistant') {
+                  // The composer explains this failure; omit an empty duplicate reply.
+                  if (
+                    isLast &&
+                    configurationErrorHandled &&
+                    !item.content &&
+                    !item.attachments?.length &&
+                    !item.streamObjects?.length
+                  )
+                    return nothing;
                   return html`<chat-message-assistant
                     .host=${this.host}
                     .session=${this.session}
                     .item=${item}
                     .isLast=${isLast}
                     .status=${isLast ? status : 'idle'}
-                    .error=${isLast ? error : null}
+                    .error=${isLast && !configurationErrorHandled
+                      ? error
+                      : null}
                     .extensions=${this.extensions}
                     .affineFeatureFlagService=${this.affineFeatureFlagService}
                     .affineThemeService=${this.affineThemeService}

@@ -132,42 +132,6 @@ globalStyle(`${projectTrigger} span`, {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });
-export const composer = style({
-  position: 'relative',
-  zIndex: 1,
-  width: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  padding: '12px 16px 10px',
-  borderRadius: 11,
-  background: cssVarV2('layer/background/primary'),
-  boxShadow: `0 14px 36px rgba(25, 29, 34, 0.1), inset 0 0 0 1px ${cssVarV2('layer/insideBorder/border')}`,
-  selectors: {
-    '&:focus-within': {
-      boxShadow: '0 16px 38px rgba(25, 29, 34, 0.12), inset 0 0 0 1px #9ba4ae',
-    },
-  },
-});
-globalStyle(`${composer} textarea`, {
-  width: '100%',
-  minHeight: 42,
-  maxHeight: 200,
-  padding: 0,
-  border: 0,
-  outline: 'none',
-  resize: 'none',
-  background: 'transparent',
-  color: cssVarV2('text/primary'),
-  font: 'inherit',
-  fontSize: 14,
-  lineHeight: '21px',
-  caretColor: cssVarV2('button/primary'),
-});
-globalStyle(`${composer} textarea::placeholder`, {
-  color: cssVarV2('text/tertiary'),
-  opacity: 1,
-});
 export const error = style({
   color: cssVarV2('status/error'),
   fontSize: 11,
@@ -181,39 +145,6 @@ export const footer = style({
   color: cssVarV2('text/tertiary'),
   fontSize: 10,
 });
-export const sendButton = style({
-  width: 32,
-  height: 32,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flex: '0 0 auto',
-  padding: 0,
-  border: 0,
-  borderRadius: 9,
-  outline: 'none',
-  background: cssVarV2('button/primary'),
-  color: cssVarV2('button/pureWhiteText'),
-  cursor: 'pointer',
-  transition: 'transform 140ms ease-out, background-color 140ms ease-out',
-  selectors: {
-    '&:hover:not(:disabled)': {
-      transform: 'translateY(-1px)',
-    },
-    '&:active:not(:disabled)': {
-      transform: 'translateY(0)',
-    },
-    '&:focus-visible': {
-      boxShadow: `0 0 0 2px ${cssVarV2('layer/background/primary')}, 0 0 0 4px ${cssVarV2('button/primary')}`,
-    },
-    '&:disabled': {
-      background: cssVarV2('button/disable'),
-      color: cssVarV2('icon/disable'),
-      cursor: 'default',
-    },
-  },
-});
-globalStyle(`${sendButton} svg`, { width: 18, height: 18 });
 export const started = style({
   minWidth: 0,
   minHeight: 0,

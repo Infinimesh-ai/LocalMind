@@ -22,11 +22,12 @@ import type {
   FeatureFlagService,
   NotificationService,
 } from '@blocksuite/affine-shared/services';
+import { InformationIcon } from '@blocksuite/icons/lit';
 import type {
   OfficeAiContext,
   ProjectReportAiContext,
 } from '@localmind/office';
-import { css, html, type PropertyValues } from 'lit';
+import { css, html, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 
 import {
@@ -57,8 +58,13 @@ import {
   isTagChip,
   omitChip,
 } from '../ai-chat-chips';
-import type { AIChatInputContext, AIReasoningConfig } from '../ai-chat-input';
+import type {
+  AIChatDraft,
+  AIChatInputContext,
+  AIReasoningConfig,
+} from '../ai-chat-input';
 import { MAX_IMAGE_COUNT } from '../ai-chat-input/const';
+import type { AIChatComposerNotice } from './notice';
 
 type ComposerContextRuntime = Pick<AIChatRuntime, 'dispatch' | 'getSnapshot'>;
 
@@ -127,6 +133,63 @@ export class AIChatComposer extends SignalWatcher(
   readonly languageController = new I18nController(this);
 
   static override styles = css`
+    .chat-composer-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      background: var(--affine-background-secondary-color);
+      color: var(--affine-text-primary-color);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .chat-composer-notice > svg {
+      flex: 0 0 16px;
+      width: 16px;
+      height: 16px;
+      margin-top: 1px;
+      color: var(--affine-icon-color);
+    }
+
+    .chat-composer-notice-copy {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .chat-composer-notice-title {
+      font-weight: 600;
+    }
+
+    .chat-composer-notice-description {
+      margin-top: 2px;
+    }
+
+    .chat-composer-notice-action {
+      flex: 0 0 auto;
+      align-self: center;
+      padding: 4px 10px;
+      border: 1px solid var(--affine-border-color);
+      border-radius: 6px;
+      background: var(--affine-background-primary-color);
+      color: var(--affine-text-primary-color);
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .chat-composer-notice-action:hover {
+      background: var(--affine-hover-color);
+    }
+
+    .chat-composer-notice-action:focus-visible {
+      outline: 2px solid var(--affine-primary-color);
+      outline-offset: 2px;
+    }
+
     .chat-panel-footer {
       margin: 8px 0px;
       display: flex;
@@ -191,6 +254,15 @@ export class AIChatComposer extends SignalWatcher(
 
   @property({ attribute: false })
   accessor chatContextValue!: AIChatInputContext;
+
+  @property({ attribute: false })
+  accessor onDraftSend: ((draft: AIChatDraft) => void) | undefined;
+
+  @property({ attribute: false })
+  accessor notice: AIChatComposerNotice | undefined;
+
+  @property({ attribute: false })
+  accessor sendBlocked = false;
 
   @property({ attribute: false })
   accessor updateContext!: (context: Partial<AIChatInputContext>) => void;
@@ -258,8 +330,46 @@ export class AIChatComposer extends SignalWatcher(
   }
 
   override render() {
+    const notice = this.notice;
     return html`
+      ${
+        notice
+          ? html`<div
+              class="chat-composer-notice"
+              role="status"
+              data-testid="chat-composer-notice"
+            >
+              ${InformationIcon()}
+              <div class="chat-composer-notice-copy">
+                <div class="chat-composer-notice-title">${notice.title}</div>
+                ${notice.description
+                  ? html`<div class="chat-composer-notice-description">
+                      ${notice.description}
+                    </div>`
+                  : nothing}
+              </div>
+              ${notice.action
+                ? 'href' in notice.action
+                  ? html`<a
+                      class="chat-composer-notice-action"
+                      href=${notice.action.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >${notice.action.label}</a
+                    >`
+                  : html`<button
+                      class="chat-composer-notice-action"
+                      type="button"
+                      @click=${notice.action.onClick}
+                    >
+                      ${notice.action.label}
+                    </button>`
+                : nothing}
+            </div>`
+          : nothing
+      }
       <chat-panel-chips
+        .attachmentsOnly=${!!this.onDraftSend}
         .chips=${this.chips}
         .isCollapsed=${this.isChipsCollapsed}
         .independentMode=${this.independentMode}
@@ -309,6 +419,8 @@ export class AIChatComposer extends SignalWatcher(
         .addChip=${this.addChip}
         .addImages=${this.addImages}
         .chatContextValue=${this.chatContextValue}
+        .onDraftSend=${this.onDraftSend}
+        .sendBlocked=${this.sendBlocked}
         .updateContext=${this.updateContext}
         .reasoningConfig=${this.reasoningConfig}
         .docDisplayConfig=${this.docDisplayConfig}
@@ -614,6 +726,7 @@ export class AIChatComposer extends SignalWatcher(
     chip: ChatChip,
     silent: boolean = false
   ) => {
+    if (this.onDraftSend && !isFileChip(chip)) return;
     this.isChipsCollapsed = false;
     // if already exists
     const index = findChipIndex(this.chips, chip);
@@ -623,7 +736,11 @@ export class AIChatComposer extends SignalWatcher(
       }
       return;
     }
-    this.updateChips([...this.chips, chip]);
+    this.updateChips([
+      ...this.chips,
+      this.onDraftSend ? { ...chip, state: 'finished' } : chip,
+    ]);
+    if (this.onDraftSend) return;
     await this.addToContext(chip);
     await this.pollContextDocsAndFiles();
   };
@@ -631,6 +748,7 @@ export class AIChatComposer extends SignalWatcher(
   private readonly removeChip = async (chip: ChatChip) => {
     const chips = omitChip(this.chips, chip);
     this.updateChips(chips);
+    if (this.onDraftSend) return;
     await this.removeFromContext(chip);
   };
 

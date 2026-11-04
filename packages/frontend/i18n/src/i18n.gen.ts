@@ -274,6 +274,30 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.project-error.failed"](): string;
     /**
+      * `AI is not enabled yet`
+      */
+    ["com.affine.localmind.project-byok.unavailableTitle"](): string;
+    /**
+      * `Configure a model to send messages. You can keep editing your draft.`
+      */
+    ["com.affine.localmind.project-byok.adminSetupHelp"](): string;
+    /**
+      * `Ask your administrator to configure a model. You can keep editing your draft.`
+      */
+    ["com.affine.localmind.project-byok.memberSetupHelp"](): string;
+    /**
+      * `AI is ready. Retry your last message.`
+      */
+    ["com.affine.localmind.project-byok.readyToRetry"](): string;
+    /**
+      * `Checking AI availability…`
+      */
+    ["com.affine.localmind.project-byok.checking"](): string;
+    /**
+      * `Try again to check availability. Your draft stays on this page.`
+      */
+    ["com.affine.localmind.project-byok.retryHelp"](): string;
+    /**
       * `Project AI is not configured or is disabled.`
       */
     ["com.affine.localmind.project-byok.missing"](): string;

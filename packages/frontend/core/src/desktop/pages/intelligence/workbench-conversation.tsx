@@ -9,6 +9,7 @@ import {
   useAIChatRuntime,
 } from '@affine/core/blocksuite/ai';
 import { AIChatContent } from '@affine/core/blocksuite/ai/components/ai-chat-content';
+import type { AIChatDraft } from '@affine/core/blocksuite/ai/components/ai-chat-input';
 import type {
   BlockerSuggestion,
   BlockerSuggestionConfirmation,
@@ -19,25 +20,22 @@ import {
   AIChatToolbar,
   configureAIChatToolbar,
 } from '@affine/core/blocksuite/ai/components/ai-chat-toolbar';
+import { ByokNotConfiguredError } from '@affine/core/blocksuite/ai/provider/error';
 import { getViewManager } from '@affine/core/blocksuite/manager/view';
 import { NotificationServiceImpl } from '@affine/core/blocksuite/view-extensions/editor-view/notification-service';
 import { AIToolsConfigService } from '@affine/core/modules/ai-button';
-import { ProjectAIModel } from '@affine/core/modules/ai-button/entities/project-model';
 import {
   AuthService,
   EventSourceService,
   GraphQLService,
   ServerService,
   SubscriptionService,
-  UserFeatureService,
 } from '@affine/core/modules/cloud';
-import { useSignalValue } from '@affine/core/modules/doc-info/utils';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import {
   projectErrorMessage,
   reportProjectError as report,
 } from '@affine/core/modules/project-resources/error';
-import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import { AppThemeService } from '@affine/core/modules/theme';
 import { UserFriendlyError } from '@affine/error';
 import {
@@ -49,7 +47,7 @@ import type {
   OfficeAiContext,
   ProjectReportAiContext,
 } from '@localmind/office';
-import { useFramework, useLiveData, useService } from '@toeverything/infra';
+import { useFramework, useService } from '@toeverything/infra';
 import { assignInlineVars, setElementVars } from '@vanilla-extract/dynamic';
 import {
   type ReactNode,
@@ -61,10 +59,12 @@ import {
   useState,
 } from 'react';
 
+import { prepareConversationDraft } from './prepare-conversation-draft';
 import { useProjectChatConfig } from './project-chat-config';
 import { ProjectFilePicker } from './project-file-picker';
 import type { WorkbenchConversationCard } from './types';
 import { useConversationHeaderVisibility } from './use-conversation-header-visibility';
+import { useProjectAIAvailability } from './use-project-ai-availability';
 import * as styles from './workbench-conversation.css';
 
 function recipientsForDispatch(draft: WorkOrderAgentDraft) {
@@ -104,6 +104,7 @@ type WorkbenchConversationProps = {
   onCompleteConversation?: (card: WorkbenchConversationCard) => Promise<void>;
   startEmpty?: boolean;
   initialDraftText?: string;
+  initialDraft?: AIChatDraft;
   autoSendInitialDraft?: boolean;
   onSessionCreated?: (sessionId: string) => Promise<unknown> | unknown;
   onPinChanged?: () => void;
@@ -151,6 +152,7 @@ export const WorkbenchConversation = ({
   onCompleteConversation,
   startEmpty = false,
   initialDraftText,
+  initialDraft,
   autoSendInitialDraft = false,
   onSessionCreated,
   onPinChanged,
@@ -163,17 +165,12 @@ export const WorkbenchConversation = ({
   const graphql = useService(GraphQLService);
   const requestService = useAIRequestService();
   const auth = useService(AuthService);
-  const projectModel = useMemo(
-    () =>
-      framework.createEntity(ProjectAIModel, { projectId: selectedProjectId }),
-    [framework, selectedProjectId]
-  );
-  useEffect(() => () => projectModel.dispose(), [projectModel]);
-  useProjectRefresh(selectedProjectId, 'list', projectModel.refresh);
-  const configuration = useSignalValue(projectModel.configuration);
-  const isAdmin = useLiveData(
-    useService(UserFeatureService).userFeature.isAdmin$
-  );
+  const {
+    model: projectModel,
+    configuration,
+    notice,
+    sendBlocked,
+  } = useProjectAIAvailability(selectedProjectId);
   const [bodyReady, setBodyReady] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
   const headerOverlayRef = useRef<HTMLDivElement>(null);
@@ -421,24 +418,62 @@ export const WorkbenchConversation = ({
   useEffect(() => () => runtime.dispose(), [runtime]);
 
   const initialDraftApplied = useRef(false);
+  const uploadedDraftFiles = useRef(new Set<File>());
+  const draftOperation = useRef(false);
+  const [draftPreparing, setDraftPreparing] = useState(false);
+  const [draftError, setDraftError] = useState<unknown>(null);
+  const applyInitialDraft = useCallback(async () => {
+    if (draftOperation.current) return;
+    draftOperation.current = true;
+    setDraftPreparing(true);
+    setDraftError(null);
+    try {
+      const draft = initialDraft ?? {
+        text: initialDraftText ?? '',
+        files: [],
+        images: [],
+      };
+      await runtime.dispatch({ type: 'setComposerText', text: draft.text });
+      if (autoSendInitialDraft) {
+        const options = await prepareConversationDraft(
+          runtime,
+          draft,
+          uploadedDraftFiles.current
+        );
+        setDraftPreparing(false);
+        await runtime.dispatch({ type: 'send', ...options });
+      }
+    } catch (error) {
+      setDraftError(error);
+    } finally {
+      draftOperation.current = false;
+      setDraftPreparing(false);
+    }
+  }, [autoSendInitialDraft, initialDraft, initialDraftText, runtime]);
   useEffect(() => {
     if (
       initialDraftApplied.current ||
-      !initialDraftText ||
-      snapshot?.readiness !== 'ready'
+      !(initialDraft?.text || initialDraftText) ||
+      snapshot?.readiness !== 'ready' ||
+      (autoSendInitialDraft && configuration !== 'configured')
     ) {
       return;
     }
     initialDraftApplied.current = true;
-    void runtime
-      .dispatch({ type: 'setComposerText', text: initialDraftText })
-      .then(() =>
-        autoSendInitialDraft
-          ? runtime.dispatch({ type: 'send', input: initialDraftText })
-          : undefined
-      )
-      .catch(report);
-  }, [autoSendInitialDraft, initialDraftText, runtime, snapshot?.readiness]);
+    applyInitialDraft().catch(report);
+  }, [
+    applyInitialDraft,
+    autoSendInitialDraft,
+    configuration,
+    initialDraft,
+    initialDraftText,
+    snapshot?.readiness,
+  ]);
+
+  useEffect(() => {
+    if (snapshot?.error instanceof ByokNotConfiguredError)
+      projectModel.refresh();
+  }, [projectModel, snapshot?.error]);
 
   const createdSessionReported = useRef(false);
   useEffect(() => {
@@ -448,9 +483,7 @@ export const WorkbenchConversation = ({
       (snapshot?.status === 'loading' || snapshot?.status === 'transmitting');
     if (
       snapshot?.activeSessionId &&
-      (createdWhileSending ||
-        (startEmpty &&
-          (snapshot.status === 'success' || snapshot.status === 'error'))) &&
+      (createdWhileSending || (startEmpty && snapshot.status === 'success')) &&
       !createdSessionReported.current
     ) {
       createdSessionReported.current = true;
@@ -634,6 +667,25 @@ export const WorkbenchConversation = ({
       content.serverService = framework.get(ServerService);
       content.subscriptionService = framework.get(SubscriptionService);
       content.aiModelService = projectModel;
+      content.composerNotice =
+        configuration === 'configured' &&
+        snapshot?.error instanceof ByokNotConfiguredError
+          ? {
+              title: t['com.affine.localmind.project-byok.readyToRetry'](),
+              action: {
+                label: t['Retry'](),
+                onClick: () => {
+                  runtime
+                    .dispatch({
+                      type: 'retry',
+                      messageId: snapshot.messages.at(-1)?.id ?? '',
+                    })
+                    .catch(report);
+                },
+              },
+            }
+          : notice;
+      content.sendBlocked = sendBlocked;
       content.onOpenDoc = onOpenResource;
       content.blockerSuggestionConfirmation = blockerSuggestionConfirmation;
       content.workOrderProposalActions = workOrderProposalActions;
@@ -724,30 +776,21 @@ export const WorkbenchConversation = ({
           </div>
         </header>
         {banner ? <div className={styles.banner}>{banner}</div> : null}
-        {configuration === 'missing' || configuration === 'error' ? (
-          <div role="status" className={styles.configuration}>
-            <span>
-              {t[
-                configuration === 'missing'
-                  ? 'com.affine.localmind.project-byok.missing'
-                  : 'com.affine.localmind.project-byok.error'
-              ]()}
-            </span>
-            {configuration === 'error' ? (
-              <Button onClick={projectModel.refresh}>{t['Retry']()}</Button>
-            ) : isAdmin ? (
-              <a href="/admin/ai/config">
-                {t['com.affine.localmind.project-byok.configure']()}
-              </a>
-            ) : (
-              <span>
-                {t['com.affine.localmind.project-byok.contactAdmin']()}
-              </span>
-            )}
+        {draftError ? (
+          <div role="alert" className={styles.configuration}>
+            <span>{projectErrorMessage(draftError)}</span>
+            <Button onClick={() => void applyInitialDraft()}>
+              {t['Retry']()}
+            </Button>
           </div>
         ) : null}
       </div>
-      <div className={styles.content} ref={setContentContainer} />
+      <div
+        className={styles.content}
+        ref={setContentContainer}
+        inert={draftPreparing || !!draftError}
+        aria-busy={draftPreparing || undefined}
+      />
       {documentPicker ? (
         <ProjectFilePicker
           projectId={selectedProjectId}

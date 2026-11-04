@@ -415,6 +415,14 @@ globalStyle(`${root} .chat-panel-input .chat-panel-send`, {
 globalStyle(`${root} .chat-panel-input .chat-panel-send svg`, {
   color: wb.onAction,
 });
+globalStyle(`${root} .chat-panel-input .chat-panel-send:disabled`, {
+  background: cssVarV2('button/disable'),
+  color: wb.onAction,
+  boxShadow: 'none',
+});
+globalStyle(`${root} .chat-panel-input .chat-panel-send:disabled svg`, {
+  color: 'inherit',
+});
 // The outer v10 card replaces the stock bubble; keep a single surface.
 globalStyle(`${root} chat-message-user .chat-content-pure-text`, {
   display: 'block',

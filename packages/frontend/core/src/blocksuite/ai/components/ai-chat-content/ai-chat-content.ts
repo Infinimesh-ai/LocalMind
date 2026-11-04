@@ -38,6 +38,7 @@ import { extractSelectedContent } from '../../utils/extract';
 import { HISTORY_IMAGE_ACTIONS } from '../../utils/history-image-actions';
 import type { SearchMenuConfig } from '../ai-chat-add-context';
 import type { DocDisplayConfig } from '../ai-chat-chips';
+import type { AIChatComposerNotice } from '../ai-chat-composer/notice';
 import type { AIReasoningConfig } from '../ai-chat-input';
 import {
   type AIChatMessages,
@@ -183,6 +184,12 @@ export class AIChatContent extends SignalWatcher(
 
   @property({ attribute: false })
   accessor aiModelService!: AIModelSelection;
+
+  @property({ attribute: false })
+  accessor composerNotice: AIChatComposerNotice | undefined;
+
+  @property({ attribute: false })
+  accessor sendBlocked = false;
 
   @property({ attribute: false })
   accessor onOpenDoc!: (docId: string, sessionId?: string) => void;
@@ -410,6 +417,7 @@ export class AIChatContent extends SignalWatcher(
         .width=${this.width}
         .independentMode=${this.independentMode}
         .messages=${this.messages}
+        .configurationNoticeVisible=${!!this.composerNotice}
         .docDisplayService=${this.docDisplayConfig}
         .peekViewService=${this.peekViewService}
         .onOpenDoc=${this.onOpenDoc}
@@ -421,6 +429,8 @@ export class AIChatContent extends SignalWatcher(
         .snapshot=${this.runtimeSnapshot}
       ></ai-context-compaction-status>
       <ai-chat-composer
+        .notice=${this.composerNotice}
+        .sendBlocked=${this.sendBlocked}
         style=${styleMap({
           [this.onboardingOffsetY > 0 ? 'paddingTop' : 'paddingBottom']:
             `${this.messages.length === 0 ? Math.abs(this.onboardingOffsetY) * 2 : 0}px`,

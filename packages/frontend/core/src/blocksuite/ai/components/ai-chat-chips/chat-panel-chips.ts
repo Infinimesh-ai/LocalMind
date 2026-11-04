@@ -87,6 +87,9 @@ export class ChatPanelChips extends SignalWatcher(
   accessor independentMode: boolean | undefined;
 
   @property({ attribute: false })
+  accessor attachmentsOnly = false;
+
+  @property({ attribute: false })
   accessor addChip!: (chip: ChatChip) => Promise<void>;
 
   @property({ attribute: false })
@@ -218,6 +221,7 @@ export class ChatPanelChips extends SignalWatcher(
 
   override connectedCallback(): void {
     super.connectedCallback();
+    if (this.attachmentsOnly) return;
     const tags = this.docDisplayConfig.getTags();
     this._tags = tags.signal;
     this._disposables.add(tags.cleanup);
@@ -311,6 +315,7 @@ export class ChatPanelChips extends SignalWatcher(
   };
 
   private readonly _updateReferenceDocs = () => {
+    if (this.attachmentsOnly) return;
     const docIds = this.chips
       .filter(isDocChip)
       .filter(chip => chip.state !== 'candidate')

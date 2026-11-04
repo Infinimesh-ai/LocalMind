@@ -1816,10 +1816,14 @@ describe('AIChatRuntime', () => {
       const runtime = createRuntime(request);
       await runtime.dispatch({ type: 'openSessionObject', session: session() });
       const contexts = { selectionContext: 'the original selection' };
+      const image = new File(['image'], 'first-message.png', {
+        type: 'image/png',
+      });
       await runtime.dispatch({
         type: 'send',
         input: 'the new question',
         contexts,
+        attachments: [image],
       });
       expect(runtime.getSnapshot().status).toBe('error');
       await runtime.dispatch({ type: 'retry', messageId: '' });
@@ -1832,6 +1836,7 @@ describe('AIChatRuntime', () => {
         expect(options.retry).not.toBe(true);
         expect(options.input).toBe('the new question');
         expect(options.contexts).toEqual(contexts);
+        expect(options.attachments).toEqual([image]);
       }
       expect(
         runtime.getSnapshot().messages.filter(m => m.role === 'user')

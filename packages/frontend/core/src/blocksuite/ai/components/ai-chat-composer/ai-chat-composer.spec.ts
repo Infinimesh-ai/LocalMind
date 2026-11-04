@@ -4,13 +4,68 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import type { AIChatRuntime, AIChatSnapshot } from '../../runtime/chat';
+import { addFilesToChat } from '../ai-chat-chips/attachment-utils';
+import { ChatPanelChips } from '../ai-chat-chips/chat-panel-chips';
+import type { AIChatInput } from '../ai-chat-input';
 import {
+  AIChatComposer,
   hasActiveComposerContextOperation,
   initializeComposerContext,
   shouldShowContextProjectSelector,
 } from './ai-chat-composer';
 
+vi.unstubAllGlobals();
+customElements.define('test-draft-composer', AIChatComposer);
+customElements.define('chat-panel-chips', ChatPanelChips);
+
 describe('AIChatComposer', () => {
+  test('stages and removes local attachments through the shared composer without uploading', async () => {
+    const composer = document.createElement(
+      'test-draft-composer'
+    ) as AIChatComposer;
+    composer.onDraftSend = vi.fn();
+    composer.notificationService = {
+      toast: vi.fn(),
+    } as unknown as AIChatComposer['notificationService'];
+    composer.chatContextValue = {
+      messages: [],
+      status: 'idle',
+      error: null,
+      images: [],
+      attachments: [],
+      docs: [],
+      snapshot: null,
+      combinedElementsMarkdown: null,
+      html: null,
+      abortController: null,
+    };
+    composer.updateContext = context => {
+      composer.chatContextValue = { ...composer.chatContextValue, ...context };
+    };
+    document.body.append(composer);
+    try {
+      await composer.updateComplete;
+      const input = composer.querySelector('ai-chat-input') as AIChatInput;
+      const file = new File(['notes'], 'notes.txt', { type: 'text/plain' });
+      const image = new File(['image'], 'image.png', { type: 'image/png' });
+      await addFilesToChat([file, image], input);
+      await composer.updateComplete;
+      expect(composer.chips).toEqual([{ file, state: 'finished' }]);
+      expect(composer.chatContextValue.images).toEqual([image]);
+      await input.addChip({ file, state: 'processing' });
+      expect(composer.chips).toHaveLength(1);
+      const chips = composer.querySelector(
+        'chat-panel-chips'
+      ) as HTMLElement & {
+        removeChip: (chip: (typeof composer.chips)[number]) => Promise<void>;
+      };
+      await chips.removeChip(composer.chips[0]);
+      expect(composer.chips).toHaveLength(0);
+    } finally {
+      composer.remove();
+    }
+  });
+
   test('loads persisted document context without global user event state', async () => {
     const snapshot = {
       activeSessionId: 'session-1',

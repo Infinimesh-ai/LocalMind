@@ -13,6 +13,13 @@ export interface AIPlaygroundConfig {
   visible: Signal<boolean | undefined>;
 }
 
+/** Local, unsent content. Files are uploaded only after a scope is chosen. */
+export type AIChatDraft = {
+  text: string;
+  images: File[];
+  files: File[];
+};
+
 // TODO: remove this type
 export type AIChatInputContext = {
   messages: HistoryMessage[];

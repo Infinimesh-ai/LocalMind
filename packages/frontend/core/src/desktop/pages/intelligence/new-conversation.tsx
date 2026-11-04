@@ -1,18 +1,15 @@
-import {
-  isComposingKeyboardEvent,
-  Menu,
-  MenuItem,
-  notify,
-} from '@affine/component';
+import { Menu, MenuItem, notify } from '@affine/component';
+import type { AIChatDraft } from '@affine/core/blocksuite/ai/components/ai-chat-input';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
 import { renameConversationMutation } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import { ArrowUpSmallIcon, FolderIcon } from '@blocksuite/icons/rc';
+import { FolderIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import * as styles from './new-conversation.css';
+import { NewConversationComposer } from './new-conversation-composer';
 import type { WorkbenchProject } from './types';
 import { WorkbenchConversation } from './workbench-conversation';
 
@@ -37,7 +34,7 @@ export function NewConversation({
       : ''
   );
   const [title, setTitle] = useState('');
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState<AIChatDraft>();
   const [error, setError] = useState(false);
   const [started, setStarted] = useState(false);
   const projectTriggerRef = useRef<HTMLButtonElement>(null);
@@ -52,13 +49,14 @@ export function NewConversation({
     }
   }, [initialProjectId, projectId, projects]);
 
-  const start = () => {
-    if (!projectId) {
+  const start = (draft: AIChatDraft) => {
+    if (!selectedProject) {
       setError(true);
       projectTriggerRef.current?.focus();
       return;
     }
-    if (!draft.trim()) return;
+    if (!draft.text.trim()) return;
+    setDraft({ ...draft, text: draft.text.trim() });
     setError(false);
     setStarted(true);
   };
@@ -97,7 +95,8 @@ export function NewConversation({
           selectedProjectName={selectedProject.name}
           onOpenResource={() => {}}
           startEmpty
-          initialDraftText={draft.trim()}
+          initialDraftText={draft?.text}
+          initialDraft={draft}
           autoSendInitialDraft
           onSessionCreated={sessionCreated}
           onDocumentsChanged={onChanged}
@@ -189,49 +188,21 @@ export function NewConversation({
               </button>
             </Menu>
           </div>
-          <div className={styles.composer}>
-            <textarea
-              rows={2}
-              value={draft}
-              placeholder={t[
-                'com.affine.localmind.workbench.v9.taskPlaceholder'
-              ]()}
-              onChange={event => setDraft(event.currentTarget.value)}
-              onKeyDown={event => {
-                if (
-                  event.key === 'Enter' &&
-                  !event.shiftKey &&
-                  !isComposingKeyboardEvent(event) &&
-                  !event.repeat
-                ) {
-                  event.preventDefault();
-                  start();
-                }
-              }}
-            />
-            {error ? (
-              <span
-                id="project-selection-error"
-                className={styles.error}
-                role="alert"
-              >
-                {t['com.affine.localmind.workbench.v9.chooseProjectError']()}
-              </span>
-            ) : null}
-            <div className={styles.footer}>
-              <span>
-                {t['com.affine.localmind.workbench.v9.draftLifetime']()}
-              </span>
-              <button
-                className={styles.sendButton}
-                type="button"
-                aria-label={t['Send']()}
-                disabled={!draft.trim()}
-                onClick={start}
-              >
-                <ArrowUpSmallIcon />
-              </button>
-            </div>
+          <NewConversationComposer
+            onSend={start}
+            projectId={selectedProject?.id ?? null}
+          />
+          {error ? (
+            <span
+              id="project-selection-error"
+              className={styles.error}
+              role="alert"
+            >
+              {t['com.affine.localmind.workbench.v9.chooseProjectError']()}
+            </span>
+          ) : null}
+          <div className={styles.footer}>
+            {t['com.affine.localmind.workbench.v9.draftLifetime']()}
           </div>
         </div>
       </div>

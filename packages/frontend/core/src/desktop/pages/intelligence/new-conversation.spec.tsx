@@ -3,6 +3,7 @@
  */
 
 import type * as AffineComponentModule from '@affine/component';
+import type { AIChatDraft } from '@affine/core/blocksuite/ai/components/ai-chat-input';
 import {
   cleanup,
   fireEvent,
@@ -11,12 +12,14 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { WorkbenchProject } from './types';
 
 const state = vi.hoisted(() => ({
   gql: vi.fn(),
+  started: vi.fn(),
 }));
 
 const tokens = vi.hoisted(() => ({
@@ -83,25 +86,66 @@ vi.mock('@toeverything/infra', () => ({
   useService: () => ({ gql: state.gql }),
 }));
 
+vi.mock('./new-conversation-composer', () => ({
+  NewConversationComposer: ({
+    onSend,
+  }: {
+    onSend: (draft: AIChatDraft) => void;
+  }) => {
+    const [text, setText] = useState('');
+    const [files, setFiles] = useState<File[]>([]);
+    return (
+      <>
+        <textarea
+          placeholder="com.affine.localmind.workbench.v9.taskPlaceholder"
+          value={text}
+          onChange={event => setText(event.target.value)}
+        />
+        <input
+          type="file"
+          aria-label="Attachments"
+          multiple
+          onChange={event => setFiles(Array.from(event.target.files ?? []))}
+        />
+        <button
+          onClick={() =>
+            onSend({
+              text,
+              files: files.filter(file => !file.type.startsWith('image/')),
+              images: files.filter(file => file.type.startsWith('image/')),
+            })
+          }
+        >
+          Send
+        </button>
+      </>
+    );
+  },
+}));
+
 vi.mock('./workbench-conversation', () => ({
   WorkbenchConversation: (props: {
     selectedProjectId: string;
     initialDraftText?: string;
+    initialDraft?: AIChatDraft;
     autoSendInitialDraft?: boolean;
     onSessionCreated?: (sessionId: string) => Promise<unknown> | unknown;
-  }) => (
-    <div data-testid="started-conversation">
-      <span>{props.selectedProjectId}</span>
-      <span>{props.initialDraftText}</span>
-      <span>{String(props.autoSendInitialDraft)}</span>
-      <button
-        type="button"
-        onClick={() => void props.onSessionCreated?.('session-1')}
-      >
-        Create session
-      </button>
-    </div>
-  ),
+  }) => {
+    state.started(props);
+    return (
+      <div data-testid="started-conversation">
+        <span>{props.selectedProjectId}</span>
+        <span>{props.initialDraftText}</span>
+        <span>{String(props.autoSendInitialDraft)}</span>
+        <button
+          type="button"
+          onClick={() => void props.onSessionCreated?.('session-1')}
+        >
+          Create session
+        </button>
+      </div>
+    );
+  },
 }));
 
 import { NewConversation } from './new-conversation';
@@ -124,6 +168,7 @@ const projects = ['project-1', 'project-2'].map(
 
 describe('NewConversation', () => {
   beforeEach(() => {
+    state.started.mockClear();
     state.gql.mockReset().mockResolvedValue({});
   });
   afterEach(cleanup);
@@ -185,27 +230,38 @@ describe('NewConversation', () => {
     );
   });
 
-  test('sends on Enter while Shift+Enter and IME confirmation keep the draft', () => {
+  test('keeps files and images across project selection and hands them to the first message', () => {
     render(
       <NewConversation
         projects={projects}
-        initialProjectId="project-1"
         onChanged={vi.fn()}
         onCreated={vi.fn()}
       />
     );
-
-    const draft = screen.getByPlaceholderText(
-      'com.affine.localmind.workbench.v9.taskPlaceholder'
+    const file = new File(['private notes'], 'notes.txt', {
+      type: 'text/plain',
+    });
+    const image = new File(['image'], 'chart.png', { type: 'image/png' });
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        'com.affine.localmind.workbench.v9.taskPlaceholder'
+      ),
+      { target: { value: 'Read both' } }
     );
-    fireEvent.change(draft, { target: { value: 'First message' } });
-    fireEvent.keyDown(draft, { key: 'Enter', shiftKey: true });
-    fireEvent.keyDown(draft, { key: 'Enter', isComposing: true });
-    expect(screen.queryByTestId('started-conversation')).toBeNull();
-
-    fireEvent.keyDown(draft, { key: 'Enter' });
-    expect(screen.getByTestId('started-conversation').textContent).toContain(
-      'First message'
+    fireEvent.change(screen.getByLabelText('Attachments'), {
+      target: { files: [file, image] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(state.started).not.toHaveBeenCalled();
+    expect(state.gql).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Project 1' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Project 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(state.started).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedProjectId: 'project-2',
+        initialDraft: { text: 'Read both', files: [file], images: [image] },
+      })
     );
   });
 

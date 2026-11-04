@@ -50,6 +50,89 @@ function createInput(detailedObjects: boolean) {
 }
 
 describe('AIChatInput selection context', () => {
+  test('configuration blocking preserves typed text and images until sending is available', async () => {
+    const { input, dispatch } = createInput(false);
+    const image = new File(['image'], 'draft.png', { type: 'image/png' });
+    input.onDraftSend = vi.fn();
+    input.chatContextValue.images = [image];
+    input.sendBlocked = true;
+    document.body.append(input);
+    try {
+      await input.updateComplete;
+      const textarea = input.querySelector('textarea')!;
+      textarea.value = 'Keep my draft';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await input.send('Keep my draft');
+      expect(
+        input.querySelector<HTMLButtonElement>(
+          '[data-testid="chat-panel-send"]'
+        )?.disabled
+      ).toBe(true);
+      expect(input.onDraftSend).not.toHaveBeenCalled();
+      expect(dispatch).not.toHaveBeenCalled();
+      expect(textarea.value).toBe('Keep my draft');
+      expect(input.chatContextValue.images).toEqual([image]);
+      input.sendBlocked = false;
+      await input.updateComplete;
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      expect(input.onDraftSend).toHaveBeenCalledWith({
+        text: 'Keep my draft',
+        images: [image],
+        files: [],
+      });
+    } finally {
+      input.remove();
+    }
+  });
+
+  test('keeps a draft on Shift+Enter and IME confirmation, and submits on Enter without clearing it', async () => {
+    const { input } = createInput(false);
+    input.onDraftSend = vi.fn();
+    document.body.append(input);
+    try {
+      await input.updateComplete;
+      const textarea = input.querySelector('textarea')!;
+      textarea.value = 'First message';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      textarea.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true })
+      );
+      textarea.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', isComposing: true })
+      );
+      expect(input.onDraftSend).not.toHaveBeenCalled();
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      expect(input.onDraftSend).toHaveBeenCalledExactlyOnceWith({
+        text: 'First message',
+        images: [],
+        files: [],
+      });
+      expect(textarea.value).toBe('First message');
+    } finally {
+      input.remove();
+    }
+  });
+
+  test('submits a local draft with files and images without clearing it or calling the runtime', async () => {
+    const { input, dispatch } = createInput(false);
+    const file = new File(['notes'], 'notes.txt');
+    const image = new File(['image'], 'image.png', { type: 'image/png' });
+    const onDraftSend = vi.fn();
+    input.onDraftSend = onDraftSend;
+    input.chips = [{ file, state: 'finished' }];
+    input.chatContextValue.images = [image];
+    await input.send('First message');
+    expect(onDraftSend).toHaveBeenCalledExactlyOnceWith({
+      text: 'First message',
+      files: [file],
+      images: [image],
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(input.chatContextValue.images).toEqual([image]);
+    expect(input.chips).toHaveLength(1);
+  });
+
   test.each([false, true])(
     'sends only typed text as content while preserving selection (detailed objects: %s)',
     async detailedObjects => {
