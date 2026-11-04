@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { EventBus, metrics, OnEvent, URLHelper } from '../../../base';
+import {
+  EventBus,
+  metrics,
+  OnEvent,
+  readBufferWithLimit,
+  URLHelper,
+} from '../../../base';
 import { Models } from '../../../models';
 import {
   type StorageRuntimeGetObjectResult,
@@ -78,6 +84,51 @@ export class CommentAttachmentStorage {
       }
     }
     return await this.rt.getObject('blob', storageKey);
+  }
+
+  /** Content copy participates in the caller's resource transaction for records. */
+  async copy(
+    workspaceId: string,
+    sourceDocId: string,
+    targetDocId: string,
+    attachment: { key: string; size: number; mime: string }
+  ) {
+    const source = await this.get(workspaceId, sourceDocId, attachment.key);
+    if (!source.body) throw new Error('Comment attachment body is unavailable');
+    const bytes = await readBufferWithLimit(source.body, 10 * 1024 * 1024);
+    if (bytes.length !== attachment.size)
+      throw new Error('Comment attachment size mismatch');
+    return this.restoreContent(
+      workspaceId,
+      targetDocId,
+      attachment.key,
+      bytes,
+      attachment.mime
+    );
+  }
+
+  /** Only a verified archive/copy may restore content under a new document. */
+  async restoreContent(
+    workspaceId: string,
+    docId: string,
+    key: string,
+    bytes: Buffer,
+    mime: string
+  ) {
+    await this.models.documentObjectStage.remember({
+      storageKey: this.storageKey(workspaceId, docId, key),
+      workspaceId,
+      docId,
+      blobId: key,
+      byteSize: bytes.length,
+    });
+    await this.rt.putObject(
+      'blob',
+      this.storageKey(workspaceId, docId, key),
+      bytes,
+      { contentType: mime, contentLength: bytes.length }
+    );
+    return this.getUrl(workspaceId, docId, key);
   }
 
   async delete(workspaceId: string, docId: string, key: string) {

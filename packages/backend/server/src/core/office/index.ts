@@ -61,6 +61,7 @@ import { WorkspaceNativeResourceService } from './workspace-resource-service';
     ProjectResourceIndexer,
   ],
   exports: [
+    OfficeResourceStorage,
     WorkspaceNativeResourceService,
     NativeFileCreateService,
     OfficeArtifactService,

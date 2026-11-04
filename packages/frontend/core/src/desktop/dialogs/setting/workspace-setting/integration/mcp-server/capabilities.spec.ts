@@ -2,10 +2,27 @@ import { describe, expect, test } from 'vitest';
 
 import {
   DEFAULT_MCP_CAPABILITIES,
+  MCP_CAPABILITY_OPTIONS,
+  MCP_DOCUMENT_EDIT_PRESET,
   updateMcpCapabilities,
 } from './capabilities';
 
 describe('MCP capability selection', () => {
+  test('explicit native editing preset includes only registered tools and leaves administration separate', () => {
+    const registered = new Set<string>(
+      MCP_CAPABILITY_OPTIONS.map(option => option.capability)
+    );
+    expect(MCP_CAPABILITY_OPTIONS).toHaveLength(31);
+    expect(MCP_DOCUMENT_EDIT_PRESET.every(name => registered.has(name))).toBe(
+      true
+    );
+    expect(MCP_DOCUMENT_EDIT_PRESET).not.toContain(
+      'workspace_doc_access_update'
+    );
+    expect(MCP_DOCUMENT_EDIT_PRESET).not.toContain('workspace_doc_lifecycle');
+    expect(MCP_DOCUMENT_EDIT_PRESET).not.toContain('delegate_to_localmind');
+    expect(MCP_DOCUMENT_EDIT_PRESET).toContain('workspace_operation_get');
+  });
   test('defaults to the complete public LocalMind workflow', () => {
     expect(DEFAULT_MCP_CAPABILITIES).toEqual([
       'delegate_to_localmind',
@@ -71,6 +88,6 @@ test('direct writes suggest receipt lookup without implicitly granting it or del
     true
   );
   expect(MCP_CAPABILITY_GROUPS.map(group => group.options.length)).toEqual([
-    10, 3,
+    28, 3,
   ]);
 });

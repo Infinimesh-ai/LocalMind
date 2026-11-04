@@ -11,6 +11,7 @@ declare global {
      * the following instance are initialized in `packages/playground/apps/starter/main.ts`
      */
     $blocksuite: {
+      yjs: typeof import('yjs');
       store: typeof import('@blocksuite/affine/store');
       blocks: {
         database: typeof import('@blocksuite/affine/blocks/database');

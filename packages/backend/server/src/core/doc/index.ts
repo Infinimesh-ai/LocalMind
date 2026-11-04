@@ -10,6 +10,7 @@ import { PgUserspaceDocStorageAdapter } from './adapters/userspace';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
 import { WorkspaceDirectoryResolver } from './directory-resolver';
 import { DocumentDestinationService } from './document-destination';
+import { DocumentPropertiesService } from './document-properties';
 import { DocEventsListener } from './event';
 import { WorkspaceFolderPageResolver } from './folder-page-resolver';
 import { DocStorageCronJob } from './job';
@@ -32,6 +33,7 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
 @Module({
   imports: [BackendRuntimeModule, QuotaModule, PermissionModule, StorageModule],
   providers: [
+    DocumentPropertiesService,
     WorkspaceFolderPageService,
     WorkspaceFolderPageResolver,
     WorkspaceLifecycleService,
@@ -55,6 +57,8 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
     DocumentDestinationService,
   ],
   exports: [
+    WorkspaceLifecycleService,
+    DocumentPropertiesService,
     WorkspaceNativeResourceAccess,
     WorkspacePageTreeService,
     WorkspaceResourceService,
@@ -94,3 +98,7 @@ export {
 export { WorkspaceResourceService };
 
 export { WorkspacePageTreeService };
+
+export { DocumentPropertiesService };
+
+export { WorkspaceLifecycleService };

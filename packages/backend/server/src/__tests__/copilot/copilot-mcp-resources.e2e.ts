@@ -1,5 +1,5 @@
 import { fork } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
@@ -7,6 +7,7 @@ import { McpAccessMode, PrismaClient } from '@prisma/client';
 import ava, { type TestFn } from 'ava';
 import Sinon from 'sinon';
 import * as Y from 'yjs';
+import { z } from 'zod';
 
 import { AppModule } from '../../app.module';
 import { Config, CryptoHelper } from '../../base';
@@ -14,16 +15,33 @@ import { ConfigModule } from '../../base/config';
 import {
   PgWorkspaceDocStorageAdapter,
   WorkspaceOrganizationService,
+  WorkspaceResourceService,
 } from '../../core/doc';
+import {
+  decodeDocumentArchive,
+  DOCUMENT_ARCHIVE_MIME,
+} from '../../core/doc/document-archive';
 import { WorkspaceDocOutboxPublisher } from '../../core/doc/outbox';
 import { DocWriter } from '../../core/doc/writer';
-import { DocRole, Models, WorkspaceRole } from '../../models';
+import { NotificationJob } from '../../core/notification/job';
+import { OfficeArtifactService } from '../../core/office/artifact-service';
+import { OfficeResourceStorage } from '../../core/office/resource-storage';
+import { CommentAttachmentStorage } from '../../core/storage';
+import { StorageRuntimeProvider } from '../../core/storage-runtime';
+import { DocumentEventsService } from '../../core/workspaces/document-events';
+import { DocMode, DocRole, Models, WorkspaceRole } from '../../models';
 import { BackendRuntime, createDocWithMarkdown } from '../../native';
 import {
   MCP_CAPABILITIES,
   MCP_DELEGATION_CAPABILITIES,
 } from '../../plugins/copilot/mcp/capabilities';
 import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
+import {
+  DOCUMENT_RECEIPT_SCHEMA,
+  documentOutputSchema,
+  type DocumentToolName,
+} from '../../plugins/copilot/mcp/document-schema';
+import { McpDocumentsService } from '../../plugins/copilot/mcp/native-documents';
 import { WorkspaceMcpProvider } from '../../plugins/copilot/mcp/provider';
 import {
   RESOURCE_RECEIPT_SCHEMA,
@@ -54,7 +72,9 @@ const test = ava.serial as TestFn<Context>;
 test.before(async t => {
   t.context.app = await createTestingApp({
     imports: [
-      ConfigModule.override({ doc: { mcpResourcesEnabled: true } }),
+      ConfigModule.override({
+        doc: { mcpResourcesEnabled: true, mcpDocumentEditingEnabled: true },
+      }),
       AppModule,
     ],
   });
@@ -64,6 +84,7 @@ test.beforeEach(async t => {
   const app = t.context.app;
   await app.initTestingDB();
   app.get(Config).doc.mcpResourcesEnabled = true;
+  app.get(Config).doc.mcpDocumentEditingEnabled = true;
   const owner = await app.signupV1();
   const models = app.get(Models);
   const workspace = await models.workspace.create(owner.id);
@@ -126,7 +147,7 @@ async function create(
   );
 }
 
-test('discovery enables 13 explicit capabilities and leaves old defaults at three', async t => {
+test('discovery enables explicit capabilities and leaves old defaults at three', async t => {
   const { app, credential } = t.context;
   const provider = app.get(WorkspaceMcpProvider);
   const server = await provider.for(
@@ -136,7 +157,10 @@ test('discovery enables 13 explicit capabilities and leaves old defaults at thre
     undefined,
     credential
   );
-  t.is(server.tools.length, 13);
+  t.deepEqual(
+    server.tools.map(tool => tool.name).sort(),
+    [...MCP_CAPABILITIES].sort()
+  );
   const old = await provider.for(
     credential.userId,
     credential.workspaceId,
@@ -240,6 +264,7 @@ test('create, read, update, replay and query persist without AI lifecycle', asyn
   t.is(await db.mcpResourceOperationEvent.count(), eventsBeforeQuery);
   t.is(await db.workspaceDocOutbox.count(), outboxBeforeQuery);
   t.context.app.get(Config).doc.mcpResourcesEnabled = true;
+  t.context.app.get(Config).doc.mcpDocumentEditingEnabled = true;
 
   const noOp = await call(t.context, 'workspace_doc_update', {
     ...args,
@@ -1845,4 +1870,2525 @@ test('listing observes committed modes without inverting a body/properties write
     release.resolve();
     await writing;
   }
+});
+
+async function nativeCall(
+  context: Context,
+  name: DocumentToolName,
+  args: unknown
+) {
+  const result = await context.app
+    .get(McpDocumentsService)
+    .execute(context.credential, name, args);
+  documentOutputSchema(name).parse({ result });
+  return result;
+}
+
+test('native duplication preserves metadata and comments, remaps anchors and replays one target', async t => {
+  const context = t.context,
+    source = await create(context),
+    resource = { kind: 'blocksuite', id: source.documentId! };
+  const inspection = z.object({
+    version: z.string(),
+    metadata: z.object({ version: z.string() }),
+    items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+  });
+  const before = inspection.parse(
+    await nativeCall(context, 'workspace_doc_inspect', { resource })
+  );
+  const paragraph = before.items.find(
+    row => row.flavour === 'affine:paragraph'
+  )!;
+  const comment = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_comments_apply', {
+      resource,
+      expectedVersion: before.version,
+      expectedCommentsVersion: '0',
+      idempotencyKey: randomUUID(),
+      commands: [
+        {
+          opId: 'comment',
+          type: 'comment.create',
+          clientRef: 'thread',
+          content: {
+            version: 'localmind-blocksuite-comment/v1',
+            paragraphs: [[{ insert: 'Keep source authorship' }]],
+          },
+          anchor: { kind: 'block', blockId: paragraph.id },
+        },
+      ],
+    })
+  );
+  const current = inspection.parse(
+    await nativeCall(context, 'workspace_doc_inspect', { resource })
+  );
+  const exportHash = z.object({ data: z.object({ fingerprint: z.string() }) });
+  const original = exportHash.parse(
+    await nativeCall(context, 'workspace_doc_export', {
+      resource,
+      expectedVersion: current.version,
+      format: 'native-content',
+    })
+  );
+  const request = {
+    source: resource,
+    expectedVersion: current.version,
+    expectedMetadataVersion: current.metadata.version,
+    expectedCommentsVersion: comment.commentsVersion,
+    comments: 'copy',
+    title: 'Independent copy',
+    destination: { kind: 'legacy-folder', folderId: null },
+    idempotencyKey: randomUUID(),
+  };
+  const result = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_duplicate', request)
+  );
+  t.not(result.resource.id, resource.id);
+  t.is(result.source?.identityScope, 'document');
+  const replay = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_duplicate', request)
+  );
+  t.true(replay.replayed);
+  t.is(replay.resource.id, result.resource.id);
+  const threadId = result.identities[`comment:${comment.identities.thread}`];
+  const copiedThread = await context.models.comment.get(threadId);
+  const sourceThread = await context.models.comment.get(
+    comment.identities.thread
+  );
+  t.is(copiedThread?.docId, result.resource.id);
+  t.is(copiedThread?.userId, sourceThread?.userId);
+  t.deepEqual(copiedThread?.content, sourceThread?.content);
+  t.deepEqual(copiedThread?.createdAt, sourceThread?.createdAt);
+  const copied = await context.app
+    .get(PgWorkspaceDocStorageAdapter)
+    .getDoc(context.workspaceId, result.resource.id);
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, copied!.bin);
+    t.deepEqual(
+      (
+        doc
+          .getMap<Y.Map<unknown>>('blocks')
+          .get(paragraph.id)!
+          .get('prop:comments') as Y.Map<unknown>
+      ).toJSON(),
+      { [threadId]: true }
+    );
+  } finally {
+    doc.destroy();
+  }
+  t.deepEqual(
+    exportHash.parse(
+      await nativeCall(context, 'workspace_doc_export', {
+        resource,
+        expectedVersion: current.version,
+        format: 'native-content',
+      })
+    ),
+    original
+  );
+});
+
+test('native Office duplication retains independently stored state bytes and the unchanged package', async t => {
+  const context = t.context;
+  const created = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_create_native', {
+      resource: { kind: 'office' },
+      title: 'Source.docx',
+      destination: { kind: 'legacy-folder', folderId: null },
+      idempotencyKey: randomUUID(),
+      content: { format: 'docx', paragraphs: [{ text: 'Keep package' }] },
+    })
+  );
+  const office = context.app.get(OfficeArtifactService),
+    parent = await office.getRevision(
+      context.workspaceId,
+      context.actorId,
+      created.resource.id
+    );
+  const state = await office.readRevisionAsset(
+    context.workspaceId,
+    context.actorId,
+    created.resource.id,
+    parent.id,
+    'state'
+  );
+  const bytes = Buffer.from(
+    JSON.stringify({
+      ...JSON.parse(state.bytes.toString('utf8')),
+      futureCopyEvidence: { exact: ['retain', 123] },
+    })
+  );
+  const stateFingerprint = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+  const key = await context.app
+    .get(OfficeResourceStorage)
+    .put(context.workspaceId, context.actorId, 'test-state', bytes, {
+      contentType: 'application/json',
+      contentLength: bytes.length,
+    });
+  await context.models.officeArtifact.appendRevision({
+    workspaceId: context.workspaceId,
+    artifactId: created.resource.id,
+    actorId: context.actorId,
+    origin: 'user',
+    expectedParentRevisionId: parent.id,
+    idempotencyKey: randomUUID(),
+    idempotencyFingerprint: stateFingerprint,
+    package: {
+      key: parent.packageBlobKey,
+      mimeType: parent.packageMimeType,
+      byteSize: parent.packageByteSize,
+      fingerprint: parent.packageFingerprint,
+    },
+    state: { key, byteSize: bytes.length, fingerprint: stateFingerprint },
+    modelVersion: parent.modelVersion!,
+  });
+  const current = z.object({ version: z.string() }).parse(
+    await nativeCall(context, 'workspace_doc_inspect', {
+      resource: created.resource,
+    })
+  );
+  const copy = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_duplicate', {
+      source: created.resource,
+      title: 'Copied.docx',
+      expectedVersion: current.version,
+      comments: 'omit',
+      destination: { kind: 'legacy-folder', folderId: null },
+      idempotencyKey: randomUUID(),
+    })
+  );
+  const copied = await office.getRevision(
+    context.workspaceId,
+    context.actorId,
+    copy.resource.id
+  );
+  t.is(copied.packageFingerprint, parent.packageFingerprint);
+  t.is(copied.stateFingerprint, stateFingerprint);
+  t.deepEqual(
+    (
+      await office.readRevisionAsset(
+        context.workspaceId,
+        context.actorId,
+        copy.resource.id,
+        copied.id,
+        'state'
+      )
+    ).bytes,
+    bytes
+  );
+  const editable = JSON.parse(bytes.toString('utf8')) as {
+    body: { id: string; text: string }[];
+  };
+  const envelope = {
+    artifactId: copy.resource.id,
+    expectedRevisionId: copied.id,
+    source: 'user',
+  };
+  const edit = {
+    resource: copy.resource,
+    expectedVersion: copy.afterVersion,
+    idempotencyKey: randomUUID(),
+    batch: {
+      ...envelope,
+      version: 'localmind-office-command-batch/v1',
+      batchId: randomUUID(),
+      idempotencyKey: randomUUID(),
+      commands: [
+        {
+          ...envelope,
+          version: 'localmind-office-command/v1',
+          commandId: randomUUID(),
+          idempotencyKey: randomUUID(),
+          operation: 'office.document.paragraph.text.set',
+          target: { type: 'paragraph', blockId: editable.body[0].id },
+          expectedText: editable.body[0].text,
+          text: 'Edited through MCP',
+        },
+      ],
+    },
+  };
+  const applied = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', edit)
+  );
+  const edited = await office.getRevision(
+    context.workspaceId,
+    context.actorId,
+    copy.resource.id
+  );
+  const saved = JSON.parse(
+    (
+      await office.readRevisionAsset(
+        context.workspaceId,
+        context.actorId,
+        copy.resource.id,
+        edited.id,
+        'state'
+      )
+    ).bytes.toString('utf8')
+  ) as { futureCopyEvidence: unknown; body: { text: string }[] };
+  t.deepEqual(saved.futureCopyEvidence, { exact: ['retain', 123] });
+  t.is(saved.body[0].text, 'Edited through MCP');
+  const invalid = await nativeCall(context, 'workspace_doc_apply', {
+    ...edit,
+    expectedVersion: applied.afterVersion,
+    idempotencyKey: randomUUID(),
+    batch: {
+      ...edit.batch,
+      expectedRevisionId: edited.id,
+      commands: edit.batch.commands.map(command => ({
+        ...command,
+        expectedRevisionId: edited.id,
+        target: { type: 'paragraph', blockId: 'missing' },
+      })),
+    },
+  });
+  t.is(
+    z
+      .object({
+        error: z.object({ code: z.string() }),
+        writeOutcome: z.literal('none'),
+      })
+      .parse(invalid).error.code,
+    'invalid_input'
+  );
+  t.is(
+    (
+      await office.getRevision(
+        context.workspaceId,
+        context.actorId,
+        copy.resource.id
+      )
+    ).id,
+    edited.id
+  );
+});
+
+test('native MCP preview, apply, no-op and immutable history preserve document identity', async t => {
+  const context = t.context;
+  const created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId };
+  const inspected = z
+    .object({
+      version: z.string(),
+      items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+    })
+    .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }));
+  const paragraph = inspected.items.find(
+    block => block.flavour === 'affine:paragraph'
+  );
+  t.truthy(paragraph);
+  const request = {
+    resource,
+    expectedVersion: inspected.version,
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'append',
+        type: 'text.splice',
+        target: { kind: 'block_text', blockId: paragraph?.id },
+        offset: 0,
+        deleteCount: 0,
+        insert: [{ insert: '前缀' }],
+      },
+    ],
+  };
+  const before = await context.app
+    .get(PgWorkspaceDocStorageAdapter)
+    .getDoc(context.workspaceId, created.documentId!);
+  const stalePlan = await nativeCall(context, 'workspace_doc_apply', {
+    ...request,
+    idempotencyKey: randomUUID(),
+    planDigest: '0'.repeat(64),
+  });
+  t.is(
+    z.object({ error: z.object({ code: z.string() }) }).parse(stalePlan).error
+      .code,
+    'plan_stale'
+  );
+  const preview = z
+    .object({ status: z.literal('preview'), digest: z.string() })
+    .parse(await nativeCall(context, 'workspace_doc_edit_preview', request));
+  const afterPreview = await context.app
+    .get(PgWorkspaceDocStorageAdapter)
+    .getDoc(context.workspaceId, created.documentId!);
+  t.deepEqual(afterPreview?.bin, before?.bin);
+  const applied = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', request)
+  );
+  t.true(applied.changed);
+  t.is(applied.digest, preview.digest);
+  t.is(applied.beforeVersion, inspected.version);
+  const replay = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', request)
+  );
+  t.true(replay.replayed);
+  t.is(replay.operationId, applied.operationId);
+  const noop = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', {
+      ...request,
+      expectedVersion: applied.afterVersion,
+      idempotencyKey: randomUUID(),
+      commands: [{ ...request.commands[0], insert: [] }],
+    })
+  );
+  t.false(noop.changed);
+  t.is(noop.beforeVersion, noop.afterVersion);
+  const history = z
+    .object({
+      data: z.object({
+        revisions: z.array(z.object({ revision: z.number() })),
+      }),
+    })
+    .parse(
+      await nativeCall(context, 'workspace_doc_history_list', { resource })
+    );
+  t.true(history.data.revisions.length >= 1);
+  const restored = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_history_restore', {
+      resource,
+      expectedVersion: noop.afterVersion,
+      idempotencyKey: randomUUID(),
+      revision: history.data.revisions[0].revision,
+    })
+  );
+  t.true(restored.changed);
+  const after = await context.app
+    .get(PgWorkspaceDocStorageAdapter)
+    .getDoc(context.workspaceId, created.documentId!);
+  const original = new Y.Doc(),
+    final = new Y.Doc();
+  try {
+    Y.applyUpdate(original, before!.bin);
+    Y.applyUpdate(final, after!.bin);
+    const blocks = final.getMap<Y.Map<unknown>>('blocks');
+    for (const [id, originalBlock] of original.getMap<Y.Map<unknown>>(
+      'blocks'
+    )) {
+      const actual = blocks.get(id)!.toJSON(),
+        expected = originalBlock.toJSON();
+      if ('prop:meta:updatedAt' in actual) {
+        t.is(actual['prop:meta:updatedBy'], context.actorId);
+        delete actual['prop:meta:updatedAt'];
+        delete actual['prop:meta:updatedBy'];
+        delete expected['prop:meta:updatedAt'];
+        delete expected['prop:meta:updatedBy'];
+      }
+      t.deepEqual(actual, expected);
+    }
+  } finally {
+    original.destroy();
+    final.destroy();
+  }
+});
+
+test('native MCP rejects stale versions and rolls back every command when one fails', async t => {
+  const context = t.context;
+  const created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId };
+  const inspected = z
+    .object({
+      version: z.string(),
+      items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+    })
+    .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }));
+  const paragraph = inspected.items.find(
+    block => block.flavour === 'affine:paragraph'
+  );
+  const command = {
+    opId: 'first',
+    type: 'text.splice',
+    target: { kind: 'block_text', blockId: paragraph?.id },
+    offset: 0,
+    deleteCount: 0,
+    insert: [{ insert: 'should rollback' }],
+  };
+  const before = await context.app
+    .get(PgWorkspaceDocStorageAdapter)
+    .getDoc(context.workspaceId, created.documentId!);
+  const result = z
+    .object({
+      status: z.literal('failed'),
+      error: z.object({
+        code: z.string(),
+        detail: z.object({ opId: z.string() }),
+      }),
+    })
+    .parse(
+      await nativeCall(context, 'workspace_doc_apply', {
+        resource,
+        expectedVersion: inspected.version,
+        idempotencyKey: randomUUID(),
+        commands: [
+          command,
+          {
+            ...command,
+            opId: 'second',
+            target: { kind: 'block_text', blockId: 'missing-block' },
+          },
+        ],
+      })
+    );
+  t.is(result.error.detail.opId, 'second');
+  const after = await context.app
+    .get(PgWorkspaceDocStorageAdapter)
+    .getDoc(context.workspaceId, created.documentId!);
+  t.deepEqual(after?.bin, before?.bin);
+  const stale = await nativeCall(context, 'workspace_doc_apply', {
+    resource,
+    expectedVersion: 'stale',
+    idempotencyKey: randomUUID(),
+    commands: [command],
+  });
+  t.is(
+    z.object({ error: z.object({ code: z.string() }) }).parse(stale).error.code,
+    'version_conflict'
+  );
+});
+
+test('native asset staging verifies bytes, persists replay and leaves document content unchanged', async t => {
+  const context = t.context,
+    created = await create(context);
+  const resource = { kind: 'blocksuite', id: created.documentId };
+  const inspected = z
+    .object({ version: z.string() })
+    .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }));
+  const bytes = Buffer.from('asset fixture without business data');
+  const { createHash } = await import('node:crypto');
+  const fingerprint = createHash('sha256').update(bytes).digest('hex');
+  const write = (upload: unknown) =>
+    nativeCall(context, 'workspace_doc_asset_upload', {
+      resource,
+      expectedVersion: inspected.version,
+      idempotencyKey: randomUUID(),
+      upload,
+    });
+  const started = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({
+      action: 'begin',
+      mimeType: 'text/plain',
+      totalBytes: bytes.length,
+      fingerprint,
+    })
+  );
+  t.truthy(started.upload);
+  const uploadId = started.upload!.uploadId;
+  const part = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({
+      action: 'part',
+      uploadId,
+      number: 0,
+      base64: bytes.toString('base64'),
+    })
+  );
+  t.is(part.upload?.receivedBytes, bytes.length);
+  const duplicate = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({
+      action: 'part',
+      uploadId,
+      number: 0,
+      base64: bytes.toString('base64'),
+    })
+  );
+  t.false(duplicate.changed);
+  const committed = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({ action: 'commit', uploadId })
+  );
+  t.is(committed.upload?.status, 'completed');
+  t.is(committed.beforeVersion, committed.afterVersion);
+  t.is(await context.db.mcpDocumentUploadPart.count(), 0);
+  const read = z
+    .object({ data: z.object({ fingerprint: z.string(), base64: z.string() }) })
+    .parse(
+      await nativeCall(context, 'workspace_doc_asset_read', {
+        resource,
+        expectedVersion: inspected.version,
+        blobId: committed.upload!.blobId,
+      })
+    );
+  t.is(read.data.fingerprint, fingerprint);
+  t.deepEqual(Buffer.from(read.data.base64, 'base64'), bytes);
+  const repeated = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({ action: 'commit', uploadId })
+  );
+  t.false(repeated.changed);
+  t.is(repeated.upload?.blobId, committed.upload?.blobId);
+});
+
+test('native upload rejects another credential family and bad hashes without publishing a Blob', async t => {
+  const context = t.context,
+    created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId };
+  const version = z
+    .object({ version: z.string() })
+    .parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    ).version;
+  const started = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_asset_upload', {
+      resource,
+      expectedVersion: version,
+      idempotencyKey: randomUUID(),
+      upload: {
+        action: 'begin',
+        mimeType: 'text/plain',
+        totalBytes: 3,
+        fingerprint: '0'.repeat(64),
+      },
+    })
+  );
+  const uploadId = started.upload!.uploadId;
+  const other = await context.app.get(McpCredentialService).create({
+    userId: context.actorId,
+    workspaceId: context.workspaceId,
+    name: 'other family',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: ['workspace_doc_asset_upload'],
+    expirationDays: 30,
+  });
+  const part = {
+    resource,
+    expectedVersion: version,
+    idempotencyKey: randomUUID(),
+    upload: {
+      action: 'part',
+      uploadId,
+      number: 0,
+      base64: Buffer.from('abc').toString('base64'),
+    },
+  };
+  const denied = await context.app
+    .get(McpDocumentsService)
+    .execute(other.credential, 'workspace_doc_asset_upload', part);
+  t.is(
+    z.object({ status: z.literal('failed') }).parse(denied).status,
+    'failed'
+  );
+  DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_asset_upload', part)
+  );
+  const blobs = await context.db.blob.count();
+  const failed = await nativeCall(context, 'workspace_doc_asset_upload', {
+    resource,
+    expectedVersion: version,
+    idempotencyKey: randomUUID(),
+    upload: { action: 'commit', uploadId },
+  });
+  t.is(
+    z.object({ error: z.object({ code: z.string() }) }).parse(failed).error
+      .code,
+    'invalid_input'
+  );
+  t.is(await context.db.blob.count(), blobs);
+  t.is(
+    (
+      await context.db.mcpDocumentUpload.findUniqueOrThrow({
+        where: { id: uploadId },
+      })
+    ).status,
+    'pending'
+  );
+  DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_asset_upload', {
+      resource,
+      expectedVersion: version,
+      idempotencyKey: randomUUID(),
+      upload: { action: 'abort', uploadId },
+    })
+  );
+  t.is(await context.db.mcpDocumentUploadPart.count(), 0);
+});
+
+test('native create reserves identities and atomically creates BlockSuite, Office and file resources', async t => {
+  const context = t.context;
+  const pageRequest = {
+    resource: { kind: 'blocksuite' },
+    title: 'Native fixture',
+    destination: { kind: 'legacy-folder', folderId: null },
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'paragraph',
+        type: 'block.create',
+        clientRef: 'content',
+        parentId: '$note',
+        flavour: 'affine:paragraph',
+        text: [{ insert: 'Original native text', attributes: { bold: true } }],
+      },
+    ],
+  };
+  const page = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_create_native', pageRequest)
+  );
+  const replay = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_create_native', pageRequest)
+  );
+  t.is(replay.resource.id, page.resource.id);
+  t.true(replay.replayed);
+  const inspected = z
+    .object({
+      items: z.array(
+        z.object({ id: z.string(), properties: z.record(z.unknown()) })
+      ),
+    })
+    .parse(
+      await nativeCall(context, 'workspace_doc_inspect', {
+        resource: page.resource,
+      })
+    );
+  t.deepEqual(
+    inspected.items.find(item => item.id === page.identities.content)
+      ?.properties.text,
+    { delta: [{ insert: 'Original native text', attributes: { bold: true } }] }
+  );
+  for (const [kind, content] of [
+    ['file', { format: 'txt', text: '\uFEFFtext\r\n' }],
+    ['office', { format: 'docx', paragraphs: [{ text: 'Native office' }] }],
+    [
+      'office',
+      { format: 'xlsx', sheets: [{ name: 'Data', rows: [[1, 'keep']] }] },
+    ],
+  ] as const) {
+    const request = {
+      resource: { kind },
+      title: `Created-${content.format}`,
+      destination: { kind: 'legacy-folder', folderId: null },
+      idempotencyKey: randomUUID(),
+      content,
+    };
+    const result = DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_create_native', request)
+    );
+    t.is(result.resource.kind, kind);
+    t.is(
+      DOCUMENT_RECEIPT_SCHEMA.parse(
+        await nativeCall(context, 'workspace_doc_create_native', request)
+      ).resource.id,
+      result.resource.id
+    );
+    const read = z
+      .object({ resource: z.object({ id: z.string() }), version: z.string() })
+      .parse(
+        await nativeCall(context, 'workspace_doc_inspect', {
+          resource: result.resource,
+        })
+      );
+    t.is(read.resource.id, result.resource.id);
+    t.is(read.version, result.afterVersion);
+  }
+});
+
+test('native create failure leaves no partial resource and its failure receipt remains readable', async t => {
+  const context = t.context;
+  const request = {
+    resource: { kind: 'blocksuite' },
+    title: 'Rejected creation',
+    destination: { kind: 'legacy-folder', folderId: null },
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'paragraph',
+        type: 'block.create',
+        clientRef: 'content',
+        parentId: '$note',
+        flavour: 'affine:paragraph',
+      },
+      {
+        opId: 'bad',
+        type: 'block.delete',
+        blockId: 'missing',
+        includeDescendants: false,
+      },
+    ],
+  };
+  const before = await context.db.snapshot.count();
+  const failed = z
+    .object({ status: z.literal('failed'), operationId: z.string() })
+    .parse(await nativeCall(context, 'workspace_doc_create_native', request));
+  t.is(await context.db.snapshot.count(), before);
+  const replay = z
+    .object({
+      status: z.literal('failed'),
+      operationId: z.string(),
+      replayed: z.literal(true),
+    })
+    .parse(await nativeCall(context, 'workspace_doc_create_native', request));
+  t.is(replay.operationId, failed.operationId);
+});
+
+test('native lifecycle uses explicit state versions and preserves a deletion receipt', async t => {
+  const context = t.context;
+  for (const resource of [
+    { kind: 'blocksuite', id: (await create(context)).documentId },
+    DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_create_native', {
+        resource: { kind: 'file' },
+        title: 'lifecycle.txt',
+        content: { format: 'txt', text: 'retain until explicit delete' },
+        destination: { kind: 'legacy-folder', folderId: null },
+        idempotencyKey: randomUUID(),
+      })
+    ).resource,
+  ]) {
+    for (const action of ['trash', 'restore', 'trash', 'delete'] as const) {
+      const state = z.object({ version: z.string() }).parse(
+        await nativeCall(context, 'workspace_doc_inspect', {
+          resource,
+          view: 'lifecycle',
+          lifecycleAction: action,
+        })
+      );
+      const request = {
+        resource,
+        action,
+        expectedVersion: state.version,
+        idempotencyKey: randomUUID(),
+      };
+      const changed = DOCUMENT_RECEIPT_SCHEMA.parse(
+        await nativeCall(context, 'workspace_doc_lifecycle', request)
+      );
+      t.is(
+        changed.lifecycle,
+        action === 'delete'
+          ? 'deleted'
+          : action === 'trash'
+            ? 'trashed'
+            : 'active'
+      );
+      const repeated = DOCUMENT_RECEIPT_SCHEMA.parse(
+        await nativeCall(context, 'workspace_doc_lifecycle', request)
+      );
+      t.true(repeated.replayed);
+      t.is(repeated.operationId, changed.operationId);
+      if (action === 'delete') {
+        const queried = DOCUMENT_RECEIPT_SCHEMA.parse(
+          await call(context, 'workspace_operation_get', {
+            operationId: changed.operationId,
+          })
+        );
+        t.is(queried.lifecycle, 'deleted');
+      }
+    }
+  }
+});
+
+test('native comments preserve anchors, detect UI replies, and roll back notifications with the batch', async t => {
+  const context = t.context,
+    created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId };
+  const inspected = z
+    .object({
+      version: z.string(),
+      items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+    })
+    .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }));
+  const paragraph = inspected.items.find(
+    item => item.flavour === 'affine:paragraph'
+  )!;
+  const read = async (version: string) =>
+    z
+      .object({
+        data: z.object({
+          commentsVersion: z.string(),
+          items: z.array(z.object({ id: z.string(), resolved: z.boolean() })),
+        }),
+      })
+      .parse(
+        await nativeCall(context, 'workspace_doc_comments_read', {
+          resource,
+          expectedVersion: version,
+        })
+      );
+  const empty = await read(inspected.version);
+  const content = {
+    version: 'localmind-blocksuite-comment/v1',
+    paragraphs: [[{ insert: 'Review this text', attributes: { bold: true } }]],
+  };
+  const request = {
+    resource,
+    expectedVersion: inspected.version,
+    expectedCommentsVersion: empty.data.commentsVersion,
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'thread',
+        type: 'comment.create',
+        clientRef: 'thread',
+        content,
+        anchor: {
+          kind: 'text',
+          target: { kind: 'block_text', blockId: paragraph.id },
+          offset: 0,
+          length: 1,
+        },
+      },
+      {
+        opId: 'reply',
+        type: 'reply.create',
+        clientRef: 'reply',
+        commentId: '$thread',
+        content,
+      },
+    ],
+  };
+  const applied = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_comments_apply', request)
+  );
+  t.not(applied.beforeVersion, applied.afterVersion);
+  t.not(applied.commentsVersion, empty.data.commentsVersion);
+  const id = applied.identities.thread;
+  const snapshot = await context.app
+    .get(PgWorkspaceDocStorageAdapter)
+    .getDoc(context.workspaceId, created.documentId!);
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, snapshot!.bin);
+  const text = doc
+    .getMap<Y.Map<unknown>>('blocks')
+    .get(paragraph.id)!
+    .get('prop:text') as Y.Text;
+  t.true(text.toDelta()[0].attributes?.[`comment-${id}`]);
+  doc.destroy();
+  const events = await context.db.documentEventOutbox.count();
+  t.is(events, 3);
+  const replay = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_comments_apply', request)
+  );
+  t.true(replay.replayed);
+  t.is(await context.db.comment.count(), 1);
+  t.is(await context.db.reply.count(), 1);
+  const failure = await nativeCall(context, 'workspace_doc_comments_apply', {
+    ...request,
+    expectedVersion: applied.afterVersion,
+    expectedCommentsVersion: applied.commentsVersion,
+    idempotencyKey: randomUUID(),
+    commands: [
+      request.commands[0],
+      { opId: 'bad', type: 'comment.delete', commentId: 'missing' },
+    ],
+  });
+  t.is(
+    z.object({ status: z.literal('failed') }).parse(failure).status,
+    'failed'
+  );
+  t.is(await context.db.comment.count(), 1);
+  t.is(await context.db.documentEventOutbox.count(), events);
+  await context.models.comment.createReply({
+    commentId: id,
+    userId: context.actorId,
+    content: { text: 'UI reply' },
+  });
+  const stale = await nativeCall(context, 'workspace_doc_comments_apply', {
+    resource,
+    expectedVersion: applied.afterVersion,
+    expectedCommentsVersion: applied.commentsVersion,
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'resolve',
+        type: 'comment.resolve',
+        commentId: id,
+        resolved: true,
+      },
+    ],
+  });
+  t.is(
+    z.object({ error: z.object({ code: z.string() }) }).parse(stale).error.code,
+    'version_conflict'
+  );
+  const current = await read(applied.afterVersion);
+  const resolved = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_comments_apply', {
+      resource,
+      expectedVersion: applied.afterVersion,
+      expectedCommentsVersion: current.data.commentsVersion,
+      idempotencyKey: randomUUID(),
+      commands: [
+        {
+          opId: 'resolve',
+          type: 'comment.resolve',
+          commentId: id,
+          resolved: true,
+        },
+      ],
+    })
+  );
+  t.true((await read(resolved.afterVersion)).data.items[0].resolved);
+  const noop = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_comments_apply', {
+      resource,
+      expectedVersion: resolved.afterVersion,
+      expectedCommentsVersion: resolved.commentsVersion,
+      idempotencyKey: randomUUID(),
+      commands: [
+        {
+          opId: 'resolve',
+          type: 'comment.resolve',
+          commentId: id,
+          resolved: true,
+        },
+      ],
+    })
+  );
+  t.false(noop.changed);
+  t.is(noop.commentsVersion, resolved.commentsVersion);
+});
+
+test('native access shares UI policy and never infers member management from content editing', async t => {
+  const context = t.context,
+    created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId };
+  const version = z
+    .object({ version: z.string() })
+    .parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    ).version;
+  const read = async () =>
+    z.object({ data: z.object({ accessVersion: z.string() }) }).parse(
+      await nativeCall(context, 'workspace_doc_access_read', {
+        resource,
+        expectedVersion: version,
+      })
+    );
+  const before = await read(),
+    member = await context.app.signupV1();
+  const request = {
+    resource,
+    expectedVersion: version,
+    expectedAccessVersion: before.data.accessVersion,
+    idempotencyKey: randomUUID(),
+    command: { type: 'member.set', userIds: [member.id], role: 'editor' },
+  };
+  const applied = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_access_update', request)
+  );
+  t.is(applied.beforeVersion, applied.afterVersion);
+  t.not(applied.accessVersion, before.data.accessVersion);
+  t.is(
+    (
+      await context.models.docUser.get(
+        context.workspaceId,
+        resource.id!,
+        member.id
+      )
+    )?.type,
+    DocRole.Editor
+  );
+  t.true(
+    DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_access_update', request)
+    ).replayed
+  );
+  const noop = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_access_update', {
+      ...request,
+      expectedAccessVersion: applied.accessVersion,
+      idempotencyKey: randomUUID(),
+    })
+  );
+  t.false(noop.changed);
+  const contentOnly = await context.app.get(McpCredentialService).create({
+    userId: context.actorId,
+    workspaceId: context.workspaceId,
+    name: 'content-only',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: ['workspace_doc_apply'],
+    expirationDays: 30,
+  });
+  const denied = await context.app
+    .get(McpDocumentsService)
+    .execute(contentOnly.credential, 'workspace_doc_access_update', {
+      ...request,
+      expectedAccessVersion: applied.accessVersion,
+      idempotencyKey: randomUUID(),
+    });
+  t.is(
+    z.object({ error: z.object({ code: z.string() }) }).parse(denied).error
+      .code,
+    'capability_denied'
+  );
+  const transferred = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_access_update', {
+      ...request,
+      expectedAccessVersion: applied.accessVersion,
+      idempotencyKey: randomUUID(),
+      command: { type: 'owner.transfer', userId: member.id },
+    })
+  );
+  t.is(
+    (await context.models.docUser.getOwner(context.workspaceId, resource.id!))
+      ?.userId,
+    member.id
+  );
+  t.truthy(transferred.accessVersion);
+  const ownerRemoval = await nativeCall(
+    context,
+    'workspace_doc_access_update',
+    {
+      ...request,
+      expectedAccessVersion: transferred.accessVersion,
+      idempotencyKey: randomUUID(),
+      command: { type: 'member.remove', userId: member.id },
+    }
+  );
+  t.is(
+    z.object({ status: z.literal('failed') }).parse(ownerRemoval).status,
+    'failed'
+  );
+});
+
+const bundleChunk = z.object({
+  data: z.object({
+    bundleVersion: z.string(),
+    proof: z.string(),
+    nextOffset: z.number().nullable(),
+    base64: z.string(),
+  }),
+});
+async function exportTestBundle(
+  context: Context,
+  resource: { kind: 'blocksuite' | 'office' | 'file'; id: string },
+  version: string
+) {
+  const first = bundleChunk.parse(
+    await nativeCall(context, 'workspace_doc_export', {
+      resource,
+      expectedVersion: version,
+      format: 'native-bundle',
+      limit: 512,
+    })
+  );
+  const chunks = [Buffer.from(first.data.base64, 'base64')];
+  let offset = first.data.nextOffset;
+  while (offset !== null) {
+    const next = bundleChunk.parse(
+      await nativeCall(context, 'workspace_doc_export', {
+        resource,
+        expectedVersion: version,
+        format: 'native-bundle',
+        limit: 512,
+        offset,
+        expectedBundleVersion: first.data.bundleVersion,
+      })
+    );
+    chunks.push(Buffer.from(next.data.base64, 'base64'));
+    offset = next.data.nextOffset;
+  }
+  return {
+    bytes: Buffer.concat(chunks),
+    proof: first.data.proof,
+    version: first.data.bundleVersion,
+  };
+}
+
+test('native bundle preserves opaque roots, attachments and comment evidence with version-bound chunks', async t => {
+  const context = t.context;
+  const created = await create(context);
+  const resource = { kind: 'blocksuite' as const, id: created.documentId! };
+  const pending = new Y.Doc();
+  pending.getMap('future-extension').set('opaque', { retain: ['all', 17] });
+  await context.models.doc.createUpdates([
+    {
+      spaceId: context.workspaceId,
+      docId: resource.id,
+      blob: Buffer.from(Y.encodeStateAsUpdate(pending)),
+      timestamp: Date.now(),
+      editorId: context.actorId,
+    },
+  ]);
+  pending.destroy();
+  const comment = await context.models.comment.create({
+    workspaceId: context.workspaceId,
+    docId: resource.id,
+    userId: context.actorId,
+    content: { text: 'source comment' },
+  });
+  const attachmentBytes = Buffer.from('retained comment attachment');
+  const attachments = context.app.get(CommentAttachmentStorage),
+    attachmentId = randomUUID();
+  await attachments.put(
+    context.workspaceId,
+    resource.id,
+    attachmentId,
+    'evidence.txt',
+    attachmentBytes,
+    context.actorId
+  );
+  await context.models.comment.update({
+    id: comment.id,
+    content: {
+      text: 'source comment',
+      attachments: [
+        {
+          url: attachments.getUrl(
+            context.workspaceId,
+            resource.id,
+            attachmentId
+          ),
+          opaque: 'retain',
+        },
+      ],
+    },
+  });
+  const inspection = z
+    .object({ version: z.string() })
+    .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }));
+  const bundle = await exportTestBundle(context, resource, inspection.version);
+  t.is(createHash('sha256').update(bundle.bytes).digest('hex'), bundle.version);
+  const archive = decodeDocumentArchive(bundle.bytes);
+  t.is(archive.comments?.comments[0].id, comment.id);
+  t.is(archive.commentAssets[0].base64, attachmentBytes.toString('base64'));
+  const blobId = await context.app
+    .get(OfficeResourceStorage)
+    .putGenerated(
+      context.workspaceId,
+      context.actorId,
+      bundle.bytes,
+      DOCUMENT_ARCHIVE_MIME,
+      async () => {}
+    );
+  const request = {
+    resource: { kind: 'blocksuite' },
+    format: 'native-bundle',
+    blobId,
+    proof: bundle.proof,
+    title: 'Restored archive',
+    destination: { kind: 'legacy-folder', folderId: null },
+    idempotencyKey: randomUUID(),
+  };
+  const restored = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_import', request)
+  );
+  t.is(restored.archive?.fingerprint, bundle.version);
+  t.true(
+    DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_import', request)
+    ).replayed
+  );
+  const body = z.object({ data: z.object({ base64: z.string() }) }).parse(
+    await nativeCall(context, 'workspace_doc_export', {
+      resource: restored.resource,
+      expectedVersion: restored.afterVersion,
+      format: 'native-content',
+    })
+  );
+  const document = new Y.Doc();
+  Y.applyUpdate(document, Buffer.from(body.data.base64, 'base64'));
+  t.deepEqual(document.getMap('future-extension').get('opaque'), {
+    retain: ['all', 17],
+  });
+  document.destroy();
+  const copied = await context.models.comment.get(
+    restored.identities[`comment:${comment.id}`]
+  );
+  t.is(copied?.userId, comment.userId);
+  t.deepEqual(copied?.createdAt, comment.createdAt);
+  t.true(
+    JSON.stringify(copied?.content).includes(
+      `/docs/${restored.resource.id}/comment-attachments/`
+    )
+  );
+  const savedAttachment = await attachments.get(
+    context.workspaceId,
+    restored.resource.id,
+    attachmentId
+  );
+  const parts: Buffer[] = [];
+  for await (const part of savedAttachment.body!) parts.push(Buffer.from(part));
+  t.deepEqual(Buffer.concat(parts), attachmentBytes);
+  const currentCount = await context.db.comment.count();
+  const invalid = await nativeCall(context, 'workspace_doc_import', {
+    ...request,
+    proof: bundle.proof.replace('document-archive:', 'wrong-context:'),
+    idempotencyKey: randomUUID(),
+  });
+  t.is(
+    z.object({ error: z.object({ code: z.string() }) }).parse(invalid).error
+      .code,
+    'invalid_input'
+  );
+  t.is(await context.db.comment.count(), currentCount);
+  await context.models.comment.resolve({ id: comment.id, resolved: true });
+  const stale = await nativeCall(context, 'workspace_doc_export', {
+    resource,
+    expectedVersion: inspection.version,
+    format: 'native-bundle',
+    offset: 512,
+    expectedBundleVersion: bundle.version,
+  });
+  t.is(
+    z.object({ error: z.object({ code: z.string() }) }).parse(stale).error.code,
+    'cursor_stale'
+  );
+});
+
+for (const kind of ['office', 'file'] as const)
+  test(`native ${kind} bundle restores exact package/file and independent state fingerprints`, async t => {
+    const context = t.context;
+    const created = DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_create_native', {
+        resource: { kind },
+        title: kind === 'office' ? 'Archive.docx' : 'Archive.txt',
+        destination: { kind: 'legacy-folder', folderId: null },
+        idempotencyKey: randomUUID(),
+        content:
+          kind === 'office'
+            ? {
+                format: 'docx',
+                paragraphs: [{ text: 'Preserve native package' }],
+              }
+            : { format: 'txt', text: 'Line 1\r\n\r\nLine 3\r\n' },
+      })
+    );
+    const bundle = await exportTestBundle(
+      context,
+      created.resource,
+      created.afterVersion
+    );
+    const source = decodeDocumentArchive(bundle.bytes);
+    const blobId = await context.app
+      .get(OfficeResourceStorage)
+      .putGenerated(
+        context.workspaceId,
+        context.actorId,
+        bundle.bytes,
+        DOCUMENT_ARCHIVE_MIME,
+        async () => {}
+      );
+    const restored = DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_import', {
+        resource: { kind },
+        title: kind === 'office' ? 'Restored.docx' : 'Restored.txt',
+        format: 'native-bundle',
+        blobId,
+        proof: bundle.proof,
+        destination: { kind: 'legacy-folder', folderId: null },
+        idempotencyKey: randomUUID(),
+      })
+    );
+    const after = decodeDocumentArchive(
+      (
+        await exportTestBundle(
+          context,
+          restored.resource,
+          restored.afterVersion
+        )
+      ).bytes
+    );
+    t.deepEqual(after.content, source.content);
+    t.deepEqual(after.officeState, source.officeState);
+  });
+
+test('atomic native edit previews without writes and commits body, title and anchored threads together', async t => {
+  const context = t.context,
+    created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId! };
+  const shape = z.object({
+    version: z.string(),
+    title: z.string(),
+    metadata: z.object({ version: z.string() }),
+    items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+  });
+  const before = shape.parse(
+    await nativeCall(context, 'workspace_doc_inspect', { resource })
+  );
+  const note = before.items.find(item => item.flavour === 'affine:note')!;
+  const request = {
+    resource,
+    expectedVersion: before.version,
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'body',
+        type: 'block.create',
+        parentId: note.id,
+        clientRef: 'new-paragraph',
+        flavour: 'affine:paragraph',
+        text: [{ insert: 'Atomic paragraph' }],
+      },
+    ],
+    metadata: {
+      expectedMetadataVersion: before.metadata.version,
+      properties: { title: 'Atomic title' },
+    },
+    comments: {
+      expectedCommentsVersion: '0',
+      commands: [
+        {
+          opId: 'thread',
+          type: 'comment.create',
+          clientRef: 'thread',
+          content: {
+            version: 'localmind-blocksuite-comment/v1',
+            paragraphs: [[{ insert: 'Atomic comment' }]],
+          },
+          anchor: {
+            kind: 'text',
+            target: {
+              kind: 'block_text',
+              blockId: '$new-paragraph',
+              field: 'text',
+            },
+            offset: 0,
+            length: 6,
+          },
+        },
+        {
+          opId: 'reply',
+          type: 'reply.create',
+          commentId: '$thread',
+          clientRef: 'reply',
+          content: {
+            version: 'localmind-blocksuite-comment/v1',
+            paragraphs: [[{ insert: 'Atomic reply' }]],
+          },
+        },
+      ],
+    },
+  };
+  const counts = async () => [
+    await context.db.comment.count(),
+    await context.db.reply.count(),
+    await context.db.documentEventOutbox.count(),
+  ];
+  const previousCounts = await counts();
+  const preview = z
+    .object({
+      status: z.literal('preview'),
+      digest: z.string(),
+      identities: z.record(z.string()),
+    })
+    .parse(await nativeCall(context, 'workspace_doc_edit_preview', request));
+  t.deepEqual(await counts(), previousCounts);
+  t.deepEqual(
+    shape.parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    ),
+    before
+  );
+  const applied = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', {
+      ...request,
+      planDigest: preview.digest,
+    })
+  );
+  t.true(applied.changed);
+  t.deepEqual(applied.identities, preview.identities);
+  const after = shape.parse(
+    await nativeCall(context, 'workspace_doc_inspect', { resource })
+  );
+  t.is(after.title, 'Atomic title');
+  t.not(after.version, before.version);
+  t.is(after.items.length, before.items.length + 1);
+  const comments = z
+    .object({
+      data: z.object({
+        items: z.array(z.object({ id: z.string(), anchorState: z.string() })),
+      }),
+    })
+    .parse(
+      await nativeCall(context, 'workspace_doc_comments_read', {
+        resource,
+        expectedVersion: after.version,
+      })
+    );
+  t.deepEqual(comments.data.items, [
+    { id: applied.identities['comment:thread'], anchorState: 'attached' },
+  ]);
+  const replay = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', {
+      ...request,
+      planDigest: preview.digest,
+    })
+  );
+  t.true(replay.replayed);
+  t.is(await context.db.comment.count(), 1);
+  t.is(await context.db.reply.count(), 1);
+});
+
+test('atomic edit refuses a companion capability or invalid anchor before changing body or title', async t => {
+  const context = t.context,
+    created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId! };
+  const shape = z.object({
+    version: z.string(),
+    title: z.string(),
+    metadata: z.object({ version: z.string() }),
+    items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+  });
+  const before = shape.parse(
+    await nativeCall(context, 'workspace_doc_inspect', { resource })
+  );
+  const paragraph = before.items.find(
+    item => item.flavour === 'affine:paragraph'
+  )!;
+  const request = {
+    resource,
+    expectedVersion: before.version,
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'body',
+        type: 'text.splice',
+        target: { kind: 'block_text', blockId: paragraph.id, field: 'text' },
+        offset: 0,
+        deleteCount: 0,
+        insert: [{ insert: 'Must roll back' }],
+      },
+    ],
+    metadata: {
+      expectedMetadataVersion: before.metadata.version,
+      properties: { title: 'Must roll back' },
+    },
+    comments: {
+      expectedCommentsVersion: '0',
+      commands: [
+        {
+          opId: 'thread',
+          type: 'comment.create',
+          clientRef: 'thread',
+          content: {
+            version: 'localmind-blocksuite-comment/v1',
+            paragraphs: [[{ insert: 'Invalid anchor' }]],
+          },
+          anchor: { kind: 'block', blockId: 'missing-block' },
+        },
+      ],
+    },
+  };
+  for (const tool of [
+    'workspace_doc_edit_preview',
+    'workspace_doc_apply',
+  ] as const) {
+    const result = await nativeCall(context, tool, request);
+    t.is('error' in result ? result.error.code : null, 'invalid_input');
+    t.deepEqual(
+      shape.parse(
+        await nativeCall(context, 'workspace_doc_inspect', { resource })
+      ),
+      before
+    );
+    t.is(await context.db.comment.count(), 0);
+  }
+  const limited = await context.app.get(McpCredentialService).create({
+    userId: context.actorId,
+    workspaceId: context.workspaceId,
+    name: 'Body only',
+    accessMode: 'READ_WRITE',
+    capabilities: [
+      'workspace_doc_apply',
+      'workspace_doc_edit_preview',
+      'workspace_doc_properties_update',
+    ],
+    expirationDays: 30,
+  });
+  const result = await context.app
+    .get(McpDocumentsService)
+    .execute(limited.credential, 'workspace_doc_apply', {
+      ...request,
+      idempotencyKey: randomUUID(),
+    });
+  t.is('error' in result ? result.error.code : null, 'capability_denied');
+  t.deepEqual(
+    shape.parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    ),
+    before
+  );
+});
+
+test('physical object journal survives document rollback and collects only unreferenced objects', async t => {
+  const context = t.context,
+    storage = context.app.get(OfficeResourceStorage);
+  let orphan = '';
+  await t.throwsAsync(
+    context.app
+      .get(WorkspaceResourceService)
+      .snapshot(
+        { workspaceId: context.workspaceId, actorId: context.actorId },
+        async () => {
+          orphan = await storage.putGenerated(
+            context.workspaceId,
+            context.actorId,
+            Buffer.from('orphan fixture'),
+            'text/plain',
+            async () => {}
+          );
+          throw new Error('fixture rollback');
+        }
+      ),
+    { message: 'fixture rollback' }
+  );
+  t.is(await context.models.blob.get(context.workspaceId, orphan), null);
+  t.is(await context.db.documentObjectStage.count(), 1);
+  const published = await storage.putGenerated(
+    context.workspaceId,
+    context.actorId,
+    Buffer.from('published fixture'),
+    'text/plain',
+    async () => {}
+  );
+  await context.db.documentObjectStage.updateMany({
+    data: { expiresAt: new Date(0) },
+  });
+  const removed: string[] = [];
+  while (
+    await context.models.documentObjectStage.collectOne(async key => {
+      removed.push(key);
+    })
+  ) {
+    /* bounded by these two fixture rows */
+  }
+  t.deepEqual(removed, [`${context.workspaceId}/${orphan}`]);
+  t.truthy(await context.models.blob.get(context.workspaceId, published));
+  t.is(await context.db.documentObjectStage.count(), 0);
+});
+
+test('document notification retries preserve one notification and unrelated outbox events make progress', async t => {
+  const context = t.context,
+    source = await create(context);
+  const input = {
+    userId: context.actorId,
+    body: {
+      workspaceId: context.workspaceId,
+      createdByUserId: context.actorId,
+      commentId: 'fixture-comment',
+      doc: { id: source.documentId!, title: 'Notice', mode: DocMode.page },
+    },
+  };
+  const first = await context.models.notification.createComment(
+    input,
+    'stable-delivery'
+  );
+  await context.models.notification.markAsRead(first.id, context.actorId);
+  const retry = await context.models.notification.createComment(
+    input,
+    'stable-delivery'
+  );
+  t.is(retry.id, first.id);
+  t.true(retry.read);
+  t.is(await context.db.notification.count(), 1);
+  await context.models.documentComments.event(
+    'failed-fixture',
+    context.workspaceId,
+    { type: 'fixture' }
+  );
+  await context.models.documentComments.event(
+    'successful-fixture',
+    context.workspaceId,
+    { type: 'fixture' }
+  );
+  const seen: string[] = [];
+  await context.models.documentComments.deliverBatch(async row => {
+    seen.push(row.id);
+    if (row.id === 'failed-fixture') throw new Error('retryable');
+  });
+  t.true(seen.includes('successful-fixture'));
+  const pending = await context.db.documentEventOutbox.findUnique({
+    where: { id: 'failed-fixture' },
+  });
+  t.is(pending?.attempts, 1);
+  t.true(pending!.nextAttemptAt > new Date());
+  t.is(
+    await context.db.documentEventOutbox.findUnique({
+      where: { id: 'successful-fixture' },
+    }),
+    null
+  );
+});
+
+test('atomic companion storage failure rolls back the already edited body and metadata', async t => {
+  const context = t.context,
+    source = await create(context),
+    resource = { kind: 'blocksuite', id: source.documentId! };
+  const shape = z.object({
+    version: z.string(),
+    title: z.string(),
+    metadata: z.object({ version: z.string() }),
+    items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+  });
+  const before = shape.parse(
+    await nativeCall(context, 'workspace_doc_inspect', { resource })
+  );
+  const paragraph = before.items.find(
+    item => item.flavour === 'affine:paragraph'
+  )!;
+  let titleInsideTransaction = '';
+  const failing = Sinon.stub(context.models.comment, 'create').callsFake(
+    async () => {
+      titleInsideTransaction = (
+        await context.app
+          .get(WorkspaceResourceService)
+          .describe(
+            { workspaceId: context.workspaceId, actorId: context.actorId },
+            resource.id
+          )
+      ).title;
+      throw new Error('fixture comment storage failure');
+    }
+  );
+  const outboxBefore = await context.db.documentEventOutbox.count();
+  const request = {
+    resource,
+    expectedVersion: before.version,
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'body',
+        type: 'text.splice',
+        target: { kind: 'block_text', blockId: paragraph.id },
+        offset: 0,
+        deleteCount: 0,
+        insert: [{ insert: 'atomic change' }],
+      },
+    ],
+    metadata: {
+      expectedMetadataVersion: before.metadata.version,
+      properties: { title: 'Inside transaction' },
+    },
+    comments: {
+      expectedCommentsVersion: '0',
+      commands: [
+        {
+          opId: 'thread',
+          type: 'comment.create',
+          clientRef: 'thread',
+          content: {
+            version: 'localmind-blocksuite-comment/v1',
+            paragraphs: [[{ insert: 'thread' }]],
+          },
+          anchor: { kind: 'block', blockId: paragraph.id },
+        },
+      ],
+    },
+  };
+  const result = await nativeCall(context, 'workspace_doc_apply', request);
+  t.is('status' in result ? result.status : null, 'needs_reconciliation');
+  t.is(titleInsideTransaction, 'Inside transaction');
+  t.deepEqual(
+    shape.parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    ),
+    before
+  );
+  t.is(await context.db.comment.count(), 0);
+  t.is(await context.db.documentEventOutbox.count(), outboxBefore);
+  failing.restore();
+  const recovered = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', request)
+  );
+  t.true(recovered.changed);
+  t.is(await context.db.comment.count(), 1);
+  t.true(
+    DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_apply', request)
+    ).replayed
+  );
+});
+
+test('Markdown plan becomes stale when a referenced document version changes', async t => {
+  const context = t.context,
+    source = await create(context),
+    target = await create(context, {
+      idempotencyKey: randomUUID(),
+      title: 'Reference target',
+    });
+  const resource = { kind: 'blocksuite', id: source.documentId! };
+  const before = z
+    .object({
+      version: z.string(),
+      items: z.array(z.object({ id: z.string(), flavour: z.string() })),
+    })
+    .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }));
+  const paragraph = before.items.find(
+      item => item.flavour === 'affine:paragraph'
+    )!,
+    note = before.items.find(item => item.flavour === 'affine:note')!;
+  const request = {
+    resource,
+    expectedVersion: before.version,
+    idempotencyKey: randomUUID(),
+    commands: [
+      {
+        opId: 'markdown',
+        type: 'markdown.rewrite',
+        parentId: note.id,
+        selectedBlockIds: [paragraph.id],
+        mode: 'update_preserve',
+        markdown: '**Mapped native text**',
+        marksPolicy: 'preserve_existing',
+        mappings: [{ path: '0', blockId: paragraph.id }],
+      },
+      {
+        opId: 'reference',
+        type: 'text.splice',
+        target: { kind: 'block_text', blockId: paragraph.id },
+        offset: 18,
+        deleteCount: 0,
+        insert: [
+          {
+            insert: ' ref',
+            attributes: {
+              reference: { type: 'LinkedPage', pageId: target.documentId },
+            },
+          },
+        ],
+      },
+    ],
+  };
+  const preview = z
+    .object({ digest: z.string() })
+    .parse(await nativeCall(context, 'workspace_doc_edit_preview', request));
+  await context.app
+    .get(DocWriter)
+    .updateDocMeta(
+      context.workspaceId,
+      target.documentId!,
+      { title: 'Changed dependency' },
+      context.actorId
+    );
+  const stale = await nativeCall(context, 'workspace_doc_apply', {
+    ...request,
+    planDigest: preview.digest,
+  });
+  t.is('error' in stale ? stale.error.code : null, 'plan_stale');
+  t.is(
+    z
+      .object({ version: z.string() })
+      .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }))
+      .version,
+    before.version
+  );
+  const current = z.object({ digest: z.string() }).parse(
+    await nativeCall(context, 'workspace_doc_edit_preview', {
+      ...request,
+      idempotencyKey: randomUUID(),
+    })
+  );
+  t.not(current.digest, preview.digest);
+});
+
+test('notification continuation covers more than fifty authors and retries use one durable delivery identity', async t => {
+  const context = t.context,
+    source = await create(context),
+    docId = source.documentId!;
+  const users = Array.from({ length: 53 }, () => ({
+    id: randomUUID(),
+    name: 'Fixture',
+    email: `${randomUUID()}@example.test`,
+  }));
+  await context.db.user.createMany({ data: users });
+  await context.db.workspaceMember.createMany({
+    data: users.map(user => ({
+      workspaceId: context.workspaceId,
+      userId: user.id,
+      role: 'member',
+      state: 'active',
+    })),
+  });
+  const comment = await context.models.comment.create({
+    workspaceId: context.workspaceId,
+    docId,
+    userId: context.actorId,
+    content: {},
+  });
+  await context.db.reply.createMany({
+    data: users.map(user => ({
+      workspaceId: context.workspaceId,
+      docId,
+      userId: user.id,
+      commentId: comment.id,
+      content: {},
+    })),
+  });
+  const eventId = randomUUID(),
+    payload = {
+      type: 'comment.notification',
+      resourceId: docId,
+      actorId: context.actorId,
+      commentId: comment.id,
+      replyId: 'fixture-reply',
+      mentions: [users[0].id],
+      title: 'Fixture',
+      mode: 'page',
+    };
+  await context.models.documentComments.event(
+    eventId,
+    context.workspaceId,
+    payload
+  );
+  const queue = context.app.queue,
+    deliveries: { userId: string; deliveryKey: string }[] = [];
+  const stub = queue.add.callsFake(async (name, input) => {
+    if (name !== 'notification.sendComment') return;
+    const delivery = z
+      .object({ userId: z.string(), deliveryKey: z.string() })
+      .parse(input);
+    deliveries.push(delivery);
+    if (deliveries.length === 3) throw new Error('fixture queue interruption');
+    return undefined;
+  });
+  await context.app.get(DocumentEventsService).deliver();
+  await context.db.documentEventOutbox.updateMany({
+    data: { nextAttemptAt: new Date(0) },
+  });
+  await context.app.get(DocumentEventsService).deliver();
+  t.deepEqual(
+    [...new Set(deliveries.map(delivery => delivery.userId))].sort(),
+    users.map(user => user.id).sort()
+  );
+  t.true(deliveries.every(delivery => delivery.deliveryKey === eventId));
+  t.is(await context.db.documentEventOutbox.count(), 0);
+  t.true(deliveries.length > users.length);
+  stub.resetBehavior();
+  stub.resolves();
+});
+
+test('physical staging cleanup retries an object-store failure and deletes only the orphan bytes', async t => {
+  const context = t.context,
+    storage = context.app.get(OfficeResourceStorage),
+    rt = context.app.get(StorageRuntimeProvider);
+  let orphan = '';
+  await t.throwsAsync(
+    context.app
+      .get(WorkspaceResourceService)
+      .snapshot(
+        { workspaceId: context.workspaceId, actorId: context.actorId },
+        async () => {
+          orphan = await storage.putGenerated(
+            context.workspaceId,
+            context.actorId,
+            Buffer.from('actual orphan'),
+            'text/plain',
+            async () => {}
+          );
+          throw new Error('rollback');
+        }
+      )
+  );
+  const key = `${context.workspaceId}/${orphan}`;
+  t.truthy(await rt.headObject('blob', key));
+  await context.db.documentObjectStage.updateMany({
+    data: { expiresAt: new Date(0) },
+  });
+  await context.models.documentObjectStage.collectOne(async () => {
+    throw new Error('fixture outage');
+  });
+  t.truthy(await rt.headObject('blob', key));
+  t.is(await context.db.documentObjectStage.count(), 1);
+  await context.db.documentObjectStage.updateMany({
+    data: { expiresAt: new Date(0) },
+  });
+  await context.models.documentObjectStage.collectOne(key =>
+    rt.deleteObject('blob', key)
+  );
+  t.falsy(await rt.headObject('blob', key));
+  t.is(await context.db.documentObjectStage.count(), 0);
+});
+
+test('Workspace staging imports the first file without a placeholder and resumes from exact received parts', async t => {
+  const context = t.context,
+    before = await context.db.snapshot.count(),
+    bytes = Buffer.from('first native file\r\n\r\n');
+  const resource = { kind: 'workspace', id: context.workspaceId },
+    version = 'workspace-staging/v1';
+  const write = (upload: unknown) =>
+    nativeCall(context, 'workspace_doc_asset_upload', {
+      resource,
+      expectedVersion: version,
+      idempotencyKey: randomUUID(),
+      upload,
+    });
+  const begin = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({
+      action: 'begin',
+      totalBytes: bytes.length,
+      mimeType: 'text/plain',
+      fingerprint: createHash('sha256').update(bytes).digest('hex'),
+    })
+  );
+  const uploadId = begin.upload!.uploadId;
+  const firstStatus = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({ action: 'status', uploadId })
+  );
+  t.false(firstStatus.changed);
+  t.deepEqual(firstStatus.upload?.receivedParts, []);
+  await write({
+    action: 'part',
+    uploadId,
+    number: 0,
+    base64: bytes.toString('base64'),
+  });
+  const resumed = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({ action: 'status', uploadId })
+  );
+  t.deepEqual(resumed.upload?.receivedParts, [0]);
+  t.is(resumed.upload?.receivedBytes, bytes.length);
+  t.is(await context.db.snapshot.count(), before);
+  const committed = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await write({ action: 'commit', uploadId })
+  );
+  t.is(await context.db.snapshot.count(), before);
+  const receipt = await call(context, 'workspace_operation_get', {
+    operationId: committed.operationId,
+  });
+  t.true(DOCUMENT_RECEIPT_SCHEMA.parse(receipt).replayed);
+  const imported = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_import', {
+      resource: { kind: 'file' },
+      title: 'First.txt',
+      blobId: committed.upload!.blobId,
+      destination: { kind: 'legacy-folder', folderId: null },
+      idempotencyKey: randomUUID(),
+    })
+  );
+  const result = z.object({ data: z.object({ base64: z.string() }) }).parse(
+    await nativeCall(context, 'workspace_doc_export', {
+      resource: imported.resource,
+      expectedVersion: imported.afterVersion,
+      format: 'native-content',
+    })
+  );
+  t.deepEqual(Buffer.from(result.data.base64, 'base64'), bytes);
+  const denied = await nativeCall(context, 'workspace_doc_asset_upload', {
+    resource: { ...resource, id: randomUUID() },
+    expectedVersion: version,
+    idempotencyKey: randomUUID(),
+    upload: { action: 'status', uploadId },
+  });
+  t.is('error' in denied ? denied.error.code : null, 'invalid_input');
+});
+
+test('actor staging capacity is released by expiry and staged bytes are removed in bounded cleanup', async t => {
+  const context = t.context;
+  const request = {
+    resource: { kind: 'workspace', id: context.workspaceId },
+    expectedVersion: 'workspace-staging/v1',
+    upload: {
+      action: 'begin',
+      totalBytes: 1,
+      mimeType: 'text/plain',
+      fingerprint: createHash('sha256').update('a').digest('hex'),
+    },
+  };
+  const uploads = [];
+  for (let i = 0; i < 8; i++)
+    uploads.push(
+      DOCUMENT_RECEIPT_SCHEMA.parse(
+        await nativeCall(context, 'workspace_doc_asset_upload', {
+          ...request,
+          idempotencyKey: randomUUID(),
+        })
+      )
+    );
+  const refused = await nativeCall(context, 'workspace_doc_asset_upload', {
+    ...request,
+    idempotencyKey: randomUUID(),
+  });
+  t.is('error' in refused ? refused.error.code : null, 'quota_exceeded');
+  await nativeCall(context, 'workspace_doc_asset_upload', {
+    ...request,
+    idempotencyKey: randomUUID(),
+    upload: {
+      action: 'part',
+      uploadId: uploads[0].upload!.uploadId,
+      number: 0,
+      base64: 'YQ==',
+    },
+  });
+  t.is(await context.db.mcpDocumentUploadPart.count(), 1);
+  // Reconstruct a historical expired fixture; expiry itself is immutable.
+  const historical = await context.db.mcpDocumentUpload.findMany();
+  const historicalParts = await context.db.mcpDocumentUploadPart.findMany();
+  await context.db.mcpDocumentUpload.deleteMany();
+  await context.db.mcpDocumentUpload.createMany({
+    data: historical.map(upload => ({ ...upload, expiresAt: new Date(0) })),
+  });
+  await context.db.mcpDocumentUploadPart.createMany({ data: historicalParts });
+  await context.models.mcpDocumentUpload.expire();
+  t.is(await context.db.mcpDocumentUploadPart.count(), 0);
+  t.is(
+    await context.db.mcpDocumentUpload.count({ where: { status: 'expired' } }),
+    8
+  );
+  t.is(
+    DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_asset_upload', {
+        ...request,
+        idempotencyKey: randomUUID(),
+      })
+    ).upload?.status,
+    'pending'
+  );
+});
+
+test('another authorized member restores a signed archive and loses this ability when source access is revoked', async t => {
+  const context = t.context,
+    created = await create(context),
+    resource = { kind: 'blocksuite' as const, id: created.documentId! };
+  const version = z
+    .object({ version: z.string() })
+    .parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    ).version;
+  const bundle = await exportTestBundle(context, resource, version);
+  const blobId = await context.app
+    .get(OfficeResourceStorage)
+    .putGenerated(
+      context.workspaceId,
+      context.actorId,
+      bundle.bytes,
+      DOCUMENT_ARCHIVE_MIME,
+      async () => {}
+    );
+  const member = await context.app.signupV1();
+  await context.db.workspaceMember.create({
+    data: {
+      workspaceId: context.workspaceId,
+      userId: member.id,
+      role: 'member',
+      state: 'active',
+    },
+  });
+  const issued = await context.app.get(McpCredentialService).create({
+    workspaceId: context.workspaceId,
+    userId: member.id,
+    name: 'Archive member',
+    accessMode: 'READ_WRITE',
+    capabilities: ['workspace_doc_import', 'workspace_operation_get'],
+    expirationDays: 30,
+  });
+  const request = {
+    resource: { kind: 'blocksuite' },
+    title: 'Shared archive',
+    format: 'native-bundle',
+    blobId,
+    proof: bundle.proof,
+    destination: { kind: 'legacy-folder', folderId: null },
+    idempotencyKey: randomUUID(),
+  };
+  const copied = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await context.app
+      .get(McpDocumentsService)
+      .execute(issued.credential, 'workspace_doc_import', request)
+  );
+  t.true(copied.changed);
+  t.not(copied.resource.id, resource.id);
+  await context.models.doc.setDefaultRole(
+    context.workspaceId,
+    resource.id,
+    DocRole.None
+  );
+  const refused = await context.app
+    .get(McpDocumentsService)
+    .execute(issued.credential, 'workspace_doc_import', {
+      ...request,
+      idempotencyKey: randomUUID(),
+    });
+  t.true('error' in refused);
+});
+
+for (const kind of ['office', 'file'] as const) {
+  test(`atomic ${kind} edit previews without objects and rolls back body with failing metadata`, async t => {
+    const context = t.context;
+    const created = DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_create_native', {
+        resource: { kind },
+        title: kind === 'office' ? 'Atomic.docx' : 'Atomic.txt',
+        destination: { kind: 'legacy-folder', folderId: null },
+        idempotencyKey: randomUUID(),
+        content:
+          kind === 'office'
+            ? { format: 'docx', paragraphs: [{ text: 'Before' }] }
+            : { format: 'txt', text: 'Before\r\n' },
+      })
+    );
+    const resource = created.resource;
+    const shape = z.object({
+      version: z.string(),
+      title: z.string(),
+      metadata: z.object({ version: z.string() }),
+      items: z.array(z.object({ data: z.string() })),
+    });
+    const before = shape.parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    );
+    const state =
+      kind === 'office'
+        ? JSON.parse(
+            Buffer.concat(
+              before.items.map(item => Buffer.from(item.data, 'base64'))
+            ).toString('utf8')
+          )
+        : null;
+    const officeRevision =
+      kind === 'office'
+        ? await context.app
+            .get(OfficeArtifactService)
+            .getRevision(context.workspaceId, context.actorId, resource.id)
+        : null;
+    const commandBase = {
+      version: 'localmind-office-command/v1',
+      commandId: randomUUID(),
+      idempotencyKey: randomUUID(),
+      artifactId: resource.id,
+      expectedRevisionId: officeRevision?.id,
+      source: 'user',
+    };
+    const request = {
+      resource,
+      expectedVersion: before.version,
+      idempotencyKey: randomUUID(),
+      ...(kind === 'file'
+        ? {
+            commands: [
+              {
+                opId: 'edit',
+                type: 'file.text.splice',
+                offset: 0,
+                deleteCount: 6,
+                insert: 'After',
+              },
+            ],
+          }
+        : {
+            batch: {
+              version: 'localmind-office-command-batch/v1',
+              batchId: randomUUID(),
+              idempotencyKey: randomUUID(),
+              artifactId: resource.id,
+              expectedRevisionId: officeRevision!.id,
+              source: 'user',
+              commands: [
+                {
+                  ...commandBase,
+                  operation: 'office.document.paragraph.text.set',
+                  target: { type: 'paragraph', blockId: state.body[0].id },
+                  expectedText: 'Before',
+                  text: 'After',
+                },
+              ],
+            },
+          }),
+      metadata: {
+        expectedMetadataVersion: before.metadata.version,
+        properties: { title: 'After title' },
+      },
+    };
+    const counts = async () => [
+      await context.db.blob.count(),
+      await context.db.officeRevision.count(),
+      await context.db.workspaceFileRevision.count(),
+      await context.db.documentObjectStage.count(),
+    ];
+    const initialCounts = await counts();
+    const preview = await nativeCall(
+      context,
+      'workspace_doc_edit_preview',
+      request
+    );
+    t.is('status' in preview ? preview.status : null, 'preview');
+    t.deepEqual(await counts(), initialCounts);
+    // Validation uses preview=true. Fail only after the body has written within the transaction.
+    const service = context.app.get(McpDocumentsService);
+    const hook = service as unknown as {
+      updateProperties: (...args: unknown[]) => Promise<unknown>;
+    };
+    const original = hook.updateProperties.bind(service);
+    const failure = Sinon.stub(hook, 'updateProperties').callsFake(
+      async (...args) => {
+        if (args[2] !== true)
+          throw new Error('fixture metadata storage failure');
+        return original(...args);
+      }
+    );
+    const refused = await nativeCall(context, 'workspace_doc_apply', request);
+    t.is('status' in refused ? refused.status : null, 'needs_reconciliation');
+    t.deepEqual(
+      shape.parse(
+        await nativeCall(context, 'workspace_doc_inspect', { resource })
+      ),
+      before
+    );
+    // External objects have durable cleanup evidence, but no committed resource revision.
+    t.deepEqual((await counts()).slice(0, 3), initialCounts.slice(0, 3));
+    failure.restore();
+    const applied = DOCUMENT_RECEIPT_SCHEMA.parse(
+      await nativeCall(context, 'workspace_doc_apply', request)
+    );
+    t.true(applied.changed);
+    const after = shape.parse(
+      await nativeCall(context, 'workspace_doc_inspect', { resource })
+    );
+    t.is(after.title, 'After title');
+    t.not(after.version, before.version);
+    t.true(
+      Buffer.concat(after.items.map(item => Buffer.from(item.data, 'base64')))
+        .toString('utf8')
+        .includes('After')
+    );
+    t.true(
+      DOCUMENT_RECEIPT_SCHEMA.parse(
+        await nativeCall(context, 'workspace_doc_apply', request)
+      ).replayed
+    );
+  });
+}
+
+test('queued comment delivery rechecks the recipient access after revocation', async t => {
+  const context = t.context,
+    created = await create(context),
+    member = await context.app.signupV1();
+  await context.db.workspaceMember.create({
+    data: {
+      workspaceId: context.workspaceId,
+      userId: member.id,
+      role: 'member',
+      state: 'active',
+    },
+  });
+  const body = {
+    workspaceId: context.workspaceId,
+    createdByUserId: context.actorId,
+    commentId: randomUUID(),
+    doc: {
+      id: created.documentId!,
+      title: 'Notification fixture',
+      mode: DocMode.page,
+    },
+  };
+  const job = context.app.get(NotificationJob);
+  await job.sendComment({ userId: member.id, deliveryKey: randomUUID(), body });
+  const count = await context.db.notification.count({
+    where: { userId: member.id },
+  });
+  t.is(count, 1);
+  await context.models.doc.setDefaultRole(
+    context.workspaceId,
+    created.documentId!,
+    DocRole.None
+  );
+  await job.sendComment({ userId: member.id, deliveryKey: randomUUID(), body });
+  t.is(
+    await context.db.notification.count({ where: { userId: member.id } }),
+    count
+  );
+});
+
+test('native write rollback switch retains reads and receipts without affecting v1 capabilities', async t => {
+  const context = t.context,
+    created = await create(context),
+    resource = { kind: 'blocksuite', id: created.documentId! };
+  const read = z
+    .object({
+      version: z.string(),
+      metadata: z.object({ version: z.string() }),
+    })
+    .parse(await nativeCall(context, 'workspace_doc_inspect', { resource }));
+  const write = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_properties_update', {
+      resource,
+      expectedVersion: read.version,
+      expectedMetadataVersion: read.metadata.version,
+      idempotencyKey: randomUUID(),
+      properties: { title: 'Before rollback' },
+    })
+  );
+  context.app.get(Config).doc.mcpDocumentEditingEnabled = false;
+  const names = context.app
+    .get(McpDocumentsService)
+    .tools(context.credential, MCP_CAPABILITIES)
+    .map(tool => tool.name);
+  const enabled = new Set(names);
+  t.true(enabled.has('workspace_doc_inspect'));
+  t.false(enabled.has('workspace_doc_apply'));
+  const inspected = await nativeCall(context, 'workspace_doc_inspect', {
+    resource,
+  });
+  t.is(
+    z.object({ title: z.string() }).parse(inspected).title,
+    'Before rollback'
+  );
+  const denied = await nativeCall(context, 'workspace_doc_properties_update', {
+    resource,
+    expectedVersion: write.afterVersion,
+    expectedMetadataVersion: write.metadataVersion,
+    idempotencyKey: randomUUID(),
+    properties: { title: 'Must not write' },
+  });
+  t.is('error' in denied ? denied.error.code : null, 'capability_denied');
+  t.true(
+    DOCUMENT_RECEIPT_SCHEMA.parse(
+      await call(context, 'workspace_operation_get', {
+        operationId: write.operationId,
+      })
+    ).replayed
+  );
+  t.truthy(await create(context, { title: 'v1 still authorized' }));
+});
+
+test('continuous Office typing preserves opaque paragraph state through declared identity promotion', async t => {
+  const context = t.context;
+  const created = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_create_native', {
+      resource: { kind: 'office' },
+      title: 'Identity.docx',
+      destination: { kind: 'legacy-folder', folderId: null },
+      idempotencyKey: randomUUID(),
+      content: { format: 'docx', paragraphs: [{ text: 'Keep' }, { text: '' }] },
+    })
+  );
+  const office = context.app.get(OfficeArtifactService),
+    parent = await office.getRevision(
+      context.workspaceId,
+      context.actorId,
+      created.resource.id
+    );
+  const original = await office.readRevisionAsset(
+    context.workspaceId,
+    context.actorId,
+    created.resource.id,
+    parent.id,
+    'state'
+  );
+  const state = z
+    .object({ body: z.array(z.object({ id: z.string() }).passthrough()) })
+    .passthrough()
+    .parse(JSON.parse(original.bytes.toString('utf8')));
+  const stored = {
+    ...state,
+    futureRoot: { keep: true },
+    body: state.body.map((block, index) => ({
+      ...block,
+      futureAnnotation: { identity: index },
+    })),
+  };
+  const bytes = Buffer.from(JSON.stringify(stored)),
+    stateFingerprint = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+  const key = await context.app
+    .get(OfficeResourceStorage)
+    .put(context.workspaceId, context.actorId, 'identity-state', bytes, {
+      contentType: 'application/json',
+      contentLength: bytes.length,
+    });
+  const appended = await context.models.officeArtifact.appendRevision({
+    workspaceId: context.workspaceId,
+    artifactId: created.resource.id,
+    actorId: context.actorId,
+    origin: 'user',
+    expectedParentRevisionId: parent.id,
+    idempotencyKey: randomUUID(),
+    idempotencyFingerprint: stateFingerprint,
+    package: {
+      key: parent.packageBlobKey,
+      mimeType: parent.packageMimeType,
+      byteSize: parent.packageByteSize,
+      fingerprint: parent.packageFingerprint,
+    },
+    state: { key, byteSize: bytes.length, fingerprint: stateFingerprint },
+    modelVersion: parent.modelVersion!,
+  });
+  const before = z.object({ version: z.string() }).parse(
+    await nativeCall(context, 'workspace_doc_inspect', {
+      resource: created.resource,
+    })
+  );
+  const command = {
+    version: 'localmind-office-command/v1',
+    commandId: 'typing',
+    idempotencyKey: randomUUID(),
+    artifactId: created.resource.id,
+    expectedRevisionId: appended.revision.id,
+    source: 'user',
+    operation: 'office.document.edit',
+    identities: state.body.map((block, index) => ({
+      blockId: block.id,
+      id: `paragraph:0000000${index + 1}`,
+    })),
+    patches: [
+      {
+        targets: ['paragraph:00000002'],
+        paragraphs: [
+          {
+            id: 'paragraph:00000002',
+            runs: [{ text: 'Typed into the empty paragraph' }],
+          },
+        ],
+      },
+    ],
+  };
+  const request = {
+    resource: created.resource,
+    expectedVersion: before.version,
+    idempotencyKey: randomUUID(),
+    batch: {
+      version: 'localmind-office-command-batch/v1',
+      batchId: 'typing',
+      idempotencyKey: randomUUID(),
+      artifactId: created.resource.id,
+      expectedRevisionId: appended.revision.id,
+      source: 'user',
+      commands: [command],
+    },
+  };
+  const preview = await nativeCall(
+    context,
+    'workspace_doc_edit_preview',
+    request
+  );
+  t.is('status' in preview ? preview.status : null, 'preview');
+  const applied = DOCUMENT_RECEIPT_SCHEMA.parse(
+    await nativeCall(context, 'workspace_doc_apply', request)
+  );
+  t.true(applied.preservationVerified);
+  const current = await office.getRevision(
+    context.workspaceId,
+    context.actorId,
+    created.resource.id
+  );
+  const reopened = await office.readRevisionAsset(
+    context.workspaceId,
+    context.actorId,
+    created.resource.id,
+    current.id,
+    'state'
+  );
+  const result = z
+    .object({
+      futureRoot: z.unknown(),
+      body: z.array(
+        z.object({
+          id: z.string(),
+          text: z.string(),
+          futureAnnotation: z.unknown(),
+        })
+      ),
+    })
+    .parse(JSON.parse(reopened.bytes.toString('utf8')));
+  t.deepEqual(result, {
+    futureRoot: { keep: true },
+    body: [
+      {
+        id: 'paragraph:00000001',
+        text: 'Keep',
+        futureAnnotation: { identity: 0 },
+      },
+      {
+        id: 'paragraph:00000002',
+        text: 'Typed into the empty paragraph',
+        futureAnnotation: { identity: 1 },
+      },
+    ],
+  });
+  t.deepEqual(
+    (
+      await office.readRevisionAsset(
+        context.workspaceId,
+        context.actorId,
+        created.resource.id,
+        appended.revision.id,
+        'state'
+      )
+    ).bytes,
+    bytes
+  );
 });

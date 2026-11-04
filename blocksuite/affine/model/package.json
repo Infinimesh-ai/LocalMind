@@ -21,7 +21,10 @@
     "zod": "^3.25.76"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mindmap-layout": "./src/mindmap-layout.ts",
+    "./mindmap-style": "./src/elements/mindmap/style.ts",
+    "./comment-anchors": "./src/comment-anchors.ts"
   },
   "files": [
     "src",

@@ -1,4 +1,5 @@
 export * from './blocks/index.js';
+export * from './comment-anchors.js';
 export * from './consts/index.js';
 export * from './elements/index.js';
 export * from './themes/index.js';

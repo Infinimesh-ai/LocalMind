@@ -515,6 +515,12 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
       .add(1);
   }
 
+  /** Snapshot before a domain edit, using the same quota and attribution as sync. */
+  async checkpointDocument(workspaceId: string, docId: string) {
+    const snapshot = await this.getDoc(workspaceId, docId);
+    if (snapshot) await this.createDocHistory(snapshot, true);
+  }
+
   protected async createDocHistory(snapshot: DocRecord, force = false) {
     const last = await this.lastDocHistory(snapshot.spaceId, snapshot.docId);
 

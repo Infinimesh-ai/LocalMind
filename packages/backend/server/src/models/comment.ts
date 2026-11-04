@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import { Comment as CommentType, Reply as ReplyType } from '@prisma/client';
 import { z } from 'zod';
 
@@ -74,6 +75,18 @@ export interface CommentChange {
 
 @Injectable()
 export class CommentModel extends BaseModel {
+  private async lockItem(id: string, reply = false) {
+    const row = reply ? await this.getReply(id) : await this.get(id);
+    if (!row) throw new CommentNotFound();
+    await this.models.documentComments.version(
+      {
+        workspaceId: row.workspaceId,
+        resourceId: row.docId,
+        kind: 'blocksuite',
+      },
+      true
+    );
+  }
   // #region Comment
 
   /**
@@ -81,10 +94,19 @@ export class CommentModel extends BaseModel {
    * @param input - The comment create input
    * @returns The created comment
    */
-  async create(input: CommentCreate) {
+  @Transactional()
+  async create(input: CommentCreate, id?: string) {
     const data = CommentCreateSchema.parse(input);
+    await this.models.documentComments.version(
+      {
+        workspaceId: data.workspaceId,
+        resourceId: data.docId,
+        kind: 'blocksuite',
+      },
+      true
+    );
     return (await this.db.comment.create({
-      data,
+      data: { ...data, ...(id ? { id } : {}) },
     })) as Comment;
   }
 
@@ -99,8 +121,10 @@ export class CommentModel extends BaseModel {
    * @param input - The comment update input
    * @returns The updated comment
    */
+  @Transactional()
   async update(input: CommentUpdate) {
     const data = CommentUpdateSchema.parse(input);
+    await this.lockItem(data.id);
     return await this.db.comment.update({
       where: { id: data.id, deletedAt: null },
       data: {
@@ -114,7 +138,9 @@ export class CommentModel extends BaseModel {
    * @param id - The id of the comment or reply
    * @returns The deleted comment or reply
    */
+  @Transactional()
   async delete(id: string) {
+    await this.lockItem(id);
     await this.db.comment.update({
       where: { id, deletedAt: null },
       data: { deletedAt: new Date() },
@@ -127,8 +153,10 @@ export class CommentModel extends BaseModel {
    * @param input - The comment resolve input
    * @returns The resolved comment
    */
+  @Transactional()
   async resolve(input: CommentResolve) {
     const data = CommentResolveSchema.parse(input);
+    await this.lockItem(data.id);
     return await this.db.comment.update({
       where: { id: data.id, deletedAt: null },
       data: { resolved: data.resolved },
@@ -277,8 +305,10 @@ export class CommentModel extends BaseModel {
    * @param input - The reply create input
    * @returns The created reply
    */
-  async createReply(input: ReplyCreate) {
+  @Transactional()
+  async createReply(input: ReplyCreate, id?: string) {
     const data = ReplyCreateSchema.parse(input);
+    await this.lockItem(data.commentId);
     // find comment
     const comment = await this.get(data.commentId);
     if (!comment) {
@@ -288,6 +318,7 @@ export class CommentModel extends BaseModel {
     return (await this.db.reply.create({
       data: {
         ...data,
+        ...(id ? { id } : {}),
         workspaceId: comment.workspaceId,
         docId: comment.docId,
       },
@@ -312,10 +343,12 @@ export class CommentModel extends BaseModel {
    * @param input - The reply update input
    * @returns The updated reply
    */
+  @Transactional()
   async updateReply(input: ReplyUpdate) {
     const data = ReplyUpdateSchema.parse(input);
+    await this.lockItem(data.id, true);
     return await this.db.reply.update({
-      where: { id: data.id, deletedAt: null },
+      where: { id: data.id, deletedAt: null, comment: { deletedAt: null } },
       data: { content: data.content },
     });
   }
@@ -325,7 +358,9 @@ export class CommentModel extends BaseModel {
    * @param id - The id of the reply
    * @returns The deleted reply
    */
+  @Transactional()
   async deleteReply(id: string) {
+    await this.lockItem(id, true);
     await this.db.reply.update({
       where: { id, deletedAt: null },
       data: { deletedAt: new Date() },

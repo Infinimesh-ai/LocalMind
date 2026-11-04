@@ -14,6 +14,7 @@
     "./di": "./src/di/index.ts",
     "./types": "./src/types/index.ts",
     "./gfx": "./src/gfx/index.ts",
+    "./geometry": "./src/gfx/geometry.ts",
     "./disposable": "./src/disposable/index.ts",
     "./lit": "./src/lit/index.ts"
   },
@@ -33,6 +34,9 @@
       ],
       "types": [
         "dist/types/index.d.ts"
+      ],
+      "geometry": [
+        "dist/gfx/geometry.d.ts"
       ],
       "gfx": [
         "dist/gfx/index.d.ts"

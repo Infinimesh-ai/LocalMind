@@ -13,6 +13,8 @@ export type ResourceErrorCode =
   | 'folder_name_conflict'
   | 'unsupported_document_kind'
   | 'unsupported_document_structure'
+  | 'preservation_failed'
+  | 'plan_stale'
   | 'content_too_large'
   | 'quota_exceeded'
   | 'rate_limited'

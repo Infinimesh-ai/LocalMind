@@ -15,6 +15,13 @@
 [MCP 接入说明](../localmind-mcp.md)、[工具参考](../localmind-mcp-tools.md)
 和服务端注册代码为准。实现与验证结果见 [执行记录](mcp-direct-resource-tools.execution.zh-CN.md)。
 
+2026-11-04 的后续目标见
+[MCP 文档完整编辑与无损保留方案](mcp-document-full-editing-plan.zh-CN.md)：
+以原生结构化命令覆盖完整文档操作，修复空段落、读写判定、格式保留及读取完整性。
+v2 的 18 个独立授权工具已接入源码，实际验证见
+[完整编辑实施记录](mcp-document-full-editing.execution.zh-CN.md)。本文继续定义首期 10 个 v1
+工具及其兼容边界；完整原生编辑以 v2 方案为准，运行环境尚未升级。
+
 相关边界继续遵守：
 
 - [Workspace/Project 写入授权与工具命名契约](workspace-project-ai-write-authorization-remediation.zh-CN.md)。

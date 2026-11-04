@@ -343,6 +343,8 @@ export class WorkspaceNativeResourceService {
       content?: z.input<typeof NativeFileContentSchema>;
       origin?: 'user' | 'ai' | 'import' | 'copy' | 'publication';
       sourceSessionId?: string;
+      /** Only populated by the authorized native copy service. */
+      trustedState?: { bytes: Buffer; modelVersion: string };
     }
   ) {
     if (input.treeContractVersion !== undefined) {
@@ -405,6 +407,14 @@ export class WorkspaceNativeResourceService {
       folderId: input.folderId ?? null,
       blobKey: input.blobKey,
       content,
+      ...(input.trustedState
+        ? {
+            stateFingerprint: createHash('sha256')
+              .update(input.trustedState.bytes)
+              .digest('hex'),
+            modelVersion: input.trustedState.modelVersion,
+          }
+        : {}),
     });
     return this.resources.snapshot(input, async () => {
       const authorize = async () => {
@@ -468,7 +478,9 @@ export class WorkspaceNativeResourceService {
           workspaceId: input.workspaceId,
           actorId: input.actorId,
           sourceBlobKey: blobKey,
+          artifactId: input.resourceId,
           generatedBytes,
+          trustedState: input.trustedState,
           sourceFileName: fileName,
           title: fileName,
           parentId: input.folderId,
@@ -542,6 +554,52 @@ export class WorkspaceNativeResourceService {
         ),
       });
       return result;
+    });
+  }
+
+  async previewSave(
+    input: Identity & {
+      expectedContentVersion: number;
+      text?: string;
+      blobKey?: string;
+    }
+  ) {
+    if ((input.text === undefined) === (input.blobKey === undefined))
+      throw new BadRequest(
+        'Choose complete text or an explicit replacement file'
+      );
+    return this.access.write(input, async () => {
+      const current = await this.access.assert(input, { write: true });
+      if (current.kind !== 'file')
+        throw new BadRequest('Use native Office editing commands');
+      if (current.contentVersion !== input.expectedContentVersion)
+        throw new ResourceConflict(
+          'File content changed; read and merge before saving'
+        );
+      const previous = await this.read(input);
+      let bytes: Buffer;
+      let mimeType = current.mimeType;
+      if (input.text !== undefined) {
+        await this.readText(input);
+        bytes = encodeNativeText(input.text, nativeTextIdentity(mimeType));
+      } else {
+        if (!input.blobKey)
+          throw new BadRequest('Replacement file is required');
+        const blob = await this.models.blob.get(
+          input.workspaceId,
+          input.blobKey
+        );
+        if (!blob || blob.deletedAt || blob.status !== 'completed')
+          throw new NotFound('Replacement file is unavailable');
+        mimeType = blob.mime;
+        bytes = await this.readBlob(input, input.blobKey, blob.size);
+      }
+      return {
+        changed: mimeType !== current.mimeType || !bytes.equals(previous.bytes),
+        fingerprint: createHash('sha256').update(bytes).digest('hex'),
+        byteSize: bytes.length,
+        mimeType,
+      };
     });
   }
 
@@ -966,6 +1024,7 @@ export class WorkspaceNativeResourceService {
       treeContractVersion?: string;
       expectedTreeRevision?: number;
       expectedAuthorizationRevision?: string;
+      targetResourceId?: string;
     }
   ) {
     nativeRequestKeySchema.parse(input.requestKey);
@@ -974,6 +1033,9 @@ export class WorkspaceNativeResourceService {
       action: 'copy',
       resourceId: input.resourceId,
       kind: input.kind,
+      ...(input.targetResourceId
+        ? { targetResourceId: input.targetResourceId }
+        : {}),
       expectedContentVersion: input.expectedContentVersion,
       title: input.title,
       folderId: input.folderId ?? null,
@@ -989,6 +1051,8 @@ export class WorkspaceNativeResourceService {
     return this.resources.snapshot(input, async () => {
       await this.models.workspaceNativeResource.lock(input);
       const source = await this.access.assert(input);
+      const rights = await this.get(input);
+      if (!rights.canCopy) throw new ResourceError('permission_denied');
       const replay = await this.models.workspaceNativeResource.receipt(
         input,
         hash
@@ -1007,9 +1071,35 @@ export class WorkspaceNativeResourceService {
         throw new ResourceConflict(
           'Source content changed; reload before copying'
         );
+      const revision =
+        source.kind === 'office'
+          ? await this.artifacts.getRevision(
+              input.workspaceId,
+              input.actorId,
+              input.resourceId
+            )
+          : undefined;
+      const trustedState =
+        revision?.stateBlobKey && revision.modelVersion
+          ? {
+              bytes: Buffer.from(
+                (
+                  await this.artifacts.readRevisionAsset(
+                    input.workspaceId,
+                    input.actorId,
+                    input.resourceId,
+                    revision.id,
+                    'state'
+                  )
+                ).bytes
+              ),
+              modelVersion: revision.modelVersion,
+            }
+          : undefined;
       const result = await this.create({
         workspaceId: input.workspaceId,
         actorId: input.actorId,
+        resourceId: input.targetResourceId,
         title: source.officeKind
           ? officeDownloadFileName(input.title, source.officeKind)
           : input.title,
@@ -1022,6 +1112,7 @@ export class WorkspaceNativeResourceService {
         blobKey: source.blobKey,
         fileOnly: source.kind === 'file',
         origin: 'copy',
+        trustedState,
       });
       await this.models.workspaceNativeResource.record({
         ...input,

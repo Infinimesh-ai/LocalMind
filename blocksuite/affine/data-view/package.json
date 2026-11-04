@@ -34,6 +34,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./filter-pure": "./src/filter-pure.ts",
     "./property-presets": "./src/property-presets/index.ts",
     "./property-pure-presets": "./src/property-presets/pure-index.ts",
     "./view-presets": "./src/view-presets/index.ts",

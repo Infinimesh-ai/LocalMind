@@ -10,6 +10,9 @@ import { CryptoHelper, URLHelper } from '../../base';
 import { Models } from '../../models';
 import { PermissionAccess, PermissionService } from '../permission';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
+import type { DocumentDependencies } from './document-dependencies';
+import { editNativeDocument, inspectNativeDocument } from './document-editor';
+import { nativeCommentIds, restoreNativeDocument } from './document-restore';
 import {
   readResourceMarkdown,
   updateResourceMarkdown,
@@ -209,6 +212,176 @@ export class WorkspaceResourceService {
 
   async describe(input: WorkspaceResourceActor, documentId: string) {
     return (await this.load(input, documentId)).metadata;
+  }
+
+  async nativeSnapshot(input: WorkspaceResourceActor, documentId: string) {
+    return this.load(input, documentId);
+  }
+
+  async restoreNative(
+    input: WorkspaceResourceActor,
+    command: { documentId: string; expectedVersion: string; timestamp: number },
+    authorize: () => Promise<void>
+  ) {
+    await authorize();
+    await this.assertDocument(input, command.documentId, true);
+    const current = await this.load(input, command.documentId);
+    if (command.expectedVersion !== current.metadata.version)
+      throw new ResourceError('version_conflict', current.metadata.version);
+    const history = await this.models.history.get(
+      input.workspaceId,
+      command.documentId,
+      command.timestamp
+    );
+    if (!history) throw new ResourceError('resource_not_found');
+    const scope = {
+      workspaceId: input.workspaceId,
+      resourceId: command.documentId,
+      kind: 'blocksuite' as const,
+    };
+    await this.models.documentComments.version(scope, true);
+    const comments = await this.models.documentComments.states(
+      scope,
+      nativeCommentIds(current.bin, history.blob)
+    );
+    const plan = restoreNativeDocument(current.bin, history.blob, {
+      actorId: input.actorId,
+      now: Date.now(),
+      comments,
+    });
+    if (plan.title !== undefined && plan.title !== current.metadata.title)
+      await this.ac
+        .user(input.actorId)
+        .workspace(input.workspaceId)
+        .doc(command.documentId)
+        .projectScope(null)
+        .assert('Doc.Properties.Update');
+    if (plan.changed) {
+      await this.storage.checkpointDocument(
+        input.workspaceId,
+        command.documentId
+      );
+      await this.writer.pushDocUpdate(
+        input.workspaceId,
+        command.documentId,
+        plan.update,
+        input.actorId,
+        authorize
+      );
+      if (plan.title !== undefined && plan.title !== current.metadata.title) {
+        await this.writer.updateDocMeta(
+          input.workspaceId,
+          command.documentId,
+          { title: plan.title },
+          input.actorId,
+          authorize
+        );
+        await this.models.doc.upsertMeta(
+          input.workspaceId,
+          command.documentId,
+          { title: plan.title }
+        );
+      }
+    }
+    return {
+      beforeVersion: current.metadata.version,
+      afterVersion: (await this.describe(input, command.documentId)).version,
+      changed: plan.changed,
+      changedIds: plan.changedIds,
+    };
+  }
+
+  async inspectNative(input: WorkspaceResourceActor, documentId: string) {
+    const { bin, metadata } = await this.load(input, documentId);
+    return { ...metadata, blocks: inspectNativeDocument(bin) };
+  }
+
+  async editNative(
+    input: WorkspaceResourceActor,
+    command: {
+      documentId: string;
+      expectedVersion: string;
+      commands: unknown;
+      operationId: string;
+      preview: boolean;
+      dependencies?: DocumentDependencies;
+    },
+    authorize: () => Promise<void>
+  ) {
+    // Both preview and apply use the authoritative snapshot and same planner.
+    // The caller holds the resource transaction and credential authority locks.
+    await authorize();
+    await this.assertDocument(input, command.documentId, true);
+    const { bin, metadata } = await this.load(input, command.documentId);
+    if (metadata.version !== command.expectedVersion)
+      throw new ResourceError('version_conflict', metadata.version);
+    const plan = editNativeDocument({
+      bin,
+      commands: command.commands,
+      actorId: input.actorId,
+      operationId: command.operationId,
+      now: Date.now(),
+      dependencies: command.dependencies,
+    });
+    if (!command.preview && plan.changed) {
+      await this.storage.checkpointDocument(
+        input.workspaceId,
+        command.documentId
+      );
+      await this.writer.pushDocUpdate(
+        input.workspaceId,
+        command.documentId,
+        plan.update,
+        input.actorId,
+        async () => {
+          await authorize();
+          await this.assertDocument(input, command.documentId, true);
+        }
+      );
+    }
+    return {
+      beforeVersion: metadata.version,
+      afterVersion:
+        command.preview || !plan.changed
+          ? metadata.version
+          : (await this.describe(input, command.documentId)).version,
+      changed: plan.changed,
+      changedIds: plan.changedIds,
+      identities: plan.identities,
+      preservationVerified: plan.preservationVerified,
+      preservation: plan.preservation,
+      textMappings: plan.textMappings,
+      digest: plan.digest,
+    };
+  }
+
+  /** In-memory candidate for planning a comment anchor against the edited body. */
+  async previewNativeContent(
+    input: WorkspaceResourceActor,
+    command: {
+      documentId: string;
+      expectedVersion: string;
+      commands: unknown;
+      operationId: string;
+      dependencies?: DocumentDependencies;
+    }
+  ) {
+    await this.assertDocument(input, command.documentId, true);
+    const { bin, metadata } = await this.load(input, command.documentId);
+    if (metadata.version !== command.expectedVersion)
+      throw new ResourceError('version_conflict', metadata.version);
+    const plan = editNativeDocument({
+      bin,
+      commands: command.commands,
+      actorId: input.actorId,
+      operationId: command.operationId,
+      now: Date.now(),
+      dependencies: command.dependencies,
+    });
+    return {
+      bin: Y.mergeUpdates([bin, plan.update]),
+      identities: plan.identities,
+    };
   }
 
   async read(input: WorkspaceResourceActor, documentId: string) {

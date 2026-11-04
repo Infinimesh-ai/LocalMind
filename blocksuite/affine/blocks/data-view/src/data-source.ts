@@ -7,11 +7,18 @@ import {
   insertPositionToIndex,
   type InsertToPosition,
 } from '@blocksuite/affine-shared/utils';
-import { DataSourceBase, type PropertyMetaConfig } from '@blocksuite/data-view';
+import {
+  DataSourceBase,
+  type DataViewDataType,
+  type PropertyMetaConfig,
+  ViewManagerBase,
+} from '@blocksuite/data-view';
 import { propertyPresets } from '@blocksuite/data-view/property-presets';
+import { viewConverts, viewPresets } from '@blocksuite/data-view/view-presets';
 import { BlockSuiteError } from '@blocksuite/global/exceptions';
 import type { EditorHost } from '@blocksuite/std';
 import type { Block, Store } from '@blocksuite/store';
+import { computed, signal } from '@preact/signals-core';
 import { Subject } from 'rxjs';
 
 import type { BlockMeta } from './block-meta/base.js';
@@ -23,8 +30,78 @@ export type BlockQueryDataSourceConfig = {
   type: keyof typeof blockMetaMap;
 };
 
-// @ts-expect-error FIXME: ts error
 export class BlockQueryDataSource extends DataSourceBase {
+  override get parentProvider() {
+    return this.block.store.provider;
+  }
+  private readonly revision$ = signal(0);
+  featureFlags$ = computed(() => ({ enable_table_virtual_scroll: false }));
+  properties$ = computed(() => {
+    void this.block.props.columns$.value;
+    return this.properties;
+  });
+  propertyMetas$ = computed(() => queryBlockColumns as PropertyMetaConfig[]);
+  allPropertyMetas$ = computed(() => Object.values(queryBlockAllColumnMap));
+  readonly$ = computed(() => this.block.store.readonly);
+  rows$ = computed(() => {
+    void this.revision$.value;
+    return this.rows;
+  });
+  viewConverts = [...viewConverts];
+  viewMetas = [
+    viewPresets.tableViewMeta,
+    viewPresets.kanbanViewMeta,
+    viewPresets.calendarViewMeta,
+  ];
+  viewManager = new ViewManagerBase(this);
+  viewDataList$ = computed(() => this.block.props.views$.value);
+  viewDataGet(id: string) {
+    return this.viewDataList$.value.find(view => view.id === id);
+  }
+  viewDataAdd(view: DataViewDataType) {
+    this.block.props.views.push(view);
+    return view.id;
+  }
+  viewDataDelete(id: string) {
+    this.block.deleteView(id);
+  }
+  viewDataDuplicate(id: string) {
+    return this.block.duplicateView(id);
+  }
+  viewDataMoveTo(id: string, position: InsertToPosition) {
+    this.block.moveViewTo(id, position);
+  }
+  viewDataUpdate<V extends DataViewDataType>(
+    id: string,
+    updater: (value: V) => Partial<V>
+  ) {
+    const current = this.viewDataGet(id) as V | undefined;
+    if (current && !this.readonly$.value)
+      this.block.updateView(id, () => updater(current));
+  }
+  viewMetaGet(type: string) {
+    const meta = this.viewMetas.find(view => view.type === type);
+    if (!meta) throw new Error('Unknown query view type');
+    return meta;
+  }
+  viewMetaGetById(id: string) {
+    const view = this.viewDataGet(id);
+    return view ? this.viewMetaGet(view.mode) : undefined;
+  }
+  protected getNormalPropertyAndIndex(id: string) {
+    const columns = this.block.props.columns$.value,
+      index = columns.findIndex(column => column.id === id);
+    return index < 0 ? undefined : { column: columns[index], index };
+  }
+  propertyDataTypeGet(id: string) {
+    const column = this.getViewColumn(id);
+    if (!column) return;
+    return this.propertyMetaGet(column.type)?.config.jsonValue.type({
+      data: column.data,
+      dataSource: this,
+    });
+  }
+
   private readonly columnMetaMap = new Map<
     string,
     PropertyMetaConfig<any, any, any>
@@ -164,6 +241,7 @@ export class BlockQueryDataSource extends DataSourceBase {
         } else if (v.type === 'delete') {
           this.blockMap.delete(v.id);
         }
+        this.revision$.value++;
         this.slots.update.next(undefined);
       }).unsubscribe
     );
@@ -208,8 +286,9 @@ export class BlockQueryDataSource extends DataSourceBase {
     }
     const property = this.getProperty(propertyId);
     return (
-      property.getColumnData?.(this.blocks[0].model) ??
-      property.metaConfig.config.propertyData.default()
+      (this.blocks[0]
+        ? property.getColumnData?.(this.blocks[0].model)
+        : undefined) ?? property.metaConfig.config.propertyData.default()
     );
   }
 

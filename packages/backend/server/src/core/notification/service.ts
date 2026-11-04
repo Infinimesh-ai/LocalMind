@@ -87,10 +87,14 @@ export class NotificationService {
     }
   }
 
-  async createComment(input: CommentNotificationCreate, isMention?: boolean) {
+  async createComment(
+    input: CommentNotificationCreate,
+    isMention?: boolean,
+    deliveryKey?: string
+  ) {
     const notification = isMention
-      ? await this.models.notification.createCommentMention(input)
-      : await this.models.notification.createComment(input);
+      ? await this.models.notification.createCommentMention(input, deliveryKey)
+      : await this.models.notification.createComment(input, deliveryKey);
     if (isMention) await this.signalSparkClawDelivery(notification.id);
     await this.sendCommentEmail(input, isMention, notification.id);
     await this.publishCountChanged(input.userId, 'created');

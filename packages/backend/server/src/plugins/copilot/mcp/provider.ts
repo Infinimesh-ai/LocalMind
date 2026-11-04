@@ -11,6 +11,7 @@ import {
   normalizeMcpCapabilities,
 } from './capabilities';
 import { McpAiDelegationService } from './delegation';
+import { McpDocumentsService } from './native-documents';
 import { McpResourcesService } from './resources';
 import { McpAiTaskControlService } from './task-control';
 import { McpAiTaskQueryService } from './task-query';
@@ -43,7 +44,8 @@ export class WorkspaceMcpProvider {
     private readonly delegation: McpAiDelegationService,
     private readonly taskControl: McpAiTaskControlService,
     private readonly taskQuery: McpAiTaskQueryService,
-    private readonly resources: McpResourcesService
+    private readonly resources: McpResourcesService,
+    private readonly documents: McpDocumentsService
   ) {}
 
   async for(
@@ -102,6 +104,7 @@ export class WorkspaceMcpProvider {
       tools.push(this.taskControl.createTool(credential));
     }
     tools.push(...this.resources.tools(credential, capabilities));
+    tools.push(...this.documents.tools(credential, capabilities));
     return {
       name: 'localmind-ai',
       version: '3.5.0',
@@ -123,7 +126,8 @@ export class WorkspaceMcpProvider {
       ].join(' '),
       tools,
       unavailableToolResult: name =>
-        this.resources.unavailableToolResult(credential, name),
+        this.resources.unavailableToolResult(credential, name) ??
+        this.documents.unavailableToolResult(credential, name),
     };
   }
 }

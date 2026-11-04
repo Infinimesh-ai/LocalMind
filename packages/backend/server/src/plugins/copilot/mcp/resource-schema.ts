@@ -4,6 +4,7 @@ import {
   RESOURCE_CONTENT_LIMIT,
   RESOURCE_CONTRACT_VERSION,
 } from '../../../core/doc/resource-types';
+import { DOCUMENT_OPERATION_SCHEMA } from './document-schema';
 
 const id = z.string().min(1).max(256);
 const version = z.string().min(1).max(2048);
@@ -276,9 +277,11 @@ const readOutputs = {
 };
 export function resourceOutputSchema(name: ResourceToolName) {
   const output =
-    name in readOutputs
-      ? readOutputs[name as keyof typeof readOutputs]
-      : RESOURCE_OPERATION_SCHEMA;
+    name === 'workspace_operation_get'
+      ? z.union([RESOURCE_OPERATION_SCHEMA, DOCUMENT_OPERATION_SCHEMA])
+      : name in readOutputs
+        ? readOutputs[name as keyof typeof readOutputs]
+        : RESOURCE_OPERATION_SCHEMA;
   return z
     .object({ result: z.union([output, RESOURCE_FAILURE_SCHEMA]) })
     .strict();

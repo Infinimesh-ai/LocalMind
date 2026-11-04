@@ -20,10 +20,34 @@ export const MCP_RESOURCE_WRITE_CAPABILITIES = [
   'workspace_folder_create',
   'workspace_folder_move_document',
 ] as const;
+export const MCP_DOCUMENT_READ_CAPABILITIES = [
+  'workspace_doc_inspect',
+  'workspace_doc_edit_preview',
+  'workspace_doc_history_list',
+  'workspace_doc_history_read',
+  'workspace_doc_export',
+  'workspace_doc_asset_read',
+  'workspace_doc_comments_read',
+  'workspace_doc_access_read',
+] as const;
+export const MCP_DOCUMENT_WRITE_CAPABILITIES = [
+  'workspace_doc_duplicate',
+  'workspace_doc_apply',
+  'workspace_doc_history_restore',
+  'workspace_doc_properties_update',
+  'workspace_doc_asset_upload',
+  'workspace_doc_create_native',
+  'workspace_doc_import',
+  'workspace_doc_lifecycle',
+  'workspace_doc_comments_apply',
+  'workspace_doc_access_update',
+] as const;
 export const MCP_CAPABILITIES = [
   ...MCP_DELEGATION_CAPABILITIES,
   ...MCP_RESOURCE_READ_CAPABILITIES,
   ...MCP_RESOURCE_WRITE_CAPABILITIES,
+  ...MCP_DOCUMENT_READ_CAPABILITIES,
+  ...MCP_DOCUMENT_WRITE_CAPABILITIES,
 ] as const;
 export const MCP_RESOURCE_CAPABILITIES = [
   ...MCP_RESOURCE_READ_CAPABILITIES,
@@ -63,6 +87,9 @@ export function mcpAccessModeForCapabilities(
       capability === MCP_DELEGATE_CAPABILITY ||
       capability === MCP_TASK_CONTROL_CAPABILITY ||
       (MCP_RESOURCE_WRITE_CAPABILITIES as readonly string[]).includes(
+        capability
+      ) ||
+      (MCP_DOCUMENT_WRITE_CAPABILITIES as readonly string[]).includes(
         capability
       )
   )

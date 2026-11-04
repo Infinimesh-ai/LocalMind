@@ -67,6 +67,8 @@ export class DocCommentEntity extends Entity<{
   comments$ = new LiveData<DocComment[]>([]);
 
   commentsInEditor$ = new LiveData<string[]>([]);
+  anchorsReady$ = new LiveData(false);
+  private stopAnchorObservation?: () => void;
 
   // Only one pending comment at a time (for new comments)
   readonly pendingComment$ = new LiveData<PendingComment | null>(null);
@@ -490,6 +492,15 @@ export class DocCommentEntity extends Entity<{
   }
 
   start(): void {
+    this.stopAnchorObservation?.();
+    const document = this.props.std?.store.spaceDoc;
+    const refresh = () =>
+      queueMicrotask(() => {
+        if (this.stopAnchorObservation) this.revalidateCommentsInEditor();
+      });
+    document?.on('afterTransaction', refresh);
+    this.stopAnchorObservation = () =>
+      document?.off('afterTransaction', refresh);
     this.revalidateCommentsInEditor();
     this.startLiveQueryAfterInitialLoad().catch(error => {
       console.error('Failed to start comment realtime:', error);
@@ -497,6 +508,9 @@ export class DocCommentEntity extends Entity<{
   }
 
   stop(): void {
+    this.stopAnchorObservation?.();
+    this.stopAnchorObservation = undefined;
+    this.anchorsReady$.setValue(false);
     this.startVersion++;
     this.liveQuery.stop();
     this.loading$.setValue(false);
@@ -671,6 +685,7 @@ export class DocCommentEntity extends Entity<{
 
   private readonly revalidateCommentsInEditor = () => {
     this.commentsInEditor$.setValue(this.getCommentsInEditor());
+    this.anchorsReady$.setValue(!!this.props.std?.store.root);
   };
 
   private getCommentsInEditor(): string[] {

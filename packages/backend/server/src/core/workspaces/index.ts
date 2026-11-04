@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { BackendRuntimeModule } from '../backend-runtime';
 import { DocStorageModule } from '../doc';
 import { DocRendererModule } from '../doc-renderer';
 import { FeatureModule } from '../features';
@@ -14,6 +15,8 @@ import {
   InviteQuotaAssertService,
 } from './abuse';
 import { WorkspacesController } from './controller';
+import { DocumentAccessService } from './document-access';
+import { DocumentEventsService } from './document-events';
 import { WorkspaceEvents } from './event';
 import { WorkspaceRealtimeModule } from './realtime.module';
 import {
@@ -30,6 +33,7 @@ import { WorkspaceStatsJob } from './stats.job';
 
 @Module({
   imports: [
+    BackendRuntimeModule,
     DocStorageModule,
     DocRendererModule,
     FeatureModule,
@@ -43,6 +47,7 @@ import { WorkspaceStatsJob } from './stats.job';
   ],
   controllers: [WorkspacesController],
   providers: [
+    DocumentEventsService,
     WorkspaceResolver,
     WorkspaceMemberResolver,
     WorkspaceDocResolver,
@@ -50,6 +55,7 @@ import { WorkspaceStatsJob } from './stats.job';
     DocHistoryResolver,
     WorkspaceBlobResolver,
     WorkspaceService,
+    DocumentAccessService,
     InviteAbuseDispositionService,
     InviteQuotaAssertService,
     WorkspaceEvents,
@@ -58,6 +64,7 @@ import { WorkspaceStatsJob } from './stats.job';
   ],
   exports: [
     WorkspaceService,
+    DocumentAccessService,
     WorkspaceResolver,
     WorkspaceMemberResolver,
     WorkspaceDocResolver,

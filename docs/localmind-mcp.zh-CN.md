@@ -4,22 +4,28 @@ LocalMind 在同一个工作区 MCP 接口提供直接资源工具和 AI 委托�
 Markdown 和明确的文档/目录操作可直接持久化，不调用模型，不依赖 BYOK，不创建 AI 会话、
 AgentRun 或回调。明确委托给 LocalMind AI 的理解、生成和多步骤任务继续通过原有运行时执行。
 
-新增 10 个直接工具需管理员启用 `LOCALMIND_MCP_RESOURCES_ENABLED=true`（默认关闭），
+10 个 v1 直接资源工具与 18 个 v2 原生文档工具需管理员启用 `LOCALMIND_MCP_RESOURCES_ENABLED=true`（默认关闭），
 并在凭证中明确授权。原有 3 个委托工具和旧凭证默认能力不变。关闭直接功能后，已授权的
 `workspace_operation_get` 仍可用于核对历史回执。
 
 精确参数与回调协议见 [LocalMind MCP 工具参考](./localmind-mcp-tools.md)。
 
+v2 文档编辑使用 `workspace_doc_inspect → workspace_doc_edit_preview → workspace_doc_apply`，
+直接修改原生模型；空段落、表格、数据库、画布、Office 和原生文件均走各自领域命令。
+Markdown 范围改写必须明确块及表格行列身份映射，不通过整篇重建丢弃其他内容。
+新凭据可明确选择文档编辑预设；分享、成员、所有权和生命周期能力单独授权。
+令牌轮换不扩权，源码实现不表示运行环境已经升级。用户操作说明以应用内“帮助与指南”为准。
+
 ## 连接信息
 
-| 配置项 | 值                                                       |
-| ------ | -------------------------------------------------------- |
-| 地址   | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
-| 方法   | `POST`                                                   |
-| 传输   | 无状态 Streamable HTTP，JSON 响应                        |
-| 鉴权   | `Authorization: Bearer <MCP_TOKEN>`                      |
-| 服务   | `localmind-ai` / `3.5.0`                                 |
-| 工具   | 10 个直接资源工具 + 3 个 AI 委托工具（按授权与开关发现） |
+| 配置项 | 值                                                                           |
+| ------ | ---------------------------------------------------------------------------- |
+| 地址   | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp`                     |
+| 方法   | `POST`                                                                       |
+| 传输   | 无状态 Streamable HTTP，JSON 响应                                            |
+| 鉴权   | `Authorization: Bearer <MCP_TOKEN>`                                          |
+| 服务   | `localmind-ai` / `3.5.0`                                                     |
+| 工具   | 10 个 v1 资源工具 + 18 个 v2 文档工具 + 3 个 AI 委托工具（按授权与开关发现） |
 
 Token 和地址绑定一个工作区，不能跨工作区使用。
 
@@ -288,3 +294,7 @@ curl --fail-with-body --silent --show-error \
 - 未收到终态通知：先查询任务，再检查接收端 HMAC 校验、重放防护和 LocalMind 的有限
   重试记录。
 - MCP `405`：无状态 MCP 地址只接受 `POST`。
+
+原生文档 v2 写入还需设置 `LOCALMIND_MCP_DOCUMENT_EDITING_ENABLED=true`，默认关闭。
+它独立于 `LOCALMIND_MCP_RESOURCES_ENABLED`；单独关闭 v2 写入开关仍保留已有授权的
+读取、预检及回执查询，不修改旧凭据或委托任务能力。

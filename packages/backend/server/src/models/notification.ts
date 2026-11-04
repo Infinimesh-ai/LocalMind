@@ -580,15 +580,18 @@ export class NotificationModel extends BaseModel {
 
   // #region comment
 
-  async createComment(input: CommentNotificationCreate) {
+  async createComment(input: CommentNotificationCreate, deliveryKey?: string) {
     const data = CommentNotificationCreateSchema.parse(input);
     const type = NotificationType.Comment;
-    const row = await this.create({
-      userId: data.userId,
-      level: data.level,
-      type,
-      body: data.body,
-    });
+    const row = await this.createIdempotentComment(
+      {
+        userId: data.userId,
+        level: data.level,
+        type,
+        body: data.body,
+      },
+      deliveryKey
+    );
     this.logger.debug(
       `Created ${type} notification ${row.id} to user ${data.userId} in workspace ${data.body.workspaceId}`
     );
@@ -596,15 +599,21 @@ export class NotificationModel extends BaseModel {
   }
 
   @Transactional()
-  async createCommentMention(input: CommentNotificationCreate) {
+  async createCommentMention(
+    input: CommentNotificationCreate,
+    deliveryKey?: string
+  ) {
     const data = CommentMentionNotificationCreateSchema.parse(input);
     const type = NotificationType.CommentMention;
-    const row = await this.create({
-      userId: data.userId,
-      level: data.level,
-      type,
-      body: data.body,
-    });
+    const row = await this.createIdempotentComment(
+      {
+        userId: data.userId,
+        level: data.level,
+        type,
+        body: data.body,
+      },
+      deliveryKey
+    );
     await this.createIscpDeliveries(row.id, data.userId);
     this.logger.debug(
       `Created ${type} notification ${row.id} to user ${data.userId} in workspace ${data.body.workspaceId}`
@@ -615,6 +624,27 @@ export class NotificationModel extends BaseModel {
   // #endregion
 
   // #region common
+
+  private async createIdempotentComment(
+    data: Prisma.NotificationUncheckedCreateInput,
+    deliveryKey?: string
+  ) {
+    if (!deliveryKey) return this.create(data);
+    const id = createHash('sha256')
+      .update(
+        JSON.stringify([
+          'document-comment-notification',
+          deliveryKey,
+          data.userId,
+        ])
+      )
+      .digest('hex');
+    await this.db.notification.createMany({
+      data: [{ ...data, id }],
+      skipDuplicates: true,
+    });
+    return this.db.notification.findUniqueOrThrow({ where: { id } });
+  }
 
   private async create(data: Prisma.NotificationUncheckedCreateInput) {
     return await this.db.notification.create({

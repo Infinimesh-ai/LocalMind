@@ -15,17 +15,10 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { SafeIntResolver } from 'graphql-scalars';
 
 import {
-  ActionForbidden,
   Cache,
-  Config,
-  DocActionDenied,
   DocDefaultRoleCanNotBeOwner,
   DocNotFound,
-  EventBus,
   ExpectToGrantDocUserRoles,
-  ExpectToPublishDoc,
-  ExpectToRevokeDocUserRoles,
-  ExpectToRevokePublicDoc,
   ExpectToUpdateDocUserRole,
   paginate,
   Paginated,
@@ -36,7 +29,6 @@ import {
 import { PageInfo } from '../../../base/graphql/pagination';
 import { Models, PublicDocMode } from '../../../models';
 import { CurrentUser } from '../../auth';
-import { BackendRuntimeProvider } from '../../backend-runtime';
 import { Editor } from '../../doc';
 import {
   DOC_ACTIONS,
@@ -48,8 +40,8 @@ import {
   PermissionService,
 } from '../../permission';
 import { PublicUserType, WorkspaceUserType } from '../../user';
-import { canUserExecuteLimitedActions } from '../abuse';
 import { DocGrantsService } from '../doc-grants';
+import { DocumentAccessService, documentRoleValues } from '../document-access';
 import { WorkspaceType } from '../types';
 import { TimeBucket, TimeWindow } from './analytics-types';
 
@@ -307,51 +299,8 @@ export class WorkspaceDocResolver {
     private readonly permission: PermissionService,
     private readonly models: Models,
     private readonly cache: Cache,
-    private readonly event: EventBus,
-    private readonly config: Config,
-    private readonly runtime: BackendRuntimeProvider
+    private readonly documentAccess: DocumentAccessService
   ) {}
-
-  private async assertCanShare(
-    userId: string,
-    context: { workspaceId: string; docId: string; action: 'publishDoc' }
-  ) {
-    if (await this.runtime.isInviteAbuseUserQuarantinedOrBanned(userId)) {
-      this.logger.warn('Share action blocked for quarantined actor', {
-        userId,
-        ...context,
-      });
-      throw new ActionForbidden(
-        'This feature is temporarily unavailable for you.'
-      );
-    }
-    if (
-      await this.runtime.isInviteAbuseWorkspaceQuarantined(context.workspaceId)
-    ) {
-      this.logger.warn('Share action blocked for quarantined workspace', {
-        userId,
-        ...context,
-      });
-      throw new ActionForbidden(
-        'This feature is temporarily unavailable for you.'
-      );
-    }
-    const user = await this.models.user.get(userId);
-    const newAccountAgeMs = this.config.auth.newAccountShareActionDelay * 1000;
-    if (!user || !canUserExecuteLimitedActions(user, newAccountAgeMs)) {
-      this.logger.warn('Share action blocked for new account', {
-        userId,
-        email: user?.email,
-        createdAt: user?.createdAt,
-        accountAgeMs: user ? Date.now() - user.createdAt.getTime() : null,
-        minimumAccountAgeMs: newAccountAgeMs,
-        ...context,
-      });
-      throw new ActionForbidden(
-        'This feature is temporarily unavailable for you.'
-      );
-    }
-  }
 
   @ResolveField(() => WorkspaceDocMeta, {
     description: 'Cloud page metadata of workspace',
@@ -499,29 +448,16 @@ export class WorkspaceDocResolver {
     })
     mode: PublicDocMode
   ) {
-    if (workspaceId === docId) {
-      this.logger.error('Expect to publish doc, but it is a workspace', {
-        workspaceId,
-        docId,
-      });
-      throw new ExpectToPublishDoc();
-    }
-
-    await this.ac.user(user.id).doc(workspaceId, docId).assert('Doc.Publish');
-    await this.assertCanShare(user.id, {
+    const result = await this.documentAccess.change(
+      user.id,
       workspaceId,
       docId,
-      action: 'publishDoc',
-    });
-
-    const doc = await this.models.doc.publish(workspaceId, docId, mode);
-    this.event.emit('doc.public_state.changed', { workspaceId, docId });
-
-    this.logger.log(
-      `Publish page ${docId} with mode ${mode} in workspace ${workspaceId}`
+      {
+        type: 'publish',
+        mode: mode === PublicDocMode.Edgeless ? 'edgeless' : 'page',
+      }
     );
-
-    return doc;
+    return result.metadata;
   }
 
   @Mutation(() => DocType)
@@ -530,22 +466,11 @@ export class WorkspaceDocResolver {
     @Args('workspaceId') workspaceId: string,
     @Args('docId') docId: string
   ) {
-    if (workspaceId === docId) {
-      this.logger.error('Expect to revoke public doc, but it is a workspace', {
-        workspaceId,
-        docId,
-      });
-      throw new ExpectToRevokePublicDoc('Expect doc not to be workspace');
-    }
-
-    await this.ac.user(user.id).doc(workspaceId, docId).assert('Doc.Publish');
-
-    const doc = await this.models.doc.unpublish(workspaceId, docId);
-    this.event.emit('doc.public_state.changed', { workspaceId, docId });
-
-    this.logger.log(`Revoke public doc ${docId} in workspace ${workspaceId}`);
-
-    return doc;
+    return (
+      await this.documentAccess.change(user.id, workspaceId, docId, {
+        type: 'unpublish',
+      })
+    ).metadata;
   }
 
   private async tryFixDocOwner(workspaceId: string, docId: string) {
@@ -606,13 +531,11 @@ export class WorkspaceDocResolver {
 
 @Resolver(() => DocType)
 export class DocResolver {
-  private readonly logger = new Logger(DocResolver.name);
-
   constructor(
     private readonly ac: PermissionAccess,
     private readonly models: Models,
     private readonly grants: DocGrantsService,
-    private readonly event: EventBus
+    private readonly documentAccess: DocumentAccessService
   ) {}
 
   @ResolveField(() => PublicUserType, {
@@ -749,41 +672,19 @@ export class DocResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: GrantDocUserRolesInput
   ): Promise<boolean> {
-    const pairs = {
-      spaceId: input.workspaceId,
-      docId: input.docId,
-    };
-
-    if (input.workspaceId === input.docId) {
-      this.logger.error(
-        'Expect to grant doc user roles, but it is a workspace',
-        pairs
-      );
+    const role = Object.entries(documentRoleValues).find(
+      ([, value]) => value === input.role
+    )?.[0];
+    if (!role || role === 'none')
       throw new ExpectToGrantDocUserRoles(
-        pairs,
-        'Expect doc not to be workspace'
+        { spaceId: input.workspaceId, docId: input.docId },
+        'Expected a member role'
       );
-    }
-
-    await this.ac.user(user.id).doc(input).assert('Doc.Users.Manage');
-
-    await this.models.docUser.batchSetUserRoles(
-      input.workspaceId,
-      input.docId,
-      input.userIds,
-      input.role
-    );
-    this.event.emit('doc.grants.changed', {
-      workspaceId: input.workspaceId,
-      docId: input.docId,
-    });
-
-    const info = {
-      ...pairs,
+    await this.documentAccess.change(user.id, input.workspaceId, input.docId, {
+      type: 'member.set',
       userIds: input.userIds,
-      role: input.role,
-    };
-    this.logger.log(`Grant doc user roles (${JSON.stringify(info)})`);
+      role: role as 'reader' | 'commenter' | 'editor' | 'manager',
+    });
     return true;
   }
 
@@ -792,37 +693,10 @@ export class DocResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: RevokeDocUserRoleInput
   ): Promise<boolean> {
-    const pairs = {
-      spaceId: input.workspaceId,
-      docId: input.docId,
-    };
-    if (input.workspaceId === input.docId) {
-      this.logger.error(
-        'Expect to revoke doc user roles, but it is a workspace',
-        pairs
-      );
-      throw new ExpectToRevokeDocUserRoles(
-        pairs,
-        'Expect doc not to be workspace'
-      );
-    }
-    await this.ac.user(user.id).doc(input).assert('Doc.Users.Manage');
-
-    await this.models.docUser.delete(
-      input.workspaceId,
-      input.docId,
-      input.userId
-    );
-    this.event.emit('doc.grants.changed', {
-      workspaceId: input.workspaceId,
-      docId: input.docId,
-    });
-
-    const info = {
-      ...pairs,
+    await this.documentAccess.change(user.id, input.workspaceId, input.docId, {
+      type: 'member.remove',
       userId: input.userId,
-    };
-    this.logger.log(`Revoke doc user roles (${JSON.stringify(info)})`);
+    });
     return true;
   }
 
@@ -831,55 +705,33 @@ export class DocResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: UpdateDocUserRoleInput
   ): Promise<boolean> {
-    const pairs = {
-      spaceId: input.workspaceId,
-      docId: input.docId,
-    };
-    if (input.workspaceId === input.docId) {
-      this.logger.error(
-        'Expect to update doc user role, but it is a workspace',
-        pairs
-      );
-      throw new ExpectToUpdateDocUserRole(
-        pairs,
-        'Expect doc not to be workspace'
-      );
-    }
-
-    const info = {
-      ...pairs,
-      userId: input.userId,
-      role: input.role,
-    };
-
-    if (input.role === DocRole.Owner) {
-      await this.ac.user(user.id).doc(input).assert('Doc.TransferOwner');
-      await this.models.docUser.setOwner(
+    if (input.role === DocRole.Owner)
+      await this.documentAccess.change(
+        user.id,
         input.workspaceId,
         input.docId,
-        input.userId
+        { type: 'owner.transfer', userId: input.userId }
       );
-      this.event.emit('doc.owner.changed', {
-        workspaceId: input.workspaceId,
-        docId: input.docId,
-        userId: input.userId,
-      });
-      this.logger.log(`Transfer doc owner (${JSON.stringify(info)})`);
-    } else {
-      await this.ac.user(user.id).doc(input).assert('Doc.Users.Manage');
-      await this.models.docUser.set(
+    else {
+      const role = Object.entries(documentRoleValues).find(
+        ([, value]) => value === input.role
+      )?.[0];
+      if (!role || role === 'none')
+        throw new ExpectToUpdateDocUserRole(
+          { spaceId: input.workspaceId, docId: input.docId },
+          'Expected a member role'
+        );
+      await this.documentAccess.change(
+        user.id,
         input.workspaceId,
         input.docId,
-        input.userId,
-        input.role
+        {
+          type: 'member.set',
+          userIds: [input.userId],
+          role: role as 'reader' | 'commenter' | 'editor' | 'manager',
+        }
       );
-      this.event.emit('doc.grants.changed', {
-        workspaceId: input.workspaceId,
-        docId: input.docId,
-      });
-      this.logger.log(`Update doc user role (${JSON.stringify(info)})`);
     }
-
     return true;
   }
 
@@ -888,49 +740,13 @@ export class DocResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: UpdateDocDefaultRoleInput
   ) {
-    if (input.role === DocRole.Owner) {
-      this.logger.debug(
-        `Doc default role can not be owner (${JSON.stringify(input)})`
-      );
-      throw new DocDefaultRoleCanNotBeOwner();
-    }
-    const pairs = {
-      spaceId: input.workspaceId,
-      docId: input.docId,
-    };
-    if (input.workspaceId === input.docId) {
-      this.logger.error(
-        'Expect to update page default role, but it is a workspace',
-        pairs
-      );
-      throw new ExpectToUpdateDocUserRole(
-        pairs,
-        'Expect doc not to be workspace'
-      );
-    }
-    try {
-      await this.ac.user(user.id).doc(input).assert('Doc.Users.Manage');
-    } catch (error) {
-      if (error instanceof DocActionDenied) {
-        this.logger.debug(
-          `User does not have permission to update page default role (${JSON.stringify(
-            {
-              ...pairs,
-              userId: user.id,
-            }
-          )})`
-        );
-      }
-      throw error;
-    }
-    await this.models.doc.setDefaultRole(
-      input.workspaceId,
-      input.docId,
-      input.role
-    );
-    this.event.emit('doc.default_role.changed', {
-      workspaceId: input.workspaceId,
-      docId: input.docId,
+    const role = Object.entries(documentRoleValues).find(
+      ([, value]) => value === input.role
+    )?.[0];
+    if (!role) throw new DocDefaultRoleCanNotBeOwner();
+    await this.documentAccess.change(user.id, input.workspaceId, input.docId, {
+      type: 'default_role.set',
+      role: role as keyof typeof documentRoleValues,
     });
     return true;
   }

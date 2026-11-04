@@ -4,7 +4,11 @@ import { PresentTool } from '@blocksuite/affine/blocks/frame';
 import { DefaultTool } from '@blocksuite/affine/blocks/surface';
 import type { DocTitle } from '@blocksuite/affine/fragments/doc-title';
 import { findCommentedTexts } from '@blocksuite/affine/inlines/comment';
-import type { DocMode, ReferenceParams } from '@blocksuite/affine/model';
+import {
+  type DocMode,
+  findNativeCommentTargets,
+  type ReferenceParams,
+} from '@blocksuite/affine/model';
 import { HighlightSelection } from '@blocksuite/affine/shared/selection';
 import {
   DocModeProvider,
@@ -238,6 +242,16 @@ export class Editor extends Entity {
             finalId = commentedElements[0].id;
             finalKey = 'elementIds';
           }
+        }
+      }
+      if (!finalId) {
+        const targets = findNativeCommentTargets(std.store.spaceDoc, commentId);
+        if (targets.elementIds.length) {
+          finalId = targets.elementIds[0];
+          finalKey = 'elementIds';
+        } else if (targets.blockIds.length) {
+          finalId = targets.blockIds[0];
+          finalKey = 'blockIds';
         }
       }
       // Workaround: clear selection to avoid comment editor flickering

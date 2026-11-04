@@ -1189,3 +1189,129 @@ describe('DOCX PDF Unicode and layout regression', () => {
     ).rejects.toThrow('cannot represent');
   }, 20_000);
 });
+
+describe('MCP exposes the native DOCX command vocabulary without projection', () => {
+  for (const operation of [
+    'office.document.text.format',
+    'office.document.text.replace',
+    'office.document.paragraph.format',
+    'office.document.break.insert',
+    'office.document.table.insert',
+  ] as const) {
+    test(`${operation} survives reopen and retains every unrelated part`, () => {
+      const pkg = openDocxPackage(
+        minimalDocx({ 'word/fixture.bin': new Uint8Array([11, 22, 33]) })
+      );
+      const blockId = readDocxSemanticState(pkg).body[0].id;
+      const target = {
+        type: 'text_range',
+        start: { blockId, offset: 0 },
+        end: { blockId, offset: 5 },
+      };
+      const parameters =
+        operation === 'office.document.text.format'
+          ? { target, format: { bold: true, textColor: '#112233' } }
+          : operation === 'office.document.text.replace'
+            ? { target, text: '你好😀' }
+            : operation === 'office.document.paragraph.format'
+              ? {
+                  target: { type: 'paragraph', blockId },
+                  format: { alignment: 'center', keepNext: true },
+                }
+              : operation === 'office.document.break.insert'
+                ? { target: { blockId, offset: 5 }, breakType: 'line' }
+                : {
+                    afterBlockId: blockId,
+                    rows: 2,
+                    columns: 2,
+                    cells: [
+                      ['A', 'B'],
+                      ['', 'D'],
+                    ],
+                  };
+      const result = applyDocxCommand(pkg, {
+        ...base(operation),
+        operation,
+        ...parameters,
+      });
+      const reopened = openDocxPackage(result.packageBytes),
+        state = readDocxSemanticState(reopened);
+      for (const { path } of pkg.listParts())
+        if (path !== pkg.documentPart)
+          expect(reopened.requirePart(path)).toEqual(pkg.requirePart(path));
+      if (operation === 'office.document.text.format')
+        expect(state.body[0]).toMatchObject({
+          text: 'Hello LocalMind',
+          runs: [
+            {
+              content: [{ type: 'text', text: 'Hello' }],
+              format: { bold: true, color: '#112233' },
+            },
+            { content: [{ type: 'text', text: ' LocalMind' }] },
+          ],
+        });
+      if (operation === 'office.document.text.replace')
+        expect(state.body[0]).toMatchObject({ text: '你好😀 LocalMind' });
+      if (operation === 'office.document.paragraph.format')
+        expect(state.body[0]).toMatchObject({
+          properties: { alignment: 'center', keepNext: true },
+        });
+      if (operation === 'office.document.break.insert')
+        expect(state.body[0]).toMatchObject({ text: 'Hello\n LocalMind' });
+      if (operation === 'office.document.table.insert') {
+        expect(state.stats.tables).toBe(1);
+        expect(state.body[0]).toMatchObject({ text: 'Hello LocalMind' });
+        expect(JSON.stringify(state.body[1])).toContain('D');
+      }
+    });
+  }
+  test('office.document.content_control.text.set preserves control identity and properties', () => {
+    const pkg = openDocxPackage(
+      minimalDocx({
+        'word/document.xml': strToU8(
+          '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sdt><w:sdtPr><w:id w:val="123"/><w:alias w:val="Keep label"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Before</w:t></w:r></w:p></w:sdtContent></w:sdt></w:body></w:document>'
+        ),
+      })
+    );
+    const id = readDocxSemanticState(pkg).body[0].id;
+    const result = applyDocxCommand(pkg, {
+      ...base('control'),
+      operation: 'office.document.content_control.text.set',
+      contentControlId: id,
+      text: 'After',
+    });
+    const state = readDocxSemanticState(openDocxPackage(result.packageBytes));
+    expect(state.body[0]).toMatchObject({ id });
+    expect(JSON.stringify(state.body[0])).toContain('After');
+    expect(JSON.stringify(state.body[0])).toContain('Keep label');
+  });
+  test.each(['accept', 'reject'] as const)(
+    'office.document.review.resolve %s preserves unselected changes and unrelated parts',
+    action => {
+      const pkg = openDocxPackage(
+        minimalDocx({
+          'word/document.xml': strToU8(
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Keep</w:t></w:r><w:ins w:id="1" w:author="Fixture"><w:r><w:t>Added</w:t></w:r></w:ins><w:ins w:id="2" w:author="Fixture"><w:r><w:t>Other</w:t></w:r></w:ins></w:p></w:body></w:document>'
+          ),
+        })
+      );
+      const initial = readDocxSemanticState(pkg);
+      const result = applyDocxCommand(pkg, {
+        ...base('review'),
+        operation: 'office.document.review.resolve',
+        action,
+        changeIds: [initial.review.changes[0].id],
+      });
+      const reopened = openDocxPackage(result.packageBytes),
+        state = readDocxSemanticState(reopened);
+      expect(state.review.changes).toHaveLength(1);
+      expect(state.review.changes[0].id).toBe(initial.review.changes[1].id);
+      expect(state.body[0]).toMatchObject({
+        text: action === 'accept' ? 'KeepAddedOther' : 'KeepOther',
+      });
+      for (const { path } of pkg.listParts())
+        if (path !== pkg.documentPart)
+          expect(reopened.requirePart(path)).toEqual(pkg.requirePart(path));
+    }
+  );
+});

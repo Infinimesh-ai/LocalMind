@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { EventBus, JobQueue, OneDay, OnJob } from '../../base';
+import { Models } from '../../models';
 import { StorageRuntimeProvider } from '../storage-runtime';
 
 declare global {
@@ -17,8 +18,23 @@ export class BlobUploadCleanupJob {
   constructor(
     private readonly rt: StorageRuntimeProvider,
     private readonly event: EventBus,
-    private readonly queue: JobQueue
+    private readonly queue: JobQueue,
+    private readonly models: Models
   ) {}
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async collectDocumentObjects() {
+    let collected = 0;
+    for (; collected < 100; collected++) {
+      if (
+        !(await this.models.documentObjectStage.collectOne(key =>
+          this.rt.deleteObject('blob', key)
+        ))
+      )
+        break;
+    }
+    return collected;
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async nightlyJob() {

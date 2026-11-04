@@ -5,6 +5,7 @@ import type {
   TypeVarDefinitionInstance,
   TypeVarReferenceInstance,
 } from '../../logical/type-variable.js';
+import type { filterContracts } from '../contract.js';
 
 export type FilterConfig<
   Self extends TypeInstance = TypeInstance,
@@ -58,7 +59,9 @@ export const createFilter = <
   Args extends TypeInstance[],
   Vars extends TypeVarDefinitionInstance[],
 >(
-  config: FilterConfig<Self, Args, Vars>
+  config: FilterConfig<Self, Args, Vars> & {
+    name: keyof typeof filterContracts;
+  }
 ) => {
   return config;
 };

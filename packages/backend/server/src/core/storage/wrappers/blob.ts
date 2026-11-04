@@ -127,6 +127,12 @@ export class WorkspaceBlobStorage {
     };
     const needsUpload = await this.models.blob.reserveCopyUpload(reservation);
     if (needsUpload) {
+      await this.models.documentObjectStage.remember({
+        storageKey: `${workspaceId}/${key}`,
+        workspaceId,
+        blobId: key,
+        byteSize: blob.length,
+      });
       const metadata = await this.rt.putObject(
         'blob',
         `${workspaceId}/${key}`,

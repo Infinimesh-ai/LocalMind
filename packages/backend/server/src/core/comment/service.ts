@@ -9,14 +9,44 @@ import {
   ReplyCreate,
   ReplyUpdate,
 } from '../../models';
+import { type DocAction, PermissionAccess } from '../permission';
 import { PublicUserType } from '../user';
 
 @Injectable()
 export class CommentService {
-  constructor(private readonly models: Models) {}
+  constructor(
+    private readonly models: Models,
+    private readonly ac: PermissionAccess
+  ) {}
 
-  async createComment(input: CommentCreate) {
-    const comment = await this.models.comment.create(input);
+  async assertPermission(
+    actorId: string,
+    item: { workspaceId: string; docId: string; userId?: string },
+    action: DocAction
+  ) {
+    const access = this.ac
+      .user(actorId)
+      .workspace(item.workspaceId)
+      .doc(item.docId)
+      .projectScope(null);
+    // Authorship never grants continuing access after the document is revoked.
+    if (
+      item.userId === actorId &&
+      [
+        'Doc.Comments.Update',
+        'Doc.Comments.Resolve',
+        'Doc.Comments.Delete',
+      ].includes(action)
+    ) {
+      await access.assert('Doc.Read');
+      return;
+    }
+    await access.assert(action);
+    await access.assert('Doc.Read');
+  }
+
+  async createComment(input: CommentCreate, id?: string) {
+    const comment = await this.models.comment.create(input, id);
     return await this.fillUser(comment);
   }
 
@@ -37,8 +67,8 @@ export class CommentService {
     return await this.models.comment.delete(id);
   }
 
-  async createReply(input: ReplyCreate) {
-    const reply = await this.models.comment.createReply(input);
+  async createReply(input: ReplyCreate, id?: string) {
+    const reply = await this.models.comment.createReply(input, id);
     return await this.fillUser(reply);
   }
 

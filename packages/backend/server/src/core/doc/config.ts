@@ -4,6 +4,7 @@ declare global {
   interface AppConfigSchema {
     doc: {
       mcpResourcesEnabled: boolean;
+      mcpDocumentEditingEnabled: boolean;
       history: {
         interval: number;
       };
@@ -19,6 +20,11 @@ defineModuleConfig('doc', {
     desc: 'Enable explicitly authorized direct Workspace MCP resource tools. Operation reconciliation remains available when disabled.',
     default: false,
     env: ['LOCALMIND_MCP_RESOURCES_ENABLED', 'boolean'],
+  },
+  mcpDocumentEditingEnabled: {
+    desc: 'Enable explicitly authorized native MCP document writes. Disable to stop v2 writes while retaining authorized reads and receipts.',
+    default: false,
+    env: ['LOCALMIND_MCP_DOCUMENT_EDITING_ENABLED', 'boolean'],
   },
   'experimental.yocto': {
     desc: 'Use `y-octo` to merge updates at the same time when merging using Yjs.',

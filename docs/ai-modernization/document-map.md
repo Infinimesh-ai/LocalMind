@@ -43,6 +43,14 @@ section or landing record.
 | [MCP direct resources](./mcp-direct-resource-tools-design.zh-CN.md)                             | Implemented, disabled by default: 10 direct Workspace MCP tools plus 3 existing delegation tools, independent capabilities, version checks and durable receipts                       | Public resource contracts, implementation scope and acceptance                                   |
 | [archive](./archive/README.md)                                                                  | Split historical audit log                                                                                                                                                            | A concise landing record is required for traceability                                            |
 
+## MCP Full Document Editing
+
+The [MCP full document editing plan](./mcp-document-full-editing-plan.zh-CN.md)
+defines the next-version target for native, lossless document operations, empty-block
+compatibility, operation-level capabilities and complete model coverage. It is an
+implementation plan, not an expansion of currently registered tools or legacy
+credential grants; the existing direct-resource contract remains the v1 baseline.
+
 ## Project Report Workbench
 
 The [Project report workbench development contract](project-report-workbench-development.zh-CN.md)

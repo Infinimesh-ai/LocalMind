@@ -5,6 +5,9 @@ import * as Y from 'yjs';
 
 import { createDocWithMarkdown, updateDocWithMarkdown } from '../../native';
 import { parseDocToMarkdownFromDocSnapshot } from '../utils/blocksuite';
+import { unsupportedResourceMarkdown } from './markdown-coverage';
+import { reconcileNativeArray } from './native-array';
+import { reconcileNativeText } from './native-text';
 import { RESOURCE_CONTENT_LIMIT, ResourceError } from './resource-types';
 
 const FLAVOURS = new Set([
@@ -44,6 +47,12 @@ function equivalentEditorProperty(
   value: unknown
 ) {
   const flavour = block.get('sys:flavour');
+  if (
+    ['affine:paragraph', 'affine:list'].includes(String(flavour)) &&
+    key === 'prop:textAlign' &&
+    value === 'left'
+  )
+    return true;
   if (METADATA_FLAVOURS.has(String(flavour)) && BLOCK_METADATA.includes(key)) {
     return key.endsWith('At')
       ? typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
@@ -75,6 +84,43 @@ function equivalentEditorProperty(
   return false;
 }
 
+// Markdown has no representation for these placeholders. They remain real
+// native blocks during edits; this equivalence applies only to the projection.
+function plainEmptyParagraph(block: Y.Map<unknown>) {
+  if (
+    block.get('sys:flavour') !== 'affine:paragraph' ||
+    block.get('sys:version') !== 1 ||
+    block.get('prop:type') !== 'text'
+  )
+    return false;
+  const text = block.get('prop:text'),
+    children = block.get('sys:children');
+  if (
+    !(text instanceof Y.Text) ||
+    text.length ||
+    !(children instanceof Y.Array) ||
+    children.length
+  )
+    return false;
+  for (const [key, value] of block) {
+    if (
+      [
+        'sys:id',
+        'sys:flavour',
+        'sys:version',
+        'sys:children',
+        'prop:type',
+        'prop:text',
+      ].includes(key) ||
+      equivalentEditorProperty(block, key, value)
+    )
+      continue;
+    if (key === 'prop:textAlign' && value === 'left') continue;
+    return false;
+  }
+  return true;
+}
+
 // Compare content structure, inline marks and semantic properties, not CRDT IDs.
 // Only explicit editor defaults and separately maintained metadata are excluded.
 // Other properties that cannot survive the Markdown round trip fail closed.
@@ -99,6 +145,7 @@ function semanticBlocks(bin: Uint8Array) {
       const flavour = String(block.get('sys:flavour'));
       if (!FLAVOURS.has(flavour))
         throw new ResourceError('unsupported_document_structure');
+      if (plainEmptyParagraph(block)) return undefined;
       const fields: Record<string, unknown> = { flavour };
       for (const [key, value] of [...block.entries()].sort(([a], [b]) =>
         a.localeCompare(b)
@@ -155,12 +202,15 @@ function semanticBlocks(bin: Uint8Array) {
       const children = block.get('sys:children');
       fields.children =
         children instanceof Y.Array
-          ? children.toArray().map(child => {
-              const value = blocks.get(String(child));
-              if (!(value instanceof Y.Map))
-                throw new ResourceError('unsupported_document_structure');
-              return walk(value);
-            })
+          ? children
+              .toArray()
+              .map(child => {
+                const value = blocks.get(String(child));
+                if (!(value instanceof Y.Map))
+                  throw new ResourceError('unsupported_document_structure');
+                return walk(value);
+              })
+              .filter(value => value !== undefined)
           : [];
       return fields;
     };
@@ -245,7 +295,7 @@ function reconcileResourceBlocks(doc: Y.Doc, targetDoc: Y.Doc) {
       if (id) available.delete(id);
       return id;
     });
-    return targets.map((target, index) => {
+    const aligned = targets.map((target, index) => {
       const nativeId = String(target.get('sys:id'));
       const id =
         matches[index] ?? (available.has(nativeId) ? nativeId : nanoid());
@@ -259,6 +309,30 @@ function reconcileResourceBlocks(doc: Y.Doc, targetDoc: Y.Doc) {
       edits.push({ id, target, children: childIds });
       return id;
     });
+    // Retain unmatched empty placeholders at their surviving sibling boundary.
+    // In particular a Markdown edit elsewhere must not silently remove blanks.
+    for (const [index, id] of oldIds.entries()) {
+      const block = blocks.get(id);
+      if (retained.has(id) || !block || !plainEmptyParagraph(block)) continue;
+      const next = oldIds
+        .slice(index + 1)
+        .find(candidate => aligned.includes(candidate));
+      const previous = oldIds
+        .slice(0, index)
+        .reverse()
+        .find(candidate => aligned.includes(candidate));
+      aligned.splice(
+        next
+          ? aligned.indexOf(next)
+          : previous
+            ? aligned.indexOf(previous) + 1
+            : aligned.length,
+        0,
+        id
+      );
+      retained.add(id);
+    }
+    return aligned;
   };
   const pageIds = (map: Y.Map<Y.Map<unknown>>) =>
     [...map]
@@ -283,8 +357,12 @@ function reconcileResourceBlocks(doc: Y.Doc, targetDoc: Y.Doc) {
         if (
           !skip(key) &&
           !isDeepStrictEqual(blockValue(block.get(key)), blockValue(value))
-        )
-          block.set(key, cloneBlockValue(value));
+        ) {
+          const previous = block.get(key);
+          if (previous instanceof Y.Text && value instanceof Y.Text)
+            reconcileNativeText(previous, value);
+          else block.set(key, cloneBlockValue(value));
+        }
       }
     }
     if (!isDeepStrictEqual(children(block), edit.children)) {
@@ -294,8 +372,13 @@ function reconcileResourceBlocks(doc: Y.Doc, targetDoc: Y.Doc) {
         block.set('sys:children', ids);
       }
       const array = ids as Y.Array<string>;
-      array.delete(0, array.length);
-      array.insert(0, edit.children);
+      reconcileNativeArray(
+        array,
+        edit.children,
+        String,
+        value => value,
+        () => {}
+      );
     }
   }
   for (const id of blocks.keys()) {
@@ -366,18 +449,68 @@ export function readResourceMarkdown(
   bin: Uint8Array
 ) {
   let parsed;
+  const projection = new Y.Doc();
   try {
+    Y.applyUpdate(projection, bin);
+    const blocks = projection.getMap<Y.Map<unknown>>('blocks');
+    const emptyIds = new Set(
+      [...blocks]
+        .filter(([, block]) => plainEmptyParagraph(block))
+        .map(([id]) => id)
+    );
+    for (const block of blocks.values()) {
+      const children = block.get('sys:children');
+      if (children instanceof Y.Array)
+        for (let index = children.length - 1; index >= 0; index--)
+          if (emptyIds.has(String(children.get(index))))
+            children.delete(index, 1);
+    }
+    emptyIds.forEach(id => blocks.delete(id));
     parsed = parseDocToMarkdownFromDocSnapshot(
       workspaceId,
       documentId,
-      bin,
+      Y.encodeStateAsUpdate(projection),
       false
     );
   } catch {
     throw new ResourceError('unsupported_document_kind');
+  } finally {
+    projection.destroy();
   }
-  if (parsed.unknownBlocks.length)
+  if (
+    parsed.unknownBlocks.length ||
+    parsed.knownUnsupportedBlocks.some(
+      block => !/:affine:(surface|note)$/.test(block)
+    )
+  )
     throw new ResourceError('unsupported_document_structure');
+  // A canvas projection cannot advertise the remaining page text as a complete
+  // document. Native inspection is the complete read interface for this case.
+  const native = new Y.Doc();
+  try {
+    Y.applyUpdate(native, bin);
+    for (const block of native.getMap<Y.Map<unknown>>('blocks').values()) {
+      if (!FLAVOURS.has(String(block.get('sys:flavour'))))
+        throw new ResourceError('unsupported_document_structure');
+      if (block.get('sys:flavour') !== 'affine:surface') continue;
+      const stored = block.get('prop:elements');
+      const elements =
+        stored instanceof Y.Map &&
+        stored.get('type') === '$blocksuite:internal:native$'
+          ? stored.get('value')
+          : stored;
+      if (
+        elements instanceof Y.Map
+          ? elements.size > 0
+          : elements &&
+            typeof elements === 'object' &&
+            Object.keys(elements).length > 0
+      )
+        throw new ResourceError('unsupported_document_structure');
+    }
+  } finally {
+    native.destroy();
+  }
   if (Buffer.byteLength(parsed.markdown, 'utf8') > RESOURCE_CONTENT_LIMIT)
     throw new ResourceError('content_too_large');
   let writable = false;
@@ -392,6 +525,7 @@ export function readResourceMarkdown(
         block => !/:affine:(surface|note)$/.test(block)
       ) &&
       !parsed.unknownBlocks.length &&
+      !unsupportedResourceMarkdown(parsed.markdown).length &&
       semanticBlocks(bin) === semanticBlocks(recreated);
   } catch {
     /* Readable unsupported structures remain read-only. */
@@ -418,7 +552,7 @@ export function validateResourceMarkdown(
   if (!result.contentWritable)
     throw new ResourceError('unsupported_document_structure');
   // Native parsers must not silently drop images, HTML or embedded resources.
-  if (/!\[|<\/?[a-zA-Z][^>]*>|^\s*\|.*\|/m.test(text))
+  if (unsupportedResourceMarkdown(text).length)
     throw new ResourceError('unsupported_document_structure');
   return result;
 }

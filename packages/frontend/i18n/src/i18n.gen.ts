@@ -19456,6 +19456,150 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.mcp-server.capability.doc-read"](): string;
     /**
+      * `Inspect native documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-inspect"](): string;
+    /**
+      * `Read versioned native content, including empty blocks, tables, Office documents and files.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-inspect.description"](): string;
+    /**
+      * `Preview native edits`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-preview"](): string;
+    /**
+      * `Validate native edits without saving changes.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-preview.description"](): string;
+    /**
+      * `Apply native edits`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-apply"](): string;
+    /**
+      * `Apply explicit, version-checked native content edits with your current permissions.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-apply.description"](): string;
+    /**
+      * `Export native content`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-export"](): string;
+    /**
+      * `Export original document content in version-bound chunks.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-export.description"](): string;
+    /**
+      * `List document history`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-history-list"](): string;
+    /**
+      * `Read the available native content revisions.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-history-list.description"](): string;
+    /**
+      * `Read document history`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-history-read"](): string;
+    /**
+      * `Read a selected immutable content revision.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-history-read.description"](): string;
+    /**
+      * `Restore document history`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-history-restore"](): string;
+    /**
+      * `Restore a selected content revision in the same document with a version check.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-history-restore.description"](): string;
+    /**
+      * `Read document assets`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-asset-read"](): string;
+    /**
+      * `Read authorized original assets in bounded chunks.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-asset-read.description"](): string;
+    /**
+      * `Upload document assets`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-asset-upload"](): string;
+    /**
+      * `Stage, verify and commit immutable assets for document edits.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-asset-upload.description"](): string;
+    /**
+      * `Create native documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-create-native"](): string;
+    /**
+      * `Create BlockSuite, Office and file resources at an authorized destination.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-create-native.description"](): string;
+    /**
+      * `Import document files`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-import"](): string;
+    /**
+      * `Import uploaded Office packages and ordinary files as independent resources.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-import.description"](): string;
+    /**
+      * `Update document properties`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-properties"](): string;
+    /**
+      * `Update explicitly selected titles, tags and supported document properties.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-properties.description"](): string;
+    /**
+      * `Duplicate native document`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-duplicate"](): string;
+    /**
+      * `Create an independent copy preserving native content, metadata and selected comments.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-duplicate.description"](): string;
+    /**
+      * `Trash, restore and permanently delete documents`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-lifecycle"](): string;
+    /**
+      * `Use the current identity’s resource permissions for each action; this capability includes permanent deletion.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-lifecycle.description"](): string;
+    /**
+      * `Read comments and replies`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-comments-read"](): string;
+    /**
+      * `Read authorized comment threads and anchors.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-comments-read.description"](): string;
+    /**
+      * `Edit comments and replies`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-comments-apply"](): string;
+    /**
+      * `Create, edit, resolve, delete or reattach comments and replies.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-comments-apply.description"](): string;
+    /**
+      * `Read document sharing and members`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-access-read"](): string;
+    /**
+      * `Read document membership and sharing settings visible to the current identity.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-access-read.description"](): string;
+    /**
+      * `Manage document sharing, members and ownership`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-access-update"](): string;
+    /**
+      * `A separate management capability; each action requires its corresponding live permission.`
+      */
+    ["com.affine.integration.mcp-server.capability.doc-access-update.description"](): string;
+    /**
       * `Read full Markdown and the current version.`
       */
     ["com.affine.integration.mcp-server.capability.doc-read.description"](): string;
@@ -19515,6 +19659,14 @@ export function useAFFiNEI18N(): {
       * `Check persisted receipts without executing or cancelling work.`
       */
     ["com.affine.integration.mcp-server.capability.operation-get.description"](): string;
+    /**
+      * `Select full document editing`
+      */
+    ["com.affine.integration.mcp-server.preset.document-edit"](): string;
+    /**
+      * `Select native content, formatting, assets, comments and history editing. Sharing, membership, ownership and permanent deletion are separate selections.`
+      */
+    ["com.affine.integration.mcp-server.preset.document-edit.description"](): string;
     /**
       * `Direct resource tools`
       */
@@ -28034,6 +28186,10 @@ export function useAFFiNEI18N(): {
       * `Cancelling cannot necessarily undo an external action already completed. Report the time, resource location and run or request ID, excluding keys, tokens and unrelated private content.`
       */
     ["com.affine.localmind.help.guide.troubleshooting.tasks.note"](): string;
+    /**
+      * `Original content was deleted or is no longer anchored`
+      */
+    ["com.affine.comment.anchor.orphaned"](): string;
     /**
       * `An internal error occurred.`
       */

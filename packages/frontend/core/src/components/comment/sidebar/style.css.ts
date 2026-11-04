@@ -36,6 +36,13 @@ export const commentList = style({
   gap: '8px',
 });
 
+export const orphanedAnchor = style({
+  fontSize: cssVar('fontXs'),
+  color: cssVarV2('text/secondary'),
+  padding: '4px 0',
+  lineHeight: 1.5,
+});
+
 export const empty = style({
   height: '100%',
   flex: 1,

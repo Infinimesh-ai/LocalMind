@@ -475,15 +475,6 @@ export class CommentResolver {
     item: { workspaceId: string; docId: string; userId?: string },
     action: DocAction
   ) {
-    // the owner of the comment/reply can update, delete, resolve it
-    if (item.userId === me.id) {
-      return;
-    }
-
-    await this.ac
-      .user(me.id)
-      .workspace(item.workspaceId)
-      .doc(item.docId)
-      .assert(action);
+    await this.service.assertPermission(me.id, item, action);
   }
 }

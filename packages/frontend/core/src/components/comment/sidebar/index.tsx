@@ -263,6 +263,9 @@ const CommentItem = ({
   const account = useLiveData(session.account$);
 
   const docId = entity.props.docId;
+  const anchorsReady = useLiveData(entity.anchorsReady$);
+  const anchoredIds = useLiveData(entity.commentsInEditor$);
+  const orphaned = anchorsReady && !anchoredIds.includes(comment.id);
   const canCreateComment = useGuard('Doc_Comments_Create', docId);
   const canDeleteComment = useGuard('Doc_Comments_Delete', docId);
   const canResolveComment = useGuard('Doc_Comments_Resolve', docId);
@@ -483,11 +486,17 @@ const CommentItem = ({
     <div
       onClick={handleClick}
       data-comment-id={comment.id}
+      data-anchor-state={orphaned ? 'orphaned' : 'attached'}
       data-resolved={comment.resolved}
       data-highlighting={highlighting || menuOpen}
       className={styles.commentItem}
       ref={commentRef}
     >
+      {orphaned ? (
+        <div role="status" className={styles.orphanedAnchor}>
+          {t['com.affine.comment.anchor.orphaned']()}
+        </div>
+      ) : null}
       <div
         className={styles.commentActions}
         data-menu-open={menuOpen}

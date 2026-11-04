@@ -9,7 +9,6 @@ import { EventBus } from '../../base';
 import {
   createDocWithMarkdown,
   updateDocProperties,
-  updateDocTitle,
   updateDocWithMarkdown,
   updateRootDocMetaTitle,
 } from '../../native';
@@ -29,6 +28,8 @@ export interface CreateDocResult {
   docId: string;
   idempotentReplay?: boolean;
 }
+
+import { updateNativeTitle } from './native-title';
 
 export interface UpdateDocResult {
   success: boolean;
@@ -519,7 +520,8 @@ export class DocWriter {
           rootDoc.bin.byteOffset,
           rootDoc.bin.byteLength
         );
-    const titleUpdate = updateDocTitle(existingBinary, meta.title, docId);
+    const title = updateNativeTitle(existingBinary, meta.title);
+    const titleUpdate = title.update;
     const rootMetaUpdate = updateRootDocMetaTitle(
       rootDocBin,
       docId,
@@ -541,20 +543,22 @@ export class DocWriter {
       editor: editorId,
     });
 
-    const docTimestamp = await this.storage.pushDocUpdates(
-      workspaceId,
-      docId,
-      [titleUpdate],
-      editorId,
-      beforeWrite
-    );
-    this.emitDocUpdatesPushed({
-      spaceId: workspaceId,
-      docId,
-      updates: [titleUpdate],
-      timestamp: docTimestamp,
-      editor: editorId,
-    });
+    if (title.changed) {
+      const docTimestamp = await this.storage.pushDocUpdates(
+        workspaceId,
+        docId,
+        [titleUpdate],
+        editorId,
+        beforeWrite
+      );
+      this.emitDocUpdatesPushed({
+        spaceId: workspaceId,
+        docId,
+        updates: [titleUpdate],
+        timestamp: docTimestamp,
+        editor: editorId,
+      });
+    }
 
     await this.updateDocProperties(
       workspaceId,

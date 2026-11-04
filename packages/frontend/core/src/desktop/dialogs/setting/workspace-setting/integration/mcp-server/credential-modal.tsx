@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_MCP_CAPABILITIES,
   MCP_CAPABILITY_GROUPS,
+  MCP_DOCUMENT_EDIT_PRESET,
   needsOperationQueryHint,
   updateMcpCapabilities,
 } from './capabilities';
@@ -139,6 +140,22 @@ export const McpCredentialModal = ({
               <span>
                 {t['com.affine.integration.mcp-server.field.access']()}
               </span>
+              <Button
+                disabled={submitting}
+                onClick={() =>
+                  setCapabilities(
+                    current =>
+                      new Set([...current, ...MCP_DOCUMENT_EDIT_PRESET])
+                  )
+                }
+              >
+                {t['com.affine.integration.mcp-server.preset.document-edit']()}
+              </Button>
+              <p className={styles.description}>
+                {t[
+                  'com.affine.integration.mcp-server.preset.document-edit.description'
+                ]()}
+              </p>
               <div className={styles.capabilitySelector}>
                 {MCP_CAPABILITY_GROUPS.map(group => (
                   <fieldset

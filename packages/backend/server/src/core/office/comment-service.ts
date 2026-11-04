@@ -3,6 +3,7 @@ import { Transactional } from '@nestjs-cls/transactional';
 import type { OfficeArtifactKind } from '@prisma/client';
 import { z } from 'zod';
 
+import { BadRequest } from '../../base';
 import { Models } from '../../models';
 import {
   type OfficeOwner,
@@ -147,13 +148,15 @@ export class OfficeCommentService {
       artifactId: string;
       actorId: string;
       content: unknown;
-    }
+    },
+    id?: string
   ) {
     const owner = officeOwnerFromInput(input);
     await this.assertWrite(owner, input.actorId, input.artifactId);
     const content = OfficeCommentContentSchema.parse(input.content);
     await this.assertAnchor(owner, input.artifactId, content.anchor);
     const comment = await this.models.officeComment.create({
+      ...(id ? { id } : {}),
       owner,
       docId: input.artifactId,
       userId: input.actorId,
@@ -199,15 +202,19 @@ export class OfficeCommentService {
   }
 
   @Transactional()
-  async createReply(input: {
-    actorId: string;
-    commentId: string;
-    content: unknown;
-  }) {
+  async createReply(
+    input: {
+      actorId: string;
+      commentId: string;
+      content: unknown;
+    },
+    id?: string
+  ) {
     const comment = await this.requireComment(input.commentId);
     await this.assertWrite(this.ownerOf(comment), input.actorId, comment.docId);
     const content = OfficeCommentReplyContentSchema.parse(input.content);
     const reply = await this.models.officeComment.createReply({
+      ...(id ? { id } : {}),
       commentId: comment.id,
       userId: input.actorId,
       content,
@@ -235,6 +242,20 @@ export class OfficeCommentService {
     return reply;
   }
 
+  async validateContent(
+    owner: OfficeOwner,
+    actorId: string,
+    artifactId: string,
+    value: unknown,
+    reply = false
+  ) {
+    await this.assertWrite(owner, actorId, artifactId);
+    if (reply) return OfficeCommentReplyContentSchema.parse(value);
+    const content = OfficeCommentContentSchema.parse(value);
+    await this.assertAnchor(owner, artifactId, content.anchor);
+    return content;
+  }
+
   private async assertAnchor(
     owner: OfficeOwner,
     artifactId: string,
@@ -242,7 +263,9 @@ export class OfficeCommentService {
   ) {
     const artifact = await this.models.officeArtifact.get(owner, artifactId);
     if (!artifact || artifact.kind !== ARTIFACT_KIND_BY_ANCHOR[anchor.kind]) {
-      throw new Error('Office comment anchor does not match artifact kind');
+      throw new BadRequest(
+        'Office comment anchor does not match artifact kind'
+      );
     }
     const revision = await this.models.officeArtifact.getRevision(
       owner,
@@ -250,7 +273,7 @@ export class OfficeCommentService {
       anchor.revisionId
     );
     if (!revision) {
-      throw new Error(
+      throw new BadRequest(
         `Office comment revision not found: ${anchor.revisionId}`
       );
     }
@@ -259,7 +282,7 @@ export class OfficeCommentService {
       anchor.start.blockId === anchor.end.blockId &&
       anchor.start.offset > anchor.end.offset
     ) {
-      throw new Error('Office comment text range is reversed');
+      throw new BadRequest('Office comment text range is reversed');
     }
   }
 
@@ -287,11 +310,7 @@ export class OfficeCommentService {
     return artifact;
   }
 
-  private async assertWrite(
-    owner: OfficeOwner,
-    actorId: string,
-    artifactId: string
-  ) {
+  async assertWrite(owner: OfficeOwner, actorId: string, artifactId: string) {
     await this.assertRead(owner, actorId, artifactId);
     if (typeof owner === 'string')
       await this.nativeAccess.write(

@@ -1,11 +1,12 @@
+import {
+  collectNativeCommentIds,
+  updateNativeTextCommentState,
+} from '@blocksuite/affine-model/comment-anchors';
 import { getInlineEditorByModel } from '@blocksuite/affine-rich-text';
 import { getSelectedBlocksCommand } from '@blocksuite/affine-shared/commands';
 import {
-  BlockElementCommentManager,
   type CommentId,
   CommentProviderIdentifier,
-  findAllCommentedBlocks,
-  findAllCommentedElements,
 } from '@blocksuite/affine-shared/services';
 import type { AffineInlineEditor } from '@blocksuite/affine-shared/types';
 import { DisposableGroup } from '@blocksuite/global/disposable';
@@ -16,13 +17,8 @@ import {
 } from '@blocksuite/std';
 import type { BaseSelection, BlockModel } from '@blocksuite/store';
 import { signal } from '@preact/signals-core';
-import difference from 'lodash-es/difference';
 
-import {
-  extractCommentIdFromDelta,
-  findAllCommentedTexts,
-  findCommentedTexts,
-} from './utils';
+import { extractCommentIdFromDelta } from './utils';
 
 export class InlineCommentManager extends LifeCycleWatcher {
   static override key = 'inline-comment-manager';
@@ -68,35 +64,14 @@ export class InlineCommentManager extends LifeCycleWatcher {
     const provider = this._provider;
     if (!provider) return;
 
-    const commentsInProvider = await provider.getComments('all');
-
-    const commentsInEditor = this.getCommentsInEditor();
-
-    // remove comments that are in editor but not in provider
-    // which means the comment may be removed or resolved in provider side
-    difference(commentsInEditor, commentsInProvider).forEach(comment => {
-      this.std
-        .get(BlockElementCommentManager)
-        .handleDeleteAndResolve(comment, 'delete');
-    });
+    // An absent thread can mean a failed read, pending sync or a restricted
+    // audience. Only an explicit delete event may remove its durable anchor.
+    const resolved = await provider.getComments('resolved');
+    resolved.forEach(id => this._handleDeleteAndResolve(id, 'resolve'));
   }
 
   getCommentsInEditor() {
-    const inlineComments = [...findAllCommentedTexts(this.std.store).values()];
-
-    const blockComments = findAllCommentedBlocks(this.std.store).flatMap(
-      block => Object.keys(block.props.comments)
-    );
-
-    const surfaceComments = findAllCommentedElements(this.std.store).flatMap(
-      element => Object.keys(element.comments)
-    );
-
-    const commentsInEditor = [
-      ...new Set([...inlineComments, ...blockComments, ...surfaceComments]),
-    ];
-
-    return commentsInEditor;
+    return [...collectNativeCommentIds(this.std.store.spaceDoc)];
   }
 
   private readonly _handleAddComment = (
@@ -169,26 +144,12 @@ export class InlineCommentManager extends LifeCycleWatcher {
     id: CommentId,
     type: 'delete' | 'resolve'
   ) => {
-    const commentedTexts = findCommentedTexts(this.std.store, id);
-    if (commentedTexts.length === 0) return;
-
     this.std.store.withoutTransact(() => {
-      commentedTexts.forEach(selection => {
-        const inlineEditor = getInlineEditorByModel(
-          this.std,
-          selection.from.blockId
-        );
-
-        inlineEditor?.formatText(
-          selection.from,
-          {
-            [`comment-${id}`]: type === 'delete' ? null : false,
-          },
-          {
-            withoutTransact: true,
-          }
-        );
-      });
+      updateNativeTextCommentState(
+        this.std.store.spaceDoc,
+        id,
+        type === 'delete' ? null : false
+      );
     });
   };
 

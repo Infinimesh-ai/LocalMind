@@ -156,7 +156,7 @@ test('native root preserves the winner of concurrent replacements with prior his
 });
 
 test('resource capabilities never expand legacy defaults', t => {
-  t.is(MCP_CAPABILITIES.length, 13);
+  t.is(MCP_CAPABILITIES.length, 31);
   t.deepEqual(normalizeMcpCapabilities([], 'READ_WRITE'), [
     ...MCP_DELEGATION_CAPABILITIES,
   ]);
@@ -164,6 +164,8 @@ test('resource capabilities never expand legacy defaults', t => {
     'get_localmind_task',
   ]);
   t.is(mcpAccessModeForCapabilities(['workspace_doc_create']), 'READ_WRITE');
+  t.is(mcpAccessModeForCapabilities(['workspace_doc_apply']), 'READ_WRITE');
+  t.is(mcpAccessModeForCapabilities(['workspace_doc_inspect']), 'READ_ONLY');
   t.is(
     mcpAccessModeForCapabilities([
       'workspace_doc_read',
@@ -349,10 +351,87 @@ test('unsupported images and block structures are never writable', t => {
   for (const block of blocks.values())
     if (block.get('sys:flavour') === 'affine:paragraph')
       block.set('sys:flavour', 'affine:database');
-  t.false(
-    readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc)).contentWritable
-  );
+  t.throws(() => readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc)), {
+    message: 'unsupported_document_structure',
+  });
   doc.destroy();
+});
+
+test('Markdown projection accepts plain empty paragraphs and preserves their identities during unrelated edits', t => {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, createDocWithMarkdown('Empty', '', 'doc'));
+    const blocks = doc.getMap<Y.Map<unknown>>('blocks');
+    const note = [...blocks.values()].find(
+      block => block.get('sys:flavour') === 'affine:note'
+    )!;
+    const children = note.get('sys:children') as Y.Array<string>;
+    for (const id of ['blank-one', 'blank-two']) {
+      const block = new Y.Map<unknown>();
+      blocks.set(id, block);
+      for (const [key, value] of Object.entries({
+        'sys:id': id,
+        'sys:flavour': 'affine:paragraph',
+        'sys:version': 1,
+        'prop:type': 'text',
+        'prop:collapsed': false,
+        'prop:textAlign': 'left',
+        'prop:meta:createdBy': 'original-author',
+        'prop:meta:createdAt': 123,
+      }))
+        block.set(key, value);
+      block.set('sys:children', new Y.Array());
+      block.set('prop:text', new Y.Text());
+      children.push([id]);
+    }
+    const original = readResourceMarkdown(
+      'w',
+      'doc',
+      Y.encodeStateAsUpdate(doc)
+    );
+    t.true(original.contentWritable);
+    t.is(original.content.text, '');
+    t.true(
+      validateResourceMarkdown('Empty', original.content.text, 'doc')
+        .contentWritable
+    );
+    Y.applyUpdate(
+      doc,
+      updateResourceMarkdown(
+        Buffer.from(Y.encodeStateAsUpdate(doc)),
+        'New content',
+        'doc',
+        'editor',
+        456
+      )
+    );
+    for (const id of ['blank-one', 'blank-two']) {
+      t.true(blocks.has(id));
+      t.is(blocks.get(id)?.get('prop:meta:createdBy'), 'original-author');
+    }
+    const result = readResourceMarkdown('w', 'doc', Y.encodeStateAsUpdate(doc));
+    t.true(result.contentWritable);
+    t.is(result.content.text.trim(), 'New content');
+  } finally {
+    doc.destroy();
+  }
+});
+
+test('Markdown coverage distinguishes code and pipe text from actual unsupported nodes', t => {
+  for (const text of [
+    '```html\n<img src="private">\n![literal](asset)\n| a | b |\n|---|---|\n```',
+    '`<div> ![literal](asset)`',
+    'ordinary | pipe text',
+  ])
+    t.true(validateResourceMarkdown('Literal', text, 'doc').contentWritable);
+  for (const text of [
+    '<div>HTML</div>',
+    '![image](https://example.test/a.png)',
+    '| a | b |\n|---|---|\n| 1 | 2 |',
+  ])
+    t.throws(() => validateResourceMarkdown('Unsupported', text, 'doc'), {
+      message: 'unsupported_document_structure',
+    });
 });
 
 test('code blocks preserve their contents through repeated Markdown round trips', t => {

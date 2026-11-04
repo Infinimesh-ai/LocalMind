@@ -30,7 +30,8 @@ export class McpResourceOperationModel extends BaseModel {
         | 'documentId'
         | 'folderId'
         | 'parentId'
-      >
+      > &
+      Partial<Pick<McpResourceOperation, 'resourceKind' | 'resourceId'>>
   ) {
     // INSERT ON CONFLICT waits for a concurrent first receipt without the
     // find/create race of Prisma's emulated upsert with an empty update.

@@ -12,6 +12,7 @@ import {
   WorkspaceOrganizationService,
   WorkspaceResourceService,
 } from '../../../core/doc';
+import { DOCUMENT_CONTRACT_VERSION } from '../../../core/doc/document-schema';
 import {
   searchReadableMarkdown,
   type WorkspaceKeywordSearchResult,
@@ -29,6 +30,7 @@ import {
   MCP_RESOURCE_CAPABILITIES,
   normalizeMcpCapabilities,
 } from './capabilities';
+import { McpDocumentsService } from './native-documents';
 import {
   RESOURCE_FAILURE_SCHEMA,
   RESOURCE_INPUT_SCHEMAS,
@@ -77,7 +79,8 @@ export class McpResourcesService {
     private readonly ac: PermissionAccess,
     private readonly indexer: IndexerService,
     private readonly reader: DocReader,
-    private readonly urls: URLHelper
+    private readonly urls: URLHelper,
+    private readonly documents: McpDocumentsService
   ) {}
 
   tools(
@@ -231,6 +234,8 @@ export class McpResourcesService {
     credential: Credential,
     operation: McpResourceOperation
   ) {
+    if (operation.contractVersion === DOCUMENT_CONTRACT_VERSION)
+      return this.documents.readableReceipt(credential, operation);
     const actor = this.actor(credential);
     try {
       if (

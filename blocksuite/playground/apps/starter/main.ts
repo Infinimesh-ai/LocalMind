@@ -10,6 +10,7 @@ import * as affineModel from '@blocksuite/affine-model';
 import * as editor from '@blocksuite/integration-test';
 import { effects as itEffects } from '@blocksuite/integration-test/effects';
 import { getTestStoreManager } from '@blocksuite/integration-test/store';
+import * as yjs from 'yjs';
 
 import { setupEdgelessTemplate } from '../_common/setup.js';
 import { effects as commentEffects } from '../comment/effects.js';
@@ -47,6 +48,7 @@ async function main() {
         editor,
         blockStd: blockStd,
         affineModel: affineModel,
+        yjs,
       }),
     });
     await prepareTestApp(collection);

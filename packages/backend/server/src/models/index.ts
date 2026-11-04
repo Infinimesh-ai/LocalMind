@@ -48,6 +48,9 @@ import { CopilotWorkOrderAgentRuntimeModel } from './copilot-work-order-agent-ru
 import { CopilotWorkspaceConfigModel } from './copilot-workspace';
 import { DocModel } from './doc';
 import { DocUserModel } from './doc-user';
+import { DocumentAccessModel } from './document-access';
+import { DocumentCommentsModel } from './document-comments';
+import { DocumentObjectStageModel } from './document-object-stage';
 import { FeatureModel } from './feature';
 import { HistoryModel } from './history';
 import { IntelligenceWorkbenchAuthorizationModel } from './intelligence-workbench-authorization';
@@ -57,6 +60,7 @@ import { IscpModel } from './iscp';
 import { MagicLinkOtpModel } from './magic-link-otp';
 import { MailDeliveryModel } from './mail-delivery';
 import { McpCredentialModel } from './mcp-credential';
+import { McpDocumentUploadModel } from './mcp-document-upload';
 import { McpResourceOperationModel } from './mcp-resource-operation';
 import { NotificationModel } from './notification';
 import { OfficeArtifactModel } from './office-artifact';
@@ -185,6 +189,10 @@ const MODELS = {
   blob: BlobModel,
   mcpCredential: McpCredentialModel,
   mcpResourceOperation: McpResourceOperationModel,
+  mcpDocumentUpload: McpDocumentUploadModel,
+  documentComments: DocumentCommentsModel,
+  documentObjectStage: DocumentObjectStageModel,
+  documentAccess: DocumentAccessModel,
   workspaceDocOutbox: WorkspaceDocOutboxModel,
   calendarAccount: CalendarAccountModel,
   calendarSubscription: CalendarSubscriptionModel,

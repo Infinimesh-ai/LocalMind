@@ -512,13 +512,7 @@ export function getPointFromBoundsWithRotation(
   const cx = x + w / 2;
   const cy = y + h / 2;
 
-  const m = new DOMMatrix()
-    .translateSelf(cx, cy)
-    .rotateSelf(rotate)
-    .translateSelf(-cx, -cy);
-
-  const p = new DOMPoint(...point).matrixTransform(m);
-  return [p.x, p.y];
+  return rotatePoint(point, [cx, cy], rotate);
 }
 
 export function normalizeDegAngle(angle: number) {

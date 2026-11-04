@@ -17,16 +17,20 @@ import {
 } from '../../models/office-owner';
 import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
 import { WorkspaceNativeResourceAccess } from '../doc/native-resource-access';
+import { ResourceError } from '../doc/resource-types';
 import { PermissionAccess } from '../permission';
 import { officeFingerprint, officeJsonFingerprint } from './evidence';
 import {
   applyNativeOfficeCommand,
   type NativeOfficeState,
   officeFormatForCommand,
+  type OfficeFormatPolicy,
   officePackageSearchText,
   officeStateStats,
+  readNativeOfficeState,
 } from './formats';
 import { OfficeResourceStorage } from './resource-storage';
+import { preserveOfficeState } from './state-preservation';
 
 const ORIGIN_BY_SOURCE = {
   user: OfficeRevisionOrigin.user,
@@ -750,6 +754,73 @@ export class OfficeCommandService {
     };
   }
 
+  private async preserveState(
+    owner: OfficeOwner,
+    actorId: string,
+    parent: { stateBlobKey: string | null; stateFingerprint: string | null },
+    policy: OfficeFormatPolicy,
+    originalPackage: Uint8Array,
+    result: PreparedOfficeCommandResult,
+    commands: OfficeCommand[]
+  ) {
+    if (!parent.stateBlobKey) return result;
+    const source = await this.storage.get(owner, actorId, parent.stateBlobKey);
+    if (!source.body) throw new ResourceError('resource_not_found');
+    const bytes = await readBufferWithLimit(source.body, policy.maxStateBytes);
+    if (
+      parent.stateFingerprint &&
+      officeFingerprint(bytes) !== parent.stateFingerprint
+    )
+      throw new ResourceError('preservation_failed');
+    let stored: unknown;
+    try {
+      stored = JSON.parse(bytes.toString('utf8'));
+    } catch {
+      throw new ResourceError('preservation_failed');
+    }
+    const baseline = await readNativeOfficeState(policy, originalPackage);
+    return {
+      ...result,
+      state: preserveOfficeState(
+        baseline,
+        result.state,
+        stored,
+        commands.some(
+          ({ operation }) =>
+            /\.(insert|delete|reorder|duplicate|add|dimension\.change)$/.test(
+              operation
+            ) || operation === 'office.document.edit'
+        ),
+        new Map(
+          commands.flatMap(command =>
+            command.operation === 'office.document.edit'
+              ? command.identities.map(
+                  ({ blockId, id }) => [blockId, id] as const
+                )
+              : []
+          )
+        )
+      ),
+    };
+  }
+
+  private async applyValidated(
+    policy: OfficeFormatPolicy,
+    bytes: Uint8Array,
+    command: OfficeCommand
+  ) {
+    try {
+      return await applyNativeOfficeCommand(policy, bytes, command);
+    } catch (error) {
+      if (error instanceof ResourceError) throw error;
+      // This boundary is pure native compilation, before any storage write.
+      // Native parser/range/format failures have a certain zero-commit outcome.
+      throw new BadRequest(
+        'The native Office command is invalid or cannot preserve this document'
+      );
+    }
+  }
+
   private async prepare(input: ExecuteOfficeCommandInput, allowReplay = false) {
     const owner = officeOwnerFromInput(input);
     const actorId = requireExecutionField(input.actorId, 'actor id');
@@ -799,7 +870,15 @@ export class OfficeCommandService {
         `Office ${policy.format.toUpperCase()} revision fingerprint does not match: ${parent.id}`
       );
     }
-    const result = await applyNativeOfficeCommand(policy, parentBytes, command);
+    const result = await this.preserveState(
+      owner,
+      actorId,
+      parent,
+      policy,
+      parentBytes,
+      await this.applyValidated(policy, parentBytes, command),
+      [command]
+    );
     return {
       owner,
       actorId,
@@ -870,14 +949,11 @@ export class OfficeCommandService {
         `Office ${policy.format.toUpperCase()} revision fingerprint does not match: ${parent.id}`
       );
     }
+    const originalPackage = packageBytes;
     const summaries: Prisma.InputJsonObject[] = [];
     let finalResult: PreparedOfficeCommandResult | null = null;
     for (const command of batch.commands) {
-      const applied = await applyNativeOfficeCommand(
-        policy,
-        packageBytes,
-        command
-      );
+      const applied = await this.applyValidated(policy, packageBytes, command);
       finalResult = {
         ...applied,
         summary: JSON.parse(
@@ -902,7 +978,15 @@ export class OfficeCommandService {
       parent,
       policy,
       result: {
-        ...finalResult,
+        ...(await this.preserveState(
+          owner,
+          actorId,
+          parent,
+          policy,
+          originalPackage,
+          finalResult,
+          batch.commands
+        )),
         summary: batchSummary(batch, summaries),
       },
     };

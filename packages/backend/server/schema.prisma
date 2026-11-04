@@ -328,6 +328,8 @@ model Workspace {
   aiContextPolicies                     AiContextPolicy[]                      @relation("context_policy_workspace")
   mcpResourceOperations                 McpResourceOperation[]
   docOutbox                             WorkspaceDocOutbox[]
+  documentCommentStates                 DocumentCommentState[]
+  documentEvents                        DocumentEventOutbox[]
   mcpCredentials                        McpCredential[]
   aiMcpAttachments                      AiMcpAttachment[]                      @relation("mcp_attachment_workspace")
   mcpDelegationEndpoints                AiMcpDelegationEndpoint[]              @relation("mcp_delegation_endpoint_workspace")
@@ -4247,6 +4249,7 @@ model Reply {
   comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@index([commentId, sid])
+  @@index([commentId, userId])
   @@index([workspaceId, docId, updatedAt])
   @@index([userId])
   @@map("replies")
@@ -5026,6 +5029,8 @@ model McpResourceOperation {
   toolName           String                        @map("tool_name") @db.VarChar(64)
   idempotencyKey     String                        @map("idempotency_key") @db.VarChar(256)
   requestFingerprint String                        @map("request_fingerprint") @db.VarChar(64)
+  resourceKind       String?                       @map("resource_kind") @db.VarChar(32)
+  resourceId         String?                       @map("resource_id") @db.VarChar
   documentId         String?                       @map("document_id") @db.VarChar
   folderId           String?                       @map("folder_id") @db.VarChar
   parentId           String?                       @map("parent_id") @db.VarChar
@@ -5039,6 +5044,7 @@ model McpResourceOperation {
   credential         McpCredential                 @relation(fields: [credentialId, credentialFamilyId, actorId, workspaceId], references: [id, familyId, userId, workspaceId], onDelete: NoAction)
   events             McpResourceOperationEvent[]
   externalDocuments  McpResourceExternalDocument[]
+  documentUpload     McpDocumentUpload?
 
   @@unique([workspaceId, actorId, credentialFamilyId, toolName, idempotencyKey], map: "mcp_resource_operation_identity")
   @@unique([id, workspaceId, credentialFamilyId, documentId])
@@ -6049,4 +6055,74 @@ model AiWorkspaceEmbeddingTask {
   @@id([workspaceId, kind, resourceId])
   @@index([workspaceId, status])
   @@map("ai_workspace_embedding_tasks")
+}
+
+// Staged bytes belong to one immutable MCP operation and credential family.
+// Completed/aborted manifests remain as evidence; staged bytes are disposable.
+model McpDocumentUpload {
+  id           String @id @db.VarChar
+  operationId  String @unique @map("operation_id") @db.VarChar
+  mimeType     String @map("mime_type") @db.VarChar(256)
+  totalBytes   Int @map("total_bytes")
+  fingerprint  String @db.VarChar(64)
+  status       String @default("pending") @db.VarChar(32)
+  blobId       String? @map("blob_id") @db.VarChar
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  operation    McpResourceOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  parts        McpDocumentUploadPart[]
+
+  @@index([status, expiresAt])
+  @@map("mcp_document_uploads")
+}
+
+model McpDocumentUploadPart {
+  uploadId String @map("upload_id") @db.VarChar
+  number   Int
+  bytes    Bytes
+  upload   McpDocumentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@id([uploadId, number])
+  @@map("mcp_document_upload_parts")
+}
+
+// Versions include writes from GraphQL, MCP and direct model calls via DB triggers.
+model DocumentCommentState {
+  workspaceId String @map("workspace_id") @db.VarChar
+  kind String @db.VarChar(16)
+  resourceId String @map("resource_id") @db.VarChar
+  version BigInt @default(0)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, kind, resourceId])
+  @@map("document_comment_states")
+}
+
+model DocumentEventOutbox {
+  id String @id @db.VarChar
+  workspaceId String @map("workspace_id") @db.VarChar
+  payload Json @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lastError String? @map("last_error") @db.VarChar(64)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([nextAttemptAt, createdAt])
+  @@map("document_event_outbox")
+}
+
+model DocumentObjectStage {
+  storageKey String @id @map("storage_key") @db.VarChar
+  workspaceId String @map("workspace_id") @db.VarChar
+  docId String? @map("doc_id") @db.VarChar
+  blobId String @map("blob_id") @db.VarChar
+  byteSize Int @map("byte_size")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@index([workspaceId])
+  @@map("document_object_stages")
 }

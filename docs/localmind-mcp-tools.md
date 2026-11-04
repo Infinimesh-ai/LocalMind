@@ -349,5 +349,165 @@ Canvas documents report `contentWritable: false`; body replacement fails with
 `unsupported_document_kind`. A mode change invalidates a previously read
 document version and may instead return `version_conflict`. Title updates remain
 available under their existing permissions and version checks.
-Direct tools never create Projects, import/publish Project resources, change ACL,
+These v1 tools never create Projects, import/publish Project resources, change ACL,
 delete resources, or expose internal arbitrary-tool execution.
+
+## Native document tools (v2)
+
+These 18 tools use `contractVersion: "localmind-document-mcp/v2"` and the same
+`structuredContent.result` envelope. They are additional, individually granted
+capabilities under `LOCALMIND_MCP_RESOURCES_ENABLED`. Native v2 writes additionally
+require `LOCALMIND_MCP_DOCUMENT_EDITING_ENABLED=true` (default false). Turning off
+only this second flag retains authorized reads, previews and receipt queries;
+v1 and delegated capabilities keep their existing switches. The server derives the
+Workspace and actor from the credential. No tool accepts an alternate actor or
+executes a model. The v1 tools above retain their compatibility contract.
+
+| Tool                              | Purpose and required version inputs                                                                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace_doc_inspect`           | Native blocks or version-bound Office state/file chunks; `resource: {kind, id}`, optional `expectedVersion`, `offset`, `limit`                        |
+| `workspace_doc_edit_preview`      | Validate the same request as apply, without publishing content, metadata, comments, history or notifications; returns `digest` and planned identities |
+| `workspace_doc_apply`             | Apply a typed native batch with `expectedVersion`, `idempotencyKey`, optional `planDigest`                                                            |
+| `workspace_doc_create_native`     | Create an independent BlockSuite, Office or WorkspaceFile resource at an explicit destination                                                         |
+| `workspace_doc_import`            | Import an authorized Blob in its native resource format, or restore a signed `native-bundle` with its proof                                           |
+| `workspace_doc_export`            | Read `native-content` or a version-bound `native-bundle` in bounded chunks                                                                            |
+| `workspace_doc_duplicate`         | Copy within the credential Workspace, with explicit destination and comment policy; checks source copy and target creation rights                     |
+| `workspace_doc_properties_update` | Title, icon, tags, mode and declared custom properties, with both content and metadata versions                                                       |
+| `workspace_doc_history_list`      | List immutable resource revisions/history with bounded pagination                                                                                     |
+| `workspace_doc_history_read`      | Read a selected historical version under current access permissions                                                                                   |
+| `workspace_doc_history_restore`   | Create a new commit from history against the current version; never overwrite evidence                                                                |
+| `workspace_doc_asset_read`        | Read an authorized Blob with resource context, version, byte offset and fingerprint                                                                   |
+| `workspace_doc_asset_upload`      | Begin, part, status, commit or abort a bounded upload; scope includes resource, user and credential family                                            |
+| `workspace_doc_comments_read`     | Read version-bound threads or replies, including attached/orphaned anchor state                                                                       |
+| `workspace_doc_comments_apply`    | Create, edit, resolve, reopen or delete threads/replies, with content and comments versions                                                           |
+| `workspace_doc_lifecycle`         | Explicit trash, restore or permanent deletion; first inspect `view: "lifecycle"` with the same action                                                 |
+| `workspace_doc_access_read`       | Read document sharing/membership or the inherited-directory policy for native resources                                                               |
+| `workspace_doc_access_update`     | Explicit BlockSuite document sharing, member, default-role or ownership changes; each operation checks its own management ACL                         |
+
+`resource.kind` is `blocksuite`, `office` or `file`. Asset upload additionally
+accepts `{kind: "workspace", id: "<endpoint Workspace ID>"}` with
+`expectedVersion: "workspace-staging/v1"`, under Workspace create/blob permissions.
+This allows the first file or Office import without creating a placeholder page.
+Use `status` with the upload ID and a fresh idempotency key to recover the exact
+received part numbers and byte count; upload identity remains bound to the actor
+and credential family. Native Office/file resources
+inherit their existing directory access contract; this API does not invent an
+independent ACL for them. Use `workspace_operation_get` to reconcile an uncertain
+write. A successful or failed terminal receipt is immutable. Reuse the original
+key and identical request after a lost response or `needs_reconciliation`; do
+not create a duplicate resource as recovery. Changed input requires a new key.
+
+### Native command and preservation contract
+
+BlockSuite commands address existing block/element/row/column IDs. New IDs use
+`clientRef`; subsequent commands refer to them as `$<clientRef>`. Each command
+has a unique `opId`; coordinates are evaluated sequentially after preceding
+commands. Text offsets are UTF-16 offsets restricted to grapheme boundaries.
+Read `adapterManifest` and per-block `capabilities.properties` from inspect:
+editable fields, dedicated domain operations, source evidence and opaque fields
+are distinguished. Diagnostics name unsupported schema versions or opaque fields
+without discarding them. The browser registry test checks all 29 current block
+models, seven surface kinds, and the LocalMind database extensions.
+
+The native command families cover text splice/format, split/merge/type conversion,
+block properties/creation/move/delete, table axes and rectangular cells, database
+columns/rows/cells/views, typed references/assets, and canvas elements, strokes,
+connectors, groups, frames and mindmaps. Database attachments and members use
+`database.cell.files.set` and `database.cell.members.set`; creation evidence is
+server-maintained. Mindmap styles and layout share the editor implementation;
+shape bounds remain explicit native geometry, with no server-side font guessing.
+AI-chat/session and transcription-job provenance is retained; transcript content
+in its native child blocks remains editable. The current document model has no
+independent cover field; one is not fabricated in the MCP metadata schema.
+
+`markdown.rewrite` compiles a selected subtree into these same native commands.
+Supply `parentId`, `selectedBlockIds`, `mode`, `markdown`, `marksPolicy`, and
+`mappings: [{path, blockId, rowIds?, columnIds?}]`. Paths identify projected
+Markdown nodes, not positions in the stored document. A mapped table requires
+explicit row/column IDs; `null` creates an axis. `update_preserve` retains omitted
+objects; `replace_selected` explicitly replaces the selected contiguous scope.
+Unknown formatting and comment markers on surviving characters stay intact.
+Code fences and inline code stay literal. Unsupported HTML/inline objects,
+unrepresentable per-column alignment or ambiguous mapping fail before commit.
+Use native commands for structures that Markdown cannot represent.
+
+`workspace_doc_apply` can additionally include:
+
+```json
+{
+  "metadata": {
+    "expectedMetadataVersion": "<inspect.metadata.version>",
+    "properties": { "title": "Updated title" }
+  },
+  "comments": {
+    "expectedCommentsVersion": "<comments-read version>",
+    "commands": [
+      {
+        "opId": "new-thread",
+        "type": "comment.create",
+        "clientRef": "thread",
+        "content": {
+          "version": "localmind-blocksuite-comment/v1",
+          "paragraphs": [[{ "insert": "Review this change" }]]
+        },
+        "anchor": { "kind": "document" }
+      }
+    ]
+  }
+}
+```
+
+Omit unused companions; a supplied comments array must contain a valid command.
+Each companion requires its own credential capability and live ACL. Body,
+metadata, comments, directory changes associated with the operation, revision,
+receipt and notification outbox commit in one database transaction. A comment
+anchor may refer to a newly created `$clientRef`; returned comment identities use
+`comment:<clientRef>`. Previews return stable planned IDs without writing.
+
+Office apply accepts the product's strict `localmind-office-command-batch/v1`
+with `source: "user"`, matching artifact and expected revision. It uses the native
+DOCX/XLSX/PPTX/PDF engines and retains independent stored-state fields. Positional
+identity ambiguity with opaque state fails with `preservation_failed`; it never
+moves annotations or unknown fields onto a guessed object. PDF visual overlays
+and signature appearances retain the native engine's declared limitations and
+are not represented as secure content removal or digital signatures.
+
+File apply supports byte-preserving text splices, JSON structural edits, CSV
+cells/axes, or explicit whole-file replacement from an authorized Blob. Untouched
+encoding, BOM, newlines and lexical formatting are retained by the file engine.
+Office packages, native file revisions and BlockSuite pages remain separate
+resource models throughout import, editing, duplication and history restore.
+
+### Completeness, archives and resource limits
+
+Pagination binds content, comments, access or archive versions as applicable.
+Never treat `scopeCoverage: "paginated"` as the complete document. Native fields
+not interpreted by the current adapter remain in the stored document and signed
+bundle; they are not arbitrary patch paths. References are not expanded into
+private target contents. A preview digest also binds referenced resource/member
+versions; dependency drift returns `plan_stale` and requires another preview.
+
+A native bundle retains native content, independently stored Office state,
+metadata/definitions, assets, comments and comment attachments. It carries an
+instance signature; unsigned arbitrary Yjs/metadata is not an import format.
+Restore currently targets the same Workspace on the signing instance. Another
+member must have current source copy/read permissions; provenance remains the
+original author's. New resource and global comment IDs are returned as explicit
+mappings; local block IDs retain document-local identity. ACLs are not copied.
+Definition drift and missing author/asset identities are explicit failures.
+Cross-format lossy conversion is not advertised as a native round trip.
+
+Current bounded limits include 1,000 native commands (10,000 compiled commands),
+200 inspect items per page, an 8 MiB inspect response, 32 MiB archive/asset reads,
+512 KiB upload parts, eight pending uploads/32 MiB per actor and sixteen/64 MiB
+per Workspace. Pending uploads expire after 24 hours. Physical object staging
+uses an independent durable journal (256 unreferenced objects/256 MiB per
+Workspace), with delayed, reference-aware cleanup and retry on storage failure.
+The database commit does not claim to atomically commit external storage bytes.
+Comment notifications use an outbox, bounded recipient continuation and durable
+per-recipient delivery identity. Retrying delivery does not recreate notifications
+or reset read state; recipient ACL is checked again at delivery time.
+
+Implementation and observed acceptance results are recorded in
+[the v2 execution record](./ai-modernization/mcp-document-full-editing.execution.zh-CN.md).
+These source contracts do not indicate that a running deployment has been upgraded.

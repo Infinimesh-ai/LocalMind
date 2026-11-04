@@ -194,7 +194,17 @@ export class Bound implements IBound {
     return new Bound(x - width / 2, y - height / 2, width, height);
   }
 
-  static fromDOMRect({ left, top, width, height }: DOMRect) {
+  static fromDOMRect({
+    left,
+    top,
+    width,
+    height,
+  }: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }) {
     return new Bound(left, top, width, height);
   }
 

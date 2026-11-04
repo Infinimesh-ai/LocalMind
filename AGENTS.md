@@ -239,10 +239,20 @@ LocalMind AI 的关键不变量：
 
 公开 Workspace MCP 的直接资源能力以
 `docs/ai-modernization/mcp-direct-resource-tools-design.zh-CN.md` 为产品契约；接入、参数与恢复
-流程见 `docs/localmind-mcp.md`、`docs/localmind-mcp-tools.md`。10 个直接资源工具与原有
-3 个委托工具独立授权，`LOCALMIND_MCP_RESOURCES_ENABLED` 默认关闭。直接操作不进入 AI
+流程见 `docs/localmind-mcp.md`、`docs/localmind-mcp-tools.md`。10 个 v1 直接资源工具、18 个 v2 原生文档工具与原有
+3 个委托工具独立授权；v2 契约及验证见
+`docs/ai-modernization/mcp-document-full-editing-plan.zh-CN.md` 与
+`docs/ai-modernization/mcp-document-full-editing.execution.zh-CN.md`。`LOCALMIND_MCP_RESOURCES_ENABLED`
+与独立的 v2 写入开关 `LOCALMIND_MCP_DOCUMENT_EDITING_ENABLED` 均默认关闭。直接操作不进入 AI
 运行时；文档事务、版本检查和目录操作位于 `src/core/doc/`，持久回执位于 `src/models/`。
 扩充公开能力不得扩大旧凭据或委托任务冻结快照；关闭功能仍保留已授权的回执查询。
+
+MCP 文档完整编辑的 v2 契约见
+`docs/ai-modernization/mcp-document-full-editing-plan.zh-CN.md`：在身份实时 ACL 与
+凭据授权范围内，以原生结构化操作覆盖文档编辑，保留未修改内容、身份、格式和批注；
+空段落或复杂块不得阻断无关的合法编辑。Markdown 作为有完整性说明的投影，
+不得承担全部原生文档的无损存储。该方案已进入源码实施，逐项验证以实施记录为准；v1 能力及
+生产状态仍以兼容契约和实际部署为准，不据此自动扩张旧凭据或冻结任务。
 
 ---
 

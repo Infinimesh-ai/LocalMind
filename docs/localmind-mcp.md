@@ -5,7 +5,7 @@ one MCP endpoint. Prepared Markdown and explicit document/folder operations use
 the direct tools without a model, BYOK, AI session, task, or callback. Natural-language
 work explicitly delegated to LocalMind continues through its Agent Runtime.
 
-The ten direct tools require `LOCALMIND_MCP_RESOURCES_ENABLED=true` (default false)
+The ten v1 direct tools and eighteen v2 native document tools require `LOCALMIND_MCP_RESOURCES_ENABLED=true` (default false)
 and explicit credential capabilities. The existing three delegation tools and
 historical credential defaults are unchanged. Receipt lookup remains available
 to authorized credentials when the direct feature is disabled.
@@ -14,6 +14,21 @@ A Simplified Chinese guide is available at
 [LocalMind MCP Chinese Guide](./localmind-mcp.zh-CN.md). The exact tool schema
 and callback contract are in
 [LocalMind MCP Tool Reference](./localmind-mcp-tools.md).
+
+## Native document editing
+
+The v2 contract is `localmind-document-mcp/v2`. Use `workspace_doc_inspect` followed
+by `workspace_doc_edit_preview` and `workspace_doc_apply` for existing complex
+BlockSuite documents, native Office resources, and WorkspaceFile resources.
+The original Markdown v1 tools keep their declared subset; v2 never reconstructs
+an entire existing document from Markdown. Empty paragraphs are ordinary editable
+native blocks. Read the tool reference for typed commands, identity mapping,
+atomic metadata/comment companions, version-bound pagination and recovery.
+
+New credentials can explicitly select the versioned document-editing preset.
+Lifecycle and access administration remain separately selected capabilities.
+Rotation preserves existing grants; old credentials and frozen delegated tasks do
+not acquire any v2 capability. These source changes do not upgrade running servers.
 
 ## Scoped resource tools and authorization
 
@@ -28,14 +43,14 @@ checkpoint remains unconfirmed unless a persisted result proves its outcome.
 
 ## Connection Contract
 
-| Setting        | Value                                                    |
-| -------------- | -------------------------------------------------------- |
-| Transport      | Stateless Streamable HTTP with JSON responses            |
-| Endpoint       | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp` |
-| Method         | `POST`                                                   |
-| Authentication | `Authorization: Bearer <MCP_TOKEN>`                      |
-| Server         | `localmind-ai` version `3.5.0`                           |
-| Tools          | Delegation, task query, and cancel control               |
+| Setting        | Value                                                                          |
+| -------------- | ------------------------------------------------------------------------------ |
+| Transport      | Stateless Streamable HTTP with JSON responses                                  |
+| Endpoint       | `<LOCALMIND_BASE_URL>/api/workspaces/<WORKSPACE_ID>/mcp`                       |
+| Method         | `POST`                                                                         |
+| Authentication | `Authorization: Bearer <MCP_TOKEN>`                                            |
+| Server         | `localmind-ai` version `3.5.0`                                                 |
+| Tools          | 3 delegation + 10 v1 resource + 18 v2 document tools, filtered by capabilities |
 
 The token and endpoint are bound to one workspace. A token issued for one
 workspace cannot be used on another workspace endpoint.
@@ -364,3 +379,7 @@ returns `delegate_to_localmind`, `get_localmind_task`, and
 - Missing terminal notification: query the task, then check the receiver's HMAC
   validation and replay protection plus LocalMind's bounded delivery retries.
 - MCP `405`: the stateless MCP endpoint accepts `POST`, not `GET` or `DELETE`.
+
+原生文档 v2 写入还需设置 `LOCALMIND_MCP_DOCUMENT_EDITING_ENABLED=true`，默认关闭。
+它独立于 `LOCALMIND_MCP_RESOURCES_ENABLED`；单独关闭 v2 写入开关仍保留已有授权的
+读取、预检及回执查询，不修改旧凭据或委托任务能力。

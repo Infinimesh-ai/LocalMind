@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { JobQueue, OnJob } from '../../base';
 import { CommentNotificationBody, Models } from '../../models';
+import { PermissionAccess } from '../permission';
 import { NotificationService } from './service';
 
 declare global {
@@ -31,6 +32,7 @@ declare global {
       workspaceId: string;
     };
     'notification.sendComment': {
+      deliveryKey?: string;
       userId: string;
       isMention?: boolean;
       body: CommentNotificationBody;
@@ -43,7 +45,8 @@ export class NotificationJob {
   constructor(
     private readonly models: Models,
     private readonly service: NotificationService,
-    private readonly queue: JobQueue
+    private readonly queue: JobQueue,
+    private readonly ac: PermissionAccess
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
@@ -177,13 +180,25 @@ export class NotificationJob {
     userId,
     isMention,
     body,
+    deliveryKey,
   }: Jobs['notification.sendComment']) {
+    if (
+      deliveryKey &&
+      !(await this.ac
+        .user(userId)
+        .workspace(body.workspaceId)
+        .doc(body.doc.id)
+        .projectScope(null)
+        .can('Doc.Comments.Read'))
+    )
+      return;
     await this.service.createComment(
       {
         userId,
         body,
       },
-      isMention
+      isMention,
+      deliveryKey
     );
   }
 }

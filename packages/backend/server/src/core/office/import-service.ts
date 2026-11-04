@@ -32,9 +32,13 @@ const MAX_IMPORT_FIELD_LENGTH = 1024;
 
 export type ImportOfficeArtifactInput = OfficeOwnerInput & {
   actorId: string;
+  /** Reserved by the resource transaction before creation. */
+  artifactId?: string;
   sourceBlobKey: string;
   /** Internal generator bytes prove ownership without borrowing a deduplicated file reference. */
   generatedBytes?: Buffer;
+  /** Domain copy only: retain the original package's independently stored editor state. */
+  trustedState?: { bytes: Buffer; modelVersion: string };
   title: string;
   sourceFileName: string;
   importIdempotencyKey: string;
@@ -254,7 +258,11 @@ export class OfficeImportService {
         contentLength: sourceBytes.byteLength,
       }
     );
-    const stateBytes = Buffer.from(JSON.stringify(semanticState), 'utf8');
+    const stateBytes =
+      input.trustedState?.bytes ??
+      Buffer.from(JSON.stringify(semanticState), 'utf8');
+    const modelVersion =
+      input.trustedState?.modelVersion ?? policy.modelVersion;
     if (
       !stateBytes.byteLength ||
       stateBytes.byteLength > policy.maxStateBytes
@@ -283,11 +291,12 @@ export class OfficeImportService {
       type: input.generation ? 'ai_create' : 'import',
       ...(input.generation ? { generation: input.generation } : {}),
       engine: policy.engine,
-      modelVersion: policy.modelVersion,
+      modelVersion,
       stats: officeStateStats(semanticState),
     } satisfies Prisma.InputJsonObject;
     const trustedImportFingerprint = officeJsonFingerprint({
       version: 'localmind-office-import/v1',
+      ...(input.artifactId ? { artifactId: input.artifactId } : {}),
       format: policy.format,
       ...officeOwnerToInput(owner),
       actorId,
@@ -300,7 +309,7 @@ export class OfficeImportService {
       sourceByteSize: sourceBytes.byteLength,
       sourceFingerprint,
       stateFingerprint,
-      modelVersion: policy.modelVersion,
+      modelVersion,
       ...(typeof owner === 'string'
         ? {}
         : { parentId: input.parentId ?? null }),
@@ -309,6 +318,7 @@ export class OfficeImportService {
       this.models.officeArtifact.createOrReuseImported({
         ...officeOwnerToInput(owner),
         actorId,
+        artifactId: input.artifactId,
         kind: policy.kind,
         title,
         sourceFileName,
@@ -323,7 +333,7 @@ export class OfficeImportService {
           byteSize: stateBytes.byteLength,
           fingerprint: stateFingerprint,
         },
-        modelVersion: policy.modelVersion,
+        modelVersion,
         importIdempotencyKey,
         importFingerprint: trustedImportFingerprint,
         compatibility,
