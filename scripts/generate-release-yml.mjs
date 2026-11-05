@@ -24,7 +24,11 @@ const generateYml = platform => {
       ? new RegExp(`.(${releaseFiles.join('|')})$`)
       : new RegExp(`.+-${platform}-.+.(${releaseFiles.join('|')})$`);
 
-  const files = fs.readdirSync(releaseDir).filter(file => regex.test(file));
+  // Windows installers are manual downloads until the client verifies the
+  // pinned release-manifest key before downloading or executing an update.
+  const files = fs
+    .readdirSync(releaseDir)
+    .filter(file => regex.test(file) && !file.includes('-windows-'));
   const outputFileName = filenamesMapping[platform];
 
   console.info(`Release content for ${platform}:`);

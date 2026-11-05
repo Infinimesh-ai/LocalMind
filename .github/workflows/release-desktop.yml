@@ -219,6 +219,76 @@ jobs:
           name: localmind-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
           path: builds
 
+  verify-windows:
+    if: ${{ inputs.desktop_windows }}
+    needs: build-windows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          architecture: ${{ matrix.arch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: localmind-win32-${{ matrix.arch }}-builds
+          path: builds
+      - name: Extract packaged Windows app
+        shell: pwsh
+        run: |
+          Expand-Archive -Path (Get-Item builds/*.zip).FullName -DestinationPath smoke-app
+      - name: Verify packaged editor and persistence
+        run: node scripts/desktop-release-smoke.mjs smoke-app smoke-evidence "${{ inputs.app-version }}" "${{ inputs.build-type }}" "${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: desktop-smoke-windows-${{ matrix.arch }}
+          path: smoke-evidence
+          if-no-files-found: error
+
+  verify-linux:
+    if: ${{ inputs.desktop_linux }}
+    needs: make-distribution-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: localmind-linux-x64-builds
+          path: builds
+      - name: Prepare packaged Linux app
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64
+          unzip -q builds/*.zip -d smoke-app
+          sudo chown root:root smoke-app/chrome-sandbox
+          sudo chmod 4755 smoke-app/chrome-sandbox
+          dpkg-deb --info builds/*.deb
+          dpkg-deb --contents builds/*.deb > deb-contents.txt
+      - name: Verify packaged editor and persistence
+        run: xvfb-run -a node scripts/desktop-release-smoke.mjs smoke-app smoke-evidence "${{ inputs.app-version }}" "${{ inputs.build-type }}" x64
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: desktop-smoke-linux-x64
+          path: |
+            smoke-evidence
+            deb-contents.txt
+          if-no-files-found: error
+
   release:
     if: >-
       ${{
@@ -227,7 +297,9 @@ jobs:
         needs.before-make.result == 'success' &&
         (!inputs.desktop_macos || needs.make-distribution-macos.result == 'success') &&
         (!inputs.desktop_linux || needs.make-distribution-linux.result == 'success') &&
-        (!inputs.desktop_windows || needs.build-windows.result == 'success')
+        (!inputs.desktop_windows || needs.build-windows.result == 'success') &&
+        (!inputs.desktop_windows || needs.verify-windows.result == 'success') &&
+        (!inputs.desktop_linux || needs.verify-linux.result == 'success')
       }}
     needs:
       [
@@ -235,6 +307,8 @@ jobs:
         make-distribution-macos,
         make-distribution-linux,
         build-windows,
+        verify-windows,
+        verify-linux,
       ]
     runs-on: ubuntu-latest
 

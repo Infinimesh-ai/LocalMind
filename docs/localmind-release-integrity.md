@@ -87,3 +87,14 @@ does not yet enforce the Ed25519 release manifest. Before unsigned Windows
 installers are offered through automatic update, the trusted LocalMind public
 key must be pinned in the desktop client and manifest verification must fail
 closed before download execution or installer launch.
+
+Until that client verification is implemented, generated updater metadata
+excludes Windows artifacts. Windows ZIP, Squirrel and NSIS files remain available
+as manual downloads covered by the signed release manifest.
+
+Windows x64, Windows ARM64 and Linux x64 desktop releases also require a packaged
+ZIP smoke check on the matching runner architecture. This checks the release
+version/channel, editor startup, a document edit, normal shutdown and persistence
+after restarting the same packaged executable. CI retains the result and
+screenshots. This gate does not claim installer UI, Linux distribution or
+hardware compatibility beyond the tested runner.

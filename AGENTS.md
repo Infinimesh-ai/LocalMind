@@ -412,6 +412,10 @@ Prisma Client 和 native addon。同步只更新容器，不更新镜像；重�
 验证强度按风险和影响面扩展。优先运行能证明改动的最小检查，再根据共享协议、
 状态机、数据库或用户工作流的影响增加覆盖。
 
+Windows x64、Windows ARM64 和 Linux x64 桌面发行还需在对应架构的 runner 上验证
+正式封装 ZIP 的启动、版本/通道、文档编辑、正常退出及重启恢复；通过后才生成 Release。
+发行完整性与 Windows 手动下载边界见 `docs/localmind-release-integrity.md`。
+
 ### 7.1 文档变更
 
 文档改动不需要构建 Docker 镜像：
