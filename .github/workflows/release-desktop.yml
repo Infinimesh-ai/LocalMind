@@ -199,7 +199,11 @@ jobs:
       - name: Make nsis.windows installer
         run: yarn affine @affine/electron make-nsis --platform=${{ matrix.spec.platform }} --arch=${{ matrix.spec.arch }}
 
+      - name: Make Windows ZIP
+        run: yarn affine @affine/electron make --skip-package --targets=@electron-forge/maker-zip --platform=${{ matrix.spec.platform }} --arch=${{ matrix.spec.arch }}
+
       - name: Save artifacts
+        shell: bash
         run: |
           mkdir -p builds
           mv packages/frontend/apps/electron/out/*/make/zip/win32/${{ matrix.spec.arch }}/LocalMind*-win32-${{ matrix.spec.arch }}-*.zip ./builds/localmind-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.zip
@@ -274,12 +278,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64
           unzip -q builds/*.zip -d smoke-app
-          sudo chown root:root smoke-app/chrome-sandbox
-          sudo chmod 4755 smoke-app/chrome-sandbox
+          smoke_product_name=LocalMind
+          if [ "$BUILD_TYPE" != stable ]; then
+            smoke_product_name="LocalMind-$BUILD_TYPE"
+          fi
+          smoke_app_dir="smoke-app/$smoke_product_name-linux-x64"
+          echo "SMOKE_APP_DIR=$smoke_app_dir" >> "$GITHUB_ENV"
+          sudo chown root:root "$smoke_app_dir/chrome-sandbox"
+          sudo chmod 4755 "$smoke_app_dir/chrome-sandbox"
           dpkg-deb --info builds/*.deb
           dpkg-deb --contents builds/*.deb > deb-contents.txt
       - name: Verify packaged editor and persistence
-        run: xvfb-run -a node scripts/desktop-release-smoke.mjs smoke-app smoke-evidence "${{ inputs.app-version }}" "${{ inputs.build-type }}" x64
+        run: xvfb-run -a node scripts/desktop-release-smoke.mjs "$SMOKE_APP_DIR" smoke-evidence "${{ inputs.app-version }}" "${{ inputs.build-type }}" x64
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
