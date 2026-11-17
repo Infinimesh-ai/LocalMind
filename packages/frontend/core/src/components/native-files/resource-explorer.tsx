@@ -68,6 +68,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { combineLatest, map, of } from 'rxjs';
 
 import { PlainTextDocGroupHeader } from '../explorer/docs-view/group-header';
 import { resourceSortFields } from '../explorer/resource-preferences';
@@ -77,6 +78,7 @@ import {
   useReportDeckEntryAvailable,
 } from '../report-deck-entry';
 import { WorkspaceCreateMenu } from './create-menu';
+import { combineDocMetadata } from './doc-metadata';
 import { LifecycleActions } from './lifecycle-actions';
 import { dragNativeResource, NativeResourceDropTarget } from './resource-drag';
 import * as styles from './resource-explorer.css';
@@ -504,17 +506,28 @@ export function WorkspaceResourceExplorer({
   const docMetadata = useLiveData(
     useMemo(
       () =>
-        LiveData.computed(get =>
+        LiveData.from(
           resourceDisplay
-            ? get(docs.docs$).map(doc => ({
-                id: doc.id,
-                meta: get(doc.meta$),
-                title: get(displayMeta.title$(doc.id)),
-                createdBy: get(doc.createdBy$),
-                event: get(doc.displayUpdate$),
-                mode: get(doc.primaryMode$),
-              }))
-            : []
+            ? combineDocMetadata(docs.docs$, doc =>
+                combineLatest([
+                  doc.meta$,
+                  displayMeta.title$(doc.id),
+                  doc.createdBy$,
+                  doc.displayUpdate$,
+                  doc.primaryMode$,
+                ]).pipe(
+                  map(([meta, title, createdBy, event, mode]) => ({
+                    id: doc.id,
+                    meta,
+                    title,
+                    createdBy,
+                    event,
+                    mode,
+                  }))
+                )
+              )
+            : of([]),
+          []
         ),
       [docs, displayMeta, resourceDisplay]
     )

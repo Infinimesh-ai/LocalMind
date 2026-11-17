@@ -442,3 +442,71 @@ docker exec -w /workspace localmind_hot_web sh -c 'unset NODE_OPTIONS; yarn vite
 
 浏览器复查 11 → 22，目标文件树正常显示，随后复查仍可见且错误日志为空。只修改展示 readiness 及其数据来源，未重建
 镜像或修改业务数据；未改变第 11 节记录的独立网络超时问题的验证结论。
+
+## 13. 2026-11-17 冷启动「全部文档」页主线程冻结排查
+
+生产环境（`localmind-affine:local`，Web）用户反馈打开网页加载卡顿。本节只记录排查证据，
+尚未修改源码。
+
+### 13.1 测量结果
+
+| 指标                                    | 冷启动（清空站点 IndexedDB） | 热启动（本地已缓存） |
+| --------------------------------------- | ---------------------------- | -------------------- |
+| HTML / 首屏 JS（br 压缩 ≈3 MB）         | DCL 0.3–1.3 s                | DCL 0.3–0.4 s        |
+| 服务端 HTTP（2 h 窗口，≈1000 请求）     | p50 8 ms，p95 24 ms          | 同左                 |
+| root 文档远端同步完成                   | 1.7 s                        | 1.7 s                |
+| 全部文档（≈300）远端同步完成            | 31 s（≈10 篇/s，串行）       | 2.6 s                |
+| 单篇 `space:load-doc` 往返（80 篇样本） | 中位 70 ms，p90 78 ms        | —                    |
+| 主线程最长任务（「全部文档」页）        | 6.9–7.4 s（5 次复现）        | 未出现               |
+| 同一更新落在单篇文档页时的观察者总耗时  | 9 ms，无长任务               | —                    |
+
+冻结发生在 Worker 推送 `db$docProperties` 文档更新（≈730 KB）时：一次事务变更 302 行，
+`YjsTableAdapter.observe` 注册了 296 个 `afterTransaction` 观察者（每篇文档的
+`DocRecord.properties$`），单个回调中位 20 ms，合计 6954 ms。该 Yjs 文档仅 302 行、
+5 个字段，却含 58,332 个 item，其中 57,312 个为删除项（615 个客户端）；无观察者时
+直接 apply 为 157 ms（浏览器）/ 438 ms（Node）。
+
+### 13.2 根因
+
+`components/native-files/resource-explorer.tsx` 的 `docMetadata` 使用
+`LiveData.computed` 遍历全部文档并读取 `createdBy$`、`primaryMode$`、`displayUpdate$`、
+`title$` 等。`LiveData.computed` 每次任一依赖变化都会同步退订全部依赖、重新执行并重新订阅。
+冷启动时 docProperties 逐行触发 296 次回调，每次都对约 300 篇文档重建订阅，形成
+O(n²) 的同步计算并阻塞主线程约 7 秒。热启动时 docProperties 在 UI 订阅前已从本地读出，
+不触发该风暴。
+
+次要观察：
+
+- 冷启动全量同步按文档串行往返（`DocSyncPeer.retryLoop`），≈300 篇需约 30 s；
+  root 文档有优先级，不阻塞首屏。
+- docProperties 历史删除项膨胀约 57 倍，放大 apply 与传输成本。
+- 带 hash 的静态资源返回 `cache-control: public, max-age=0`，每次需重新验证。
+- 主机 4 GB swap 已满，但主要被非 LocalMind 进程占用；采样期间无换页，CPU 空闲约 90%。
+
+### 13.3 测量方法
+
+- 浏览器：在同源 iframe 中加载目标页面，于 `window.Y` 就绪时包装
+  `ObservableV2.prototype.emit('afterTransaction')` 统计每个监听器耗时；以
+  `PerformanceObserver`（`longtask`、`long-animation-frame`）记录长任务与入口脚本；
+  每轮前删除该 Workspace 的站点 IndexedDB 以模拟冷启动。
+- 同步往返：页面内建立 socket.io（EIO=4）连接，`space:join` 后依次 `space:load-doc`。
+- 服务端：`docker logs --since 2h` 的结构化事件按 `http.request.completed.durationMs`
+  与前端 `workspace switch phase` 聚合；PostgreSQL `snapshots`/`updates` 统计体量。
+
+### 13.4 修复与本地验证
+
+`docMetadata` 改为 `combineDocMetadata(docs.docs$, project)`：文档列表变化时为每篇文档
+建立一次 `combineLatest` 订阅，单篇属性变化只重新合并列表，不再重建其余订阅。
+`LiveData.computed` 语义、其他使用方与 docProperties 存储格式均未改变。
+
+本地基准（vitest，真实 `@toeverything/infra` `LiveData`，每篇文档依赖与原实现相同的
+五个流，逐行推送 createdBy 与 primaryMode）：
+
+| 文档数 | 旧实现（computed） | 新实现（combineDocMetadata） |
+| ------ | ------------------ | ---------------------------- |
+| 100    | 730.4 ms           | 0.4 ms                       |
+| 300    | 5896.3 ms          | 12.9 ms                      |
+| 600    | 15253.8 ms         | 6.0 ms                       |
+
+两种实现的下游发射次数一致（N=300 时均为 601 次），React 在同一任务内批量渲染。
+上表基准脚本为一次性验证，未提交；`doc-metadata.spec.ts` 保留订阅数线性的回归断言。
